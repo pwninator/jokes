@@ -6,7 +6,43 @@
 
 {% block head_extra %}
 <link rel="canonical" href="{{ canonical_url }}">
+<script>
+(function () {
+  try {
+    const cursor = localStorage.getItem('jokes_feed_cursor');
+    if (cursor && cursor.trim()) {
+      document.documentElement.classList.add('feed-resuming');
+    }
+  } catch (e) {
+    // localStorage may be blocked/unavailable; fall back to normal rendering.
+  }
+})();
+</script>
 <style>
+  /* Returning users: hide server-rendered feed until we resume from localStorage. */
+  .feed-resuming #jokes-feed {
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+  }
+
+  .feed-resume-spinner {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    color: #666;
+    font-size: 1rem;
+  }
+
+  .feed-resume-spinner::after {
+    content: 'Loading your jokes...';
+  }
+
+  .feed-resuming .feed-resume-spinner {
+    display: flex;
+  }
+
   .jokes-header {
     display: flex;
     justify-content: space-between;
@@ -47,6 +83,8 @@
   <hr class="jokes-divider">
 </section>
 
+<div class="feed-resume-spinner" aria-live="polite"></div>
+
 {{ infinite_scroll_feed(
   slug='feed',
   initial_jokes=jokes,
@@ -54,7 +92,7 @@
   initial_has_more=has_more,
   width=image_size,
   feed_id='jokes-feed',
-  cookie_name='jokes_feed_cursor',
+  cursor_storage_key='jokes_feed_cursor',
   end_of_feed_message="You've reached the end! Check back later for more jokes!"
 ) }}
 {% endblock %}

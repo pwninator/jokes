@@ -215,34 +215,36 @@ def test_index_page_renders_jokes_feed(monkeypatch):
                                                           limit=10)
 
 
-def test_index_page_uses_cookie_cursor(monkeypatch):
-  """Test that homepage reads cookie and uses it as initial cursor."""
-  mock_get_joke_feed_page_entries = Mock()
+def test_index_page_includes_resume_bootstrap(monkeypatch):
+  """Test that homepage includes the localStorage resume bootstrap script."""
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
   monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
                       mock_get_joke_feed_page_entries)
 
-  joke = models.PunnyJoke(key="joke1",
-                          setup_text="Setup",
-                          punchline_text="Punchline",
-                          setup_image_url="http://example.com/setup.jpg",
-                          punchline_image_url="http://example.com/punch.jpg")
-  mock_get_joke_feed_page_entries.return_value = ([(joke, "0000000000:9")],
-                                                  "0000000001:5")
-
   with app.test_client() as client:
-    # Set cookie with cursor
-    client.set_cookie('jokes_feed_cursor', '0000000000:9')
     resp = client.get('/')
 
   assert resp.status_code == 200
-  # Should call with cookie cursor
+  html = resp.get_data(as_text=True)
+  assert 'localStorage.getItem' in html
+  assert 'feed-resuming' in html
+  assert 'feed-resume-spinner' in html
+
+
+def test_index_page_respects_cursor_query_param(monkeypatch):
+  """Test that GET /?cursor=X passes cursor through to feed fetch."""
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
+
+  with app.test_client() as client:
+    resp = client.get('/?cursor=0000000005:3')
+
+  assert resp.status_code == 200
   mock_get_joke_feed_page_entries.assert_called_once_with(
-    cursor='0000000000:9',
+    cursor='0000000005:3',
     limit=10,
   )
-  # Route should not set cookies (handled by JavaScript)
-  assert 'Set-Cookie' not in resp.headers or 'jokes_feed_cursor' not in resp.headers.get(
-    'Set-Cookie', '')
 
 
 def test_jokes_load_more_unknown_slug_returns_404():

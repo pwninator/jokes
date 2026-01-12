@@ -788,7 +788,7 @@ def update_joke_feed(jokes: list[dict[str, Any]]) -> None:
 def get_joke_feed_page_entries(
   cursor: str | None = None,
   limit: int = 10,
-) -> tuple[list[tuple[models.PunnyJoke, str]], str | None]:
+) -> tuple[list[tuple[models.PunnyJoke, str | None]], str | None]:
   """Get a page of jokes from the joke_feed collection with per-joke cursors.
 
   Args:
@@ -802,7 +802,9 @@ def get_joke_feed_page_entries(
   Returns:
     Tuple of (entries, next_cursor):
       - entries: List of (PunnyJoke, cursor) pairs, where cursor is the position of
-        that joke in format "doc_id:joke_index".
+        the next joke in the feed (i.e., the cursor to resume after this joke) in
+        format "doc_id:joke_index". The final entry may have cursor None if there
+        is no next joke available.
       - next_cursor: Cursor in format "doc_id:joke_index" representing the next joke
         to return (the first joke of the next page), or None if no more jokes are
         available. This cursor can be used to fetch the next page starting from this joke.
@@ -835,7 +837,7 @@ def get_joke_feed_page_entries(
 
   # Read documents until we have limit + 1 jokes worth of data
   # We'll return only limit jokes, using the extra to determine if there are more
-  entries: list[tuple[models.PunnyJoke, str]] = []
+  entries: list[tuple[models.PunnyJoke, str | None]] = []
   next_cursor_doc_id: str | None = None
   next_cursor_joke_index: int | None = None
 
@@ -870,13 +872,24 @@ def get_joke_feed_page_entries(
           key=joke_dict.get('key'),
         )
 
-        # If we already have limit jokes, this is the next joke - store as cursor and break
+        joke_position = f"{doc.id}:{joke_index}"
+
+        # If we already have limit jokes, this is the next joke - store as cursor and break.
         if len(entries) == limit:
           next_cursor_doc_id = doc.id
           next_cursor_joke_index = joke_index
+          if entries:
+            # The last returned joke resumes at this next position.
+            last_joke, _ = entries[-1]
+            entries[-1] = (last_joke, joke_position)
           break
 
-        entries.append((joke, f"{doc.id}:{joke_index}"))
+        # Append with placeholder cursor; we'll set each entry's cursor to the next joke's
+        # position once we see the next one.
+        entries.append((joke, None))
+        if len(entries) >= 2:
+          prev_joke, _ = entries[-2]
+          entries[-2] = (prev_joke, joke_position)
       except Exception:  # pylint: disable=broad-except
         # Skip malformed jokes, but continue reading to check if there are more
         continue

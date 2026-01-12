@@ -1,4 +1,4 @@
-{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cookie_name=None, end_of_feed_message=None) -%}
+{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None) -%}
 {% from "components/joke_card.html" import joke_card %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
@@ -70,27 +70,26 @@
     const feedContainer = document.getElementById('{{ feed_id }}');
     const loadingIndicator = document.getElementById('{{ loading_id }}');
     const endOfFeed = document.getElementById('{{ end_of_feed_id }}');
-    const cookieName = {{ cookie_name | tojson if cookie_name else 'null' }};
+    const cursorStorageKey = {{ cursor_storage_key | tojson if cursor_storage_key else 'null' }};
     const apiEndpoint = '/jokes/feed/load-more-{{ slug }}';
 
-    function setCookie(name, value, days) {
-      const expires = new Date();
-      expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-      document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
+    function setLocalStorage(name, value) {
+      try {
+        localStorage.setItem(name, value);
+      } catch (e) {
+        // localStorage may be blocked/unavailable or full; fail silently.
+      }
     }
 
-    function getCookie(name) {
+    function getLocalStorage(name) {
       if (!name) {
         return null;
       }
-      const prefix = `${name}=`;
-      const cookies = document.cookie ? document.cookie.split('; ') : [];
-      for (const cookie of cookies) {
-        if (cookie.startsWith(prefix)) {
-          return cookie.substring(prefix.length);
-        }
+      try {
+        return localStorage.getItem(name);
+      } catch (e) {
+        return null;
       }
-      return null;
     }
 
     function parseCursor(value) {
@@ -125,7 +124,7 @@
     }
 
     function maybeAdvanceCursor(eventTarget) {
-      if (!cookieName) {
+      if (!cursorStorageKey) {
         return;
       }
       const card = eventTarget.closest('[data-feed-cursor]');
@@ -136,9 +135,9 @@
       if (!targetCursor) {
         return;
       }
-      const currentCursor = getCookie(cookieName);
+      const currentCursor = getLocalStorage(cursorStorageKey);
       if (isCursorBefore(currentCursor, targetCursor)) {
-        setCookie(cookieName, targetCursor, 7);
+        setLocalStorage(cursorStorageKey, targetCursor);
       }
     }
 
@@ -243,13 +242,24 @@
     {% else %}
     // Initial jokes provided - use them
     // Always use initial_cursor (which points to the NEXT batch after initial_jokes)
-    // Don't read from cookie here - cookie is only for initial page load on server
-    let nextCursor = {{ initial_cursor | tojson if initial_cursor else 'null' }};
-    let hasMore = {{ initial_has_more | tojson if initial_has_more is not none else (initial_cursor is not none) | tojson }};
+    // Cursor persistence/resume is handled client-side via localStorage.
+    const initialNextCursor = {{ initial_cursor | tojson if initial_cursor else 'null' }};
+    const initialHasMore = {{ initial_has_more | tojson if initial_has_more is not none else (initial_cursor is not none) | tojson }};
+    let nextCursor = initialNextCursor;
+    let hasMore = initialHasMore;
     let isLoading = false;
 
-    if ((!hasMore || !nextCursor) && endOfFeed) {
+    const savedCursor = cursorStorageKey ? getLocalStorage(cursorStorageKey) : null;
+    const isResuming = Boolean(savedCursor) && document.documentElement.classList.contains('feed-resuming');
+
+    if (!isResuming && (!hasMore || !nextCursor) && endOfFeed) {
       endOfFeed.classList.add('active');
+    }
+
+    if (isResuming) {
+      // Prevent the normal infinite-scroll machinery from firing while we resume.
+      nextCursor = null;
+      hasMore = false;
     }
 
     function loadMoreJokes() {
@@ -320,9 +330,94 @@
       threshold: 0
     });
 
+    function enableObserverIfNeeded() {
+      if (hasMore && nextCursor) {
+        observer.observe(sentinel);
+      }
+    }
+
+    function disableObserver() {
+      try {
+        observer.unobserve(sentinel);
+      } catch (e) {
+        // Ignore.
+      }
+    }
+
+    function resumeFromCursor(cursor) {
+      if (!cursor || !feedContainer) {
+        document.documentElement.classList.remove('feed-resuming');
+        return;
+      }
+
+      isLoading = true;
+
+      const url = new URL(apiEndpoint, window.location.origin);
+      url.searchParams.set('cursor', cursor);
+
+      fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Resume fetch failed: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.html) {
+            // Replace the server-rendered jokes (never shown) with resumed jokes.
+            feedContainer.innerHTML = '';
+
+            const temp = document.createElement('div');
+            temp.innerHTML = data.html;
+
+            const cards = temp.querySelectorAll('.joke-card');
+            cards.forEach(card => {
+              feedContainer.appendChild(card);
+              const viewer = card.querySelector('[data-joke-viewer]');
+              if (viewer && window.initJokeViewer) {
+                window.initJokeViewer(viewer);
+              }
+            });
+          }
+
+          nextCursor = data.cursor;
+          hasMore = data.has_more;
+
+          if ((!hasMore || !nextCursor) && endOfFeed) {
+            endOfFeed.classList.add('active');
+            disableObserver();
+          } else {
+            if (endOfFeed) {
+              endOfFeed.classList.remove('active');
+            }
+            enableObserverIfNeeded();
+          }
+
+          document.documentElement.classList.remove('feed-resuming');
+        })
+        .catch(error => {
+          console.error('Error resuming from cursor:', error);
+          // Fallback: show the initial, server-rendered jokes.
+          nextCursor = initialNextCursor;
+          hasMore = initialHasMore;
+          document.documentElement.classList.remove('feed-resuming');
+          if ((!hasMore || !nextCursor) && endOfFeed) {
+            endOfFeed.classList.add('active');
+          }
+          enableObserverIfNeeded();
+        })
+        .finally(() => {
+          isLoading = false;
+        });
+    }
+
     // Observe the sentinel element for reliable scroll detection
-    if (hasMore && nextCursor) {
+    if (!isResuming) {
       observer.observe(sentinel);
+    }
+
+    if (isResuming) {
+      resumeFromCursor(savedCursor);
     }
     {% endif %}
   })();

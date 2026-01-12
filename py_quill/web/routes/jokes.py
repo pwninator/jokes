@@ -16,7 +16,6 @@ from web.utils.responses import html_response
 
 _JOKES_PER_PAGE = 10
 _JOKE_IMAGE_SIZE = 450
-_COOKIE_NAME = 'jokes_feed_cursor'
 _RELATED_JOKES_LIMIT = 20
 
 
@@ -24,16 +23,22 @@ _RELATED_JOKES_LIMIT = 20
 def index_route():
   """Render the jokes feed page as the homepage.
   
-  If a 'jokes_feed_cursor' cookie is present, resumes from that cursor position.
-  Otherwise, starts from the beginning of the feed.
-  """
-  # Read cursor from cookie if present
-  cookie_cursor = flask.request.cookies.get(_COOKIE_NAME)
+  For SEO and first-time user experience, this route always renders an initial
+  page of jokes in the HTML response.
 
-  logger.info(f"Serving jokes feed page from cursor: {cookie_cursor}")
+  Cursor persistence/resume is handled client-side (localStorage + JS fetch),
+  since Firebase Hosting only forwards the '__session' cookie on rewrites.
+
+  Optionally supports a 'cursor' query parameter (e.g. '/?cursor=...') for
+  explicit deep links.
+  """
+  query_cursor = flask.request.args.get('cursor', default=None)
+
+  logger.info(
+    f"Serving jokes feed page from cursor query param: {query_cursor}")
 
   joke_entries, next_cursor = firestore.get_joke_feed_page_entries(
-    cursor=cookie_cursor,
+    cursor=query_cursor,
     limit=_JOKES_PER_PAGE,
   )
   jokes_list = [{

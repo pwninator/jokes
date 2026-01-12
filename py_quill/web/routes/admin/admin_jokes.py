@@ -13,7 +13,7 @@ from services import firestore
 from web.routes import web_bp
 
 _JOKES_PER_PAGE = 10
-_JOKE_IMAGE_SIZE = 400
+_JOKE_IMAGE_SIZE = 350
 _JOKE_IMAGE_THUMB_SIZE = 180
 
 _ALL_STATES: list[models.JokeState] = [

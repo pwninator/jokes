@@ -67,16 +67,27 @@
 
   .admin-modal__dialog {
     position: relative;
-    width: min(720px, calc(100vw - 40px));
+    width: min(1000px, calc(100vw - 40px));
+    max-height: calc(100vh - 40px);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 20px;
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
     padding: 16px;
+    display: flex;
+    flex-direction: column;
   }
 
   .admin-modal__title {
     margin: 0 0 12px;
+  }
+
+  .admin-modal__content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
   }
 
   .admin-modal__field {
@@ -108,11 +119,90 @@
     box-shadow: 0 0 0 4px var(--color-focus-ring);
   }
 
+  .admin-modal__input {
+    width: 100%;
+    height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    font-family: inherit;
+    font-size: 16px;
+    background: var(--color-form-surface);
+  }
+
+  .admin-modal__input:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+  }
+
   .admin-modal__actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     margin-top: 6px;
+  }
+
+  .joke-edit-button {
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+
+  .joke-admin-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .joke-admin-footer .joke-admin-stats {
+    justify-content: flex-start;
+  }
+
+  .joke-admin-footer .joke-edit-button {
+    margin-left: auto;
+  }
+
+  .admin-modal__image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 90px);
+    justify-content: start;
+    gap: 2px;
+  }
+
+  .admin-modal__image-option {
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-form-surface);
+    padding: 0;
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  }
+
+  .admin-modal__image-option:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.14);
+  }
+
+  .admin-modal__image-option--selected {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-focus-ring);
+  }
+
+  .admin-modal__image-option img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 12px;
+    display: block;
+  }
+
+  .joke-reveal.joke-reveal--generating,
+  .joke-reveal[disabled] {
+    background: var(--color-border);
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
   }
 </style>
 {% endblock %}
@@ -137,22 +227,82 @@
     <div class="admin-modal__backdrop" data-admin-new-joke-backdrop></div>
     <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-new-joke-title">
       <h3 id="admin-new-joke-title" class="admin-modal__title text-section-heading">New joke</h3>
-      <form id="admin-new-joke-form">
-        <div class="admin-modal__field">
-          <label class="admin-modal__label" for="admin-new-joke-setup">Setup</label>
-          <textarea class="admin-modal__textarea" id="admin-new-joke-setup" name="setup" required></textarea>
-        </div>
-        <div class="admin-modal__field">
-          <label class="admin-modal__label" for="admin-new-joke-punchline">Punchline</label>
-          <textarea class="admin-modal__textarea" id="admin-new-joke-punchline" name="punchline" required></textarea>
-        </div>
-        <div class="admin-modal__actions">
-          <button type="button" class="button-secondary text-button"
-            id="admin-new-joke-cancel-button">Cancel</button>
-          <button type="submit" class="button-primary text-button"
-            id="admin-new-joke-submit-button">Submit</button>
-        </div>
-      </form>
+      <div class="admin-modal__content">
+        <form id="admin-new-joke-form">
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-new-joke-setup">Setup</label>
+            <input class="admin-modal__input" id="admin-new-joke-setup" name="setup" type="text" required>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-new-joke-punchline">Punchline</label>
+            <input class="admin-modal__input" id="admin-new-joke-punchline" name="punchline" type="text" required>
+          </div>
+          <div class="admin-modal__actions">
+            <button type="button" class="button-secondary text-button"
+              id="admin-new-joke-cancel-button">Cancel</button>
+            <button type="submit" class="button-primary text-button"
+              id="admin-new-joke-submit-button">Submit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-edit-joke-modal" class="admin-modal" aria-hidden="true">
+    <div class="admin-modal__backdrop" data-admin-edit-joke-backdrop></div>
+    <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-edit-joke-title">
+      <h3 id="admin-edit-joke-title" class="admin-modal__title text-section-heading">Edit joke</h3>
+      <div class="admin-modal__content">
+        <form id="admin-edit-joke-form">
+          <input type="hidden" id="admin-edit-joke-id" name="joke_id" value="">
+
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-edit-joke-setup">Setup</label>
+            <input class="admin-modal__input" id="admin-edit-joke-setup" name="setup_text" type="text" required>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-edit-joke-punchline">Punchline</label>
+            <input class="admin-modal__input" id="admin-edit-joke-punchline" name="punchline_text" type="text" required>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-edit-joke-setup-scene-idea">Setup scene idea</label>
+            <textarea class="admin-modal__textarea" id="admin-edit-joke-setup-scene-idea"
+              name="setup_scene_idea"></textarea>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-edit-joke-punchline-scene-idea">Punchline scene idea</label>
+            <textarea class="admin-modal__textarea" id="admin-edit-joke-punchline-scene-idea"
+              name="punchline_scene_idea"></textarea>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-edit-joke-setup-image-description">Setup image description</label>
+            <textarea class="admin-modal__textarea" id="admin-edit-joke-setup-image-description"
+              name="setup_image_description"></textarea>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-edit-joke-punchline-image-description">Punchline image description</label>
+            <textarea class="admin-modal__textarea" id="admin-edit-joke-punchline-image-description"
+              name="punchline_image_description"></textarea>
+          </div>
+
+          <div class="admin-modal__field">
+            <div class="admin-modal__label">Setup images</div>
+            <div id="admin-edit-joke-setup-images" class="admin-modal__image-grid" aria-label="Setup images"></div>
+          </div>
+          <div class="admin-modal__field">
+            <div class="admin-modal__label">Punchline images</div>
+            <div id="admin-edit-joke-punchline-images" class="admin-modal__image-grid" aria-label="Punchline images">
+            </div>
+          </div>
+
+          <div class="admin-modal__actions">
+            <button type="button" class="button-secondary text-button" id="admin-edit-joke-cancel-button">Cancel</button>
+            <button type="submit" class="button-primary text-button" id="admin-edit-joke-save-button">Save</button>
+            <button type="button" class="button-primary text-button"
+              id="admin-edit-joke-regenerate-button">Regenerate</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -193,7 +343,26 @@
   const setupInput = document.getElementById('admin-new-joke-setup');
   const punchlineInput = document.getElementById('admin-new-joke-punchline');
 
+  const editModal = document.getElementById('admin-edit-joke-modal');
+  const editModalBackdrop = document.querySelector('[data-admin-edit-joke-backdrop]');
+  const editForm = document.getElementById('admin-edit-joke-form');
+  const editCancelButton = document.getElementById('admin-edit-joke-cancel-button');
+  const editJokeIdInput = document.getElementById('admin-edit-joke-id');
+  const editSetupInput = document.getElementById('admin-edit-joke-setup');
+  const editPunchlineInput = document.getElementById('admin-edit-joke-punchline');
+  const editSetupSceneIdeaInput = document.getElementById('admin-edit-joke-setup-scene-idea');
+  const editPunchlineSceneIdeaInput = document.getElementById('admin-edit-joke-punchline-scene-idea');
+  const editSetupImageDescriptionInput = document.getElementById('admin-edit-joke-setup-image-description');
+  const editPunchlineImageDescriptionInput = document.getElementById('admin-edit-joke-punchline-image-description');
+  const editSetupImagesGrid = document.getElementById('admin-edit-joke-setup-images');
+  const editPunchlineImagesGrid = document.getElementById('admin-edit-joke-punchline-images');
+  const editRegenerateButton = document.getElementById('admin-edit-joke-regenerate-button');
+
   let inFlightCount = 0;
+  let activeEditCard = null;
+  let selectedSetupImageUrl = null;
+  let selectedPunchlineImageUrl = null;
+  let activeEditPayload = null;
 
   function updateInFlightBadge() {
     if (!inflightBadge) {
@@ -220,6 +389,92 @@
     }
     modal.classList.remove('admin-modal--open');
     modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function isEditModalOpen() {
+    return Boolean(editModal && editModal.classList.contains('admin-modal--open'));
+  }
+
+  function openEditModal() {
+    if (!editModal) {
+      return;
+    }
+    editModal.classList.add('admin-modal--open');
+    editModal.setAttribute('aria-hidden', 'false');
+    if (editSetupInput) {
+      editSetupInput.focus();
+    }
+  }
+
+  function closeEditModal() {
+    if (!editModal) {
+      return;
+    }
+    editModal.classList.remove('admin-modal--open');
+    editModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function setCardGenerating(card) {
+    if (!card) {
+      return;
+    }
+    const revealButton = card.querySelector('button[data-role="reveal"]');
+    if (!revealButton) {
+      return;
+    }
+    revealButton.classList.add('joke-reveal--generating');
+    revealButton.disabled = true;
+    revealButton.textContent = 'Generating...';
+  }
+
+  function handleEditCancel() {
+    closeEditModal();
+    activeEditCard = null;
+    activeEditPayload = null;
+  }
+
+  function setValue(input, value) {
+    if (!input) {
+      return;
+    }
+    input.value = (value === null || value === undefined) ? '' : String(value);
+  }
+
+  function renderImageGrid(container, images, selectedUrl, onSelect) {
+    if (!container) {
+      return;
+    }
+    container.innerHTML = '';
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.textContent = 'No images found.';
+      container.appendChild(empty);
+      return;
+    }
+
+    images.forEach((image, index) => {
+      if (!image || !image.url) {
+        return;
+      }
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'admin-modal__image-option' + (image.url === selectedUrl ? ' admin-modal__image-option--selected' : '');
+      button.dataset.imageUrl = image.url;
+
+      const img = document.createElement('img');
+      img.src = image.thumb_url || image.url;
+      img.alt = `Image ${index + 1}`;
+      img.loading = 'lazy';
+
+      button.appendChild(img);
+      button.addEventListener('click', () => {
+        onSelect(image.url);
+      });
+
+      container.appendChild(button);
+    });
   }
 
   function clearForm() {
@@ -251,9 +506,157 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      if (isEditModalOpen()) {
+        handleEditCancel();
+        return;
+      }
       closeModal();
     }
   });
+
+  if (editCancelButton) {
+    editCancelButton.addEventListener('click', () => {
+      handleEditCancel();
+    });
+  }
+
+  if (editModalBackdrop) {
+    editModalBackdrop.addEventListener('click', () => {
+      handleEditCancel();
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    const editButton = event.target.closest('.joke-edit-button');
+    if (!editButton) {
+      return;
+    }
+
+    const card = editButton.closest('.joke-card');
+    const raw = editButton.getAttribute('data-joke-data') || '{}';
+    let payload = {};
+    try {
+      payload = JSON.parse(raw);
+    } catch (e) {
+      try {
+        const decoder = document.createElement('textarea');
+        decoder.innerHTML = raw;
+        const decoded = decoder.value || '{}';
+        payload = JSON.parse(decoded);
+      } catch (_inner) {
+        console.warn('Failed to parse edit payload', { raw }); // eslint-disable-line no-console
+        payload = {};
+      }
+    }
+
+    activeEditCard = card;
+    activeEditPayload = payload;
+
+    setValue(editJokeIdInput, payload.joke_id || payload.jokeId || '');
+    setValue(editSetupInput, payload.setup_text);
+    setValue(editPunchlineInput, payload.punchline_text);
+    setValue(editSetupSceneIdeaInput, payload.setup_scene_idea);
+    setValue(editPunchlineSceneIdeaInput, payload.punchline_scene_idea);
+    setValue(editSetupImageDescriptionInput, payload.setup_image_description);
+    setValue(editPunchlineImageDescriptionInput, payload.punchline_image_description);
+
+    selectedSetupImageUrl = payload.setup_image_url || null;
+    selectedPunchlineImageUrl = payload.punchline_image_url || null;
+
+    if (!selectedSetupImageUrl && payload.setup_images && payload.setup_images.length) {
+      selectedSetupImageUrl = payload.setup_images[0].url;
+    }
+    if (!selectedPunchlineImageUrl && payload.punchline_images && payload.punchline_images.length) {
+      selectedPunchlineImageUrl = payload.punchline_images[0].url;
+    }
+
+    function selectSetupImage(url) {
+      selectedSetupImageUrl = url;
+      renderImageGrid(editSetupImagesGrid, payload.setup_images, selectedSetupImageUrl, selectSetupImage);
+    }
+
+    function selectPunchlineImage(url) {
+      selectedPunchlineImageUrl = url;
+      renderImageGrid(editPunchlineImagesGrid, payload.punchline_images, selectedPunchlineImageUrl, selectPunchlineImage);
+    }
+
+    renderImageGrid(editSetupImagesGrid, payload.setup_images, selectedSetupImageUrl, selectSetupImage);
+    renderImageGrid(editPunchlineImagesGrid, payload.punchline_images, selectedPunchlineImageUrl, selectPunchlineImage);
+
+    openEditModal();
+  });
+
+  function sendEditRequest(populateImages) {
+    if (!editJokeIdInput || !editSetupInput || !editPunchlineInput) {
+      return;
+    }
+
+    if (!editSetupInput.checkValidity() || !editPunchlineInput.checkValidity()) {
+      if (editForm && typeof editForm.reportValidity === 'function') {
+        editForm.reportValidity();
+      }
+      return;
+    }
+
+    const setupText = editSetupInput.value.trim();
+    const punchlineText = editPunchlineInput.value.trim();
+    if (!setupText || !punchlineText) {
+      if (editForm && typeof editForm.reportValidity === 'function') {
+        editForm.reportValidity();
+      }
+      return;
+    }
+
+    const payload = {
+      data: {
+        joke_id: editJokeIdInput.value,
+        setup_text: setupText,
+        punchline_text: punchlineText,
+        setup_scene_idea: (editSetupSceneIdeaInput && editSetupSceneIdeaInput.value) ? editSetupSceneIdeaInput.value.trim() : '',
+        punchline_scene_idea: (editPunchlineSceneIdeaInput && editPunchlineSceneIdeaInput.value) ? editPunchlineSceneIdeaInput.value.trim() : '',
+        setup_image_description: (editSetupImageDescriptionInput && editSetupImageDescriptionInput.value) ? editSetupImageDescriptionInput.value.trim() : '',
+        punchline_image_description: (editPunchlineImageDescriptionInput && editPunchlineImageDescriptionInput.value) ? editPunchlineImageDescriptionInput.value.trim() : '',
+        setup_image_url: selectedSetupImageUrl,
+        punchline_image_url: selectedPunchlineImageUrl,
+        populate_images: Boolean(populateImages),
+      },
+    };
+
+    // Fire-and-forget, mirror new joke submission behavior.
+    try {
+      fetch(jokeCreationUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      }).catch((err) => {
+        console.warn('joke_creation_process request failed', err); // eslint-disable-line no-console
+      });
+    } catch (err) {
+      // Ignore.
+    }
+
+    closeEditModal();
+    setCardGenerating(activeEditCard);
+    activeEditCard = null;
+    activeEditPayload = null;
+  }
+
+  if (editForm) {
+    editForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      sendEditRequest(false);
+    });
+  }
+
+  if (editRegenerateButton) {
+    editRegenerateButton.addEventListener('click', () => {
+      sendEditRequest(true);
+    });
+  }
 
   if (form) {
     form.addEventListener('submit', (event) => {

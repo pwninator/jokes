@@ -40,6 +40,10 @@ def test_admin_jokes_default_filters(monkeypatch):
   joke = models.PunnyJoke(setup_text="setup", punchline_text="punch")
   joke.key = "joke-1"
   joke.state = models.JokeState.DRAFT
+  joke.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/setup.png"
+  joke.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/punch.png"
+  joke.all_setup_image_urls = [joke.setup_image_url]
+  joke.all_punchline_image_urls = [joke.punchline_image_url]
 
   mock_get = Mock(return_value=([(joke, "joke-1")], None))
   monkeypatch.setattr(admin_jokes_routes.firestore, "get_joke_by_state",
@@ -67,7 +71,18 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'data-state="PUBLISHED"' in html
   assert '"states": "UNKNOWN,DRAFT,UNREVIEWED,APPROVED"' in html
   assert 'id="admin-new-joke-button"' in html
+  assert 'id="admin-edit-joke-modal"' in html
   assert "/joke_creation_process" in html
+  assert 'data-joke-id="joke-1"' in html
+  assert 'joke-edit-button' in html
+  assert 'data-joke-data=' in html
+  # Spot check a few edit payload fields (HTML-escaped JSON).
+  assert 'joke_id' in html
+  assert 'joke-1' in html
+  assert 'setup_text' in html
+  assert 'setup' in html
+  assert 'punchline_text' in html
+  assert 'punch' in html
 
 
 def test_admin_jokes_custom_filters(monkeypatch):
@@ -100,6 +115,10 @@ def test_admin_jokes_load_more(monkeypatch):
   joke.num_viewed_users = 12
   joke.num_saved_users = 3
   joke.num_shared_users = 1
+  joke.setup_image_url = "setup-url"
+  joke.punchline_image_url = "punch-url"
+  joke.all_setup_image_urls = ["setup-url"]
+  joke.all_punchline_image_urls = ["punch-url"]
 
   mock_get = Mock(return_value=([(joke, "joke-1")], "next-1"))
   monkeypatch.setattr(admin_jokes_routes.firestore, "get_joke_by_state",
@@ -116,6 +135,7 @@ def test_admin_jokes_load_more(monkeypatch):
   assert body["has_more"] is True
   assert "joke-admin-stats" in body["html"]
   assert "joke-state-badge" in body["html"]
+  assert "joke-edit-button" in body["html"]
 
   _, kwargs = mock_get.call_args
   assert kwargs["cursor"] == "joke-0"

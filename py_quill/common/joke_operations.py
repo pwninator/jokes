@@ -49,6 +49,8 @@ def initialize_joke(
   punchline_scene_idea: str | None = None,
   setup_image_description: str | None = None,
   punchline_image_description: str | None = None,
+  setup_image_url: str | None = None,
+  punchline_image_url: str | None = None,
 ) -> models.PunnyJoke:
   """Load or create a joke and apply the provided overrides."""
   joke: models.PunnyJoke | None = None
@@ -86,6 +88,19 @@ def initialize_joke(
     joke.setup_image_description = setup_image_description
   if punchline_image_description is not None:
     joke.punchline_image_description = punchline_image_description
+  if setup_image_url is not None:
+    if setup_image_url != joke.setup_image_url:
+      joke.setup_image_url_upscaled = None
+    joke.setup_image_url = setup_image_url
+    if setup_image_url and setup_image_url not in joke.all_setup_image_urls:
+      joke.all_setup_image_urls.append(setup_image_url)
+  if punchline_image_url is not None:
+    if punchline_image_url != joke.punchline_image_url:
+      joke.punchline_image_url_upscaled = None
+    joke.punchline_image_url = punchline_image_url
+    if (punchline_image_url
+        and punchline_image_url not in joke.all_punchline_image_urls):
+      joke.all_punchline_image_urls.append(punchline_image_url)
 
   return joke
 

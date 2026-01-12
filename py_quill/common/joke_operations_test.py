@@ -144,6 +144,37 @@ def test_initialize_joke_updates_existing_fields(mock_firestore):
   mock_firestore.get_punny_joke.assert_called_once_with("j-1")
 
 
+def test_initialize_joke_updates_image_urls_and_clears_upscaled(mock_firestore):
+  """initialize_joke should allow selecting existing image URLs."""
+  joke = models.PunnyJoke(
+    key="j-1",
+    setup_text="setup",
+    punchline_text="punch",
+    setup_image_url="setup-old",
+    punchline_image_url="punch-old",
+    setup_image_url_upscaled="setup-old-up",
+    punchline_image_url_upscaled="punch-old-up",
+    all_setup_image_urls=["setup-old"],
+    all_punchline_image_urls=["punch-old"],
+  )
+  mock_firestore.get_punny_joke.return_value = joke
+
+  updated = joke_operations.initialize_joke(
+    joke_id="j-1",
+    user_id=None,
+    admin_owned=False,
+    setup_image_url="setup-new",
+    punchline_image_url="punch-new",
+  )
+
+  assert updated.setup_image_url == "setup-new"
+  assert updated.punchline_image_url == "punch-new"
+  assert updated.setup_image_url_upscaled is None
+  assert updated.punchline_image_url_upscaled is None
+  assert "setup-new" in updated.all_setup_image_urls
+  assert "punch-new" in updated.all_punchline_image_urls
+
+
 def test_initialize_joke_raises_for_missing_joke(mock_firestore):
   """initialize_joke should raise when the joke_id cannot be found."""
   mock_firestore.get_punny_joke.return_value = None

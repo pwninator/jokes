@@ -35,6 +35,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     punchline_scene_idea = get_param(req, 'punchline_scene_idea')
     setup_image_description = get_param(req, 'setup_image_description')
     punchline_image_description = get_param(req, 'punchline_image_description')
+    setup_image_url = get_param(req, 'setup_image_url')
+    punchline_image_url = get_param(req, 'punchline_image_url')
     admin_owned = get_bool_param(req, 'admin_owned', False)
 
     # Modifiers
@@ -65,6 +67,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         punchline_scene_idea=punchline_scene_idea,
         setup_image_description=setup_image_description,
         punchline_image_description=punchline_image_description,
+        setup_image_url=setup_image_url,
+        punchline_image_url=punchline_image_url,
       )
     except joke_operations.JokeNotFoundError as exc:
       return error_response(str(exc))

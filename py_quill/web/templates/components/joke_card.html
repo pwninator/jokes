@@ -8,6 +8,7 @@
 {% if reveal_style == 'carousel' %}
 <article class="joke-card" aria-label="Joke {{ unique_id }}"
   style="--joke-card-max-width: {{ width }}px;"
+  data-joke-id="{{ unique_id }}"
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
     {% if admin_mode and state_value %}
@@ -49,19 +50,28 @@
       {% set viewed = joke.num_viewed_users|default(0) %}
       {% set saved = joke.num_saved_users|default(0) %}
       {% set shared = joke.num_shared_users|default(0) %}
-      <div class="joke-admin-stats" aria-label="Joke stats">
-        <div class="joke-admin-stat joke-admin-stat--views{% if viewed == 0 %} is-muted{% endif %}">
-          <span class="joke-admin-stat-icon" aria-hidden="true">👁</span>
-          <span class="joke-admin-stat-value">{{ viewed }}</span>
+      <div class="joke-admin-footer">
+        <div class="joke-admin-stats" aria-label="Joke stats">
+          <div class="joke-admin-stat joke-admin-stat--views{% if viewed == 0 %} is-muted{% endif %}">
+            <span class="joke-admin-stat-icon" aria-hidden="true">👁</span>
+            <span class="joke-admin-stat-value">{{ viewed }}</span>
+          </div>
+          <div class="joke-admin-stat joke-admin-stat--saves{% if saved == 0 %} is-muted{% endif %}">
+            <span class="joke-admin-stat-icon" aria-hidden="true">❤</span>
+            <span class="joke-admin-stat-value">{{ saved }}</span>
+          </div>
+          <div class="joke-admin-stat joke-admin-stat--shares{% if shared == 0 %} is-muted{% endif %}">
+            <span class="joke-admin-stat-icon" aria-hidden="true">↗</span>
+            <span class="joke-admin-stat-value">{{ shared }}</span>
+          </div>
         </div>
-        <div class="joke-admin-stat joke-admin-stat--saves{% if saved == 0 %} is-muted{% endif %}">
-          <span class="joke-admin-stat-icon" aria-hidden="true">❤</span>
-          <span class="joke-admin-stat-value">{{ saved }}</span>
-        </div>
-        <div class="joke-admin-stat joke-admin-stat--shares{% if shared == 0 %} is-muted{% endif %}">
-          <span class="joke-admin-stat-icon" aria-hidden="true">↗</span>
-          <span class="joke-admin-stat-value">{{ shared }}</span>
-        </div>
+        <button type="button" class="button-secondary text-button joke-edit-button"
+          data-joke-id="{{ unique_id }}"
+          data-joke-data='{{ (joke.edit_payload if joke.edit_payload is defined else {}) | tojson }}'
+          aria-label="Edit joke"
+          title="Edit">
+          <span aria-hidden="true">&#9998;</span>
+        </button>
       </div>
     {% endif %}
     <button class="button-primary joke-reveal text-button" type="button" data-role="reveal" data-label-show="{{ reveal_label }}"

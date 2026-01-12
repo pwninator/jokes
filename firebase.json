@@ -74,6 +74,14 @@
         }
       },
       {
+        "source": "/joke_creation_process",
+        "function": {
+          "functionId": "joke_creation_process",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
         "source": "/update_joke_book_zip",
         "function": {
           "functionId": "update_joke_book_zip",

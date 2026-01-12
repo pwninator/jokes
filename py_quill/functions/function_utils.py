@@ -1,17 +1,19 @@
 """Utility functions for Cloud Functions."""
 
 import json
+from http.cookies import SimpleCookie
 from typing import Any
 
+from common import config
 from common import utils
 from firebase_admin import auth
 from firebase_functions import https_fn, logger
 
-
 # CORS constants
 _CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Bundle-Secret",
+  "Access-Control-Allow-Headers":
+  "Content-Type, Authorization, X-Bundle-Secret",
 }
 
 
@@ -23,7 +25,7 @@ def _allowed_origins() -> set[str]:
       "http://localhost:5000",
       "http://127.0.0.1",
       "http://localhost",
-      "http://localhost:5173", # Vite
+      "http://localhost:5173",  # Vite
     }
   else:
     return {
@@ -72,10 +74,26 @@ def get_user_id(
   """Get the user's uid from the request."""
   auth_header = req.headers.get('Authorization')
   if not auth_header:
+    cookie_header = req.headers.get('Cookie') or req.headers.get('cookie')
+    if cookie_header:
+      try:
+        cookies = SimpleCookie()
+        cookies.load(cookie_header)
+        session_cookie_morsel = cookies.get(config.SESSION_COOKIE_NAME)
+        session_cookie = (session_cookie_morsel.value
+                          if session_cookie_morsel else None)
+        if session_cookie:
+          decoded = auth.verify_session_cookie(session_cookie,
+                                               check_revoked=True)
+          uid = decoded.get('uid')
+          if uid:
+            return uid
+      except Exception as e:
+        logger.error(f"Error verifying session cookie: {e}")
+
     if allow_unauthenticated:
       return None
-    else:
-      raise ValueError("Authorization header is missing")
+    raise ValueError("Authorization header is missing")
 
   id_token = auth_header.split(' ')[1]
 
@@ -135,7 +153,10 @@ def html_response(
   return https_fn.Response(
     html_content,
     status=status,
-    headers={'Content-Type': 'text/html', **cors_headers},
+    headers={
+      'Content-Type': 'text/html',
+      **cors_headers
+    },
   )
 
 

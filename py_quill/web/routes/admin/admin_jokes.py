@@ -94,6 +94,7 @@ def admin_jokes():
   return flask.render_template(
     'admin/admin_jokes.html',
     site_name='Snickerdoodle',
+    joke_creation_url='/joke_creation_process',
     all_states=[s.value for s in _ALL_STATES],
     selected_states=[s.value for s in selected_states],
     selected_states_param=selected_states_param,

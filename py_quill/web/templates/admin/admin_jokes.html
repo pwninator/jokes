@@ -3,6 +3,120 @@
 
 {% block title %}Jokes · {{ site_name }} Admin{% endblock %}
 
+{% block head_extra %}
+{{ super() }}
+<style>
+  .admin-jokes-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .admin-jokes-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .admin-inflight-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-weight: var(--font-weight-button);
+    border: 1px solid var(--color-border);
+    background: var(--color-accent-surface);
+    color: var(--color-text-muted);
+    transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  .admin-inflight-count--active {
+    background: var(--color-primary);
+    color: var(--color-text);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 8px 20px rgba(196, 171, 140, 0.35);
+    transform: translateY(-1px);
+  }
+
+  .admin-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .admin-modal.admin-modal--open {
+    display: flex;
+  }
+
+  .admin-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  .admin-modal__dialog {
+    position: relative;
+    width: min(720px, calc(100vw - 40px));
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+    padding: 16px;
+  }
+
+  .admin-modal__title {
+    margin: 0 0 12px;
+  }
+
+  .admin-modal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .admin-modal__label {
+    font-weight: var(--font-weight-label);
+    color: var(--color-text);
+  }
+
+  .admin-modal__textarea {
+    width: 100%;
+    min-height: 90px;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    font-family: inherit;
+    font-size: 16px;
+    background: var(--color-form-surface);
+  }
+
+  .admin-modal__textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+  }
+
+  .admin-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="admin-jokes">
   <header class="admin-jokes-header">
@@ -10,7 +124,37 @@
       <h2 style="margin: 0;">Jokes</h2>
       <p class="muted" style="margin: 6px 0 0;">Filter by state. Newest first.</p>
     </div>
+    <div class="admin-jokes-actions">
+      <button type="button" class="button-primary text-button" id="admin-new-joke-button">
+        New Joke
+      </button>
+      <span id="admin-new-joke-inflight" class="admin-inflight-count admin-inflight-count--idle"
+        aria-label="In-flight joke creations" aria-live="polite">0</span>
+    </div>
   </header>
+
+  <div id="admin-new-joke-modal" class="admin-modal" aria-hidden="true">
+    <div class="admin-modal__backdrop" data-admin-new-joke-backdrop></div>
+    <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-new-joke-title">
+      <h3 id="admin-new-joke-title" class="admin-modal__title text-section-heading">New joke</h3>
+      <form id="admin-new-joke-form">
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-new-joke-setup">Setup</label>
+          <textarea class="admin-modal__textarea" id="admin-new-joke-setup" name="setup" required></textarea>
+        </div>
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-new-joke-punchline">Punchline</label>
+          <textarea class="admin-modal__textarea" id="admin-new-joke-punchline" name="punchline" required></textarea>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button"
+            id="admin-new-joke-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button"
+            id="admin-new-joke-submit-button">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <section class="filter-chips" aria-label="Joke state filters">
     {% for state in all_states %}
@@ -38,54 +182,196 @@
 
 <script>
   (function () {
-    const chips = Array.from(document.querySelectorAll('.filter-chip[data-state]'));
-    if (!chips.length) {
+    const jokeCreationUrl = {{ joke_creation_url | tojson if joke_creation_url else '"/joke_creation_process"'
+  }};
+  const newButton = document.getElementById('admin-new-joke-button');
+  const inflightBadge = document.getElementById('admin-new-joke-inflight');
+  const modal = document.getElementById('admin-new-joke-modal');
+  const modalBackdrop = document.querySelector('[data-admin-new-joke-backdrop]');
+  const form = document.getElementById('admin-new-joke-form');
+  const cancelButton = document.getElementById('admin-new-joke-cancel-button');
+  const setupInput = document.getElementById('admin-new-joke-setup');
+  const punchlineInput = document.getElementById('admin-new-joke-punchline');
+
+  let inFlightCount = 0;
+
+  function updateInFlightBadge() {
+    if (!inflightBadge) {
       return;
     }
+    inflightBadge.textContent = String(inFlightCount);
+    inflightBadge.classList.toggle('admin-inflight-count--active', inFlightCount > 0);
+  }
 
-    function selectedStates() {
-      return chips
-        .filter((c) => c.classList.contains('filter-chip--selected'))
-        .map((c) => c.getAttribute('data-state'))
-        .filter(Boolean);
+  function openModal() {
+    if (!modal) {
+      return;
     }
-
-    function setSelected(chip, isSelected) {
-      chip.classList.toggle('filter-chip--selected', isSelected);
-      chip.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    modal.classList.add('admin-modal--open');
+    modal.setAttribute('aria-hidden', 'false');
+    if (setupInput) {
+      setupInput.focus();
     }
+  }
 
-    function navigateWithStates(states) {
-      const url = new URL(window.location.href);
-      url.pathname = '/admin/jokes';
-      url.searchParams.set('states', states.join(','));
-      url.searchParams.delete('cursor');
-      window.location.assign(url.toString());
+  function closeModal() {
+    if (!modal) {
+      return;
     }
+    modal.classList.remove('admin-modal--open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
 
-    chips.forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const current = selectedStates();
-        const state = chip.getAttribute('data-state');
-        if (!state) {
-          return;
-        }
-        const isSelected = chip.classList.contains('filter-chip--selected');
-        if (isSelected) {
-          const next = current.filter((s) => s !== state);
-          if (!next.length) {
-            // Keep at least one filter selected.
-            return;
-          }
-          setSelected(chip, false);
-          navigateWithStates(next);
-          return;
-        }
+  function clearForm() {
+    if (setupInput) {
+      setupInput.value = '';
+    }
+    if (punchlineInput) {
+      punchlineInput.value = '';
+    }
+  }
 
-        setSelected(chip, true);
-        navigateWithStates([...current, state]);
-      });
+  if (newButton) {
+    newButton.addEventListener('click', () => {
+      openModal();
     });
-  })();
+  }
+
+  if (cancelButton) {
+    cancelButton.addEventListener('click', () => {
+      closeModal();
+    });
+  }
+
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener('click', () => {
+      closeModal();
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  });
+
+  if (form) {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      if (!setupInput || !punchlineInput) {
+        return;
+      }
+
+      if (!setupInput.checkValidity() || !punchlineInput.checkValidity()) {
+        if (typeof form.reportValidity === 'function') {
+          form.reportValidity();
+        }
+        return;
+      }
+
+      const setupText = setupInput.value.trim();
+      const punchlineText = punchlineInput.value.trim();
+      if (!setupText || !punchlineText) {
+        if (typeof form.reportValidity === 'function') {
+          form.reportValidity();
+        }
+        return;
+      }
+
+      inFlightCount += 1;
+      updateInFlightBadge();
+
+      const payload = {
+        data: {
+          setup_text: setupText,
+          punchline_text: punchlineText,
+          regenerate_scene_ideas: true,
+          generate_descriptions: true,
+          populate_images: true,
+          admin_owned: true,
+        },
+      };
+
+      // Fire-and-forget: clear immediately after sending.
+      try {
+        fetch(jokeCreationUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload),
+        })
+          .catch((err) => {
+            // Keep lightweight logging; admin is usually watching emulator logs anyway.
+            console.warn('joke_creation_process request failed', err); // eslint-disable-line no-console
+          })
+          .finally(() => {
+            inFlightCount = Math.max(0, inFlightCount - 1);
+            updateInFlightBadge();
+          });
+      } catch (err) {
+        inFlightCount = Math.max(0, inFlightCount - 1);
+        updateInFlightBadge();
+      }
+
+      clearForm();
+      setupInput.focus();
+    });
+  }
+
+  updateInFlightBadge();
+
+  const chips = Array.from(document.querySelectorAll('.filter-chip[data-state]'));
+  if (!chips.length) {
+    return;
+  }
+
+  function selectedStates() {
+    return chips
+      .filter((c) => c.classList.contains('filter-chip--selected'))
+      .map((c) => c.getAttribute('data-state'))
+      .filter(Boolean);
+  }
+
+  function setSelected(chip, isSelected) {
+    chip.classList.toggle('filter-chip--selected', isSelected);
+    chip.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+  }
+
+  function navigateWithStates(states) {
+    const url = new URL(window.location.href);
+    url.pathname = '/admin/jokes';
+    url.searchParams.set('states', states.join(','));
+    url.searchParams.delete('cursor');
+    window.location.assign(url.toString());
+  }
+
+  chips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const current = selectedStates();
+      const state = chip.getAttribute('data-state');
+      if (!state) {
+        return;
+      }
+      const isSelected = chip.classList.contains('filter-chip--selected');
+      if (isSelected) {
+        const next = current.filter((s) => s !== state);
+        if (!next.length) {
+          // Keep at least one filter selected.
+          return;
+        }
+        setSelected(chip, false);
+        navigateWithStates(next);
+        return;
+      }
+
+      setSelected(chip, true);
+      navigateWithStates([...current, state]);
+    });
+  });
+  }) ();
 </script>
 {% endblock %}

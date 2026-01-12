@@ -269,6 +269,66 @@ img {
   box-shadow: 0 4px 10px var(--color-shadow);
 }
 
+/* --- Buttons --- */
+.button-primary,
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.button-primary {
+  background: var(--color-primary);
+  border: none;
+  box-shadow: 0 6px 16px var(--color-shadow);
+}
+
+.button-primary:hover,
+.button-primary:focus-visible {
+  transform: translateY(-1px);
+  text-decoration: none;
+  box-shadow: 0 10px 20px var(--color-shadow);
+  outline: none;
+}
+
+.button-primary:focus-visible {
+  box-shadow: 0 0 0 4px var(--color-focus-ring), 0 10px 20px var(--color-shadow);
+}
+
+.button-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px var(--color-shadow);
+}
+
+.button-secondary {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 6px 14px rgba(196, 171, 140, 0.10);
+}
+
+.button-secondary:hover,
+.button-secondary:focus-visible {
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+  text-decoration: none;
+  box-shadow: 0 10px 18px rgba(196, 171, 140, 0.18);
+  outline: none;
+}
+
+.button-secondary:focus-visible {
+  box-shadow: 0 0 0 4px var(--color-focus-ring), 0 10px 18px rgba(196, 171, 140, 0.18);
+}
+
+.button-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 14px rgba(196, 171, 140, 0.10);
+}
+
 .user-menu {
   position: relative;
   display: none;
@@ -1207,29 +1267,11 @@ img {
 }
 
 .joke-reveal {
-  display: flex;
   width: 100%;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  border: none;
-  cursor: pointer;
-  box-shadow: 4px 4px 8px var(--color-shadow);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
-.joke-reveal:hover,
-.joke-reveal:focus-visible {
-  box-shadow: 4px 4px 8px var(--color-shadow);
-}
-
-.joke-reveal:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 8px var(--color-shadow);
-}
 
 .joke-punchline {
   color: var(--color-text);

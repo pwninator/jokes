@@ -66,6 +66,8 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'data-state="DAILY"' in html
   assert 'data-state="PUBLISHED"' in html
   assert '"states": "UNKNOWN,DRAFT,UNREVIEWED,APPROVED"' in html
+  assert 'id="admin-new-joke-button"' in html
+  assert "/joke_creation_process" in html
 
 
 def test_admin_jokes_custom_filters(monkeypatch):

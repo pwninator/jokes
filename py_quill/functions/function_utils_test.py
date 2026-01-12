@@ -22,10 +22,12 @@ class FakeRequest:
   def __init__(self,
                *,
                json_data: dict | None = None,
-               args: dict[str, object] | None = None) -> None:
+               args: dict[str, object] | None = None,
+               headers: dict[str, str] | None = None) -> None:
     self._json_data = json_data
     self.args = FakeArgs(args)
     self.is_json = json_data is not None
+    self.headers = headers or {}
 
   def get_json(self):
     return self._json_data
@@ -90,3 +92,33 @@ def test_get_float_param_returns_default_when_required_missing():
 
   # When required=True but default is provided, return default instead of raising
   assert function_utils.get_float_param(req, 'ratio', required=True) == 0.0
+
+
+def test_get_user_id_uses_session_cookie_when_authorization_missing(
+    monkeypatch):
+  monkeypatch.setattr(function_utils.auth,
+                      "verify_session_cookie",
+                      lambda cookie, check_revoked=True: {"uid": "cookie-uid"})
+
+  req = FakeRequest(headers={"Cookie": "__session=fake_session_cookie"})
+
+  assert function_utils.get_user_id(
+    req, allow_unauthenticated=False) == "cookie-uid"
+
+
+def test_get_user_id_prefers_authorization_header(monkeypatch):
+
+  def fake_verify_id_token(token):
+    assert token == "id-token-123"
+    return {"uid": "bearer-uid"}
+
+  monkeypatch.setattr(function_utils.auth, "verify_id_token",
+                      fake_verify_id_token)
+  monkeypatch.setattr(function_utils.auth,
+                      "verify_session_cookie",
+                      lambda cookie, check_revoked=True: {"uid": "cookie-uid"})
+
+  req = FakeRequest(headers={"Authorization": "Bearer id-token-123"})
+
+  assert function_utils.get_user_id(
+    req, allow_unauthenticated=False) == "bearer-uid"

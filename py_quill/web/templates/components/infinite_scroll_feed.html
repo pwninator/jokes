@@ -1,4 +1,4 @@
-{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None, extra_query_params=None, admin_mode=false) -%}
+{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None, extra_query_params=None, admin_mode=false, grid_enabled=false) -%}
 {% from "components/joke_card.html" import joke_card with context %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
@@ -8,7 +8,11 @@
 <style>
   .{{ feed_id }} {
     display: grid;
+    {% if grid_enabled %}
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, {{ width }}px), 1fr));
+    {% else %}
     grid-template-columns: 1fr;
+    {% endif %}
     margin: 0 auto;
     gap: 2rem;
     justify-items: center;

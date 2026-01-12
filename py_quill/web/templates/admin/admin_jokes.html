@@ -14,28 +14,25 @@
 
   <section class="filter-chips" aria-label="Joke state filters">
     {% for state in all_states %}
-      {% set is_selected = state in selected_states %}
-      <button
-        type="button"
-        class="filter-chip text-button{% if is_selected %} filter-chip--selected{% endif %}"
-        data-state="{{ state }}"
-        aria-pressed="{{ 'true' if is_selected else 'false' }}"
-      >
-        {{ state }}
-      </button>
+    {% set is_selected = state in selected_states %}
+    <button type="button" class="filter-chip text-button{% if is_selected %} filter-chip--selected{% endif %}"
+      data-state="{{ state }}" aria-pressed="{{ 'true' if is_selected else 'false' }}">
+      {{ state }}
+    </button>
     {% endfor %}
   </section>
 
   {{ infinite_scroll_feed(
-    slug='admin-jokes',
-    initial_jokes=jokes,
-    initial_cursor=next_cursor,
-    initial_has_more=has_more,
-    width=image_size,
-    feed_id='admin-jokes-feed',
-    end_of_feed_message="No more jokes match these filters.",
-    extra_query_params={'states': selected_states_param},
-    admin_mode=true
+  slug='admin-jokes',
+  initial_jokes=jokes,
+  initial_cursor=next_cursor,
+  initial_has_more=has_more,
+  width=image_size,
+  feed_id='admin-jokes-feed',
+  end_of_feed_message="No more jokes match these filters.",
+  extra_query_params={'states': selected_states_param},
+  admin_mode=true,
+  grid_enabled=true,
   ) }}
 </div>
 
@@ -92,4 +89,3 @@
   })();
 </script>
 {% endblock %}
-

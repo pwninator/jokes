@@ -161,8 +161,8 @@ img {
 }
 
 .site-header--docked {
-  /* Override to normal flow at top of page */
-  position: static;
+  /* Keep in normal flow while preserving a positioned anchor for the mobile menu. */
+  position: relative;
   transform: none;
 }
 
@@ -1589,7 +1589,7 @@ tr:last-child td {
   }
 
   .site-header--docked {
-    /* Override sticky positioning on mobile when docked */
-    position: static;
+    /* Override sticky positioning on mobile when docked, keep menu anchor. */
+    position: relative;
   }
 }

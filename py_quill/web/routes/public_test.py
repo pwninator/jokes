@@ -313,6 +313,52 @@ def test_home2_page_includes_sticky_header_script(monkeypatch):
   assert 'addEventListener' in html
 
 
+def test_mobile_header_docked_is_positioned_for_menu(monkeypatch):
+  """Mobile nav requires the docked header to be positioned for the menu anchor."""
+  joke = models.PunnyJoke(
+    key="joke1",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="http://example.com/setup.jpg",
+    punchline_image_url="http://example.com/punch.jpg",
+  )
+  mock_get_top_jokes = Mock(return_value=[joke])
+  mock_get_daily_joke = Mock(return_value=None)
+  monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
+  monkeypatch.setattr(public_routes.firestore, "get_daily_joke",
+                      mock_get_daily_joke)
+
+  with app.test_client() as client:
+    resp = client.get('/home2')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  style_start = html.find('<style>')
+  style_end = html.find('</style>', style_start)
+  assert style_start != -1
+  assert style_end != -1
+  css = html[style_start + len('<style>'):style_end]
+
+  positions = []
+  search_from = 0
+  while True:
+    index = css.find('.site-header--docked', search_from)
+    if index == -1:
+      break
+    positions.append(index)
+    search_from = index + 1
+
+  assert positions
+  for index in positions:
+    block_start = css.find('{', index)
+    block_end = css.find('}', block_start)
+    assert block_start != -1
+    assert block_end != -1
+    block = css[block_start:block_end]
+    assert 'position: relative' in block
+
+
 def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   """_fetch_topic_jokes orders by popularity desc, then vector distance asc."""
   # Arrange

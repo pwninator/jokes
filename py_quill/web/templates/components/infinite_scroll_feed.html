@@ -1,5 +1,5 @@
 {% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None, extra_query_params=None, admin_mode=false) -%}
-{% from "components/joke_card.html" import joke_card %}
+{% from "components/joke_card.html" import joke_card with context %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
 {% set end_of_feed_id = feed_id + '-end' %}

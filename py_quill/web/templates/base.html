@@ -108,50 +108,6 @@
 
 {% block scripts %}
 {{ super() }}
-<script>
-(function () {
-  function initViewer(root) {
-    // Skip if already initialized
-    if (root.dataset.jokeViewerInitialized) {
-      return;
-    }
-
-    const track = root.querySelector('.joke-carousel-track');
-    const slides = root.querySelectorAll('.joke-slide');
-    const toggle = root.querySelector('[data-role="reveal"]');
-    if (!track || slides.length < 2 || !toggle) {
-      return;
-    }
-
-    const showLabel = toggle.getAttribute('data-label-show') || toggle.textContent || 'Reveal';
-    const hideLabel = toggle.getAttribute('data-label-hide') || showLabel;
-    const setupSlide = slides[0];
-    const punchlineSlide = slides[1];
-
-    function setState(isRevealed) {
-      root.classList.toggle('is-revealed', isRevealed);
-      toggle.textContent = isRevealed ? hideLabel : showLabel;
-      toggle.setAttribute('aria-expanded', String(isRevealed));
-      setupSlide.setAttribute('aria-hidden', String(isRevealed));
-      punchlineSlide.setAttribute('aria-hidden', String(!isRevealed));
-    }
-
-    setState(false);
-    toggle.addEventListener('click', function () {
-      setState(!root.classList.contains('is-revealed'));
-    });
-
-    // Mark as initialized to prevent duplicate initialization
-    root.dataset.jokeViewerInitialized = 'true';
-  }
-
-  // Make initViewer globally accessible for dynamically loaded content
-  window.initJokeViewer = initViewer;
-
-  // Initialize all existing viewers on page load
-  document.querySelectorAll('[data-joke-viewer]').forEach(initViewer);
-})();
-</script>
 {% block extra_scripts %}{% endblock %}
 {% endblock %}
  

@@ -3,14 +3,15 @@
 {% set state_value = joke.state.value if joke.state is not none else '' %}
 {% set is_daily = state_value == 'DAILY' %}
 {% set has_public_ts = joke.public_timestamp is not none %}
-{% set is_future_daily = is_daily and has_public_ts and now_utc is defined and joke.public_timestamp > now_utc %}
+{% set is_future_daily = (joke.is_future_daily if joke.is_future_daily is defined else (is_daily and has_public_ts and now_utc is defined and joke.public_timestamp > now_utc)) %}
+{% set badge_state_class = 'future-daily' if is_future_daily else state_value|lower %}
 {% if reveal_style == 'carousel' %}
 <article class="joke-card" aria-label="Joke {{ unique_id }}"
   style="--joke-card-max-width: {{ width }}px;"
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
     {% if admin_mode and state_value %}
-      <div class="joke-state-badge joke-state-{{ state_value|lower }}{% if is_future_daily %} joke-state-future-daily{% endif %}">
+      <div class="joke-state-badge joke-state-{{ badge_state_class }}">
         {% if is_daily and has_public_ts %}
           {{ joke.public_timestamp.strftime('%Y-%m-%d') }}
         {% else %}

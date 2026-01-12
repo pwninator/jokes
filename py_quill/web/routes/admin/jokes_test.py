@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import Mock
 
 from common import models
@@ -117,3 +118,26 @@ def test_admin_jokes_load_more(monkeypatch):
   _, kwargs = mock_get.call_args
   assert kwargs["cursor"] == "joke-0"
   assert kwargs["states"] == [models.JokeState.DRAFT]
+
+
+def test_admin_jokes_future_daily_badge_uses_future_class(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  joke = models.PunnyJoke(setup_text="setup", punchline_text="punch")
+  joke.key = "joke-future"
+  joke.state = models.JokeState.DAILY
+  joke.public_timestamp = datetime.datetime.now(
+    datetime.timezone.utc) + datetime.timedelta(days=30)
+
+  mock_get = Mock(return_value=([(joke, "joke-future")], None))
+  monkeypatch.setattr(admin_jokes_routes.firestore, "get_joke_by_state",
+                      mock_get)
+
+  with app.test_client() as client:
+    resp = client.get("/admin/jokes?states=DAILY")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "joke-state-future-daily" in html
+  assert "joke-state-daily joke-state-future-daily" not in html

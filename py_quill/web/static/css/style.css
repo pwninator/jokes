@@ -1057,65 +1057,51 @@ img {
 
 .joke-state-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 0px;
+  left: 0px;
   z-index: 5;
-  padding: 4px 8px;
+  padding: 0px 6px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(1px);
   border: 2px solid rgba(0, 0, 0, 0.08);
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  color: rgba(0, 0, 0, 0.78);
+  text-shadow: none;
 }
 
 .joke-state-unknown {
-  background: rgba(244, 67, 54, 0.95);
+  background: rgba(244, 67, 54, 0.5);
 }
 
 .joke-state-draft {
-  background: rgba(158, 158, 158, 0.45);
-  color: rgba(0, 0, 0, 0.75);
-  text-shadow: none;
+  background: rgba(158, 158, 158, 0.3);
 }
 
 .joke-state-unreviewed {
-  background: rgba(255, 152, 0, 0.45);
-  color: rgba(0, 0, 0, 0.75);
-  text-shadow: none;
+  background: rgba(255, 152, 0, 0.3);
 }
 
 .joke-state-approved {
-  background: rgba(76, 175, 80, 0.45);
-  color: rgba(0, 0, 0, 0.78);
-  text-shadow: none;
+  background: rgba(76, 175, 80, 0.3);
 }
 
 .joke-state-rejected {
-  background: rgba(244, 67, 54, 0.45);
-  color: rgba(0, 0, 0, 0.78);
-  text-shadow: none;
+  background: rgba(244, 67, 54, 0.3);
 }
 
 .joke-state-published {
-  background: rgba(33, 150, 243, 0.45);
-  color: rgba(0, 0, 0, 0.78);
-  text-shadow: none;
+  background: rgba(33, 150, 243, 0.3);
 }
 
 .joke-state-daily {
-  background: rgba(156, 39, 176, 0.45);
-  color: rgba(0, 0, 0, 0.78);
-  text-shadow: none;
+  background: rgba(156, 39, 176, 0.3);
 }
 
 .joke-state-future-daily {
-  background: rgba(233, 109, 255, 0.8);
-  border-color: rgba(233, 109, 255, 0.8);
-  color: rgba(0, 0, 0, 0.82);
-  text-shadow: none;
+  background: rgba(233, 109, 255, 0.7);
+  border-color: rgba(233, 109, 255, 0.9);
 }
 
 .joke-admin-stats {

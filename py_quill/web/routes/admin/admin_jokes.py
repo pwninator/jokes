@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+
 import flask
 
 from common import models
@@ -10,7 +12,7 @@ from services import firestore
 from web.routes import web_bp
 
 _JOKES_PER_PAGE = 10
-_JOKE_IMAGE_SIZE = 300
+_JOKE_IMAGE_SIZE = 400
 
 _ALL_STATES: list[models.JokeState] = [
   models.JokeState.UNKNOWN,
@@ -28,6 +30,21 @@ _DEFAULT_SELECTED_STATES: list[models.JokeState] = [
   models.JokeState.UNREVIEWED,
   models.JokeState.APPROVED,
 ]
+
+
+def _is_future_daily(joke: models.PunnyJoke, *,
+                     now_utc: datetime.datetime) -> bool:
+  if joke.state != models.JokeState.DAILY:
+    return False
+  public_ts = getattr(joke, "public_timestamp", None)
+  if public_ts is None:
+    return False
+  if not isinstance(public_ts, datetime.datetime):
+    return False
+  if public_ts.tzinfo is None:
+    # Treat naive timestamps as UTC.
+    public_ts = public_ts.replace(tzinfo=datetime.timezone.utc)
+  return public_ts > now_utc
 
 
 def _parse_state_filters(value: str | None) -> list[models.JokeState]:
@@ -56,12 +73,17 @@ def admin_jokes():
   """Render admin jokes page with state filters + infinite scroll."""
   selected_states = _parse_state_filters(flask.request.args.get('states'))
   query_cursor = flask.request.args.get('cursor', default=None)
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
 
   joke_entries, next_cursor = firestore.get_joke_by_state(
     states=selected_states,
     cursor=query_cursor,
     limit=_JOKES_PER_PAGE,
   )
+  for joke, _ in joke_entries:
+    # Attach a template-friendly flag for future-daily styling.
+    joke.is_future_daily = _is_future_daily(
+      joke, now_utc=now_utc)  # type: ignore[attr-defined]
   jokes_list = [{
     'joke': joke,
     'cursor': cursor,
@@ -89,12 +111,16 @@ def admin_jokes_load_more():
   cursor = flask.request.args.get('cursor', default=None)
   limit = flask.request.args.get('limit', default=_JOKES_PER_PAGE, type=int)
   selected_states = _parse_state_filters(flask.request.args.get('states'))
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
 
   joke_entries, next_cursor = firestore.get_joke_by_state(
     states=selected_states,
     cursor=cursor,
     limit=limit,
   )
+  for joke, _ in joke_entries:
+    joke.is_future_daily = _is_future_daily(
+      joke, now_utc=now_utc)  # type: ignore[attr-defined]
   jokes_list = [{
     'joke': joke,
     'cursor': cursor,

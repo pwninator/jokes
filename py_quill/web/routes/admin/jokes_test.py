@@ -72,6 +72,11 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert '"states": "UNKNOWN,DRAFT,UNREVIEWED,APPROVED"' in html
   assert 'id="admin-new-joke-button"' in html
   assert 'id="admin-edit-joke-modal"' in html
+  assert 'id="admin-edit-joke-setup-scene-idea"' not in html
+  assert 'id="admin-edit-joke-punchline-scene-idea"' not in html
+  assert 'id="admin-edit-joke-scene-ideas-button"' in html
+  assert 'id="admin-scene-ideas-modal"' in html
+  assert 'id="admin-scene-ideas-generate-button"' in html
   assert "/joke_creation_process" in html
   assert 'data-joke-id="joke-1"' in html
   assert 'joke-edit-button' in html
@@ -83,6 +88,13 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'setup' in html
   assert 'punchline_text' in html
   assert 'punch' in html
+
+  # New joke modal: tabbing from Punchline should focus Submit before Cancel.
+  submit_index = html.find('id="admin-new-joke-submit-button"')
+  cancel_index = html.find('id="admin-new-joke-cancel-button"')
+  assert submit_index != -1
+  assert cancel_index != -1
+  assert submit_index < cancel_index
 
 
 def test_admin_jokes_custom_filters(monkeypatch):

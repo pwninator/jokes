@@ -59,6 +59,10 @@
     display: flex;
   }
 
+  .admin-modal.admin-modal--overlay {
+    z-index: 1001;
+  }
+
   .admin-modal__backdrop {
     position: absolute;
     inset: 0;
@@ -97,9 +101,27 @@
     margin-bottom: 12px;
   }
 
+  .admin-modal__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
   .admin-modal__label {
     font-weight: var(--font-weight-label);
     color: var(--color-text);
+  }
+
+  .admin-scene-ideas-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    min-width: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    line-height: 1;
   }
 
   .admin-modal__textarea {
@@ -142,6 +164,15 @@
     margin-top: 6px;
   }
 
+  /* Keep tab order = Submit then Cancel, while rendering Cancel left of Submit. */
+  .admin-modal__actions #admin-new-joke-cancel-button {
+    order: 1;
+  }
+
+  .admin-modal__actions #admin-new-joke-submit-button {
+    order: 2;
+  }
+
   .joke-edit-button {
     padding: 6px 12px;
     border-radius: 999px;
@@ -164,7 +195,7 @@
 
   .admin-modal__image-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 90px);
+    grid-template-columns: repeat(auto-fill, 120px);
     justify-content: start;
     gap: 2px;
   }
@@ -186,6 +217,12 @@
   .admin-modal__image-option--selected {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-focus-ring);
+  }
+
+  /* Keep selected border/ring thickness on hover (don't let hover shadow replace it). */
+  .admin-modal__image-option--selected:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-focus-ring), 0 10px 18px rgba(0, 0, 0, 0.14);
   }
 
   .admin-modal__image-option img {
@@ -238,10 +275,8 @@
             <input class="admin-modal__input" id="admin-new-joke-punchline" name="punchline" type="text" required>
           </div>
           <div class="admin-modal__actions">
-            <button type="button" class="button-secondary text-button"
-              id="admin-new-joke-cancel-button">Cancel</button>
-            <button type="submit" class="button-primary text-button"
-              id="admin-new-joke-submit-button">Submit</button>
+            <button type="submit" class="button-primary text-button" id="admin-new-joke-submit-button">Submit</button>
+            <button type="button" class="button-secondary text-button" id="admin-new-joke-cancel-button">Cancel</button>
           </div>
         </form>
       </div>
@@ -265,22 +300,21 @@
             <input class="admin-modal__input" id="admin-edit-joke-punchline" name="punchline_text" type="text" required>
           </div>
           <div class="admin-modal__field">
-            <label class="admin-modal__label" for="admin-edit-joke-setup-scene-idea">Setup scene idea</label>
-            <textarea class="admin-modal__textarea" id="admin-edit-joke-setup-scene-idea"
-              name="setup_scene_idea"></textarea>
-          </div>
-          <div class="admin-modal__field">
-            <label class="admin-modal__label" for="admin-edit-joke-punchline-scene-idea">Punchline scene idea</label>
-            <textarea class="admin-modal__textarea" id="admin-edit-joke-punchline-scene-idea"
-              name="punchline_scene_idea"></textarea>
-          </div>
-          <div class="admin-modal__field">
-            <label class="admin-modal__label" for="admin-edit-joke-setup-image-description">Setup image description</label>
+            <div class="admin-modal__label-row">
+              <label class="admin-modal__label" for="admin-edit-joke-setup-image-description">Setup image
+                description</label>
+              <button type="button" class="button-primary text-button admin-scene-ideas-cta"
+                id="admin-edit-joke-scene-ideas-button"
+                aria-label="Edit scene ideas and regenerate image descriptions" title="Edit scene ideas">
+                ✨
+              </button>
+            </div>
             <textarea class="admin-modal__textarea" id="admin-edit-joke-setup-image-description"
               name="setup_image_description"></textarea>
           </div>
           <div class="admin-modal__field">
-            <label class="admin-modal__label" for="admin-edit-joke-punchline-image-description">Punchline image description</label>
+            <label class="admin-modal__label" for="admin-edit-joke-punchline-image-description">Punchline image
+              description</label>
             <textarea class="admin-modal__textarea" id="admin-edit-joke-punchline-image-description"
               name="punchline_image_description"></textarea>
           </div>
@@ -296,10 +330,37 @@
           </div>
 
           <div class="admin-modal__actions">
-            <button type="button" class="button-secondary text-button" id="admin-edit-joke-cancel-button">Cancel</button>
+            <button type="button" class="button-secondary text-button"
+              id="admin-edit-joke-cancel-button">Cancel</button>
             <button type="submit" class="button-primary text-button" id="admin-edit-joke-save-button">Save</button>
             <button type="button" class="button-primary text-button"
               id="admin-edit-joke-regenerate-button">Regenerate</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-scene-ideas-modal" class="admin-modal admin-modal--overlay" aria-hidden="true">
+    <div class="admin-modal__backdrop" data-admin-scene-ideas-backdrop></div>
+    <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-scene-ideas-title">
+      <h3 id="admin-scene-ideas-title" class="admin-modal__title text-section-heading">Scene ideas</h3>
+      <div class="admin-modal__content">
+        <form id="admin-scene-ideas-form">
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-scene-ideas-setup">Setup scene idea</label>
+            <textarea class="admin-modal__textarea" id="admin-scene-ideas-setup" name="setup_scene_idea"></textarea>
+          </div>
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-scene-ideas-punchline">Punchline scene idea</label>
+            <textarea class="admin-modal__textarea" id="admin-scene-ideas-punchline"
+              name="punchline_scene_idea"></textarea>
+          </div>
+          <div class="admin-modal__actions">
+            <button type="button" class="button-secondary text-button"
+              id="admin-scene-ideas-cancel-button">Cancel</button>
+            <button type="submit" class="button-primary text-button" id="admin-scene-ideas-generate-button">Generate
+              Image Descriptions</button>
           </div>
         </form>
       </div>
@@ -350,13 +411,20 @@
   const editJokeIdInput = document.getElementById('admin-edit-joke-id');
   const editSetupInput = document.getElementById('admin-edit-joke-setup');
   const editPunchlineInput = document.getElementById('admin-edit-joke-punchline');
-  const editSetupSceneIdeaInput = document.getElementById('admin-edit-joke-setup-scene-idea');
-  const editPunchlineSceneIdeaInput = document.getElementById('admin-edit-joke-punchline-scene-idea');
   const editSetupImageDescriptionInput = document.getElementById('admin-edit-joke-setup-image-description');
   const editPunchlineImageDescriptionInput = document.getElementById('admin-edit-joke-punchline-image-description');
   const editSetupImagesGrid = document.getElementById('admin-edit-joke-setup-images');
   const editPunchlineImagesGrid = document.getElementById('admin-edit-joke-punchline-images');
   const editRegenerateButton = document.getElementById('admin-edit-joke-regenerate-button');
+  const editSceneIdeasButton = document.getElementById('admin-edit-joke-scene-ideas-button');
+
+  const sceneIdeasModal = document.getElementById('admin-scene-ideas-modal');
+  const sceneIdeasModalBackdrop = document.querySelector('[data-admin-scene-ideas-backdrop]');
+  const sceneIdeasForm = document.getElementById('admin-scene-ideas-form');
+  const sceneIdeasCancelButton = document.getElementById('admin-scene-ideas-cancel-button');
+  const sceneIdeasSetupInput = document.getElementById('admin-scene-ideas-setup');
+  const sceneIdeasPunchlineInput = document.getElementById('admin-scene-ideas-punchline');
+  const sceneIdeasGenerateButton = document.getElementById('admin-scene-ideas-generate-button');
 
   let inFlightCount = 0;
   let activeEditCard = null;
@@ -395,6 +463,10 @@
     return Boolean(editModal && editModal.classList.contains('admin-modal--open'));
   }
 
+  function isSceneIdeasModalOpen() {
+    return Boolean(sceneIdeasModal && sceneIdeasModal.classList.contains('admin-modal--open'));
+  }
+
   function openEditModal() {
     if (!editModal) {
       return;
@@ -414,6 +486,44 @@
     editModal.setAttribute('aria-hidden', 'true');
   }
 
+  function openSceneIdeasModal() {
+    if (!sceneIdeasModal || !activeEditPayload) {
+      return;
+    }
+    setValue(sceneIdeasSetupInput, activeEditPayload.setup_scene_idea);
+    setValue(sceneIdeasPunchlineInput, activeEditPayload.punchline_scene_idea);
+    sceneIdeasModal.classList.add('admin-modal--open');
+    sceneIdeasModal.setAttribute('aria-hidden', 'false');
+    if (sceneIdeasSetupInput) {
+      sceneIdeasSetupInput.focus();
+    }
+  }
+
+  function closeSceneIdeasModal() {
+    if (!sceneIdeasModal) {
+      return;
+    }
+    sceneIdeasModal.classList.remove('admin-modal--open');
+    sceneIdeasModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function setSceneIdeasLocked(isLocked) {
+    const locked = Boolean(isLocked);
+    if (sceneIdeasSetupInput) {
+      sceneIdeasSetupInput.disabled = locked;
+    }
+    if (sceneIdeasPunchlineInput) {
+      sceneIdeasPunchlineInput.disabled = locked;
+    }
+    if (sceneIdeasCancelButton) {
+      sceneIdeasCancelButton.disabled = locked;
+    }
+    if (sceneIdeasGenerateButton) {
+      sceneIdeasGenerateButton.disabled = locked;
+      sceneIdeasGenerateButton.textContent = locked ? 'Generating...' : 'Generate Image Descriptions';
+    }
+  }
+
   function setCardGenerating(card) {
     if (!card) {
       return;
@@ -428,6 +538,9 @@
   }
 
   function handleEditCancel() {
+    if (isSceneIdeasModalOpen()) {
+      closeSceneIdeasModal();
+    }
     closeEditModal();
     activeEditCard = null;
     activeEditPayload = null;
@@ -477,6 +590,75 @@
     });
   }
 
+  function dedupeKeepOrder(values) {
+    const seen = new Set();
+    const result = [];
+    (values || []).forEach((value) => {
+      if (!value) {
+        return;
+      }
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+      result.push(value);
+    });
+    return result;
+  }
+
+  function formatThumbUrl(url, width) {
+    if (!url || typeof url !== 'string') {
+      return url;
+    }
+    const prefix = 'https://images.quillsstorybook.com/cdn-cgi/image/';
+    if (!url.startsWith(prefix)) {
+      return url;
+    }
+    const remainder = url.slice(prefix.length);
+    const slashIndex = remainder.indexOf('/');
+    if (slashIndex < 0) {
+      return url;
+    }
+    const paramsStr = remainder.slice(0, slashIndex);
+    const objectPath = remainder.slice(slashIndex + 1);
+    const params = {};
+    if (paramsStr) {
+      paramsStr.split(',').forEach((part) => {
+        const kv = part.split('=');
+        if (kv.length === 2) {
+          params[kv[0]] = kv[1];
+        }
+      });
+    }
+    params.width = String(width || 180);
+    const newParamsStr = Object.keys(params).map((k) => `${k}=${params[k]}`).join(',');
+    return `${prefix}${newParamsStr}/${objectPath}`;
+  }
+
+  function buildImagesForGrid(primaryUrl, allUrls) {
+    const urls = dedupeKeepOrder([primaryUrl, ...(allUrls || [])]);
+    return urls.map((url) => ({
+      url,
+      thumb_url: formatThumbUrl(url, 180),
+    }));
+  }
+
+  function selectSetupImage(url) {
+    selectedSetupImageUrl = url;
+    if (!activeEditPayload) {
+      return;
+    }
+    renderImageGrid(editSetupImagesGrid, activeEditPayload.setup_images, selectedSetupImageUrl, selectSetupImage);
+  }
+
+  function selectPunchlineImage(url) {
+    selectedPunchlineImageUrl = url;
+    if (!activeEditPayload) {
+      return;
+    }
+    renderImageGrid(editPunchlineImagesGrid, activeEditPayload.punchline_images, selectedPunchlineImageUrl, selectPunchlineImage);
+  }
+
   function clearForm() {
     if (setupInput) {
       setupInput.value = '';
@@ -506,6 +688,10 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      if (isSceneIdeasModalOpen()) {
+        closeSceneIdeasModal();
+        return;
+      }
       if (isEditModalOpen()) {
         handleEditCancel();
         return;
@@ -523,6 +709,24 @@
   if (editModalBackdrop) {
     editModalBackdrop.addEventListener('click', () => {
       handleEditCancel();
+    });
+  }
+
+  if (editSceneIdeasButton) {
+    editSceneIdeasButton.addEventListener('click', () => {
+      openSceneIdeasModal();
+    });
+  }
+
+  if (sceneIdeasCancelButton) {
+    sceneIdeasCancelButton.addEventListener('click', () => {
+      closeSceneIdeasModal();
+    });
+  }
+
+  if (sceneIdeasModalBackdrop) {
+    sceneIdeasModalBackdrop.addEventListener('click', () => {
+      closeSceneIdeasModal();
     });
   }
 
@@ -555,8 +759,6 @@
     setValue(editJokeIdInput, payload.joke_id || payload.jokeId || '');
     setValue(editSetupInput, payload.setup_text);
     setValue(editPunchlineInput, payload.punchline_text);
-    setValue(editSetupSceneIdeaInput, payload.setup_scene_idea);
-    setValue(editPunchlineSceneIdeaInput, payload.punchline_scene_idea);
     setValue(editSetupImageDescriptionInput, payload.setup_image_description);
     setValue(editPunchlineImageDescriptionInput, payload.punchline_image_description);
 
@@ -570,21 +772,87 @@
       selectedPunchlineImageUrl = payload.punchline_images[0].url;
     }
 
-    function selectSetupImage(url) {
-      selectedSetupImageUrl = url;
-      renderImageGrid(editSetupImagesGrid, payload.setup_images, selectedSetupImageUrl, selectSetupImage);
-    }
-
-    function selectPunchlineImage(url) {
-      selectedPunchlineImageUrl = url;
-      renderImageGrid(editPunchlineImagesGrid, payload.punchline_images, selectedPunchlineImageUrl, selectPunchlineImage);
-    }
-
     renderImageGrid(editSetupImagesGrid, payload.setup_images, selectedSetupImageUrl, selectSetupImage);
     renderImageGrid(editPunchlineImagesGrid, payload.punchline_images, selectedPunchlineImageUrl, selectPunchlineImage);
 
     openEditModal();
   });
+
+  async function generateImageDescriptionsFromSceneIdeas() {
+    if (!activeEditPayload || !editJokeIdInput) {
+      return;
+    }
+    if (!sceneIdeasSetupInput || !sceneIdeasPunchlineInput) {
+      return;
+    }
+
+    const setupSceneIdea = sceneIdeasSetupInput.value.trim();
+    const punchlineSceneIdea = sceneIdeasPunchlineInput.value.trim();
+
+    setSceneIdeasLocked(true);
+
+    const requestPayload = {
+      data: {
+        joke_id: editJokeIdInput.value,
+        setup_scene_idea: setupSceneIdea,
+        punchline_scene_idea: punchlineSceneIdea,
+        generate_descriptions: true,
+      },
+    };
+
+    try {
+      const resp = await fetch(jokeCreationUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(requestPayload),
+      });
+
+      let json = null;
+      try {
+        json = await resp.json();
+      } catch (_e) {
+        json = null;
+      }
+
+      const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+      if (!resp.ok || !jokeData) {
+        console.warn('Generate image descriptions failed', { status: resp.status, json }); // eslint-disable-line no-console
+        return;
+      }
+
+      activeEditPayload.setup_scene_idea = setupSceneIdea;
+      activeEditPayload.punchline_scene_idea = punchlineSceneIdea;
+
+      activeEditPayload.setup_image_description = jokeData.setup_image_description;
+      activeEditPayload.punchline_image_description = jokeData.punchline_image_description;
+      setValue(editSetupImageDescriptionInput, jokeData.setup_image_description);
+      setValue(editPunchlineImageDescriptionInput, jokeData.punchline_image_description);
+
+      if (jokeData.all_setup_image_urls || jokeData.setup_image_url) {
+        activeEditPayload.setup_images = buildImagesForGrid(jokeData.setup_image_url, jokeData.all_setup_image_urls);
+        activeEditPayload.setup_image_url = jokeData.setup_image_url;
+        selectedSetupImageUrl = jokeData.setup_image_url || (activeEditPayload.setup_images[0] ? activeEditPayload.setup_images[0].url : selectedSetupImageUrl);
+        renderImageGrid(editSetupImagesGrid, activeEditPayload.setup_images, selectedSetupImageUrl, selectSetupImage);
+      }
+
+      if (jokeData.all_punchline_image_urls || jokeData.punchline_image_url) {
+        activeEditPayload.punchline_images = buildImagesForGrid(jokeData.punchline_image_url, jokeData.all_punchline_image_urls);
+        activeEditPayload.punchline_image_url = jokeData.punchline_image_url;
+        selectedPunchlineImageUrl = jokeData.punchline_image_url || (activeEditPayload.punchline_images[0] ? activeEditPayload.punchline_images[0].url : selectedPunchlineImageUrl);
+        renderImageGrid(editPunchlineImagesGrid, activeEditPayload.punchline_images, selectedPunchlineImageUrl, selectPunchlineImage);
+      }
+
+      closeSceneIdeasModal();
+    } catch (err) {
+      console.warn('Generate image descriptions request failed', err); // eslint-disable-line no-console
+    } finally {
+      setSceneIdeasLocked(false);
+    }
+  }
 
   function sendEditRequest(populateImages) {
     if (!editJokeIdInput || !editSetupInput || !editPunchlineInput) {
@@ -612,8 +880,6 @@
         joke_id: editJokeIdInput.value,
         setup_text: setupText,
         punchline_text: punchlineText,
-        setup_scene_idea: (editSetupSceneIdeaInput && editSetupSceneIdeaInput.value) ? editSetupSceneIdeaInput.value.trim() : '',
-        punchline_scene_idea: (editPunchlineSceneIdeaInput && editPunchlineSceneIdeaInput.value) ? editPunchlineSceneIdeaInput.value.trim() : '',
         setup_image_description: (editSetupImageDescriptionInput && editSetupImageDescriptionInput.value) ? editSetupImageDescriptionInput.value.trim() : '',
         punchline_image_description: (editPunchlineImageDescriptionInput && editPunchlineImageDescriptionInput.value) ? editPunchlineImageDescriptionInput.value.trim() : '',
         setup_image_url: selectedSetupImageUrl,
@@ -655,6 +921,13 @@
   if (editRegenerateButton) {
     editRegenerateButton.addEventListener('click', () => {
       sendEditRequest(true);
+    });
+  }
+
+  if (sceneIdeasForm) {
+    sceneIdeasForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      generateImageDescriptionsFromSceneIdeas();
     });
   }
 

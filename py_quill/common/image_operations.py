@@ -44,7 +44,8 @@ _PAGE_NUMBER_STROKE_RATIO = 0.14
 _PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
 _PAGE_NUMBER_STROKE_COLOR = (255, 255, 255)
 
-_PANEL_BLOCKER_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/panel_blocker_overlay1.png"
+_PANEL_BLOCKER_OVERLAY_URL_PUPPY = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/panel_blocker_overlay1.png"
+_PANEL_BLOCKER_OVERLAY_URL_POST_IT = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/panel_blocker_overlay2.png"
 
 
 def create_blank_book_cover(*, color_mode: str) -> bytes:
@@ -936,19 +937,28 @@ def create_pinterest_pin_image(
 
   # Overlay blocker image on bottom right punchline if requested
   if block_last_panel and num_jokes > 0:
+    blocker_url = _PANEL_BLOCKER_OVERLAY_URL_POST_IT
     blocker_img = cloud_storage.download_image_from_gcs(
-      _PANEL_BLOCKER_OVERLAY_URL)
-    blocker_img = blocker_img.resize((600, 600), Image.Resampling.LANCZOS)
+      _PANEL_BLOCKER_OVERLAY_URL_POST_IT)
     # Ensure blocker image is RGBA for alpha transparency
     if blocker_img.mode != 'RGBA':
       blocker_img = blocker_img.convert('RGBA')
-    # Position the 600x600 overlay so bottom and right edges align with the previous position
-    # Bottom right panel is at x=500, y_offset = (num_jokes - 1) * 500
-    last_row_y = (num_jokes - 1) * 500
-    # Previous bottom-right corner was at (1025, last_row_y + 525)
-    # To keep same bottom-right: position at (1025 - 600, (last_row_y + 525) - 600)
-    overlay_x = 425  # 1025 - 600
-    overlay_y = last_row_y - 75  # (last_row_y + 525) - 600
+
+    if blocker_url == _PANEL_BLOCKER_OVERLAY_URL_PUPPY:
+      blocker_img = blocker_img.resize((600, 600), Image.Resampling.LANCZOS)
+      # Position the 600x600 overlay so bottom and right edges align with the previous position
+      # Bottom right panel is at x=500, y_offset = (num_jokes - 1) * 500
+      last_row_y = (num_jokes - 1) * 500
+      # Previous bottom-right corner was at (1025, last_row_y + 525)
+      # To keep same bottom-right: position at (1025 - 600, (last_row_y + 525) - 600)
+      overlay_x = 425  # 1025 - 600
+      overlay_y = last_row_y - 75  # (last_row_y + 525) - 600
+    elif blocker_url == _PANEL_BLOCKER_OVERLAY_URL_POST_IT:
+      blocker_img = blocker_img.resize((500, 500), Image.Resampling.LANCZOS)
+      overlay_x = 500  # 1025 - 600
+      overlay_y = (num_jokes - 1) * 500
+    else:
+      raise ValueError(f"Invalid blocker overlay URL: {blocker_url}")
     # Convert canvas to RGBA for alpha compositing
     canvas = canvas.convert('RGBA')
     # Create full-size transparent overlay for proper alpha compositing

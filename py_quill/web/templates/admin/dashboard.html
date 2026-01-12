@@ -93,6 +93,13 @@
   </div>
 
   <section class="admin-grid" aria-label="Admin quick links">
+    <a class="admin-card" href="{{ url_for('web.admin_jokes') }}">
+      <div class="admin-card-title text-body">
+        <span>Jokes</span>
+        <span class="muted text-button">→</span>
+      </div>
+      <p class="admin-card-desc muted">Browse jokes by state and review usage stats.</p>
+    </a>
     <a class="admin-card" href="{{ url_for('web.admin_joke_categories') }}">
       <div class="admin-card-title text-body">
         <span>Joke categories</span>

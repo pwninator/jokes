@@ -1,4 +1,4 @@
 {% from "components/joke_card.html" import joke_card %}
 {% for entry in jokes %}
-{{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=image_size, joke_id=entry.joke.key, feed_cursor=entry.cursor) }}
+{{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=image_size, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_mode=admin_mode|default(false)) }}
 {% endfor %}

@@ -77,6 +77,59 @@ def _prepare_jokes_query(states: list[models.JokeState] | None, *,
     filter=FieldFilter('state', 'in', state_values))
 
 
+def get_joke_by_state(
+  states: list[models.JokeState],
+  cursor: str | None = None,
+  limit: int = 10,
+) -> tuple[list[tuple[models.PunnyJoke, str]], str | None]:
+  """Fetch a page of jokes for the admin UI.
+
+  Jokes are filtered by `states` and sorted by `creation_time` descending.
+
+  Args:
+    states: Joke lifecycle states to include (required; caller chooses defaults).
+    cursor: Optional joke document id to start *after* (cursor pagination).
+    limit: Maximum number of jokes to return.
+
+  Returns:
+    (entries, next_cursor):
+      - entries: list of (PunnyJoke, per_item_cursor) pairs. The per-item cursor
+        is the joke document id for that row (useful for client-side resume).
+      - next_cursor: the document id cursor for fetching the next page, or None
+        if there are no more results.
+  """
+  query = _prepare_jokes_query(states, async_mode=False).order_by(
+    'creation_time',
+    direction=Query.DESCENDING,
+  )
+
+  if cursor:
+    try:
+      snapshot = db().collection('jokes').document(cursor).get()
+      if getattr(snapshot, 'exists', False):
+        query = query.start_after(snapshot)
+    except Exception:
+      # Invalid cursor or transient Firestore issue; fall back to first page.
+      pass
+
+  docs = list(query.limit(limit + 1).stream())
+  page_docs = docs[:limit]
+  has_more = len(docs) > limit
+
+  entries: list[tuple[models.PunnyJoke, str]] = []
+  for doc in page_docs:
+    if not getattr(doc, 'exists', False):
+      continue
+    payload = doc.to_dict()
+    if payload is None:
+      continue
+    joke = models.PunnyJoke.from_firestore_dict(payload, key=doc.id)
+    entries.append((joke, doc.id))
+
+  next_cursor = page_docs[-1].id if (has_more and page_docs) else None
+  return entries, next_cursor
+
+
 def get_all_jokes(
     states: list[models.JokeState] | None = None) -> list[models.PunnyJoke]:
   """Get jokes from firestore filtered by state.

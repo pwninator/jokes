@@ -12,11 +12,16 @@
 {% set stats_url = url_for('web.admin_stats') %}
 {% set redirect_tester_url = url_for('web.admin_redirect_tester') %}
 {% set printable_notes_url = url_for('web.admin_printable_notes') %}
+{% set jokes_url = url_for('web.admin_jokes') %}
 <div class="site-shell admin-site-shell">
   {% call site_header(dashboard_url, site_name + " Admin", site_name, True) %}
         <a class="nav-link text-button{% if current_path == dashboard_url %} nav-link--active{% endif %}"
           href="{{ dashboard_url }}">
           Dashboard
+        </a>
+        <a class="nav-link text-button{% if current_path == jokes_url %} nav-link--active{% endif %}"
+          href="{{ jokes_url }}">
+          Jokes
         </a>
         <a class="nav-link text-button{% if current_path == joke_categories_url %} nav-link--active{% endif %}"
           href="{{ joke_categories_url }}">

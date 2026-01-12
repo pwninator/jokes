@@ -1,10 +1,23 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, reveal_style='carousel', joke_id=None, feed_cursor=None) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, reveal_style='carousel', joke_id=None, feed_cursor=None, admin_mode=false) -%}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
+{% set state_value = joke.state.value if joke.state is not none else '' %}
+{% set is_daily = state_value == 'DAILY' %}
+{% set has_public_ts = joke.public_timestamp is not none %}
+{% set is_future_daily = is_daily and has_public_ts and now_utc is defined and joke.public_timestamp > now_utc %}
 {% if reveal_style == 'carousel' %}
 <article class="joke-card" aria-label="Joke {{ unique_id }}"
   style="--joke-card-max-width: {{ width }}px;"
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
+    {% if admin_mode and state_value %}
+      <div class="joke-state-badge joke-state-{{ state_value|lower }}{% if is_future_daily %} joke-state-future-daily{% endif %}">
+        {% if is_daily and has_public_ts %}
+          {{ joke.public_timestamp.strftime('%Y-%m-%d') }}
+        {% else %}
+          {{ state_value|lower|capitalize }}
+        {% endif %}
+      </div>
+    {% endif %}
     <div class="joke-carousel">
       <div class="joke-carousel-viewport">
         <div class="joke-carousel-track">
@@ -31,6 +44,25 @@
         </div>
       </div>
     </div>
+    {% if admin_mode %}
+      {% set viewed = joke.num_viewed_users|default(0) %}
+      {% set saved = joke.num_saved_users|default(0) %}
+      {% set shared = joke.num_shared_users|default(0) %}
+      <div class="joke-admin-stats" aria-label="Joke stats">
+        <div class="joke-admin-stat joke-admin-stat--views{% if viewed == 0 %} is-muted{% endif %}">
+          <span class="joke-admin-stat-icon" aria-hidden="true">👁</span>
+          <span class="joke-admin-stat-value">{{ viewed }}</span>
+        </div>
+        <div class="joke-admin-stat joke-admin-stat--saves{% if saved == 0 %} is-muted{% endif %}">
+          <span class="joke-admin-stat-icon" aria-hidden="true">❤</span>
+          <span class="joke-admin-stat-value">{{ saved }}</span>
+        </div>
+        <div class="joke-admin-stat joke-admin-stat--shares{% if shared == 0 %} is-muted{% endif %}">
+          <span class="joke-admin-stat-icon" aria-hidden="true">↗</span>
+          <span class="joke-admin-stat-value">{{ shared }}</span>
+        </div>
+      </div>
+    {% endif %}
     <button class="joke-reveal text-button" type="button" data-role="reveal" data-label-show="{{ reveal_label }}"
       data-label-hide="Back to Setup" aria-controls="joke-{{ unique_id }}-punchline" aria-expanded="false"
       data-analytics-event="web_index_joke_reveal_click" data-analytics-label="{{ joke.key|default('unknown')|e }}">

@@ -1,4 +1,4 @@
-{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None) -%}
+{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None, extra_query_params=None, admin_mode=false) -%}
 {% from "components/joke_card.html" import joke_card %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
@@ -52,7 +52,7 @@
 <section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed">
   {% if initial_jokes %}
     {% for entry in initial_jokes %}
-    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor) }}
+    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_mode=admin_mode) }}
     {% endfor %}
   {% endif %}
 </section>
@@ -71,7 +71,28 @@
     const loadingIndicator = document.getElementById('{{ loading_id }}');
     const endOfFeed = document.getElementById('{{ end_of_feed_id }}');
     const cursorStorageKey = {{ cursor_storage_key | tojson if cursor_storage_key else 'null' }};
+    const extraQueryParams = {{ extra_query_params | tojson if extra_query_params else 'null' }};
     const apiEndpoint = '/jokes/feed/load-more-{{ slug }}';
+
+    function applyExtraQueryParams(url) {
+      if (!extraQueryParams) {
+        return;
+      }
+      try {
+        for (const [key, value] of Object.entries(extraQueryParams)) {
+          if (value === null || value === undefined) {
+            continue;
+          }
+          const strValue = String(value);
+          if (!strValue) {
+            continue;
+          }
+          url.searchParams.set(key, strValue);
+        }
+      } catch (e) {
+        // Ignore.
+      }
+    }
 
     function setLocalStorage(name, value) {
       try {
@@ -170,6 +191,7 @@
       if (nextCursor) {
         url.searchParams.set('cursor', nextCursor);
       }
+      applyExtraQueryParams(url);
 
       fetch(url)
         .then(response => response.json())
@@ -272,6 +294,7 @@
 
       const url = new URL(apiEndpoint, window.location.origin);
       url.searchParams.set('cursor', nextCursor);
+      applyExtraQueryParams(url);
 
       fetch(url)
         .then(response => response.json())
@@ -354,6 +377,7 @@
 
       const url = new URL(apiEndpoint, window.location.origin);
       url.searchParams.set('cursor', cursor);
+      applyExtraQueryParams(url);
 
       fetch(url)
         .then(response => {

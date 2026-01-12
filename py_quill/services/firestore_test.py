@@ -201,6 +201,106 @@ def test_upsert_punny_joke_logs_operation(monkeypatch):
   assert log_entry["punchline_scene_idea"] == "scene punch"
 
 
+def test_get_joke_by_state_orders_and_paginates(monkeypatch):
+  """get_joke_by_state orders by creation_time desc and paginates by cursor."""
+  captured: dict = {}
+
+  class _Snapshot:
+
+    def __init__(self, exists: bool = True):
+      self.exists = exists
+
+  class _Doc:
+
+    def __init__(self, doc_id: str, data: dict | None, exists: bool = True):
+      self.id = doc_id
+      self.exists = exists
+      self._data = data
+
+    def to_dict(self):
+      return self._data
+
+  class _Query:
+
+    def __init__(self, docs):
+      self._docs = docs
+
+    def order_by(self, field: str, direction=None):
+      captured["order_by"] = (field, direction)
+      return self
+
+    def start_after(self, snapshot):
+      captured["start_after_called"] = True
+      captured["start_after_snapshot"] = snapshot
+      return self
+
+    def limit(self, n: int):
+      captured["limit"] = n
+      return self
+
+    def stream(self):
+      return self._docs
+
+  class _DocRef:
+
+    def __init__(self, snapshot: _Snapshot):
+      self._snapshot = snapshot
+
+    def get(self):
+      return self._snapshot
+
+  class _Collection:
+
+    def document(self, _doc_id: str):
+      return _DocRef(_Snapshot(exists=True))
+
+  class _DB:
+
+    def collection(self, name: str):
+      assert name == "jokes"
+      return _Collection()
+
+  def _prepare(states, *, async_mode: bool):
+    assert async_mode is False
+    captured["states"] = states
+    return _Query([
+      _Doc("joke3", {
+        "setup_text": "s3",
+        "punchline_text": "p3",
+        "state": "DRAFT",
+      }),
+      _Doc("joke2", {
+        "setup_text": "s2",
+        "punchline_text": "p2",
+        "state": "DRAFT",
+      }),
+      _Doc("joke1", {
+        "setup_text": "s1",
+        "punchline_text": "p1",
+        "state": "DRAFT",
+      }),
+    ])
+
+  monkeypatch.setattr(firestore, "_prepare_jokes_query", _prepare)
+  monkeypatch.setattr(firestore, "db", lambda: _DB())
+
+  entries, next_cursor = firestore.get_joke_by_state(
+    states=[models.JokeState.DRAFT],
+    cursor="joke99",
+    limit=2,
+  )
+
+  assert captured["states"] == [models.JokeState.DRAFT]
+  assert captured["order_by"][0] == "creation_time"
+  assert captured["order_by"][1] == firestore.Query.DESCENDING
+  assert captured.get("start_after_called") is True
+  assert captured["limit"] == 3  # limit + 1
+
+  assert [j.key for j, _ in entries] == ["joke3", "joke2"]
+  assert [cursor for _, cursor in entries] == ["joke3", "joke2"]
+  assert next_cursor == "joke2"
+
+
 def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
   captured = {}
 

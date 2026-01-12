@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import os
 
 import flask
@@ -9,6 +10,7 @@ import flask
 # These are intentionally unused imports, but must remain at module scope so
 # all routes exist when Cloud Functions dispatches the request.
 import web.routes.about as _about  # noqa: E402,F401
+import web.routes.admin.admin_jokes as _admin_jokes  # noqa: E402,F401
 import web.routes.admin.books as _admin_books  # noqa: E402,F401
 import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
 import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401
@@ -19,8 +21,7 @@ import web.routes.lunchbox as _lunchbox  # noqa: E402,F401
 import web.routes.notes as _notes  # noqa: E402,F401
 import web.routes.public as _public  # noqa: E402,F401
 import web.routes.redirects as _redirects  # noqa: E402,F401
-from common import utils
-from common import amazon_redirect
+from common import amazon_redirect, utils
 from firebase_functions import logger
 from web.routes import web_bp
 
@@ -69,6 +70,7 @@ def _inject_template_globals() -> dict[str, str]:
     'functions_origin': utils.cloud_functions_base_url(),
     'nav_amazon_book_url': amazon_url,
     'format_image_url': utils.format_image_url,
+    'now_utc': datetime.datetime.now(datetime.timezone.utc),
   }
 
 

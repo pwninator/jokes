@@ -5,10 +5,10 @@ from __future__ import annotations
 import datetime as std_datetime
 import hashlib
 import unittest
+import zipfile
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
-import zipfile
 
 from common import image_operations, joke_notes_sheet_operations, models
 from PIL import Image, ImageFont
@@ -1794,49 +1794,6 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
     # Verify only joke images were downloaded, no blocker overlay
     self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 2)
-
-  @patch('common.image_operations.firestore')
-  @patch('common.image_operations.cloud_storage')
-  def test_create_pinterest_pin_image_blocker_overlay_size(
-      self, mock_cloud_storage, mock_firestore):
-    """Test that blocker overlay is resized to 600x600."""
-    joke_id = "joke1"
-
-    mock_joke = Mock()
-    mock_joke.key = joke_id
-    mock_joke.setup_image_url = "https://images.quillsstorybook.com/joke1_setup.png"
-    mock_joke.punchline_image_url = "https://images.quillsstorybook.com/joke1_punchline.png"
-
-    mock_firestore.get_punny_jokes.return_value = [mock_joke]
-
-    setup_img = Image.new('RGB', (1024, 1024), color='red')
-    punchline_img = Image.new('RGB', (1024, 1024), color='blue')
-    # Create a blocker image with a different size to verify it gets resized
-    blocker_img = Image.new('RGBA', (800, 800), color=(0, 0, 0, 128))
-
-    mock_cloud_storage.download_image_from_gcs.side_effect = [
-      setup_img, punchline_img, blocker_img
-    ]
-
-    # Track resize calls by wrapping the resize method
-    original_resize = Image.Image.resize
-    resize_calls = []
-
-    def tracked_resize(self, size, resample=None, box=None, reducing_gap=None):
-      resize_calls.append(size)
-      return original_resize(self, size, resample, box, reducing_gap)
-
-    with patch.object(Image.Image, 'resize', tracked_resize):
-      result = image_operations.create_pinterest_pin_image([joke_id])
-
-    # Verify blocker was resized to 600x600 (should be in the resize calls)
-    # Setup and punchline are resized to (500, 500), blocker to (600, 600)
-    self.assertTrue(
-      any(call == (600, 600) for call in resize_calls),
-      f"Expected resize to (600, 600), got calls: {resize_calls}")
-
-    self.assertEqual(result.size, (1000, 500))
-    self.assertEqual(result.mode, 'RGB')
 
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')

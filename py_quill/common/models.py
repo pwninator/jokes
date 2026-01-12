@@ -828,6 +828,11 @@ class PunnyJoke:
   punchline_text: str
   setup_text_slug: str | None = None
 
+  # Category membership (best-effort).
+  # - "_uncategorized" means the joke is public but not in any category cache.
+  # - Any other non-empty string is the last processed category that included it.
+  category_id: str | None = None
+
   pun_theme: str | None = None
   phrase_topic: str | None = None
   tags: list[str] = field(default_factory=list)

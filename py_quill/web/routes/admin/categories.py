@@ -17,7 +17,10 @@ from web.routes import web_bp
 @auth_helpers.require_admin
 def admin_joke_categories():
   """Render joke category admin page."""
-  categories = firestore.get_all_joke_categories(fetch_cached_jokes=True)
+  categories = firestore.get_all_joke_categories(
+    fetch_cached_jokes=True,
+    use_cache=True,
+  )
 
   def _state_key(category) -> str:
     state = (getattr(category, "state", None) or "").upper()

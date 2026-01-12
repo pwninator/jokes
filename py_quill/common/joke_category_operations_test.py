@@ -22,9 +22,23 @@ class _FakeCacheDocRef:
 
   def __init__(self):
     self.set_calls: list[dict] = []
+    self._latest_payload: dict | None = None
 
   def set(self, payload, merge: bool | None = None):  # pylint: disable=unused-argument
     self.set_calls.append(dict(payload))
+    self._latest_payload = dict(payload)
+
+  class _Snapshot:
+
+    def __init__(self, exists: bool, data: dict | None):
+      self.exists = exists
+      self._data = data
+
+    def to_dict(self):
+      return dict(self._data) if isinstance(self._data, dict) else {}
+
+  def get(self):
+    return self._Snapshot(self._latest_payload is not None, self._latest_payload)
 
 
 class _FakeCategoryDocRef:
@@ -170,6 +184,9 @@ def _run_refresh(monkeypatch, fake_db):
 
   monkeypatch.setattr("services.firestore.get_punny_jokes",
                       fake_get_punny_jokes)
+  # Avoid depending on Firestore 'jokes' writes; tested separately.
+  monkeypatch.setattr("common.joke_category_operations._sync_joke_category_ids",
+                      lambda **_kwargs: 0)
   # Prevent sheet generation from touching Firestore in these cache refresh tests.
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: [])
@@ -258,6 +275,85 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
   }.issubset(set(payload["jokes"][0].keys()))
   # No forced state change
   assert fake_env.category_updates == {}
+
+
+def test_sync_joke_category_ids_updates_only_when_needed():
+  from common import joke_category_operations as ops  # local import for direct access
+
+  class _Ref:
+    pass
+
+  class _Snap:
+
+    def __init__(self, exists: bool, category_id: object):
+      self.exists = exists
+      self.reference = _Ref()
+      self._category_id = category_id
+
+    def to_dict(self):
+      return {"category_id": self._category_id}
+
+  class _Batch:
+
+    def __init__(self):
+      self.updates: list[tuple[object, dict]] = []
+      self.committed = False
+
+    def update(self, ref, payload):
+      self.updates.append((ref, dict(payload)))
+
+    def commit(self):
+      self.committed = True
+
+  class _Client:
+
+    def __init__(self, snaps):
+      self._snaps = snaps
+      self._batch = _Batch()
+
+    def collection(self, _name):
+      class _Col:
+
+        def document(self, _doc_id):
+          return object()
+
+      return _Col()
+
+    def get_all(self, _refs):
+      return list(self._snaps)
+
+    def batch(self):
+      return self._batch
+
+  # Case 1: unconditional updates to new category id when different.
+  client = _Client([
+    _Snap(True, "old"),
+    _Snap(True, "animals"),  # already correct
+    _Snap(False, "old"),  # missing doc
+  ])
+  writes = ops._sync_joke_category_ids(  # pylint: disable=protected-access
+    client=client,
+    joke_ids={"j1", "j2", "j3"},
+    expected_existing_category_id=None,
+    new_category_id="animals",
+  )
+  assert writes == 1
+  assert client._batch.committed is True
+  assert client._batch.updates[0][1] == {"category_id": "animals"}
+
+  # Case 2: only update when existing matches expected.
+  client2 = _Client([
+    _Snap(True, "animals"),
+    _Snap(True, "_uncategorized"),
+  ])
+  writes2 = ops._sync_joke_category_ids(  # pylint: disable=protected-access
+    client=client2,
+    joke_ids={"j1", "j2"},
+    expected_existing_category_id="animals",
+    new_category_id="_uncategorized",
+  )
+  assert writes2 == 1
+  assert client2._batch.updates[0][1] == {"category_id": "_uncategorized"}
 
 
 def test_refresh_updates_cache_filters_negative_tags(monkeypatch, fake_env):
@@ -515,7 +611,8 @@ def test_refresh_sets_proposed_when_no_query_or_seasonal(
 
   _run_refresh(monkeypatch, fake_db)
 
-  assert "misc" not in fake_env.cache_refs
+  cache = fake_env.cache_refs.get("misc")
+  assert cache is None or cache.set_calls == []
   assert fake_env.category_updates.get("misc") == {"state": "PROPOSED"}
 
 
@@ -660,7 +757,7 @@ def test_refresh_skips_non_target_states_and_blank_queries(
   # Assert: no search calls and no cache writes
   assert fake_env.search_calls == []
   assert fake_env.seasonal_calls == []
-  assert fake_env.cache_refs == {}
+  assert all(ref.set_calls == [] for ref in fake_env.cache_refs.values())
   # Blank query category should be set to PROPOSED
   assert fake_env.category_updates == {"blank": {"state": "PROPOSED"}}
 

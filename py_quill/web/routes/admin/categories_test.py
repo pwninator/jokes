@@ -345,8 +345,18 @@ def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):
     tags=["first_tag", "second_tag"],
   )
 
+  class _NoopCollection:
+
+    def document(self, _doc_id):
+      return object()
+
+  class _NoopDb:
+
+    def collection(self, _name):
+      return _NoopCollection()
+
   monkeypatch.setattr(categories_routes.firestore, "get_all_joke_categories",
-                      lambda fetch_cached_jokes: [approved_category])
+                      lambda **_kwargs: [approved_category])
   monkeypatch.setattr(categories_routes.firestore,
                       "get_uncategorized_public_jokes",
                       lambda _cats: [uncategorized_joke])

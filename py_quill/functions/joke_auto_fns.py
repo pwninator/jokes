@@ -64,8 +64,12 @@ def _joke_daily_maintenance_internal(
   # After updating jokes (including is_public), refresh cached category results
   category_stats = joke_category_operations.refresh_category_caches()
 
+  # Rebuild the cached category index document used by the admin UI.
+  categories_index_stats = joke_category_operations.rebuild_joke_categories_index(
+  )
+
   # Combine all statistics
-  combined_stats = {**joke_stats, **category_stats}
+  combined_stats = {**joke_stats, **category_stats, **categories_index_stats}
 
   logger.info(f"Joke maintenance completed with stats: {combined_stats}")
   return combined_stats
@@ -174,6 +178,15 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
                       bool) or current_is_public != expected_is_public:
       payload["is_public"] = expected_is_public
       public_updated += 1
+
+    # Best-effort category_id maintenance:
+    # - If a joke is public and has no category_id, mark it uncategorized.
+    # - Category cache refresh may later overwrite this to a real category id.
+    if expected_is_public:
+      current_category_id = joke_data.get("category_id")
+      if not isinstance(current_category_id,
+                        str) or not current_category_id.strip():
+        payload["category_id"] = firestore.UNCATEGORIZED_CATEGORY_ID
 
     # Decay recent stats if needed
     should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)

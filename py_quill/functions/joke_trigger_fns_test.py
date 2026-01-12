@@ -927,7 +927,8 @@ class TestOnJokeCategoryWrite:
 
     # Assert
     mock_generate.assert_not_called()
-    mock_db.collection.assert_not_called()
+    # Note: cache refresh may still run for new docs (before_data is None),
+    # which can touch Firestore even if image generation is skipped.
 
   @pytest.mark.parametrize(
     "before_data,after_data,should_refresh",

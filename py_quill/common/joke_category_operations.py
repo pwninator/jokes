@@ -8,6 +8,66 @@ from google.cloud.firestore import FieldFilter
 from services import firestore, search
 
 
+def rebuild_joke_categories_index() -> dict[str, int]:
+  """Rebuild the cached category index doc used by the admin UI."""
+  count = firestore.update_joke_categories_cache()
+  return {"joke_categories_cached": count}
+
+
+def _extract_cached_joke_ids(cache_payload: object) -> set[str]:
+  """Extract joke ids from a `category_jokes/cache` document payload."""
+  if not isinstance(cache_payload, dict):
+    return set()
+  raw = cache_payload.get("jokes")
+  if not isinstance(raw, list):
+    return set()
+  ids: set[str] = set()
+  for item in raw:
+    if not isinstance(item, dict):
+      continue
+    joke_id = item.get("joke_id")
+    if isinstance(joke_id, str) and joke_id:
+      ids.add(joke_id)
+  return ids
+
+
+def _sync_joke_category_ids(
+  *,
+  client,
+  joke_ids: set[str],
+  expected_existing_category_id: str | None,
+  new_category_id: str,
+) -> int:
+  """Best-effort update of `jokes/{id}.category_id` with minimal writes.
+
+  Writes only occur when the current value differs, and if `expected_existing_category_id`
+  is provided, the update is only applied when the existing value matches it.
+  """
+  if not joke_ids:
+    return 0
+
+  refs = [client.collection("jokes").document(jid) for jid in joke_ids]
+  snapshots = client.get_all(refs)
+  batch = client.batch()
+  writes = 0
+
+  for snap in snapshots:
+    if not getattr(snap, "exists", False):
+      continue
+    data = snap.to_dict() or {}
+    existing = data.get("category_id")
+    if expected_existing_category_id is not None and existing != expected_existing_category_id:
+      continue
+    if existing == new_category_id:
+      continue
+    batch.update(snap.reference, {"category_id": new_category_id})
+    writes += 1
+
+  if writes:
+    batch.commit()
+  return writes
+
+
 def refresh_category_caches() -> dict[str, int]:
   """Refresh cached joke lists for Firestore categories.
 
@@ -119,6 +179,11 @@ def refresh_single_category_cache(
   search_distance = category.search_distance
 
   client = firestore.db()
+  cache_ref = client.collection("joke_categories").document(
+    category_id).collection("category_jokes").document("cache")
+  previous_cache_doc = cache_ref.get()
+  previous_joke_ids = _extract_cached_joke_ids(previous_cache_doc.to_dict(
+  ) if getattr(previous_cache_doc, "exists", False) else {})
 
   if not raw_query and not seasonal_name and not tags and not book_id:
     if state != "PROPOSED":
@@ -205,8 +270,6 @@ def refresh_single_category_cache(
   } for j in jokes if j.key]
 
   # Write cache document with a sole 'jokes' field
-  cache_ref = client.collection("joke_categories").document(
-    category_id).collection("category_jokes").document("cache")
   cache_ref.set({
     "jokes": jokes_payload,
     "joke_id_order": joke_id_order,
@@ -214,6 +277,36 @@ def refresh_single_category_cache(
   logger.info(
     f"Category cache updated for {category_id}, with {len(jokes_payload)} jokes"
   )
+
+  new_joke_ids = {
+    item.get("joke_id")
+    for item in jokes_payload if isinstance(item, dict)
+  }
+  new_joke_ids = {jid for jid in new_joke_ids if isinstance(jid, str) and jid}
+  added = new_joke_ids - previous_joke_ids
+  removed = previous_joke_ids - new_joke_ids
+
+  added_writes = _sync_joke_category_ids(
+    client=client,
+    joke_ids=added,
+    expected_existing_category_id=None,
+    new_category_id=category_id,
+  )
+  # Only mark uncategorized if this category is the currently recorded owner;
+  # avoids clobbering jokes that another category already "won".
+  removed_writes = _sync_joke_category_ids(
+    client=client,
+    joke_ids=removed,
+    expected_existing_category_id=category_id,
+    new_category_id=firestore.UNCATEGORIZED_CATEGORY_ID,
+  )
+  if added_writes or removed_writes:
+    logger.info(
+      "Updated joke category_id fields for %s: added_writes=%s removed_writes=%s",
+      category_id,
+      added_writes,
+      removed_writes,
+    )
 
   if not jokes_payload:
     # Force category state to PROPOSED when empty

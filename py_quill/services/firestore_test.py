@@ -896,13 +896,13 @@ def test_update_joke_sheets_cache_writes_payload(monkeypatch):
   class DummyCol:
 
     def document(self, doc_id):
-      assert doc_id == "cache_doc"
+      assert doc_id == "joke_sheets"
       return DummyDoc()
 
   class DummyDB:
 
     def collection(self, name):
-      assert name == "joke_sheets_cache"
+      assert name == "joke_cache"
       return DummyCol()
 
   monkeypatch.setattr(fs, "db", DummyDB)
@@ -981,7 +981,7 @@ def test_get_joke_sheets_cache_returns_doc(monkeypatch):
   class DummyCol:
 
     def document(self, doc_id):
-      assert doc_id == "cache_doc"
+      assert doc_id == "joke_sheets"
       return self
 
     def get(self):
@@ -1010,7 +1010,7 @@ def test_get_joke_sheets_cache_returns_doc(monkeypatch):
   class DummyDB:
 
     def collection(self, name):
-      assert name == "joke_sheets_cache"
+      assert name == "joke_cache"
       return DummyCol()
 
   monkeypatch.setattr(fs, "db", DummyDB)

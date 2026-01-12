@@ -47,7 +47,12 @@ JOKE_FIELDS_TO_LOG = {
   "state",
   "admin_rating",
   "is_public",
+  "category_id",
 }
+
+# Single source of truth for the "uncategorized" sentinel value used across
+# web/admin reads and maintenance jobs.
+UNCATEGORIZED_CATEGORY_ID = "_uncategorized"
 
 
 def get_async_db() -> firestore_async.client:
@@ -266,7 +271,7 @@ def delete_joke_sheet(sheet_id: str) -> bool:
 def get_joke_sheets_cache(
 ) -> list[tuple[models.JokeCategory, list[models.JokeSheet]]]:
   """Get the joke sheets cache as category and sheet objects."""
-  doc = db().collection("joke_sheets_cache").document("cache_doc").get()
+  doc = db().collection("joke_cache").document("joke_sheets").get()
   if not getattr(doc, "exists", False):
     return []
 
@@ -358,7 +363,47 @@ def update_joke_sheets_cache(
     "refresh_timestamp": SERVER_TIMESTAMP,
     "categories": categories_payload,
   }
-  db().collection("joke_sheets_cache").document("cache_doc").set(payload)
+  db().collection("joke_cache").document("joke_sheets").set(payload)
+
+
+def update_joke_categories_cache() -> int:
+  """Update the cached joke category index under `joke_cache/joke_categories`.
+
+  The document contains a minimal list of category metadata for the admin UI:
+  - category_id
+  - display_name
+  - image_url
+  - state
+
+  Returns:
+    Number of categories written into the cache.
+  """
+  docs = db().collection("joke_categories").stream()
+  categories_payload: list[dict[str, object]] = []
+  for doc in docs:
+    if not getattr(doc, "exists", False):
+      continue
+    data = doc.to_dict() or {}
+    display_name = (data.get("display_name") or "").strip()
+    # Keep the same "skip empty categories" semantics as get_all_joke_categories.
+    if (not display_name and not (data.get("joke_description_query") or "")
+        and not (data.get("seasonal_name") or "") and not data.get("tags")):
+      continue
+    state = (data.get("state") or "").strip() or "PROPOSED"
+    image_url = (data.get("image_url") or "").strip() or None
+    categories_payload.append({
+      "category_id": doc.id,
+      "display_name": display_name,
+      "image_url": image_url,
+      "state": state,
+    })
+
+  payload = {
+    "refresh_timestamp": SERVER_TIMESTAMP,
+    "categories": categories_payload,
+  }
+  db().collection("joke_cache").document("joke_categories").set(payload)
+  return len(categories_payload)
 
 
 def get_all_punny_jokes() -> list[models.PunnyJoke]:
@@ -374,29 +419,69 @@ def get_all_punny_jokes() -> list[models.PunnyJoke]:
 def get_all_joke_categories(
   *,
   fetch_cached_jokes: bool = False,
+  use_cache: bool = False,
 ) -> list[models.JokeCategory]:
   """Get all joke categories from the 'joke_categories' collection.
 
   Args:
     fetch_cached_jokes: When True, also fetch `category_jokes/cache` and populate
       `category.jokes` from the cached joke payload.
+    use_cache: When True, read the category list from `joke_cache/joke_categories`
+      instead of scanning the `joke_categories` collection.
   """
-  docs = db().collection('joke_categories').stream()
-  categories: list[models.JokeCategory] = []
-  for doc in docs:
-    if not doc.exists:
-      continue
-    data = doc.to_dict() or {}
-    category = models.JokeCategory.from_firestore_dict(data, key=doc.id)
-    if (not category.display_name and not category.joke_description_query
-        and not category.seasonal_name and not category.tags):
-      continue
+  client = db()
 
-    if fetch_cached_jokes:
-      category_ref = db().collection('joke_categories').document(doc.id)
+  def _iter_categories() -> list[models.JokeCategory]:
+    if use_cache:
+      cache_doc = client.collection("joke_cache").document(
+        "joke_categories").get()
+      if not getattr(cache_doc, "exists", False):
+        return []
+      payload = cache_doc.to_dict() or {}
+      raw_categories = payload.get("categories")
+      if not isinstance(raw_categories, list):
+        return []
+
+      categories_from_cache: list[models.JokeCategory] = []
+      for item in raw_categories:
+        if not isinstance(item, dict):
+          continue
+        category_id = (item.get("category_id") or "").strip()
+        display_name = (item.get("display_name") or "").strip()
+        if not category_id or not display_name:
+          continue
+        state = (item.get("state") or "").strip() or "PROPOSED"
+        image_url = (item.get("image_url") or "").strip() or None
+        categories_from_cache.append(
+          models.JokeCategory(
+            id=category_id,
+            display_name=display_name,
+            state=state,
+            image_url=image_url,
+          ))
+      return categories_from_cache
+
+    docs = client.collection("joke_categories").stream()
+    categories_from_collection: list[models.JokeCategory] = []
+    for doc in docs:
+      if not doc.exists:
+        continue
+      data = doc.to_dict() or {}
+      category = models.JokeCategory.from_firestore_dict(data, key=doc.id)
+      if (not category.display_name and not category.joke_description_query
+          and not category.seasonal_name and not category.tags):
+        continue
+      categories_from_collection.append(category)
+    return categories_from_collection
+
+  categories = _iter_categories()
+  if fetch_cached_jokes:
+    for category in categories:
+      if not category.id:
+        continue
+      category_ref = client.collection("joke_categories").document(category.id)
       _populate_category_cached_jokes(category, category_ref)
 
-    categories.append(category)
   return categories
 
 
@@ -524,22 +609,22 @@ def create_joke_category(
 
 def get_uncategorized_public_jokes(
   all_categories: list[models.JokeCategory], ) -> list[models.PunnyJoke]:
-  """Get all public jokes not in any category cache."""
-  categorized_ids: set[str] = set()
-  for category in all_categories:
-    for joke in category.jokes:
-      if joke.key:
-        categorized_ids.add(joke.key)
+  """Get all public jokes not in any category (via category_id index).
 
-  query = db().collection('jokes').where(
-    filter=FieldFilter('is_public', '==', True))
+  Note: `all_categories` is unused; it is kept for backwards compatibility with
+  older callers that passed the category list.
+  """
+  del all_categories
+
+  query = db().collection("jokes").where(
+    filter=FieldFilter("is_public", "==", True))
+  query = query.where(
+    filter=FieldFilter("category_id", "==", UNCATEGORIZED_CATEGORY_ID))
   docs = query.stream()
 
   results: list[models.PunnyJoke] = []
   for doc in docs:
-    if not getattr(doc, 'exists', False):
-      continue
-    if doc.id in categorized_ids:
+    if not getattr(doc, "exists", False):
       continue
     data = doc.to_dict() or {}
     results.append(models.PunnyJoke.from_firestore_dict(data, key=doc.id))

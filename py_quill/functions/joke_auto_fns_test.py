@@ -60,6 +60,8 @@ def _setup_decay_test_mocks(monkeypatch,
         "categories_emptied": 0,
         "categories_failed": 0
       }))
+  monkeypatch.setattr('common.joke_category_operations.rebuild_joke_categories_index',
+                      Mock(return_value={}))
 
 
 def _create_mock_joke_doc(joke_id: str,
@@ -72,6 +74,7 @@ def _create_mock_joke_doc(joke_id: str,
     "punchline_text": f"Punchline for {joke_id}",
     "state": models.JokeState.PUBLISHED.value,
     "is_public": True,
+    "category_id": "_uncategorized",
     "public_timestamp": now - datetime.timedelta(days=1),
     "last_recent_stats_update_time": now - datetime.timedelta(days=1),
     "num_viewed_users": 100,
@@ -147,6 +150,9 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'common.joke_category_operations.refresh_category_caches',
       Mock(return_value={}))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
+      Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
 
@@ -179,6 +185,9 @@ class TestDecayRecentJokeStats:
                         Mock())
     monkeypatch.setattr(
       'common.joke_category_operations.refresh_category_caches',
+      Mock(return_value={}))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
@@ -236,6 +245,9 @@ class TestDecayRecentJokeStats:
           "categories_emptied": 0,
           "categories_failed": 0
         }))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
+      Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
@@ -599,6 +611,7 @@ class TestDecayRecentJokeStats:
       "setup_text": "Test setup",
       "punchline_text": "Test punchline",
       "state": models.JokeState.PUBLISHED.value,
+      "category_id": "_uncategorized",
       "public_timestamp": now_utc - datetime.timedelta(days=1),
     }
     full_doc_data.update(doc_data)
@@ -626,6 +639,9 @@ class TestDecayRecentJokeStats:
           "categories_emptied": 0,
           "categories_failed": 0
         }))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
+      Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
@@ -662,6 +678,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Test punchline 1",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
+      "category_id": "_uncategorized",
       "num_viewed_users_recent": 10.0,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=22),
@@ -677,6 +694,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Test punchline 2",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
+      "category_id": "_uncategorized",
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
     }
@@ -696,6 +714,9 @@ class TestDecayRecentJokeStats:
           "categories_emptied": 0,
           "categories_failed": 0
         }))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
+      Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
 

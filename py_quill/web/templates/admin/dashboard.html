@@ -100,6 +100,13 @@
       </div>
       <p class="admin-card-desc muted">Browse jokes by state and review usage stats.</p>
     </a>
+    <a class="admin-card" href="{{ url_for('web.admin_social') }}">
+      <div class="admin-card-title text-body">
+        <span>Social</span>
+        <span class="muted text-button">ƒ+</span>
+      </div>
+      <p class="admin-card-desc muted">Grab public jokes for social layouts.</p>
+    </a>
     <a class="admin-card" href="{{ url_for('web.admin_joke_categories') }}">
       <div class="admin-card-title text-body">
         <span>Joke categories</span>
@@ -110,7 +117,7 @@
     <a class="admin-card" href="{{ url_for('web.admin_printable_notes') }}">
       <div class="admin-card-title text-body">
         <span>Printable notes</span>
-        <span class="muted text-button">→</span>
+        <span class="muted text-button">ƒ+</span>
       </div>
       <p class="admin-card-desc muted">View all printable note sheets organized by category.</p>
     </a>
@@ -121,17 +128,20 @@
       </div>
       <p class="admin-card-desc muted">Generate book pages and ZIP downloads.</p>
     </a>
+  </section>
+
+  <section class="admin-grid" aria-label="Admin utilities">
     <a class="admin-card" href="{{ url_for('web.admin_redirect_tester') }}">
       <div class="admin-card-title text-body">
         <span>Amazon redirect tester</span>
-        <span class="muted text-button">→</span>
+        <span class="muted text-button">ƒ+</span>
       </div>
       <p class="admin-card-desc muted">Validate country redirects and ASIN mapping.</p>
     </a>
     <a class="admin-card" href="{{ url_for('web.admin_stats') }}">
       <div class="admin-card-title text-body">
         <span>Stats</span>
-        <span class="muted text-button">→</span>
+        <span class="muted text-button">ƒ+</span>
       </div>
       <p class="admin-card-desc muted">Usage charts and retention views.</p>
     </a>

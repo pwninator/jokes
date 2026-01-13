@@ -1,0 +1,103 @@
+{% extends "admin/admin_base.html" %}
+{% from "components/infinite_scroll_feed.html" import infinite_scroll_feed %}
+
+{% block title %}Social | {{ site_name }} Admin{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+  .social-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .social-header h2 {
+    margin: 0;
+  }
+
+  .social-header p {
+    margin: 6px 0 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-jokes">
+  <header class="social-header">
+    <div>
+      <h2>Social</h2>
+      <p class="muted">Public jokes in Daily or Published state.</p>
+    </div>
+  </header>
+
+  <section class="filter-chips" aria-label="Joke category filters">
+    {% set all_selected = selected_category_id is none %}
+    <button type="button" class="filter-chip text-button{% if all_selected %} filter-chip--selected{% endif %}"
+      data-category="" aria-pressed="{{ 'true' if all_selected else 'false' }}">
+      All
+    </button>
+    {% for category in categories %}
+    {% set category_id = category.id %}
+    {% set is_selected = category_id and (category_id == selected_category_id) %}
+    <button type="button" class="filter-chip text-button{% if is_selected %} filter-chip--selected{% endif %}"
+      data-category="{{ category_id }}" aria-pressed="{{ 'true' if is_selected else 'false' }}">
+      {{ category.display_name }} ({{ category.public_joke_count or 0 }})
+    </button>
+    {% endfor %}
+  </section>
+
+  {{ infinite_scroll_feed(
+  slug='admin-social',
+  initial_jokes=jokes,
+  initial_cursor=next_cursor,
+  initial_has_more=has_more,
+  width=image_size,
+  feed_id='admin-social-feed',
+  end_of_feed_message="No more jokes match these filters.",
+  extra_query_params={'category': selected_category_id},
+  admin_mode=true,
+  grid_enabled=true,
+  ) }}
+</div>
+
+<script>
+  (function () {
+    const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
+    if (!categoryChips.length) {
+      return;
+    }
+
+    function setSelected(chip, isSelected) {
+      chip.classList.toggle('filter-chip--selected', isSelected);
+      chip.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    }
+
+    function navigateWithCategory(categoryId) {
+      const url = new URL(window.location.href);
+      url.pathname = '/admin/social';
+      if (categoryId) {
+        url.searchParams.set('category', categoryId);
+      } else {
+        url.searchParams.delete('category');
+      }
+      url.searchParams.delete('cursor');
+      window.location.assign(url.toString());
+    }
+
+    categoryChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const categoryId = chip.getAttribute('data-category') || '';
+        const isSelected = chip.classList.contains('filter-chip--selected');
+        if (isSelected) {
+          return;
+        }
+        categoryChips.forEach((c) => setSelected(c, c === chip));
+        navigateWithCategory(categoryId || null);
+      });
+    });
+  })();
+</script>
+{% endblock %}

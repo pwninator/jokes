@@ -5,9 +5,7 @@ from __future__ import annotations
 import datetime
 
 import flask
-
-from common import models
-from common import utils
+from common import models, utils
 from functions import auth_helpers
 from services import firestore
 from web.routes import web_bp
@@ -67,6 +65,11 @@ def _parse_state_filters(value: str | None) -> list[models.JokeState]:
     selected.append(state)
 
   return selected or list(_DEFAULT_SELECTED_STATES)
+
+
+def _parse_category_filter(value: str | None) -> str | None:
+  category_id = (value or "").strip()
+  return category_id or None
 
 
 def _dedupe_keep_order(values: list[str]) -> list[str]:
@@ -134,12 +137,21 @@ def admin_jokes():
   """Render admin jokes page with state filters + infinite scroll."""
   selected_states = _parse_state_filters(flask.request.args.get('states'))
   query_cursor = flask.request.args.get('cursor', default=None)
+  selected_category_id = _parse_category_filter(
+    flask.request.args.get("category"))
   now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+  all_categories = firestore.get_all_joke_categories(use_cache=True)
+  all_categories = [
+    c for c in all_categories
+    if (c.state or "").strip() in ("APPROVED", "SEASONAL")
+  ]
 
   joke_entries, next_cursor = firestore.get_joke_by_state(
     states=selected_states,
     cursor=query_cursor,
     limit=_JOKES_PER_PAGE,
+    category_id=selected_category_id,
   )
   for joke, _ in joke_entries:
     # Attach a template-friendly flag for future-daily styling.
@@ -160,6 +172,8 @@ def admin_jokes():
     all_states=[s.value for s in _ALL_STATES],
     selected_states=[s.value for s in selected_states],
     selected_states_param=selected_states_param,
+    categories=all_categories,
+    selected_category_id=selected_category_id,
     jokes=jokes_list,
     next_cursor=next_cursor,
     has_more=next_cursor is not None,
@@ -174,12 +188,15 @@ def admin_jokes_load_more():
   cursor = flask.request.args.get('cursor', default=None)
   limit = flask.request.args.get('limit', default=_JOKES_PER_PAGE, type=int)
   selected_states = _parse_state_filters(flask.request.args.get('states'))
+  selected_category_id = _parse_category_filter(
+    flask.request.args.get("category"))
   now_utc = datetime.datetime.now(datetime.timezone.utc)
 
   joke_entries, next_cursor = firestore.get_joke_by_state(
     states=selected_states,
     cursor=cursor,
     limit=limit,
+    category_id=selected_category_id,
   )
   for joke, _ in joke_entries:
     joke.is_future_daily = _is_future_daily(

@@ -10,11 +10,12 @@
     display: grid;
     {% if grid_enabled %}
     grid-template-columns: repeat(auto-fit, minmax(min(100%, {{ width }}px), 1fr));
+    gap: 0.5rem;
     {% else %}
     grid-template-columns: 1fr;
+    gap: 2rem;
     {% endif %}
     margin: 0 auto;
-    gap: 2rem;
     justify-items: center;
   }
 

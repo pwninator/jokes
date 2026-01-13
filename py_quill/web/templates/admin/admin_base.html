@@ -9,10 +9,9 @@
 {% set joke_categories_url = url_for('web.admin_joke_categories') %}
 {% set joke_books_url = url_for('web.admin_joke_books') %}
 {% set joke_books_prefix = joke_books_url.rstrip('/') %}
-{% set stats_url = url_for('web.admin_stats') %}
-{% set redirect_tester_url = url_for('web.admin_redirect_tester') %}
 {% set printable_notes_url = url_for('web.admin_printable_notes') %}
 {% set jokes_url = url_for('web.admin_jokes') %}
+{% set social_url = url_for('web.admin_social') %}
 <div class="site-shell admin-site-shell">
   {% call site_header(dashboard_url, site_name + " Admin", site_name, True) %}
         <a class="nav-link text-button{% if current_path == dashboard_url %} nav-link--active{% endif %}"
@@ -22,6 +21,10 @@
         <a class="nav-link text-button{% if current_path == jokes_url %} nav-link--active{% endif %}"
           href="{{ jokes_url }}">
           Jokes
+        </a>
+        <a class="nav-link text-button{% if current_path == social_url %} nav-link--active{% endif %}"
+          href="{{ social_url }}">
+          Social
         </a>
         <a class="nav-link text-button{% if current_path == joke_categories_url %} nav-link--active{% endif %}"
           href="{{ joke_categories_url }}">
@@ -34,14 +37,6 @@
         <a class="nav-link text-button{% if current_path.startswith(joke_books_prefix) %} nav-link--active{% endif %}"
           href="{{ joke_books_url }}">
           Joke Books
-        </a>
-        <a class="nav-link text-button{% if current_path == redirect_tester_url %} nav-link--active{% endif %}"
-          href="{{ redirect_tester_url }}">
-          Redirect Tester
-        </a>
-        <a class="nav-link text-button{% if current_path == stats_url %} nav-link--active{% endif %}"
-          href="{{ stats_url }}">
-          Stats
         </a>
         {% include "partials/user_nav_menu.html" %}
   {% endcall %}

@@ -15,6 +15,7 @@ import web.routes.admin.books as _admin_books  # noqa: E402,F401
 import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
 import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401
 import web.routes.admin.printable_notes as _admin_printable_notes  # noqa: E402,F401
+import web.routes.admin.social as _admin_social  # noqa: E402,F401
 import web.routes.auth as _auth  # noqa: E402,F401
 import web.routes.jokes as _jokes  # noqa: E402,F401
 import web.routes.lunchbox as _lunchbox  # noqa: E402,F401

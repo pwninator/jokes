@@ -59,14 +59,15 @@ def _joke_daily_maintenance_internal(
     Combined dictionary with all maintenance statistics from joke updates and category cache refresh
   """
 
-  joke_stats = _update_joke_attributes(run_time_utc)
+  joke_stats, jokes_by_id = _update_joke_attributes(run_time_utc)
 
   # After updating jokes (including is_public), refresh cached category results
-  category_stats = joke_category_operations.refresh_category_caches()
+  category_stats = joke_category_operations.refresh_category_caches(
+    jokes_by_id=jokes_by_id)
 
   # Rebuild the cached category index document used by the admin UI.
   categories_index_stats = joke_category_operations.rebuild_joke_categories_index(
-  )
+    jokes_by_id=jokes_by_id)
 
   # Combine all statistics
   combined_stats = {**joke_stats, **category_stats, **categories_index_stats}
@@ -146,11 +147,15 @@ def _build_recent_decay_payload(data: dict[str, object]) -> dict[str, object]:
   return payload
 
 
-def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
+def _update_joke_attributes(
+  run_time_utc: datetime.datetime
+) -> tuple[dict[str, int], dict[str, models.PunnyJoke]]:
   """Apply exponential decay to recent counters across all jokes.
   
   Returns:
-    Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped
+    Tuple of:
+      - Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped
+      - Dictionary of all jokes (after applying any computed payload) keyed by joke id
   """
 
   db_client = firestore.db()
@@ -164,6 +169,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   jokes_skipped = 0
 
   public_jokes: list[models.PunnyJoke] = []
+  jokes_by_id: dict[str, models.PunnyJoke] = {}
 
   for joke_doc in joke_docs:
     if not joke_doc.exists:
@@ -203,6 +209,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       logger.warn(
         f"Failed to parse joke {joke_doc.id}, skipping: {parse_error}")
       continue  # Skip malformed documents
+    jokes_by_id[joke_doc.id] = joke
 
     # Perform actions based on the final state.
     if payload:
@@ -247,7 +254,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     "public_updated": public_updated,
     "jokes_skipped": jokes_skipped,
     "num_public_jokes": len(public_jokes),
-  }
+  }, jokes_by_id
 
 
 def build_joke_feed(jokes: list[models.PunnyJoke]) -> list[models.PunnyJoke]:

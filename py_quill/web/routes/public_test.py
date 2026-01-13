@@ -109,7 +109,7 @@ def test_home2_page_renders_top_jokes(monkeypatch):
   assert 'class="favorites-grid"' in html
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
-  assert 'data-analytics-event="web_index_joke_reveal_click"' in html
+  assert 'data-analytics-event="web_joke_reveal_click"' in html
   assert 'data-analytics-event="web_index_play_store_click"' in html
   assert 'data-analytics-label="joke_end_card"' in html
   # Badge alt text per template

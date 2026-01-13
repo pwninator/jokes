@@ -8,9 +8,12 @@ from google.cloud.firestore import FieldFilter
 from services import firestore, search
 
 
-def rebuild_joke_categories_index() -> dict[str, int]:
+def rebuild_joke_categories_index(
+  *,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
+) -> dict[str, int]:
   """Rebuild the cached category index doc used by the admin UI."""
-  count = firestore.update_joke_categories_cache()
+  count = firestore.update_joke_categories_cache(jokes_by_id=jokes_by_id)
   return {"joke_categories_cached": count}
 
 
@@ -37,6 +40,7 @@ def _sync_joke_category_ids(
   joke_ids: set[str],
   expected_existing_category_id: str | None,
   new_category_id: str,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
 ) -> int:
   """Best-effort update of `jokes/{id}.category_id` with minimal writes.
 
@@ -46,29 +50,47 @@ def _sync_joke_category_ids(
   if not joke_ids:
     return 0
 
-  refs = [client.collection("jokes").document(jid) for jid in joke_ids]
-  snapshots = client.get_all(refs)
   batch = client.batch()
   writes = 0
 
-  for snap in snapshots:
-    if not getattr(snap, "exists", False):
-      continue
-    data = snap.to_dict() or {}
-    existing = data.get("category_id")
-    if expected_existing_category_id is not None and existing != expected_existing_category_id:
-      continue
-    if existing == new_category_id:
-      continue
-    batch.update(snap.reference, {"category_id": new_category_id})
-    writes += 1
+  # `jokes_by_id` is optional. When provided and non-empty, avoid additional
+  # reads by using it as the source of truth. Empty dicts fall back to reads.
+  if jokes_by_id:
+    for jid in joke_ids:
+      if jid not in jokes_by_id:
+        continue
+      existing = getattr(jokes_by_id[jid], "category_id", None)
+      if expected_existing_category_id is not None and existing != expected_existing_category_id:
+        continue
+      if existing == new_category_id:
+        continue
+      ref = client.collection("jokes").document(jid)
+      batch.update(ref, {"category_id": new_category_id})
+      writes += 1
+  else:
+    refs = [client.collection("jokes").document(jid) for jid in joke_ids]
+    snapshots = client.get_all(refs)
+    for snap in snapshots:
+      if not getattr(snap, "exists", False):
+        continue
+      data = snap.to_dict() or {}
+      existing = data.get("category_id")
+      if expected_existing_category_id is not None and existing != expected_existing_category_id:
+        continue
+      if existing == new_category_id:
+        continue
+      batch.update(snap.reference, {"category_id": new_category_id})
+      writes += 1
 
   if writes:
     batch.commit()
   return writes
 
 
-def refresh_category_caches() -> dict[str, int]:
+def refresh_category_caches(
+  *,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
+) -> dict[str, int]:
   """Refresh cached joke lists for Firestore categories.
 
   - Processes only categories in APPROVED, SEASONAL, PROPOSED, or BOOK state
@@ -99,7 +121,11 @@ def refresh_category_caches() -> dict[str, int]:
     data = doc.to_dict() or {}
 
     try:
-      result = refresh_single_category_cache(doc.id, data)
+      result = refresh_single_category_cache(
+        doc.id,
+        data,
+        jokes_by_id=jokes_by_id,
+      )
       if result == "updated":
         updated += 1
       elif result == "emptied":
@@ -145,7 +171,11 @@ def _refresh_joke_sheets_cache() -> None:
 
 
 def refresh_single_category_cache(
-    category_id: str, category_data: dict[str, object]) -> str | None:
+  category_id: str,
+  category_data: dict[str, object],
+  *,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
+) -> str | None:
   """Refresh cached joke list for a single category.
 
   Args:
@@ -192,39 +222,52 @@ def refresh_single_category_cache(
         {"state": "PROPOSED"}, merge=True)
     return None
 
-  jokes_by_id: dict[str, dict[str, object]] = {}
+  joke_ids: set[str] = set()
 
   if raw_query:
     search_query = f"jokes about {raw_query}"
-    for item in search_category_jokes(
-        search_query,
-        category_id,
-        distance_threshold=search_distance,
-    ):
+    items = search_category_jokes(
+      search_query,
+      category_id,
+      distance_threshold=search_distance,
+      jokes_by_id=jokes_by_id,
+    )
+
+    for item in items:
       joke_id = item.get("joke_id")
       if isinstance(joke_id, str) and joke_id:
-        jokes_by_id[joke_id] = item
+        joke_ids.add(joke_id)
 
   if seasonal_name:
-    for item in query_seasonal_category_jokes(client, seasonal_name):
+    items = query_seasonal_category_jokes(client,
+                                          seasonal_name,
+                                          jokes_by_id=jokes_by_id)
+    for item in items:
       joke_id = item.get("joke_id")
       if isinstance(joke_id, str) and joke_id:
-        jokes_by_id[joke_id] = item
+        joke_ids.add(joke_id)
 
   if book_id:
-    for item in query_book_category_jokes(client, book_id):
+    items = query_book_category_jokes(client, book_id, jokes_by_id=jokes_by_id)
+    for item in items:
       joke_id = item.get("joke_id")
       if isinstance(joke_id, str) and joke_id:
-        jokes_by_id[joke_id] = item
+        joke_ids.add(joke_id)
 
   if tags:
-    for item in query_tags_category_jokes(client, tags):
+    items = query_tags_category_jokes(client, tags, jokes_by_id=jokes_by_id)
+    for item in items:
       joke_id = item.get("joke_id")
       if isinstance(joke_id, str) and joke_id:
-        jokes_by_id[joke_id] = item
+        joke_ids.add(joke_id)
 
-  joke_ids = list(jokes_by_id.keys())
-  jokes = firestore.get_punny_jokes(joke_ids)
+  ordered_joke_ids = list(joke_ids)
+  if jokes_by_id is not None:
+    jokes = [
+      jokes_by_id[jid] for jid in ordered_joke_ids if jid in jokes_by_id
+    ]
+  else:
+    jokes = firestore.get_punny_jokes(ordered_joke_ids)
 
   # Filter out jokes that contain any negative tags
   if negative_tags:
@@ -261,13 +304,7 @@ def refresh_single_category_cache(
   # Cap cache size to 100, even if union exceeds it.
   jokes = jokes[:100]
 
-  jokes_payload = [{
-    "joke_id": j.key,
-    "setup": j.setup_text,
-    "punchline": j.punchline_text,
-    "setup_image_url": j.setup_image_url,
-    "punchline_image_url": j.punchline_image_url,
-  } for j in jokes if j.key]
+  jokes_payload = [j.get_category_cache_joke_data() for j in jokes if j.key]
 
   # Write cache document with a sole 'jokes' field
   cache_ref.set({
@@ -291,6 +328,7 @@ def refresh_single_category_cache(
     joke_ids=added,
     expected_existing_category_id=None,
     new_category_id=category_id,
+    jokes_by_id=jokes_by_id,
   )
   # Only mark uncategorized if this category is the currently recorded owner;
   # avoids clobbering jokes that another category already "won".
@@ -299,6 +337,7 @@ def refresh_single_category_cache(
     joke_ids=removed,
     expected_existing_category_id=category_id,
     new_category_id=firestore.UNCATEGORIZED_CATEGORY_ID,
+    jokes_by_id=jokes_by_id,
   )
   if added_writes or removed_writes:
     logger.info(
@@ -434,6 +473,7 @@ def search_category_jokes(
   category_id: str,
   *,
   distance_threshold: float | None = None,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
 ) -> list[dict[str, object]]:
   """Search for jokes matching a category query.
 
@@ -464,19 +504,20 @@ def search_category_jokes(
   joke_ids = [result.joke_id for result in results if result.joke_id]
 
   # Fetch full jokes
-  jokes = firestore.get_punny_jokes(joke_ids)
+  if jokes_by_id is not None:
+    jokes = [jokes_by_id[jid] for jid in joke_ids if jid in jokes_by_id]
+  else:
+    jokes = firestore.get_punny_jokes(joke_ids)
 
-  return [{
-    "joke_id": j.key,
-    "setup": j.setup_text,
-    "punchline": j.punchline_text,
-    "setup_image_url": j.setup_image_url,
-    "punchline_image_url": j.punchline_image_url,
-  } for j in jokes]
+  return [j.get_category_cache_joke_data() for j in jokes]
 
 
 def query_seasonal_category_jokes(
-    client, seasonal_name: str) -> list[dict[str, object]]:
+  client,
+  seasonal_name: str,
+  *,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
+) -> list[dict[str, object]]:
   """Query jokes by seasonal name.
 
   Args:
@@ -487,6 +528,18 @@ def query_seasonal_category_jokes(
     List of joke dictionaries with keys: joke_id, setup, punchline,
     setup_image_url, punchline_image_url.
   """
+  if jokes_by_id is not None:
+    payload: list[dict[str, object]] = []
+    for joke in jokes_by_id.values():
+      if not joke.key:
+        continue
+      if not joke.is_public_and_in_public_state:
+        continue
+      if (joke.seasonal or "") != seasonal_name:
+        continue
+      payload.append(joke.get_category_cache_joke_data())
+    return payload[:100]
+
   states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
   query = client.collection("jokes")
   query = query.where(filter=FieldFilter("state", "in", states))
@@ -508,7 +561,12 @@ def query_seasonal_category_jokes(
   return payload
 
 
-def query_book_category_jokes(client, book_id: str) -> list[dict[str, object]]:
+def query_book_category_jokes(
+  client,
+  book_id: str,
+  *,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
+) -> list[dict[str, object]]:
   """Query jokes from a joke book by book ID.
 
   Args:
@@ -539,7 +597,10 @@ def query_book_category_jokes(client, book_id: str) -> list[dict[str, object]]:
     return []
 
   # Fetch the jokes
-  jokes = firestore.get_punny_jokes(joke_ids)
+  if jokes_by_id is not None:
+    jokes = [jokes_by_id[jid] for jid in joke_ids if jid in jokes_by_id]
+  else:
+    jokes = firestore.get_punny_jokes(joke_ids)
 
   # Filter to only public jokes in valid states
   states = {models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value}
@@ -549,19 +610,15 @@ def query_book_category_jokes(client, book_id: str) -> list[dict[str, object]]:
 
   payload = []
   for joke in filtered_jokes:
-    payload.append({
-      "joke_id": joke.key,
-      "setup": joke.setup_text,
-      "punchline": joke.punchline_text,
-      "setup_image_url": joke.setup_image_url,
-      "punchline_image_url": joke.punchline_image_url,
-    })
+    payload.append(joke.get_category_cache_joke_data())
   return payload
 
 
 def query_tags_category_jokes(
   client,
   tags: list[str],
+  *,
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None,
 ) -> list[dict[str, object]]:
   """Query jokes that match any of the given tags.
 
@@ -596,6 +653,23 @@ def query_tags_category_jokes(
 
   if not normalized_tags:
     return []
+
+  if jokes_by_id is not None:
+    normalized_lower = {t.lower() for t in normalized_tags}
+    payload: list[dict[str, object]] = []
+    for joke in jokes_by_id.values():
+      if not joke.key:
+        continue
+      if not joke.is_public_and_in_public_state:
+        continue
+      joke_tags_lower = {
+        t.lower()
+        for t in (joke.tags or []) if isinstance(t, str)
+      }
+      if not joke_tags_lower.intersection(normalized_lower):
+        continue
+      payload.append(joke.get_category_cache_joke_data())
+    return payload[:100]
 
   states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
   docs_by_id: dict[str, dict] = {}

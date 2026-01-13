@@ -71,21 +71,31 @@ def db() -> firestore.client:
   return _db
 
 
-def _prepare_jokes_query(states: list[models.JokeState] | None, *,
-                         async_mode: bool):
-  """Build a Firestore query for jokes filtered by the given states."""
+def _prepare_jokes_query(
+  states: list[models.JokeState] | None,
+  *,
+  category_id: str | None = None,
+  async_mode: bool,
+):
+  """Build a Firestore query for jokes filtered by state (and optional category)."""
   if not states:
     states = [models.JokeState.DAILY, models.JokeState.PUBLISHED]
   state_values = [s.value for s in states]
   client = get_async_db() if async_mode else db()
-  return client.collection('jokes').where(
+  query = client.collection('jokes').where(
     filter=FieldFilter('state', 'in', state_values))
+  category_id = (category_id or "").strip() or None
+  if category_id:
+    query = query.where(filter=FieldFilter("category_id", "==", category_id))
+  return query
 
 
 def get_joke_by_state(
   states: list[models.JokeState],
   cursor: str | None = None,
   limit: int = 10,
+  *,
+  category_id: str | None = None,
 ) -> tuple[list[tuple[models.PunnyJoke, str]], str | None]:
   """Fetch a page of jokes for the admin UI.
 
@@ -103,7 +113,11 @@ def get_joke_by_state(
       - next_cursor: the document id cursor for fetching the next page, or None
         if there are no more results.
   """
-  query = _prepare_jokes_query(states, async_mode=False).order_by(
+  query = _prepare_jokes_query(
+    states,
+    category_id=category_id,
+    async_mode=False,
+  ).order_by(
     'creation_time',
     direction=Query.DESCENDING,
   )
@@ -366,7 +380,8 @@ def update_joke_sheets_cache(
   db().collection("joke_cache").document("joke_sheets").set(payload)
 
 
-def update_joke_categories_cache() -> int:
+def update_joke_categories_cache(
+  jokes_by_id: dict[str, models.PunnyJoke] | None = None, ) -> int:
   """Update the cached joke category index under `joke_cache/joke_categories`.
 
   The document contains a minimal list of category metadata for the admin UI:
@@ -374,10 +389,21 @@ def update_joke_categories_cache() -> int:
   - display_name
   - image_url
   - state
+  - public_joke_count
 
   Returns:
     Number of categories written into the cache.
   """
+  public_counts: dict[str, int] = {}
+  if jokes_by_id:
+    for joke in jokes_by_id.values():
+      if not joke.is_public_and_in_public_state:
+        continue
+      if not joke.category_id:
+        continue
+      public_counts[joke.category_id] = public_counts.get(joke.category_id,
+                                                          0) + 1
+
   docs = db().collection("joke_categories").stream()
   categories_payload: list[dict[str, object]] = []
   for doc in docs:
@@ -392,10 +418,16 @@ def update_joke_categories_cache() -> int:
     state = (data.get("state") or "").strip() or "PROPOSED"
     image_url = (data.get("image_url") or "").strip() or None
     categories_payload.append({
-      "category_id": doc.id,
-      "display_name": display_name,
-      "image_url": image_url,
-      "state": state,
+      "category_id":
+      doc.id,
+      "display_name":
+      display_name,
+      "image_url":
+      image_url,
+      "state":
+      state,
+      "public_joke_count":
+      int(public_counts.get(doc.id, 0)),
     })
 
   payload = {
@@ -447,18 +479,14 @@ def get_all_joke_categories(
         if not isinstance(item, dict):
           continue
         category_id = (item.get("category_id") or "").strip()
-        display_name = (item.get("display_name") or "").strip()
-        if not category_id or not display_name:
+        if not category_id:
           continue
-        state = (item.get("state") or "").strip() or "PROPOSED"
-        image_url = (item.get("image_url") or "").strip() or None
+
+        # Use model helper to parse fields (handles defaults, types, and extra fields)
+        item_copy = dict(item)
+        item_copy.pop("category_id", None)  # Key is passed separately
         categories_from_cache.append(
-          models.JokeCategory(
-            id=category_id,
-            display_name=display_name,
-            state=state,
-            image_url=image_url,
-          ))
+          models.JokeCategory.from_firestore_dict(item_copy, key=category_id))
       return categories_from_cache
 
     docs = client.collection("joke_categories").stream()

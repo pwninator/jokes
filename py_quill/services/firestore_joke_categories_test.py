@@ -201,7 +201,34 @@ def test_update_and_get_joke_categories_cache(monkeypatch):
   monkeypatch.setattr(fs, "db", lambda: db)
   monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
 
-  count = fs.update_joke_categories_cache()
+  jokes_by_id = {
+    "j1": models.PunnyJoke(
+      key="j1",
+      setup_text="s1",
+      punchline_text="p1",
+      is_public=True,
+      state=models.JokeState.PUBLISHED,
+      category_id="animals",
+    ),
+    "j2": models.PunnyJoke(
+      key="j2",
+      setup_text="s2",
+      punchline_text="p2",
+      is_public=True,
+      state=models.JokeState.DAILY,
+      category_id="animals",
+    ),
+    "j3": models.PunnyJoke(
+      key="j3",
+      setup_text="s3",
+      punchline_text="p3",
+      is_public=False,
+      state=models.JokeState.DRAFT,
+      category_id="animals",
+    ),
+  }
+
+  count = fs.update_joke_categories_cache(jokes_by_id=jokes_by_id)
   assert count == 1
   assert captured["payload"]["refresh_timestamp"] == "TS"
   assert captured["payload"]["categories"] == [{
@@ -209,6 +236,7 @@ def test_update_and_get_joke_categories_cache(monkeypatch):
     "display_name": "Animals",
     "image_url": "https://img/animals.png",
     "state": "APPROVED",
+    "public_joke_count": 2,
   }]
 
   categories = fs.get_all_joke_categories(use_cache=True)
@@ -217,6 +245,7 @@ def test_update_and_get_joke_categories_cache(monkeypatch):
   assert categories[0].display_name == "Animals"
   assert categories[0].image_url == "https://img/animals.png"
   assert categories[0].state == "APPROVED"
+  assert categories[0].public_joke_count == 2
 
 
 def test_get_uncategorized_public_jokes_filters_by_category_id(monkeypatch):

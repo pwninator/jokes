@@ -762,6 +762,9 @@ class JokeCategory:
   joke_id_order: list[str] = field(default_factory=list)
   jokes: list[PunnyJoke] = field(default_factory=list)
 
+  public_joke_count: int | None = None
+  """Cached count of public jokes in this category (only populated from cache docs)."""
+
   @property
   def key(self) -> str:
     """Computed Firestore-safe key from display name.
@@ -781,6 +784,8 @@ class JokeCategory:
     data.pop('id', None)
     # `jokes` is the cached joke list loaded from a subcollection.
     data.pop('jokes', None)
+    # Derived/cache-only fields should never be written to the category doc.
+    data.pop("public_joke_count", None)
     return data
 
   @classmethod
@@ -805,6 +810,13 @@ class JokeCategory:
     _parse_string_list(data, 'joke_id_order', dedupe=True)
 
     _parse_float_field(data, 'search_distance')
+
+    # Optional integer field.
+    raw_count = data.get('public_joke_count')
+    if isinstance(raw_count, (int, float)):
+      data['public_joke_count'] = int(raw_count)
+    else:
+      data.pop('public_joke_count', None)
 
     # Default state if missing/empty.
     state_val = data.get('state')
@@ -1104,6 +1116,23 @@ class PunnyJoke:
       "punchline_text": self.punchline_text,
       "setup_image_url": self.setup_image_url,
       "punchline_image_url": self.punchline_image_url,
+    }
+
+  @property
+  def is_public_and_in_public_state(self) -> bool:
+    """Check if the joke is public and in a public state."""
+    return bool(self.is_public
+                and self.state in (JokeState.PUBLISHED, JokeState.DAILY))
+
+  def get_category_cache_joke_data(self) -> dict[str, str | None]:
+    """Get the joke payload used by `joke_categories/*/category_jokes/cache`."""
+    minimal = self.get_minimal_joke_data()
+    return {
+      "joke_id": minimal.get("key"),
+      "setup": minimal.get("setup_text"),
+      "punchline": minimal.get("punchline_text"),
+      "setup_image_url": minimal.get("setup_image_url"),
+      "punchline_image_url": minimal.get("punchline_image_url"),
     }
 
 

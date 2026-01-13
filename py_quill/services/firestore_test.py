@@ -260,9 +260,10 @@ def test_get_joke_by_state_orders_and_paginates(monkeypatch):
       assert name == "jokes"
       return _Collection()
 
-  def _prepare(states, *, async_mode: bool):
+  def _prepare(states, *, category_id: str | None = None, async_mode: bool):
     assert async_mode is False
     captured["states"] = states
+    captured["category_id"] = category_id
     return _Query([
       _Doc("joke3", {
         "setup_text": "s3",
@@ -288,9 +289,11 @@ def test_get_joke_by_state_orders_and_paginates(monkeypatch):
     states=[models.JokeState.DRAFT],
     cursor="joke99",
     limit=2,
+    category_id="cats",
   )
 
   assert captured["states"] == [models.JokeState.DRAFT]
+  assert captured["category_id"] == "cats"
   assert captured["order_by"][0] == "creation_time"
   assert captured["order_by"][1] == firestore.Query.DESCENDING
   assert captured.get("start_after_called") is True

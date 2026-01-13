@@ -304,8 +304,8 @@
               <label class="admin-modal__label" for="admin-edit-joke-setup-image-description">Setup image
                 description</label>
               <button type="button" class="button-primary text-button admin-scene-ideas-cta"
-                id="admin-edit-joke-scene-ideas-button"
-                aria-label="Edit scene ideas and regenerate image descriptions" title="Edit scene ideas">
+                id="admin-edit-joke-scene-ideas-button" aria-label="Edit scene ideas and regenerate image descriptions"
+                title="Edit scene ideas">
                 ✨
               </button>
             </div>
@@ -367,6 +367,22 @@
     </div>
   </div>
 
+  <section class="filter-chips" aria-label="Joke category filters">
+    {% set all_selected = selected_category_id is none %}
+    <button type="button" class="filter-chip text-button{% if all_selected %} filter-chip--selected{% endif %}"
+      data-category="" aria-pressed="{{ 'true' if all_selected else 'false' }}">
+      All
+    </button>
+    {% for category in categories %}
+    {% set category_id = category.id %}
+    {% set is_selected = category_id and (category_id == selected_category_id) %}
+    <button type="button" class="filter-chip text-button{% if is_selected %} filter-chip--selected{% endif %}"
+      data-category="{{ category_id }}" aria-pressed="{{ 'true' if is_selected else 'false' }}">
+      {{ category.display_name }} ({{ category.public_joke_count or 0 }})
+    </button>
+    {% endfor %}
+  </section>
+
   <section class="filter-chips" aria-label="Joke state filters">
     {% for state in all_states %}
     {% set is_selected = state in selected_states %}
@@ -385,7 +401,7 @@
   width=image_size,
   feed_id='admin-jokes-feed',
   end_of_feed_message="No more jokes match these filters.",
-  extra_query_params={'states': selected_states_param},
+  extra_query_params={'states': selected_states_param, 'category': selected_category_id},
   admin_mode=true,
   grid_enabled=true,
   ) }}
@@ -1001,7 +1017,8 @@
   updateInFlightBadge();
 
   const chips = Array.from(document.querySelectorAll('.filter-chip[data-state]'));
-  if (!chips.length) {
+  const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
+  if (!chips.length && !categoryChips.length) {
     return;
   }
 
@@ -1012,15 +1029,32 @@
       .filter(Boolean);
   }
 
+  function selectedCategoryId() {
+    const selected = categoryChips.find((c) => c.classList.contains('filter-chip--selected'));
+    if (!selected) {
+      return null;
+    }
+    const value = selected.getAttribute('data-category');
+    if (!value) {
+      return null;
+    }
+    return value;
+  }
+
   function setSelected(chip, isSelected) {
     chip.classList.toggle('filter-chip--selected', isSelected);
     chip.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
   }
 
-  function navigateWithStates(states) {
+  function navigateWithFilters(states, categoryId) {
     const url = new URL(window.location.href);
     url.pathname = '/admin/jokes';
     url.searchParams.set('states', states.join(','));
+    if (categoryId) {
+      url.searchParams.set('category', categoryId);
+    } else {
+      url.searchParams.delete('category');
+    }
     url.searchParams.delete('cursor');
     window.location.assign(url.toString());
   }
@@ -1028,6 +1062,7 @@
   chips.forEach((chip) => {
     chip.addEventListener('click', () => {
       const current = selectedStates();
+      const currentCategoryId = selectedCategoryId();
       const state = chip.getAttribute('data-state');
       if (!state) {
         return;
@@ -1040,12 +1075,26 @@
           return;
         }
         setSelected(chip, false);
-        navigateWithStates(next);
+        navigateWithFilters(next, currentCategoryId);
         return;
       }
 
       setSelected(chip, true);
-      navigateWithStates([...current, state]);
+      navigateWithFilters([...current, state], currentCategoryId);
+    });
+  });
+
+  categoryChips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const currentStates = selectedStates();
+      const categoryId = chip.getAttribute('data-category') || '';
+      const isSelected = chip.classList.contains('filter-chip--selected');
+      if (isSelected) {
+        return;
+      }
+
+      categoryChips.forEach((c) => setSelected(c, c === chip));
+      navigateWithFilters(currentStates, categoryId || null);
     });
   });
   }) ();

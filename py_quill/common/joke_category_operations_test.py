@@ -111,6 +111,7 @@ def fake_env_fixture(monkeypatch):
       category_id,
       *,
       distance_threshold=None,  # pylint: disable=unused-argument
+      jokes_by_id=None,  # pylint: disable=unused-argument
   ):
     search_calls.append({
       "query": query,
@@ -133,7 +134,10 @@ def fake_env_fixture(monkeypatch):
       },
     ]
 
-  def fake_query_seasonal_jokes(client, seasonal_name):  # pylint: disable=unused-argument
+  def fake_query_seasonal_jokes(client,
+                                seasonal_name,
+                                *,
+                                jokes_by_id=None):  # pylint: disable=unused-argument
     seasonal_calls.append(seasonal_name)
     return [
       {
@@ -354,6 +358,18 @@ def test_sync_joke_category_ids_updates_only_when_needed():
   )
   assert writes2 == 1
   assert client2._batch.updates[0][1] == {"category_id": "_uncategorized"}
+
+  # Case 3: empty dict falls back to Firestore reads.
+  client3 = _Client([_Snap(True, "old")])
+  writes3 = ops._sync_joke_category_ids(  # pylint: disable=protected-access
+    client=client3,
+    joke_ids={"j1"},
+    expected_existing_category_id=None,
+    new_category_id="animals",
+    jokes_by_id={},
+  )
+  assert writes3 == 1
+  assert client3._batch.updates[0][1] == {"category_id": "animals"}
 
 
 def test_refresh_updates_cache_filters_negative_tags(monkeypatch, fake_env):
@@ -889,6 +905,86 @@ class TestSearchCategoryJokesSorting:
     assert joke_by_id["j1"]["setup"] == "Setup j1"
     assert joke_by_id["j3"]["setup"] == "Setup j3"
 
+  def test_with_jokes_by_id_skips_firestore_get_punny_jokes(self, monkeypatch):
+    """When jokes_by_id is provided, we should not re-read jokes via firestore."""
+    from services.search import JokeSearchResult
+
+    def fake_search_jokes(**_kwargs):
+      return [
+        JokeSearchResult(joke_id="j1", vector_distance=0.1),
+        JokeSearchResult(joke_id="j2", vector_distance=0.1),
+      ]
+
+    monkeypatch.setattr("services.search.search_jokes", fake_search_jokes)
+    monkeypatch.setattr("services.firestore.get_punny_jokes",
+                        lambda _ids: (_ for _ in ()).throw(
+                          AssertionError("get_punny_jokes should not be called")))
+
+    jokes_by_id = {
+      "j1":
+      models.PunnyJoke(key="j1",
+                       setup_text="S1",
+                       punchline_text="P1",
+                       setup_image_url="u1",
+                       punchline_image_url="v1",
+                       state=models.JokeState.PUBLISHED,
+                       is_public=True),
+      "j2":
+      models.PunnyJoke(key="j2",
+                       setup_text="S2",
+                       punchline_text="P2",
+                       setup_image_url="u2",
+                       punchline_image_url="v2",
+                       state=models.JokeState.PUBLISHED,
+                       is_public=True),
+    }
+
+    payload = joke_category_operations.search_category_jokes(
+      "q",
+      "cat1",
+      distance_threshold=0.1,
+      jokes_by_id=jokes_by_id,
+    )
+
+    assert {p["joke_id"] for p in payload} == {"j1", "j2"}
+
+  def test_without_jokes_by_id_calls_firestore_get_punny_jokes(self, monkeypatch):
+    """Regression: without jokes_by_id, we still fetch jokes from firestore."""
+    from services.search import JokeSearchResult
+
+    monkeypatch.setattr(
+      "services.search.search_jokes",
+      lambda **_kwargs: [
+        JokeSearchResult(joke_id="j1", vector_distance=0.1),
+      ],
+    )
+
+    calls: list[list[str]] = []
+
+    def fake_get_punny_jokes(joke_ids):
+      calls.append(list(joke_ids))
+      return [
+        models.PunnyJoke(
+          key="j1",
+          setup_text="S1",
+          punchline_text="P1",
+          setup_image_url="u1",
+          punchline_image_url="v1",
+        )
+      ]
+
+    monkeypatch.setattr("services.firestore.get_punny_jokes",
+                        fake_get_punny_jokes)
+
+    payload = joke_category_operations.search_category_jokes(
+      "q",
+      "cat1",
+      distance_threshold=0.1,
+    )
+
+    assert calls == [["j1"]]
+    assert payload[0]["joke_id"] == "j1"
+
 
 class TestQuerySeasonalCategoryJokesSorting:
   """Tests for query_seasonal_category_jokes sorting behavior."""
@@ -959,6 +1055,52 @@ class TestQuerySeasonalCategoryJokesSorting:
     assert joke_by_id["j2"]["setup"] == "Setup j2"
     assert joke_by_id["j3"]["setup"] == "Setup j3"
     assert joke_by_id["j4"]["setup"] == "Setup j4"
+
+  def test_with_jokes_by_id_skips_firestore_query(self):
+    """When jokes_by_id is provided, we should not touch the client query interface."""
+
+    class _ExplodingClient:
+
+      def collection(self, _name: str):
+        raise AssertionError("Firestore query should not be used")
+
+    jokes_by_id = {
+      "j1":
+      models.PunnyJoke(key="j1",
+                       setup_text="S1",
+                       punchline_text="P1",
+                       seasonal="Halloween",
+                       state=models.JokeState.PUBLISHED,
+                       is_public=True),
+      "j2":
+      models.PunnyJoke(key="j2",
+                       setup_text="S2",
+                       punchline_text="P2",
+                       seasonal="Halloween",
+                       state=models.JokeState.DRAFT,
+                       is_public=True),
+      "j3":
+      models.PunnyJoke(key="j3",
+                       setup_text="S3",
+                       punchline_text="P3",
+                       seasonal="Halloween",
+                       state=models.JokeState.DAILY,
+                       is_public=False),
+      "j4":
+      models.PunnyJoke(key="j4",
+                       setup_text="S4",
+                       punchline_text="P4",
+                       seasonal="Other",
+                       state=models.JokeState.PUBLISHED,
+                       is_public=True),
+    }
+
+    payload = joke_category_operations.query_seasonal_category_jokes(
+      _ExplodingClient(),
+      "Halloween",
+      jokes_by_id=jokes_by_id,
+    )
+    assert {p["joke_id"] for p in payload} == {"j1"}
 
 
 class TestQueryBookCategoryJokes:
@@ -1375,6 +1517,52 @@ class TestQueryTagsCategoryJokesBatching:
     joke_ids = {p["joke_id"] for p in payload}
     assert joke_ids == {"j1", "j2", "j3"}
     assert len(payload) == 3
+
+  def test_with_jokes_by_id_skips_firestore_query(self):
+    """When jokes_by_id is provided, we should not touch the client query interface."""
+
+    class _ExplodingClient:
+
+      def collection(self, _name: str):
+        raise AssertionError("Firestore query should not be used")
+
+    jokes_by_id = {
+      "j1":
+      models.PunnyJoke(key="j1",
+                       setup_text="S1",
+                       punchline_text="P1",
+                       tags=["Cats", "Animals"],
+                       state=models.JokeState.PUBLISHED,
+                       is_public=True),
+      "j2":
+      models.PunnyJoke(key="j2",
+                       setup_text="S2",
+                       punchline_text="P2",
+                       tags=["dogs"],
+                       state=models.JokeState.PUBLISHED,
+                       is_public=True),
+      "j3":
+      models.PunnyJoke(key="j3",
+                       setup_text="S3",
+                       punchline_text="P3",
+                       tags=["cats"],
+                       state=models.JokeState.DRAFT,
+                       is_public=True),
+      "j4":
+      models.PunnyJoke(key="j4",
+                       setup_text="S4",
+                       punchline_text="P4",
+                       tags=["cats"],
+                       state=models.JokeState.PUBLISHED,
+                       is_public=False),
+    }
+
+    payload = joke_category_operations.query_tags_category_jokes(
+      _ExplodingClient(),
+      ["cats"],
+      jokes_by_id=jokes_by_id,
+    )
+    assert {p["joke_id"] for p in payload} == {"j1"}
 
   def test_handles_missing_fraction_field(self, monkeypatch):
     """Test that docs without num_saved_users_fraction are still returned."""

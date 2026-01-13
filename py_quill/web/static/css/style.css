@@ -1088,14 +1088,7 @@ img {
   color: var(--color-text-muted);
 }
 
-.joke-text {
-  margin: 0;
-  text-align: center;
-  color: var(--color-text);
-}
-
-.joke-card,
-.joke-widget {
+.joke-card {
   width: 100%;
   max-width: var(--joke-card-max-width, 600px);
 }

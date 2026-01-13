@@ -1,11 +1,10 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, reveal_style='carousel', joke_id=None, feed_cursor=None, admin_mode=false) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_mode=false) -%}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
 {% set state_value = joke.state.value if joke.state is not none else '' %}
 {% set is_daily = state_value == 'DAILY' %}
 {% set has_public_ts = joke.public_timestamp is not none %}
 {% set is_future_daily = (joke.is_future_daily if joke.is_future_daily is defined else (is_daily and has_public_ts and now_utc is defined and joke.public_timestamp > now_utc)) %}
 {% set badge_state_class = 'future-daily' if is_future_daily else state_value|lower %}
-{% if reveal_style == 'carousel' %}
 <article class="joke-card" aria-label="Joke {{ unique_id }}"
   style="--joke-card-max-width: {{ width }}px;"
   data-joke-id="{{ unique_id }}"
@@ -76,41 +75,9 @@
     {% endif %}
     <button class="button-primary joke-reveal text-button" type="button" data-role="reveal" data-label-show="{{ reveal_label }}"
       data-label-hide="Back to Setup" aria-controls="joke-{{ unique_id }}-punchline" aria-expanded="false"
-      data-analytics-event="web_index_joke_reveal_click" data-analytics-label="{{ joke.key|default('unknown')|e }}">
+      data-analytics-event="web_joke_reveal_click" data-analytics-label="{{ joke.key|default('unknown')|e }}">
       {{ reveal_label }}
     </button>
   </div>
 </article>
-{% else %}
-<div class="joke-widget" style="--joke-card-max-width: {{ width }}px;">
-  <details>
-    <summary data-analytics-event="joke_reveal_toggle" data-analytics-label="{{ joke.key|default('unknown')|e }}">{{
-      reveal_label }}</summary>
-  </details>
-  <div class="joke-carousel">
-    <div class="joke-carousel-viewport">
-      <div class="joke-carousel-track">
-        <div class="joke-slide">
-          <div class="joke-slide-media">
-            {% if joke.setup_image_url %}
-            <img src="{{ joke.setup_image_url | format_image_url(width=width) }}" alt="{{ joke.setup_text }}"
-              width="{{ width }}" height="{{ width }}" loading="lazy">
-            {% endif %}
-          </div>
-          <p class="joke-text">{{ joke.setup_text }}</p>
-        </div>
-        <div class="joke-slide">
-          <div class="joke-slide-media">
-            {% if joke.punchline_image_url %}
-            <img src="{{ joke.punchline_image_url | format_image_url(width=width) }}"
-              alt="{{ joke.punchline_text }}" width="{{ width }}" height="{{ width }}" loading="lazy">
-            {% endif %}
-          </div>
-          <p class="joke-text">{{ joke.punchline_text }}</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 {%- endmacro %}

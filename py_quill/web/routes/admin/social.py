@@ -9,10 +9,10 @@ from common import models
 from functions import auth_helpers
 from services import firestore
 from web.routes import web_bp
-from web.routes.admin import admin_jokes as admin_jokes_routes
+from web.routes.admin import joke_feed_utils
 
-_SOCIAL_JOKES_PER_PAGE = admin_jokes_routes._JOKES_PER_PAGE
-_SOCIAL_IMAGE_SIZE = 150
+_SOCIAL_JOKES_PER_PAGE = 100
+_SOCIAL_IMAGE_SIZE = 200
 _SOCIAL_STATES: list[models.JokeState] = [
   models.JokeState.DAILY,
   models.JokeState.PUBLISHED,
@@ -31,7 +31,7 @@ def _filter_public_entries(
 def admin_social():
   """Render the social feed with public daily + published jokes."""
   query_cursor = flask.request.args.get('cursor', default=None)
-  selected_category_id = admin_jokes_routes._parse_category_filter(
+  selected_category_id = joke_feed_utils.parse_category_filter(
     flask.request.args.get("category"))
   now_utc = datetime.datetime.now(datetime.timezone.utc)
 
@@ -48,14 +48,10 @@ def admin_social():
     category_id=selected_category_id,
   )
   joke_entries = _filter_public_entries(joke_entries)
-  for joke, _ in joke_entries:
-    joke.is_future_daily = admin_jokes_routes._is_future_daily(
-      joke, now_utc=now_utc)  # type: ignore[attr-defined]
-    joke.edit_payload = admin_jokes_routes._build_edit_payload(joke)  # type: ignore[attr-defined]
-  jokes_list = [{
-    'joke': joke,
-    'cursor': cursor,
-  } for joke, cursor in joke_entries]
+  jokes_list = joke_feed_utils.build_feed_entries(
+    joke_entries,
+    now_utc=now_utc,
+  )
 
   return flask.render_template(
     'admin/social.html',
@@ -77,7 +73,7 @@ def admin_social_load_more():
   limit = flask.request.args.get('limit',
                                  default=_SOCIAL_JOKES_PER_PAGE,
                                  type=int)
-  selected_category_id = admin_jokes_routes._parse_category_filter(
+  selected_category_id = joke_feed_utils.parse_category_filter(
     flask.request.args.get("category"))
   now_utc = datetime.datetime.now(datetime.timezone.utc)
 
@@ -88,20 +84,16 @@ def admin_social_load_more():
     category_id=selected_category_id,
   )
   joke_entries = _filter_public_entries(joke_entries)
-  for joke, _ in joke_entries:
-    joke.is_future_daily = admin_jokes_routes._is_future_daily(
-      joke, now_utc=now_utc)  # type: ignore[attr-defined]
-    joke.edit_payload = admin_jokes_routes._build_edit_payload(joke)  # type: ignore[attr-defined]
-  jokes_list = [{
-    'joke': joke,
-    'cursor': cursor,
-  } for joke, cursor in joke_entries]
+  jokes_list = joke_feed_utils.build_feed_entries(
+    joke_entries,
+    now_utc=now_utc,
+  )
 
   html_fragments = flask.render_template(
     'components/joke_feed_fragment.html',
     jokes=jokes_list,
     image_size=_SOCIAL_IMAGE_SIZE,
-    admin_mode=True,
+    admin_stats_enabled=True,
   )
 
   response = {

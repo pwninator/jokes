@@ -89,6 +89,8 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   assert 'data-joke-id="joke-private"' not in html
   assert '--joke-card-max-width: 150px' in html
   assert '/jokes/feed/load-more-admin-social' in html
+  assert 'joke-admin-stats' in html
+  assert 'joke-edit-button' not in html
 
 
 def test_admin_social_load_more(monkeypatch):
@@ -126,7 +128,8 @@ def test_admin_social_load_more(monkeypatch):
   assert body["has_more"] is True
   assert 'data-joke-id="joke-public"' in body["html"]
   assert 'data-joke-id="joke-private"' not in body["html"]
-  assert "joke-edit-button" in body["html"]
+  assert "joke-admin-stats" in body["html"]
+  assert "joke-edit-button" not in body["html"]
 
   _, kwargs = mock_get.call_args
   assert kwargs["cursor"] == "joke-0"

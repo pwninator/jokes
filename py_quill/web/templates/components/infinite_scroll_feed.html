@@ -1,4 +1,8 @@
-{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None, extra_query_params=None, admin_mode=false, grid_enabled=false) -%}
+{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cursor_storage_key=None, end_of_feed_message=None, extra_query_params=None,
+admin_state_badge_enabled=false,
+admin_stats_enabled=false,
+admin_edit_enabled=false,
+grid_enabled=false) -%}
 {% from "components/joke_card.html" import joke_card with context %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
@@ -57,7 +61,7 @@
 <section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed">
   {% if initial_jokes %}
     {% for entry in initial_jokes %}
-    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_mode=admin_mode) }}
+    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_state_badge_enabled=admin_state_badge_enabled, admin_stats_enabled=admin_stats_enabled, admin_edit_enabled=admin_edit_enabled, is_future_daily=entry.is_future_daily, edit_payload=entry.edit_payload) }}
     {% endfor %}
   {% endif %}
 </section>

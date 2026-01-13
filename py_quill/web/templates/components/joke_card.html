@@ -1,16 +1,29 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_mode=false) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, is_future_daily=None, edit_payload=None) -%}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
 {% set state_value = joke.state.value if joke.state is not none else '' %}
 {% set is_daily = state_value == 'DAILY' %}
 {% set has_public_ts = joke.public_timestamp is not none %}
-{% set is_future_daily = (joke.is_future_daily if joke.is_future_daily is defined else (is_daily and has_public_ts and now_utc is defined and joke.public_timestamp > now_utc)) %}
-{% set badge_state_class = 'future-daily' if is_future_daily else state_value|lower %}
+{% if is_future_daily is defined and is_future_daily is not none %}
+{% set is_future_daily_value = is_future_daily %}
+{% elif joke.is_future_daily is defined %}
+{% set is_future_daily_value = joke.is_future_daily %}
+{% else %}
+{% set is_future_daily_value = (is_daily and has_public_ts and now_utc is defined and joke.public_timestamp > now_utc) %}
+{% endif %}
+{% if edit_payload is defined and edit_payload is not none %}
+{% set edit_payload_value = edit_payload %}
+{% elif joke.edit_payload is defined %}
+{% set edit_payload_value = joke.edit_payload %}
+{% else %}
+{% set edit_payload_value = {} %}
+{% endif %}
+{% set badge_state_class = 'future-daily' if is_future_daily_value else state_value|lower %}
 <article class="joke-card" aria-label="Joke {{ unique_id }}"
   style="--joke-card-max-width: {{ width }}px;"
   data-joke-id="{{ unique_id }}"
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
-    {% if admin_mode and state_value %}
+    {% if admin_state_badge_enabled and state_value %}
       <div class="joke-state-badge joke-state-{{ badge_state_class }}">
         {% if is_daily and has_public_ts %}
           {{ joke.public_timestamp.strftime('%Y-%m-%d') }}
@@ -45,11 +58,12 @@
         </div>
       </div>
     </div>
-    {% if admin_mode %}
+    {% if admin_stats_enabled or admin_edit_enabled %}
       {% set viewed = joke.num_viewed_users|default(0) %}
       {% set saved = joke.num_saved_users|default(0) %}
       {% set shared = joke.num_shared_users|default(0) %}
       <div class="joke-admin-footer">
+        {% if admin_stats_enabled %}
         <div class="joke-admin-stats" aria-label="Joke stats">
           <div class="joke-admin-stat joke-admin-stat--views{% if viewed == 0 %} is-muted{% endif %}">
             <span class="joke-admin-stat-icon" aria-hidden="true">👁</span>
@@ -64,13 +78,16 @@
             <span class="joke-admin-stat-value">{{ shared }}</span>
           </div>
         </div>
+        {% endif %}
+        {% if admin_edit_enabled %}
         <button type="button" class="button-secondary text-button joke-edit-button"
           data-joke-id="{{ unique_id }}"
-          data-joke-data='{{ (joke.edit_payload if joke.edit_payload is defined else {}) | tojson }}'
+          data-joke-data='{{ edit_payload_value | tojson }}'
           aria-label="Edit joke"
           title="Edit">
           <span aria-hidden="true">&#9998;</span>
         </button>
+        {% endif %}
       </div>
     {% endif %}
     <button class="button-primary joke-reveal text-button" type="button" data-role="reveal" data-label-show="{{ reveal_label }}"

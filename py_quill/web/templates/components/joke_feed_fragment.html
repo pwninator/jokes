@@ -1,4 +1,4 @@
 {% from "components/joke_card.html" import joke_card with context %}
 {% for entry in jokes %}
-{{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=image_size, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_mode=admin_mode|default(false)) }}
+{{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=image_size, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_state_badge_enabled=admin_state_badge_enabled|default(false), admin_stats_enabled=admin_stats_enabled|default(false), admin_edit_enabled=admin_edit_enabled|default(false), is_future_daily=entry.is_future_daily, edit_payload=entry.edit_payload) }}
 {% endfor %}

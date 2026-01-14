@@ -129,7 +129,7 @@ class JokeTextCard extends ConsumerWidget {
                       const SizedBox(width: 8.0),
                       // Regenerate Images button (rightmost)
                       Expanded(
-                        child: AdminPopulateJokeButton(
+                        child: AdminRegenerateImagesButton(
                           jokeId: joke.id,
                           theme: Theme.of(context),
                           isLoading: isPopulating,

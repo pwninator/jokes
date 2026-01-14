@@ -1171,21 +1171,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     ),
                   ),
                   const SizedBox(width: 8.0),
-                  // Regenerate Images button (half-width) - hidden for public/daily jokes
-                  if (widget.joke.state != JokeState.published &&
-                      widget.joke.state != JokeState.daily)
-                    Expanded(
-                      child: AdminRegenerateImagesButton(
-                        jokeId: widget.joke.id,
-                        theme: theme,
-                        isLoading: isPopulating,
-                        hasUpscaledImage:
-                            widget.joke.setupImageUrlUpscaled != null ||
-                            widget.joke.punchlineImageUrlUpscaled != null,
-                      ),
-                    )
-                  else
-                    const Expanded(child: SizedBox()),
+                  // Regenerate Images button (half-width)
+                  Expanded(
+                    child: AdminRegenerateImagesButton(
+                      jokeId: widget.joke.id,
+                      theme: theme,
+                      isLoading: isPopulating,
+                      hasUpscaledImage:
+                          widget.joke.setupImageUrlUpscaled != null ||
+                          widget.joke.punchlineImageUrlUpscaled != null,
+                    ),
+                  ),
                   const SizedBox(width: 8.0),
                   // Modify Images button (half-width)
                   Expanded(

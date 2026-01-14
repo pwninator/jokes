@@ -341,6 +341,30 @@
     </div>
   </div>
 
+  <div id="admin-regenerate-modal" class="admin-modal" aria-hidden="true">
+    <div class="admin-modal__backdrop" data-admin-regenerate-backdrop></div>
+    <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-regenerate-title">
+      <h3 id="admin-regenerate-title" class="admin-modal__title text-section-heading">Regenerate Images</h3>
+      <div class="admin-modal__content">
+        <form id="admin-regenerate-form">
+          <input type="hidden" id="admin-regenerate-joke-id" name="joke_id" value="">
+          <div class="admin-modal__field">
+            <label class="admin-modal__label" for="admin-regenerate-quality">Image Quality</label>
+            <select class="admin-modal__input" id="admin-regenerate-quality" name="image_quality">
+              {% for q in image_qualities %}
+              <option value="{{ q }}"{% if q == 'medium_mini' %} selected{% endif %}>{{ q }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="admin-modal__actions">
+             <button type="button" class="button-secondary text-button" id="admin-regenerate-cancel-button">Cancel</button>
+             <button type="submit" class="button-primary text-button" id="admin-regenerate-submit-button">Regenerate</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div id="admin-scene-ideas-modal" class="admin-modal admin-modal--overlay" aria-hidden="true">
     <div class="admin-modal__backdrop" data-admin-scene-ideas-backdrop></div>
     <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-scene-ideas-title">
@@ -436,6 +460,13 @@
   const editRegenerateButton = document.getElementById('admin-edit-joke-regenerate-button');
   const editSceneIdeasButton = document.getElementById('admin-edit-joke-scene-ideas-button');
 
+  const regenerateModal = document.getElementById('admin-regenerate-modal');
+  const regenerateModalBackdrop = document.querySelector('[data-admin-regenerate-backdrop]');
+  const regenerateForm = document.getElementById('admin-regenerate-form');
+  const regenerateCancelButton = document.getElementById('admin-regenerate-cancel-button');
+  const regenerateJokeIdInput = document.getElementById('admin-regenerate-joke-id');
+  const regenerateQualityInput = document.getElementById('admin-regenerate-quality');
+
   const sceneIdeasModal = document.getElementById('admin-scene-ideas-modal');
   const sceneIdeasModalBackdrop = document.querySelector('[data-admin-scene-ideas-backdrop]');
   const sceneIdeasForm = document.getElementById('admin-scene-ideas-form');
@@ -483,6 +514,29 @@
 
   function isSceneIdeasModalOpen() {
     return Boolean(sceneIdeasModal && sceneIdeasModal.classList.contains('admin-modal--open'));
+  }
+
+  function isRegenerateModalOpen() {
+    return Boolean(regenerateModal && regenerateModal.classList.contains('admin-modal--open'));
+  }
+
+  function openRegenerateModal() {
+    if (!regenerateModal) {
+      return;
+    }
+    regenerateModal.classList.add('admin-modal--open');
+    regenerateModal.setAttribute('aria-hidden', 'false');
+    if (regenerateQualityInput) {
+      regenerateQualityInput.focus();
+    }
+  }
+
+  function closeRegenerateModal() {
+    if (!regenerateModal) {
+      return;
+    }
+    regenerateModal.classList.remove('admin-modal--open');
+    regenerateModal.setAttribute('aria-hidden', 'true');
   }
 
   function openEditModal() {
@@ -714,9 +768,25 @@
         handleEditCancel();
         return;
       }
+      if (isRegenerateModalOpen()) {
+        closeRegenerateModal();
+        return;
+      }
       closeModal();
     }
   });
+
+  if (regenerateCancelButton) {
+    regenerateCancelButton.addEventListener('click', () => {
+      closeRegenerateModal();
+    });
+  }
+
+  if (regenerateModalBackdrop) {
+    regenerateModalBackdrop.addEventListener('click', () => {
+      closeRegenerateModal();
+    });
+  }
 
   if (editCancelButton) {
     editCancelButton.addEventListener('click', () => {
@@ -748,7 +818,62 @@
     });
   }
 
+  if (regenerateForm) {
+    regenerateForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      if (!regenerateJokeIdInput || !regenerateQualityInput) {
+        return;
+      }
+
+      const jokeId = regenerateJokeIdInput.value;
+      const quality = regenerateQualityInput.value;
+
+      const payload = {
+        data: {
+          joke_id: jokeId,
+          image_quality: quality,
+          populate_images: true,
+        },
+      };
+
+      try {
+        fetch(jokeCreationUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload),
+        }).catch((err) => {
+          console.warn('regenerate images request failed', err); // eslint-disable-line no-console
+        });
+      } catch (err) {
+        // Ignore.
+      }
+
+      closeRegenerateModal();
+
+      // Find the card and set it to generating
+      const card = document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
+      if (card) {
+        setCardGenerating(card);
+      }
+    });
+  }
+
   document.addEventListener('click', (event) => {
+    const regenerateButton = event.target.closest('.joke-regenerate-button');
+    if (regenerateButton) {
+      const jokeId = regenerateButton.getAttribute('data-joke-id');
+      if (jokeId) {
+        setValue(regenerateJokeIdInput, jokeId);
+        openRegenerateModal();
+      }
+      return;
+    }
+
     const editButton = event.target.closest('.joke-edit-button');
     if (!editButton) {
       return;

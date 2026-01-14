@@ -87,7 +87,7 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   assert 'data-state="' not in html
   assert 'data-joke-id="joke-public"' in html
   assert 'data-joke-id="joke-private"' not in html
-  assert '--joke-card-max-width: 150px' in html
+  assert '--joke-card-max-width: 200px' in html
   assert '/jokes/feed/load-more-admin-social' in html
   assert 'joke-admin-stats' in html
   assert 'joke-edit-button' not in html

@@ -26,9 +26,10 @@ def web(req: https_fn.Request) -> https_fn.Response:
   allowed_hosts = {'snickerdoodlejokes.com', 'localhost', '127.0.0.1'}
 
   if hostname not in allowed_hosts:
-    target_url = f'https://snickerdoodlejokes.com{req.path}'
-    if req.query_string:
-      target_url += f'?{req.query_string.decode("utf-8")}'
+    # Use full_path to preserve path and query params (including encoding).
+    # Note: URL fragments are client-side only and are automatically preserved
+    # by the browser during the redirect.
+    target_url = f'https://snickerdoodlejokes.com{req.full_path}'
 
     return https_fn.Response(
       status=301,

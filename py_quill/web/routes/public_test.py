@@ -762,3 +762,22 @@ def test_topic_page_includes_sticky_header_script(monkeypatch):
   assert 'site-header--visible' in html.lower()
   # Verify 1000px scroll threshold logic
   assert '1000' in html or 'float_scroll_threshold' in html.lower()
+
+
+def test_sitemap_includes_homepage(monkeypatch):
+  """Verify that the sitemap includes the homepage URL."""
+  monkeypatch.setattr(
+    public_routes.firestore,
+    "get_joke_sheets_cache",
+    lambda: [],
+  )
+  with app.test_client() as client:
+    resp = client.get('/sitemap.xml')
+
+  assert resp.status_code == 200
+  xml = resp.get_data(as_text=True)
+
+  # Check for the homepage URL.
+  # public_base_url returns "https://snickerdoodlejokes.com" (mocked/env default)
+  # We expect <loc>https://snickerdoodlejokes.com/</loc>
+  assert '<loc>https://snickerdoodlejokes.com/</loc>' in xml

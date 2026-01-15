@@ -49,6 +49,19 @@ app = flask.Flask(__name__,
                   static_folder=_STATIC_DIR)
 
 
+@app.before_request
+def _strip_trailing_slash() -> flask.Response | None:
+  path = flask.request.path
+  if path != "/" and path.endswith("/"):
+    canonical_path = path.rstrip("/") or "/"
+    query_string = flask.request.query_string
+    if query_string:
+      canonical_path = (f"{canonical_path}?"
+                        f"{query_string.decode('utf-8', 'ignore')}")
+    return flask.redirect(canonical_path, code=308)
+  return None
+
+
 @app.template_filter('format_image_url')
 def _format_image_url_filter(image_url: str, **kwargs) -> str:
   """Jinja filter for formatting image CDN URLs."""

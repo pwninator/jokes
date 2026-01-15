@@ -117,37 +117,14 @@ def fake_env_fixture(monkeypatch):
       "query": query,
       "category": category_id,
     })
-    return [
-      {
-        "joke_id": "j1",
-        "setup": "Why did the chicken cross the road?",
-        "punchline": "To get to the other side!",
-        "setup_image_url": "https://example.com/setup.jpg",
-        "punchline_image_url": "https://example.com/punchline.jpg",
-      },
-      {
-        "joke_id": "j2",
-        "setup": "Knock knock!",
-        "punchline": "Who's there?",
-        "setup_image_url": "https://example.com/setup2.jpg",
-        "punchline_image_url": "https://example.com/punchline2.jpg",
-      },
-    ]
+    return {"j1", "j2"}
 
   def fake_query_seasonal_jokes(client,
                                 seasonal_name,
                                 *,
                                 jokes_by_id=None):  # pylint: disable=unused-argument
     seasonal_calls.append(seasonal_name)
-    return [
-      {
-        "joke_id": f"{seasonal_name}-1",
-        "setup": "Seasonal setup",
-        "punchline": "Seasonal punchline",
-        "setup_image_url": "https://example.com/seasonal_setup.jpg",
-        "punchline_image_url": "https://example.com/seasonal_punchline.jpg",
-      },
-    ]
+    return {f"{seasonal_name}-1"}
 
   monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
                       fake_search_category_jokes)
@@ -424,7 +401,7 @@ def test_refresh_updates_cache_filters_negative_tags(monkeypatch, fake_env):
 def test_refresh_forces_proposed_when_empty_results(monkeypatch, fake_env):
   # Arrange: search returns empty for this test
   monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
-                      lambda *args, **kwargs: [])
+                      lambda *args, **kwargs: set())
 
   categories = [("sports", {
     "display_name": "Sports",
@@ -485,7 +462,7 @@ def test_refresh_sorts_by_joke_id_order(monkeypatch, fake_env):
 
   # Mock search to return j1, j2, j3
   def fake_search(*args, **kwargs):
-    return [{"joke_id": "j1"}, {"joke_id": "j2"}, {"joke_id": "j3"}]
+    return {"j1", "j2", "j3"}
 
   monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
                       fake_search)
@@ -716,22 +693,7 @@ def test_refresh_unions_book_id_with_other_sources(monkeypatch, fake_env):
       "category_id":
       args[1] if len(args) > 1 else kwargs.get("category_id"),
     })
-    return [
-      {
-        "joke_id": "j1",
-        "setup": "S j1",
-        "punchline": "P j1",
-        "setup_image_url": None,
-        "punchline_image_url": None
-      },
-      {
-        "joke_id": "j2",
-        "setup": "S j2",
-        "punchline": "P j2",
-        "setup_image_url": None,
-        "punchline_image_url": None
-      },
-    ]
+    return {"j1", "j2"}
 
   monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
                       fake_search)
@@ -824,8 +786,8 @@ def test_refresh_continues_on_search_error(monkeypatch, fake_env):
 class TestSearchCategoryJokesSorting:
   """Tests for search_category_jokes sorting behavior."""
 
-  def test_sorts_results_by_num_saved_users_fraction(self, monkeypatch):
-    """Test that search results return all jokes correctly."""
+  def test_returns_ids_from_search_results(self, monkeypatch):
+    """Test that search results return all joke IDs."""
 
     # Arrange
     from services.search import JokeSearchResult
@@ -840,70 +802,20 @@ class TestSearchCategoryJokesSorting:
       assert kwargs["distance_threshold"] == 0.123
       return results
 
-    # Mock full jokes returned by firestore.get_punny_jokes
-    # These should have the fresh num_saved_users_fraction values
-    full_jokes = [
-      models.PunnyJoke(
-        key="j1",
-        setup_text="Setup j1",
-        punchline_text="Punchline j1",
-        setup_image_url="https://example.com/j1-setup.jpg",
-        punchline_image_url="https://example.com/j1-punchline.jpg",
-        num_saved_users_fraction=0.1,
-      ),
-      models.PunnyJoke(
-        key="j2",
-        setup_text="Setup j2",
-        punchline_text="Punchline j2",
-        setup_image_url="https://example.com/j2-setup.jpg",
-        punchline_image_url="https://example.com/j2-punchline.jpg",
-        num_saved_users_fraction=0.5,
-      ),
-      models.PunnyJoke(
-        key="j3",
-        setup_text="Setup j3",
-        punchline_text="Punchline j3",
-        setup_image_url="https://example.com/j3-setup.jpg",
-        punchline_image_url="https://example.com/j3-punchline.jpg",
-        num_saved_users_fraction=0.0,
-      ),
-      models.PunnyJoke(
-        key="j4",
-        setup_text="Setup j4",
-        punchline_text="Punchline j4",
-        setup_image_url="https://example.com/j4-setup.jpg",
-        punchline_image_url="https://example.com/j4-punchline.jpg",
-        num_saved_users_fraction=0.3,
-      ),
-    ]
-
-    def fake_get_punny_jokes(joke_ids):
-      # Return jokes in the order requested (preserve order for testing)
-      id_to_joke = {j.key: j for j in full_jokes}
-      return [id_to_joke[jid] for jid in joke_ids if jid in id_to_joke]
-
     monkeypatch.setattr("services.search.search_jokes", fake_search_jokes)
     monkeypatch.setattr("services.firestore.get_punny_jokes",
-                        fake_get_punny_jokes)
+                        lambda _ids: (_ for _ in ()).throw(
+                          AssertionError("get_punny_jokes should not be called")))
 
     # Act
-    jokes = joke_category_operations.search_category_jokes(
+    joke_ids = joke_category_operations.search_category_jokes(
       "test query",
       "cat1",
       distance_threshold=0.123,
     )
 
     # Assert - verify all jokes are returned (order is not guaranteed)
-    assert len(jokes) == 4
-    joke_ids = {j["joke_id"] for j in jokes}
     assert joke_ids == {"j1", "j2", "j3", "j4"}
-    # Verify data is correct
-    joke_by_id = {j["joke_id"]: j for j in jokes}
-    assert joke_by_id["j2"]["setup"] == "Setup j2"
-    assert joke_by_id["j2"]["punchline"] == "Punchline j2"
-    assert joke_by_id["j4"]["setup"] == "Setup j4"
-    assert joke_by_id["j1"]["setup"] == "Setup j1"
-    assert joke_by_id["j3"]["setup"] == "Setup j3"
 
   def test_with_jokes_by_id_skips_firestore_get_punny_jokes(self, monkeypatch):
     """When jokes_by_id is provided, we should not re-read jokes via firestore."""
@@ -946,10 +858,10 @@ class TestSearchCategoryJokesSorting:
       jokes_by_id=jokes_by_id,
     )
 
-    assert {p["joke_id"] for p in payload} == {"j1", "j2"}
+    assert payload == {"j1", "j2"}
 
-  def test_without_jokes_by_id_calls_firestore_get_punny_jokes(self, monkeypatch):
-    """Regression: without jokes_by_id, we still fetch jokes from firestore."""
+  def test_without_jokes_by_id_skips_firestore_get_punny_jokes(self, monkeypatch):
+    """Without jokes_by_id, we no longer fetch full jokes from firestore."""
     from services.search import JokeSearchResult
 
     monkeypatch.setattr(
@@ -959,22 +871,9 @@ class TestSearchCategoryJokesSorting:
       ],
     )
 
-    calls: list[list[str]] = []
-
-    def fake_get_punny_jokes(joke_ids):
-      calls.append(list(joke_ids))
-      return [
-        models.PunnyJoke(
-          key="j1",
-          setup_text="S1",
-          punchline_text="P1",
-          setup_image_url="u1",
-          punchline_image_url="v1",
-        )
-      ]
-
     monkeypatch.setattr("services.firestore.get_punny_jokes",
-                        fake_get_punny_jokes)
+                        lambda _ids: (_ for _ in ()).throw(
+                          AssertionError("get_punny_jokes should not be called")))
 
     payload = joke_category_operations.search_category_jokes(
       "q",
@@ -982,8 +881,7 @@ class TestSearchCategoryJokesSorting:
       distance_threshold=0.1,
     )
 
-    assert calls == [["j1"]]
-    assert payload[0]["joke_id"] == "j1"
+    assert payload == {"j1"}
 
 
 class TestQuerySeasonalCategoryJokesSorting:
@@ -1042,19 +940,11 @@ class TestQuerySeasonalCategoryJokesSorting:
     mock_client = _MockCollection(docs)
 
     # Act
-    jokes = joke_category_operations.query_seasonal_category_jokes(
+    joke_ids = joke_category_operations.query_seasonal_category_jokes(
       mock_client, "Halloween")
 
     # Assert - verify all jokes are returned (order is not guaranteed)
-    assert len(jokes) == 4
-    joke_ids = {j["joke_id"] for j in jokes}
     assert joke_ids == {"j1", "j2", "j3", "j4"}
-    # Verify data is correct
-    joke_by_id = {j["joke_id"]: j for j in jokes}
-    assert joke_by_id["j1"]["setup"] == "Setup j1"
-    assert joke_by_id["j2"]["setup"] == "Setup j2"
-    assert joke_by_id["j3"]["setup"] == "Setup j3"
-    assert joke_by_id["j4"]["setup"] == "Setup j4"
 
   def test_with_jokes_by_id_skips_firestore_query(self):
     """When jokes_by_id is provided, we should not touch the client query interface."""
@@ -1100,7 +990,7 @@ class TestQuerySeasonalCategoryJokesSorting:
       "Halloween",
       jokes_by_id=jokes_by_id,
     )
-    assert {p["joke_id"] for p in payload} == {"j1"}
+    assert payload == {"j1"}
 
 
 class TestQueryBookCategoryJokes:
@@ -1179,14 +1069,10 @@ class TestQueryBookCategoryJokes:
       client, "book-123")
 
     # Assert
-    assert len(jokes) == 2
-    assert jokes[0]["joke_id"] == "j1"  # Sorted by fraction (descending)
-    assert jokes[1]["joke_id"] == "j2"
-    assert jokes[0]["setup"] == "Setup j1"
-    assert jokes[0]["punchline"] == "Punchline j1"
+    assert jokes == {"j1", "j2"}
 
   def test_returns_empty_if_book_not_found(self, monkeypatch):
-    """Test that query_book_category_jokes returns empty list if book doesn't exist."""
+    """Test that query_book_category_jokes returns empty set if book doesn't exist."""
 
     class _FakeBookDoc:
 
@@ -1226,7 +1112,7 @@ class TestQueryBookCategoryJokes:
       client, "missing-book")
 
     # Assert
-    assert jokes == []
+    assert jokes == set()
 
   def test_filters_non_public_jokes(self, monkeypatch):
     """Test that query_book_category_jokes filters out non-public jokes."""
@@ -1304,11 +1190,10 @@ class TestQueryBookCategoryJokes:
       client, "book-123")
 
     # Assert: Only j1 should be included (public + PUBLISHED/DAILY)
-    assert len(jokes) == 1
-    assert jokes[0]["joke_id"] == "j1"
+    assert jokes == {"j1"}
 
   def test_returns_empty_if_book_has_no_jokes(self, monkeypatch):
-    """Test that query_book_category_jokes returns empty list if book has no jokes."""
+    """Test that query_book_category_jokes returns empty set if book has no jokes."""
 
     class _FakeBookDoc:
 
@@ -1351,7 +1236,7 @@ class TestQueryBookCategoryJokes:
       client, "empty-book")
 
     # Assert
-    assert jokes == []
+    assert jokes == set()
 
   def test_handles_empty_jokes_field(self, monkeypatch):
     """Test that query_book_category_jokes handles missing jokes field gracefully."""
@@ -1397,7 +1282,7 @@ class TestQueryBookCategoryJokes:
       client, "no-jokes-book")
 
     # Assert
-    assert jokes == []
+    assert jokes == set()
 
 
 class TestQueryTagsCategoryJokesBatching:
@@ -1514,9 +1399,7 @@ class TestQueryTagsCategoryJokesBatching:
     assert client.seen_tag_chunks[1] == tags[10:]
 
     # Union + dedupe: j2 should appear once. Order is not guaranteed.
-    joke_ids = {p["joke_id"] for p in payload}
-    assert joke_ids == {"j1", "j2", "j3"}
-    assert len(payload) == 3
+    assert payload == {"j1", "j2", "j3"}
 
   def test_with_jokes_by_id_skips_firestore_query(self):
     """When jokes_by_id is provided, we should not touch the client query interface."""
@@ -1562,7 +1445,7 @@ class TestQueryTagsCategoryJokesBatching:
       ["cats"],
       jokes_by_id=jokes_by_id,
     )
-    assert {p["joke_id"] for p in payload} == {"j1"}
+    assert payload == {"j1"}
 
   def test_handles_missing_fraction_field(self, monkeypatch):
     """Test that docs without num_saved_users_fraction are still returned."""
@@ -1615,12 +1498,10 @@ class TestQueryTagsCategoryJokesBatching:
     mock_client = _MockCollection(docs)
 
     # Act
-    jokes = joke_category_operations.query_seasonal_category_jokes(
+    joke_ids = joke_category_operations.query_seasonal_category_jokes(
       mock_client, "Halloween")
 
     # Assert - verify all jokes are returned (order is not guaranteed)
-    assert len(jokes) == 2
-    joke_ids = {j["joke_id"] for j in jokes}
     assert joke_ids == {"j1", "j2"}
 
 

@@ -1109,7 +1109,7 @@ class PunnyJoke:
     return data
 
   def get_minimal_joke_data(self) -> dict[str, str | None]:
-    """Get a minimal dictionary representation of the joke for feed generation."""
+    """Get a minimal dictionary representation of the joke for denormalization."""
     return {
       "key": self.key,
       "setup_text": self.setup_text,

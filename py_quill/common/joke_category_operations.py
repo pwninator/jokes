@@ -226,48 +226,32 @@ def refresh_single_category_cache(
 
   if raw_query:
     search_query = f"jokes about {raw_query}"
-    items = search_category_jokes(
-      search_query,
-      category_id,
-      distance_threshold=search_distance,
-      jokes_by_id=jokes_by_id,
-    )
-
-    for item in items:
-      joke_id = item.get("joke_id")
-      if isinstance(joke_id, str) and joke_id:
-        joke_ids.add(joke_id)
+    joke_ids.update(
+      search_category_jokes(
+        search_query,
+        category_id,
+        distance_threshold=search_distance,
+        jokes_by_id=jokes_by_id,
+      ))
 
   if seasonal_name:
-    items = query_seasonal_category_jokes(client,
-                                          seasonal_name,
-                                          jokes_by_id=jokes_by_id)
-    for item in items:
-      joke_id = item.get("joke_id")
-      if isinstance(joke_id, str) and joke_id:
-        joke_ids.add(joke_id)
+    joke_ids.update(
+      query_seasonal_category_jokes(client,
+                                    seasonal_name,
+                                    jokes_by_id=jokes_by_id))
 
   if book_id:
-    items = query_book_category_jokes(client, book_id, jokes_by_id=jokes_by_id)
-    for item in items:
-      joke_id = item.get("joke_id")
-      if isinstance(joke_id, str) and joke_id:
-        joke_ids.add(joke_id)
+    joke_ids.update(
+      query_book_category_jokes(client, book_id, jokes_by_id=jokes_by_id))
 
   if tags:
-    items = query_tags_category_jokes(client, tags, jokes_by_id=jokes_by_id)
-    for item in items:
-      joke_id = item.get("joke_id")
-      if isinstance(joke_id, str) and joke_id:
-        joke_ids.add(joke_id)
+    joke_ids.update(
+      query_tags_category_jokes(client, tags, jokes_by_id=jokes_by_id))
 
-  ordered_joke_ids = list(joke_ids)
   if jokes_by_id is not None:
-    jokes = [
-      jokes_by_id[jid] for jid in ordered_joke_ids if jid in jokes_by_id
-    ]
+    jokes = [jokes_by_id[jid] for jid in joke_ids if jid in jokes_by_id]
   else:
-    jokes = firestore.get_punny_jokes(ordered_joke_ids)
+    jokes = firestore.get_punny_jokes(joke_ids)
 
   # Filter out jokes that contain any negative tags
   if negative_tags:
@@ -474,7 +458,7 @@ def search_category_jokes(
   *,
   distance_threshold: float | None = None,
   jokes_by_id: dict[str, models.PunnyJoke] | None = None,
-) -> list[dict[str, object]]:
+) -> set[str]:
   """Search for jokes matching a category query.
 
   Args:
@@ -482,8 +466,7 @@ def search_category_jokes(
     category_id: The category ID for labeling
 
   Returns:
-    List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url.
+    Set of joke IDs matching the query.
   """
   field_filters: list[tuple[str, str, object]] = [
     ("state", "in",
@@ -500,16 +483,10 @@ def search_category_jokes(
     if distance_threshold else config.JOKE_SEARCH_TIGHT_THRESHOLD,
   )
 
-  # Extract joke IDs
-  joke_ids = [result.joke_id for result in results if result.joke_id]
-
-  # Fetch full jokes
+  joke_ids = {result.joke_id for result in results if result.joke_id}
   if jokes_by_id is not None:
-    jokes = [jokes_by_id[jid] for jid in joke_ids if jid in jokes_by_id]
-  else:
-    jokes = firestore.get_punny_jokes(joke_ids)
-
-  return [j.get_category_cache_joke_data() for j in jokes]
+    joke_ids = {jid for jid in joke_ids if jid in jokes_by_id}
+  return joke_ids
 
 
 def query_seasonal_category_jokes(
@@ -517,7 +494,7 @@ def query_seasonal_category_jokes(
   seasonal_name: str,
   *,
   jokes_by_id: dict[str, models.PunnyJoke] | None = None,
-) -> list[dict[str, object]]:
+) -> set[str]:
   """Query jokes by seasonal name.
 
   Args:
@@ -525,11 +502,10 @@ def query_seasonal_category_jokes(
     seasonal_name: The seasonal name to filter by
 
   Returns:
-    List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url.
+    Set of joke IDs matching the seasonal name.
   """
   if jokes_by_id is not None:
-    payload: list[dict[str, object]] = []
+    matched_ids: list[str] = []
     for joke in jokes_by_id.values():
       if not joke.key:
         continue
@@ -537,8 +513,8 @@ def query_seasonal_category_jokes(
         continue
       if (joke.seasonal or "") != seasonal_name:
         continue
-      payload.append(joke.get_category_cache_joke_data())
-    return payload[:100]
+      matched_ids.append(joke.key)
+    return set(matched_ids[:100])
 
   states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
   query = client.collection("jokes")
@@ -547,18 +523,7 @@ def query_seasonal_category_jokes(
   query = query.where(filter=FieldFilter("seasonal", "==", seasonal_name))
   query = query.limit(100)
 
-  docs = query.stream()
-  payload = []
-  for doc in docs:
-    data = doc.to_dict() or {}
-    payload.append({
-      "joke_id": doc.id,
-      "setup": data.get("setup_text", ""),
-      "punchline": data.get("punchline_text", ""),
-      "setup_image_url": data.get("setup_image_url"),
-      "punchline_image_url": data.get("punchline_image_url"),
-    })
-  return payload
+  return {doc.id for doc in query.stream()}
 
 
 def query_book_category_jokes(
@@ -566,7 +531,7 @@ def query_book_category_jokes(
   book_id: str,
   *,
   jokes_by_id: dict[str, models.PunnyJoke] | None = None,
-) -> list[dict[str, object]]:
+) -> set[str]:
   """Query jokes from a joke book by book ID.
 
   Args:
@@ -574,27 +539,26 @@ def query_book_category_jokes(
     book_id: The joke book ID to fetch jokes from
 
   Returns:
-    List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url. Returns empty list if book not found or has no jokes.
+    Set of joke IDs. Returns empty set if book not found or has no jokes.
   """
   book_ref = client.collection("joke_books").document(book_id)
   book_doc = book_ref.get()
 
   if not getattr(book_doc, "exists", False):
     logger.warn(f"Joke book {book_id} not found for category")
-    return []
+    return set()
 
   book_data = book_doc.to_dict() or {}
   joke_ids = book_data.get("jokes", [])
 
   if not isinstance(joke_ids, list) or not joke_ids:
     logger.warn(f"Joke book {book_id} has no jokes")
-    return []
+    return set()
 
   # Filter to string joke IDs
   joke_ids = [str(jid) for jid in joke_ids if jid]
   if not joke_ids:
-    return []
+    return set()
 
   # Fetch the jokes
   if jokes_by_id is not None:
@@ -608,10 +572,7 @@ def query_book_category_jokes(
     j for j in jokes if j.key and j.is_public and j.state.value in states
   ]
 
-  payload = []
-  for joke in filtered_jokes:
-    payload.append(joke.get_category_cache_joke_data())
-  return payload
+  return {j.key for j in filtered_jokes if j.key}
 
 
 def query_tags_category_jokes(
@@ -619,7 +580,7 @@ def query_tags_category_jokes(
   tags: list[str],
   *,
   jokes_by_id: dict[str, models.PunnyJoke] | None = None,
-) -> list[dict[str, object]]:
+) -> set[str]:
   """Query jokes that match any of the given tags.
 
   Args:
@@ -627,8 +588,7 @@ def query_tags_category_jokes(
     tags: List of tags; jokes are included if they contain at least one tag.
 
   Returns:
-    List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url.
+    Set of joke IDs matching any of the tags.
   """
 
   def _normalize_tags(raw_tags: list[str]) -> list[str]:
@@ -652,11 +612,11 @@ def query_tags_category_jokes(
   normalized_tags = _normalize_tags(tags)
 
   if not normalized_tags:
-    return []
+    return set()
 
   if jokes_by_id is not None:
     normalized_lower = {t.lower() for t in normalized_tags}
-    payload: list[dict[str, object]] = []
+    matched_ids: list[str] = []
     for joke in jokes_by_id.values():
       if not joke.key:
         continue
@@ -668,32 +628,22 @@ def query_tags_category_jokes(
       }
       if not joke_tags_lower.intersection(normalized_lower):
         continue
-      payload.append(joke.get_category_cache_joke_data())
-    return payload[:100]
+      matched_ids.append(joke.key)
+    return set(matched_ids[:100])
+  else:
+    states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
+    matched_ids: set[str] = set()
 
-  states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
-  docs_by_id: dict[str, dict] = {}
+    # Firestore array-contains-any supports up to 10 values; partition and union.
+    for chunk in _chunks(normalized_tags, 10):
+      query = client.collection("jokes")
+      query = query.where(filter=FieldFilter("state", "in", states))
+      query = query.where(filter=FieldFilter("is_public", "==", True))
+      query = query.where(
+        filter=FieldFilter("tags", "array_contains_any", chunk))
+      query = query.limit(100)
 
-  # Firestore array-contains-any supports up to 10 values; partition and union.
-  for chunk in _chunks(normalized_tags, 10):
-    query = client.collection("jokes")
-    query = query.where(filter=FieldFilter("state", "in", states))
-    query = query.where(filter=FieldFilter("is_public", "==", True))
-    query = query.where(
-      filter=FieldFilter("tags", "array_contains_any", chunk))
-    query = query.limit(100)
+      for doc in query.stream():
+        matched_ids.add(doc.id)
 
-    for doc in query.stream():
-      data = doc.to_dict() or {}
-      docs_by_id[doc.id] = data
-
-  payload: list[dict[str, object]] = []
-  for doc_id, data in docs_by_id.items():
-    payload.append({
-      "joke_id": doc_id,
-      "setup": data.get("setup_text", ""),
-      "punchline": data.get("punchline_text", ""),
-      "setup_image_url": data.get("setup_image_url"),
-      "punchline_image_url": data.get("punchline_image_url"),
-    })
-  return payload
+    return matched_ids

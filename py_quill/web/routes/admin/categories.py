@@ -160,6 +160,7 @@ def admin_create_joke_category():
       category_id,
       category_data,
     )
+    joke_category_operations.rebuild_joke_categories_index()
   except Exception as exc:  # pylint: disable=broad-except
     logger.error(f"Failed creating category {display_name}: {exc}")
     return flask.redirect('/admin/joke-categories?error=create_failed')

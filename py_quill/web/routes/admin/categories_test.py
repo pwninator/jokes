@@ -31,6 +31,9 @@ def test_admin_create_category_calls_refresh(monkeypatch):
   mock_refresh = Mock()
   monkeypatch.setattr(categories_routes.joke_category_operations,
                       "refresh_single_category_cache", mock_refresh)
+  mock_rebuild = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "rebuild_joke_categories_index", mock_rebuild)
 
   with app.test_client() as client:
     resp = client.post(
@@ -62,6 +65,7 @@ def test_admin_create_category_calls_refresh(monkeypatch):
   assert args[1]["seasonal_name"] == ""
   assert args[1]["tags"] == []
   assert args[1]["search_distance"] == 0.25
+  mock_rebuild.assert_called_once()
 
 
 def test_admin_create_seasonal_category(monkeypatch):
@@ -74,6 +78,9 @@ def test_admin_create_seasonal_category(monkeypatch):
   mock_refresh = Mock()
   monkeypatch.setattr(categories_routes.joke_category_operations,
                       "refresh_single_category_cache", mock_refresh)
+  mock_rebuild = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "rebuild_joke_categories_index", mock_rebuild)
 
   with app.test_client() as client:
     resp = client.post(
@@ -99,6 +106,7 @@ def test_admin_create_seasonal_category(monkeypatch):
   assert args[1]["joke_description_query"] == ""
   assert args[1]["seasonal_name"] == "Christmas"
   assert args[1]["tags"] == []
+  mock_rebuild.assert_called_once()
 
 
 def test_admin_create_category_validates_required_fields(monkeypatch):
@@ -130,6 +138,9 @@ def test_admin_create_category_allows_tags_only(monkeypatch):
   mock_refresh = Mock()
   monkeypatch.setattr(categories_routes.joke_category_operations,
                       "refresh_single_category_cache", mock_refresh)
+  mock_rebuild = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "rebuild_joke_categories_index", mock_rebuild)
 
   with app.test_client() as client:
     resp = client.post(
@@ -153,6 +164,7 @@ def test_admin_create_category_allows_tags_only(monkeypatch):
   args, _ = mock_refresh.call_args
   assert args[0] == "food"
   assert args[1]["tags"] == ["food", "snacks"]
+  mock_rebuild.assert_called_once()
 
 
 def test_admin_create_category_allows_book_id_only(monkeypatch):
@@ -166,6 +178,9 @@ def test_admin_create_category_allows_book_id_only(monkeypatch):
   mock_refresh = Mock()
   monkeypatch.setattr(categories_routes.joke_category_operations,
                       "refresh_single_category_cache", mock_refresh)
+  mock_rebuild = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "rebuild_joke_categories_index", mock_rebuild)
 
   with app.test_client() as client:
     resp = client.post(
@@ -189,6 +204,7 @@ def test_admin_create_category_allows_book_id_only(monkeypatch):
   args, _ = mock_refresh.call_args
   assert args[0] == "book_cat"
   assert args[1]["book_id"] == "book-123"
+  mock_rebuild.assert_called_once()
 
 
 def test_admin_create_category_with_negative_tags(monkeypatch):
@@ -202,6 +218,9 @@ def test_admin_create_category_with_negative_tags(monkeypatch):
   mock_refresh = Mock()
   monkeypatch.setattr(categories_routes.joke_category_operations,
                       "refresh_single_category_cache", mock_refresh)
+  mock_rebuild = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "rebuild_joke_categories_index", mock_rebuild)
 
   with app.test_client() as client:
     resp = client.post(
@@ -222,6 +241,7 @@ def test_admin_create_category_with_negative_tags(monkeypatch):
   args, _ = mock_refresh.call_args
   assert args[1]["tags"] == ["food", "healthy"]
   assert args[1]["negative_tags"] == ["junk", "oily"]
+  mock_rebuild.assert_called_once()
 
 
 def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):

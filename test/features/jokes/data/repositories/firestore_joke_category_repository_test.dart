@@ -158,5 +158,85 @@ void main() {
           .get();
       expect(doc.data()?['all_image_urls'], ['https://example.com/keep.png']);
     });
+
+    test('getCachedCategoryJokes returns empty when cache doc missing',
+        () async {
+      final result = await repository.getCachedCategoryJokes('animals');
+      expect(result, isEmpty);
+    });
+
+    test('getCachedCategoryJokes returns empty when cache has no jokes field',
+        () async {
+      await firestore
+          .collection('joke_categories')
+          .doc('animals')
+          .collection('category_jokes')
+          .doc('cache')
+          .set({'other': 1});
+
+      final result = await repository.getCachedCategoryJokes('animals');
+      expect(result, isEmpty);
+    });
+
+    test('getCachedCategoryJokes parses jokes list and filters invalid entries',
+        () async {
+      await firestore
+          .collection('joke_categories')
+          .doc('animals')
+          .collection('category_jokes')
+          .doc('cache')
+          .set({
+        'jokes': [
+          {
+            'key': 'j1',
+            'setup_text': 'Why did the chicken cross the road?',
+            'punchline_text': 'To get to the other side!',
+            'setup_image_url': 's1',
+            'punchline_image_url': 'p1',
+          },
+          {'key': ''}, // invalid: blank id
+          'not-a-map', // invalid type
+          {
+            'key': 'j2',
+            'setup_text': 'What do you call a fake noodle?',
+            'punchline_text': 'An impasta!',
+            // image fields optional
+          },
+        ],
+      });
+
+      final result = await repository.getCachedCategoryJokes('animals');
+      expect(result.length, 2);
+      expect(result.first.jokeId, 'j1');
+      expect(result.first.setupText, 'Why did the chicken cross the road?');
+      expect(result.first.punchlineText, 'To get to the other side!');
+      expect(result.first.setupImageUrl, 's1');
+      expect(result.first.punchlineImageUrl, 'p1');
+      expect(result.last.jokeId, 'j2');
+      expect(result.last.setupText, 'What do you call a fake noodle?');
+      expect(result.last.punchlineText, 'An impasta!');
+      expect(result.last.setupImageUrl, isNull);
+      expect(result.last.punchlineImageUrl, isNull);
+    });
+
+    test('getCachedCategoryJokes handles prefixed firestore id', () async {
+      // When a JokeCategory has id starting with prefix, repository strips it.
+      await firestore
+          .collection('joke_categories')
+          .doc('sports')
+          .collection('category_jokes')
+          .doc('cache')
+          .set({
+        'jokes': [
+          {'key': 'kobe'},
+        ],
+      });
+
+      // Pass category id with prefix
+      final result =
+          await repository.getCachedCategoryJokes('firestore:sports');
+      expect(result.length, 1);
+      expect(result.first.jokeId, 'kobe');
+    });
   });
 }

@@ -43,9 +43,9 @@ class CategoryCachedJoke {
 
   factory CategoryCachedJoke.fromMap(Map<String, dynamic> map) {
     return CategoryCachedJoke(
-      jokeId: (map['joke_id'] as String?)?.trim() ?? '',
-      setupText: (map['setup'] as String?)?.trim() ?? '',
-      punchlineText: (map['punchline'] as String?)?.trim() ?? '',
+      jokeId: (map['key'] as String?)?.trim() ?? '',
+      setupText: (map['setup_text'] as String?)?.trim() ?? '',
+      punchlineText: (map['punchline_text'] as String?)?.trim() ?? '',
       setupImageUrl: (map['setup_image_url'] as String?)?.trim(),
       punchlineImageUrl: (map['punchline_image_url'] as String?)?.trim(),
     );

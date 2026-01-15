@@ -547,10 +547,13 @@ def _populate_category_cached_jokes(
   for joke_data in jokes_data:
     if not isinstance(joke_data, dict):
       continue
+    joke_id = joke_data.get('key')
+    setup_text = joke_data.get('setup_text') or ""
+    punchline_text = joke_data.get('punchline_text') or ""
     joke = models.PunnyJoke(
-      key=joke_data.get('joke_id'),
-      setup_text=joke_data.get('setup', ''),
-      punchline_text=joke_data.get('punchline', ''),
+      key=joke_id,
+      setup_text=setup_text,
+      punchline_text=punchline_text,
       setup_image_url=joke_data.get('setup_image_url'),
       punchline_image_url=joke_data.get('punchline_image_url'),
     )

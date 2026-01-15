@@ -21,6 +21,93 @@
   .social-header p {
     margin: 6px 0 0;
   }
+
+  .social-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .pin-selection-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 52px;
+  }
+
+  .pin-selection-item {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: var(--color-accent-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+  }
+
+  .pin-selection-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .pin-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .get-pin-btn {
+    background: var(--color-primary);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: opacity 0.2s;
+  }
+
+  .get-pin-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .get-pin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .pin-image-container {
+    max-width: 260px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: white;
+  }
+
+  .pin-image-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .joke-card--selectable .joke-slide-media,
+  .joke-card--selectable .joke-slide-placeholder {
+    cursor: pointer;
+  }
+
+  .joke-card--selectable.joke-card--selected {
+    border-color: var(--color-primary, #c56f3a);
+    box-shadow: 0 0 0 2px var(--color-primary, #c56f3a);
+  }
 </style>
 {% endblock %}
 
@@ -30,6 +117,15 @@
     <div>
       <h2>Social</h2>
       <p class="muted">Public jokes in Daily or Published state.</p>
+    </div>
+    <div class="social-actions">
+      <div class="pin-selection-row" id="admin-social-pin-selection"></div>
+      <div class="pin-controls">
+        <button class="get-pin-btn" type="button" id="admin-social-pin-button" disabled>
+          Get Pin
+        </button>
+        <div class="pin-image-container" id="admin-social-pin-preview" style="display: none;"></div>
+      </div>
     </div>
   </header>
 
@@ -60,14 +156,57 @@
   extra_query_params={'category': selected_category_id},
   admin_stats_enabled=true,
   grid_enabled=true,
+  selectable_cards=true,
   ) }}
 </div>
 
 <script>
   (function () {
+    const maxSelection = 5;
+    const feedContainer = document.getElementById('admin-social-feed');
+    const getPinBtn = document.getElementById('admin-social-pin-button');
+    const pinPreview = document.getElementById('admin-social-pin-preview');
+    const selectionRow = document.getElementById('admin-social-pin-selection');
+    const selectedJokes = [];
     const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
-    if (!categoryChips.length) {
-      return;
+
+    function renderSelectionRow() {
+      if (!selectionRow) {
+        return;
+      }
+      selectionRow.innerHTML = '';
+      selectedJokes.forEach((joke) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'pin-selection-item';
+        if (joke.setupUrl) {
+          const img = document.createElement('img');
+          img.src = joke.setupUrl;
+          img.alt = 'Selected setup image';
+          img.loading = 'lazy';
+          thumb.appendChild(img);
+        } else {
+          thumb.textContent = 'No setup';
+        }
+        selectionRow.appendChild(thumb);
+      });
+    }
+
+    function clearSelection() {
+      selectedJokes.length = 0;
+      if (feedContainer) {
+        feedContainer.querySelectorAll('.joke-card--selected').forEach((card) => {
+          card.classList.remove('joke-card--selected');
+          card.setAttribute('aria-selected', 'false');
+        });
+      }
+      if (getPinBtn) {
+        getPinBtn.disabled = true;
+      }
+      if (pinPreview) {
+        pinPreview.style.display = 'none';
+        pinPreview.innerHTML = '';
+      }
+      renderSelectionRow();
     }
 
     function setSelected(chip, isSelected) {
@@ -87,17 +226,108 @@
       window.location.assign(url.toString());
     }
 
-    categoryChips.forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const categoryId = chip.getAttribute('data-category') || '';
-        const isSelected = chip.classList.contains('filter-chip--selected');
-        if (isSelected) {
+    if (feedContainer && getPinBtn) {
+      feedContainer.addEventListener('click', (event) => {
+        const mediaTarget = event.target.closest('.joke-slide-media, .joke-slide-placeholder');
+        if (!mediaTarget) {
           return;
         }
-        categoryChips.forEach((c) => setSelected(c, c === chip));
-        navigateWithCategory(categoryId || null);
+        const card = event.target.closest('.joke-card[data-selectable="true"]');
+        if (!card) {
+          return;
+        }
+        const jokeId = card.dataset.jokeId;
+        if (!jokeId) {
+          return;
+        }
+        const existingIndex = selectedJokes.findIndex((item) => item.id === jokeId);
+        if (existingIndex >= 0) {
+          selectedJokes.splice(existingIndex, 1);
+          card.classList.remove('joke-card--selected');
+          card.setAttribute('aria-selected', 'false');
+        } else {
+          if (selectedJokes.length >= maxSelection) {
+            alert('You can select up to 5 jokes.');
+            return;
+          }
+          selectedJokes.push({
+            id: jokeId,
+            setupUrl: card.dataset.setupUrl || '',
+          });
+          card.classList.add('joke-card--selected');
+          card.setAttribute('aria-selected', 'true');
+        }
+
+        getPinBtn.disabled = selectedJokes.length === 0;
+        renderSelectionRow();
       });
-    });
+
+      getPinBtn.addEventListener('click', async () => {
+        if (selectedJokes.length === 0) {
+          return;
+        }
+
+        const originalText = getPinBtn.textContent;
+        getPinBtn.disabled = true;
+        getPinBtn.textContent = 'Generating...';
+
+        try {
+          const resp = await fetch('/admin/create-pin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              joke_ids: selectedJokes.map((joke) => joke.id),
+            }),
+          });
+
+          if (!resp.ok) {
+            const data = await resp.json();
+            throw new Error(data.error || 'Failed to create pin image');
+          }
+
+          const data = await resp.json();
+          const pinUrl = data.pin_url;
+
+          if (!pinUrl) {
+            throw new Error('Pin URL missing from response');
+          }
+
+          pinPreview.style.display = 'block';
+          let img = pinPreview.querySelector('img');
+          if (!img) {
+            img = document.createElement('img');
+            img.alt = 'Pinterest pin image';
+            img.loading = 'lazy';
+            pinPreview.appendChild(img);
+          }
+          img.src = pinUrl;
+        } catch (error) {
+          console.error('Failed to create pin image:', error);
+          alert('Failed to create pin image: ' + error.message);
+        } finally {
+          getPinBtn.disabled = selectedJokes.length === 0;
+          getPinBtn.textContent = originalText;
+        }
+      });
+
+      getPinBtn.disabled = true;
+      renderSelectionRow();
+    }
+
+    if (categoryChips.length) {
+      categoryChips.forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const categoryId = chip.getAttribute('data-category') || '';
+          const isSelected = chip.classList.contains('filter-chip--selected');
+          if (isSelected) {
+            return;
+          }
+          clearSelection();
+          categoryChips.forEach((c) => setSelected(c, c === chip));
+          navigateWithCategory(categoryId || null);
+        });
+      });
+    }
   })();
 </script>
 {% endblock %}

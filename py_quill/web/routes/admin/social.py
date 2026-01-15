@@ -94,6 +94,7 @@ def admin_social_load_more():
     jokes=jokes_list,
     image_size=_SOCIAL_IMAGE_SIZE,
     admin_stats_enabled=True,
+    selectable_cards=True,
   )
 
   response = {

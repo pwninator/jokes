@@ -133,7 +133,7 @@ def test_admin_create_pin_image_success(monkeypatch):
 
   with app.test_client() as client:
     resp = client.post(
-      '/admin/printable-notes/create-pin',
+      '/admin/create-pin',
       json={'joke_ids': joke_ids},
       content_type='application/json',
     )
@@ -150,7 +150,7 @@ def test_admin_create_pin_image_missing_joke_ids(monkeypatch):
 
   with app.test_client() as client:
     resp = client.post(
-      '/admin/printable-notes/create-pin',
+      '/admin/create-pin',
       json={},
       content_type='application/json',
     )
@@ -167,8 +167,26 @@ def test_admin_create_pin_image_invalid_joke_ids(monkeypatch):
 
   with app.test_client() as client:
     resp = client.post(
-      '/admin/printable-notes/create-pin',
+      '/admin/create-pin',
       json={'joke_ids': 'not-a-list'},
+      content_type='application/json',
+    )
+
+  assert resp.status_code == 400
+  data = resp.get_json()
+  assert 'error' in data
+
+
+def test_admin_create_pin_image_too_many_joke_ids(monkeypatch):
+  """Test creating a pin image with too many joke_ids."""
+  _mock_admin_session(monkeypatch)
+
+  joke_ids = ["j1", "j2", "j3", "j4", "j5", "j6"]
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/create-pin',
+      json={'joke_ids': joke_ids},
       content_type='application/json',
     )
 
@@ -194,7 +212,7 @@ def test_admin_create_pin_image_value_error(monkeypatch):
 
   with app.test_client() as client:
     resp = client.post(
-      '/admin/printable-notes/create-pin',
+      '/admin/create-pin',
       json={'joke_ids': joke_ids},
       content_type='application/json',
     )
@@ -220,7 +238,7 @@ def test_admin_create_pin_image_unexpected_error(monkeypatch):
 
   with app.test_client() as client:
     resp = client.post(
-      '/admin/printable-notes/create-pin',
+      '/admin/create-pin',
       json={'joke_ids': joke_ids},
       content_type='application/json',
     )

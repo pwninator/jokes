@@ -13,6 +13,8 @@ from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
 
+_MAX_PIN_JOKES = 5
+
 
 @web_bp.route('/admin/printable-notes')
 @auth_helpers.require_admin
@@ -150,6 +152,7 @@ def admin_printable_notes():
 
 
 @web_bp.route('/admin/printable-notes/create-pin', methods=['POST'])
+@web_bp.route('/admin/create-pin', methods=['POST'])
 @auth_helpers.require_admin
 def admin_create_pin_image():
   """Create a Pinterest pin image from selected joke IDs."""
@@ -158,6 +161,8 @@ def admin_create_pin_image():
 
   if not joke_ids or not isinstance(joke_ids, list):
     return flask.jsonify({'error': 'joke_ids required as a list'}), 400
+  if len(joke_ids) > _MAX_PIN_JOKES:
+    return flask.jsonify({'error': 'joke_ids must have at most 5 items'}), 400
 
   try:
     # Create the pin image

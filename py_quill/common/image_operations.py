@@ -46,6 +46,9 @@ _PAGE_NUMBER_STROKE_COLOR = (255, 255, 255)
 
 _PANEL_BLOCKER_OVERLAY_URL_PUPPY = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/panel_blocker_overlay1.png"
 _PANEL_BLOCKER_OVERLAY_URL_POST_IT = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/panel_blocker_overlay2.png"
+_PINTEREST_PANEL_SIZE_PX = 500
+_PINTEREST_DIVIDER_SAMPLE_COUNT = 5
+_PINTEREST_DIVIDER_TARGET_CONTRAST = 3.0
 
 
 def create_blank_book_cover(*, color_mode: str) -> bytes:
@@ -876,6 +879,140 @@ def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
   return ImageFont.load_default()
 
 
+def _srgb_channel_to_linear(channel: float) -> float:
+  if channel <= 0.04045:
+    return channel / 12.92
+  return ((channel + 0.055) / 1.055)**2.4
+
+
+def _linear_channel_to_srgb(channel: float) -> int:
+  if channel <= 0.0031308:
+    srgb = channel * 12.92
+  else:
+    srgb = 1.055 * (channel**(1 / 2.4)) - 0.055
+  srgb = min(max(srgb, 0.0), 1.0)
+  return int(round(srgb * 255))
+
+
+def _relative_luminance(rgb: tuple[int, int, int]) -> float:
+  r = _srgb_channel_to_linear(rgb[0] / 255.0)
+  g = _srgb_channel_to_linear(rgb[1] / 255.0)
+  b = _srgb_channel_to_linear(rgb[2] / 255.0)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _adjust_color_to_target_luminance(
+  rgb: tuple[int, int, int],
+  target_luminance: float,
+) -> tuple[int, int, int]:
+  r = _srgb_channel_to_linear(rgb[0] / 255.0)
+  g = _srgb_channel_to_linear(rgb[1] / 255.0)
+  b = _srgb_channel_to_linear(rgb[2] / 255.0)
+  base_luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+  if base_luminance <= 0:
+    t = min(max(target_luminance, 0.0), 1.0)
+    r = t
+    g = t
+    b = t
+  elif target_luminance >= base_luminance:
+    t = 0.0 if base_luminance >= 1 else (target_luminance -
+                                         base_luminance) / (1 - base_luminance)
+    r = r + t * (1 - r)
+    g = g + t * (1 - g)
+    b = b + t * (1 - b)
+  else:
+    scale = target_luminance / base_luminance
+    r *= scale
+    g *= scale
+    b *= scale
+
+  return (
+    _linear_channel_to_srgb(r),
+    _linear_channel_to_srgb(g),
+    _linear_channel_to_srgb(b),
+  )
+
+
+def _pick_target_luminance(
+  base_luminance: float,
+  target_contrast_ratio: float,
+) -> float:
+  lighter = target_contrast_ratio * (base_luminance + 0.05) - 0.05
+  darker = (base_luminance + 0.05) / target_contrast_ratio - 0.05
+  candidates: list[float] = []
+  if 0.0 <= lighter <= 1.0:
+    candidates.append(lighter)
+  if 0.0 <= darker <= 1.0:
+    candidates.append(darker)
+  if not candidates:
+    if abs(lighter - base_luminance) < abs(darker - base_luminance):
+      return min(max(lighter, 0.0), 1.0)
+    return min(max(darker, 0.0), 1.0)
+  return min(candidates, key=lambda value: abs(value - base_luminance))
+
+
+def _get_pinterest_divider_sample_offsets(panel_size: int) -> list[int]:
+  if _PINTEREST_DIVIDER_SAMPLE_COUNT <= 1:
+    return [panel_size // 2]
+  return [
+    int(round(index * (panel_size - 1) /
+              (_PINTEREST_DIVIDER_SAMPLE_COUNT - 1)))
+    for index in range(_PINTEREST_DIVIDER_SAMPLE_COUNT)
+  ]
+
+
+def _compute_pinterest_pin_divider_color(
+  canvas: Image.Image,
+  num_jokes: int,
+) -> tuple[int, int, int] | None:
+  if num_jokes < 2:
+    return None
+
+  canvas_rgb = canvas.convert('RGB') if canvas.mode != 'RGB' else canvas
+  width, height = canvas_rgb.size
+  panel_size = width // 2
+  if panel_size <= 0:
+    return None
+
+  x_offsets = _get_pinterest_divider_sample_offsets(panel_size)
+  samples: list[tuple[int, int, int]] = []
+
+  for row_index in range(1, num_jokes):
+    boundary_y = row_index * panel_size
+    y_top = boundary_y - 1
+    y_bottom = boundary_y
+    if y_top < 0 or y_bottom >= height:
+      continue
+    for panel_index in range(2):
+      x_origin = panel_index * panel_size
+      for x_offset in x_offsets:
+        x = x_origin + x_offset
+        if x >= width:
+          continue
+        samples.append(canvas_rgb.getpixel((x, y_top)))
+        samples.append(canvas_rgb.getpixel((x, y_bottom)))
+
+  if not samples:
+    return None
+
+  total_r = sum(color[0] for color in samples)
+  total_g = sum(color[1] for color in samples)
+  total_b = sum(color[2] for color in samples)
+  count = len(samples)
+  average = (
+    int(round(total_r / count)),
+    int(round(total_g / count)),
+    int(round(total_b / count)),
+  )
+  base_luminance = _relative_luminance(average)
+  target_luminance = _pick_target_luminance(
+    base_luminance,
+    _PINTEREST_DIVIDER_TARGET_CONTRAST,
+  )
+  return _adjust_color_to_target_luminance(average, target_luminance)
+
+
 def create_pinterest_pin_image(
   joke_ids: list[str],
   *,
@@ -885,7 +1022,8 @@ def create_pinterest_pin_image(
   
   Creates a single large image with all setup and punchline images arranged
   in rows. Each joke takes one row with setup on the left and punchline on
-  the right. Each image is scaled to 500x500 pixels.
+  the right. Each image is scaled to 500x500 pixels. Rows follow the order
+  of the joke_ids input.
   
   Args:
     joke_ids: List of joke IDs to include in the pin image.
@@ -907,33 +1045,52 @@ def create_pinterest_pin_image(
     missing = set(joke_ids) - found_ids
     raise ValueError(f"Jokes not found: {missing}")
 
+  jokes_by_id = {joke.key: joke for joke in jokes if joke.key}
+  jokes = [jokes_by_id[joke_id] for joke_id in joke_ids if joke_id in jokes_by_id]
+
   # Verify all jokes have images
   for joke in jokes:
     if not joke.setup_image_url or not joke.punchline_image_url:
       raise ValueError(f"Joke {joke.key} is missing setup or punchline image")
 
   num_jokes = len(jokes)
-  canvas_width = 1000
-  canvas_height = num_jokes * 500
+  canvas_width = _PINTEREST_PANEL_SIZE_PX * 2
+  canvas_height = num_jokes * _PINTEREST_PANEL_SIZE_PX
 
   # Create blank white canvas
   canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
 
   for row_index, joke in enumerate(jokes):
-    y_offset = row_index * 500
+    y_offset = row_index * _PINTEREST_PANEL_SIZE_PX
 
     # Download and process setup image
     setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
-    setup_img = setup_img.resize((500, 500), Image.Resampling.LANCZOS)
+    setup_img = setup_img.resize((_PINTEREST_PANEL_SIZE_PX,
+                                  _PINTEREST_PANEL_SIZE_PX),
+                                 Image.Resampling.LANCZOS)
 
     # Download and process punchline image
     punchline_img = cloud_storage.download_image_from_gcs(
       joke.punchline_image_url)
-    punchline_img = punchline_img.resize((500, 500), Image.Resampling.LANCZOS)
+    punchline_img = punchline_img.resize((_PINTEREST_PANEL_SIZE_PX,
+                                          _PINTEREST_PANEL_SIZE_PX),
+                                         Image.Resampling.LANCZOS)
 
     # Paste setup on left (x=0), punchline on right (x=500)
     canvas.paste(setup_img, (0, y_offset))
-    canvas.paste(punchline_img, (500, y_offset))
+    canvas.paste(punchline_img, (_PINTEREST_PANEL_SIZE_PX, y_offset))
+
+  divider_color = _compute_pinterest_pin_divider_color(canvas, num_jokes)
+  if divider_color and num_jokes > 1:
+    draw = ImageDraw.Draw(canvas)
+    for row_index in range(1, num_jokes):
+      boundary_y = row_index * _PINTEREST_PANEL_SIZE_PX
+      draw.line((0, boundary_y - 1, canvas_width - 1, boundary_y - 1),
+                fill=divider_color,
+                width=1)
+      draw.line((0, boundary_y, canvas_width - 1, boundary_y),
+                fill=divider_color,
+                width=1)
 
   # Overlay blocker image on bottom right punchline if requested
   if block_last_panel and num_jokes > 0:
@@ -948,15 +1105,17 @@ def create_pinterest_pin_image(
       blocker_img = blocker_img.resize((600, 600), Image.Resampling.LANCZOS)
       # Position the 600x600 overlay so bottom and right edges align with the previous position
       # Bottom right panel is at x=500, y_offset = (num_jokes - 1) * 500
-      last_row_y = (num_jokes - 1) * 500
+      last_row_y = (num_jokes - 1) * _PINTEREST_PANEL_SIZE_PX
       # Previous bottom-right corner was at (1025, last_row_y + 525)
       # To keep same bottom-right: position at (1025 - 600, (last_row_y + 525) - 600)
       overlay_x = 425  # 1025 - 600
       overlay_y = last_row_y - 75  # (last_row_y + 525) - 600
     elif blocker_url == _PANEL_BLOCKER_OVERLAY_URL_POST_IT:
-      blocker_img = blocker_img.resize((500, 500), Image.Resampling.LANCZOS)
-      overlay_x = 500  # 1025 - 600
-      overlay_y = (num_jokes - 1) * 500
+      blocker_img = blocker_img.resize((_PINTEREST_PANEL_SIZE_PX,
+                                        _PINTEREST_PANEL_SIZE_PX),
+                                       Image.Resampling.LANCZOS)
+      overlay_x = _PINTEREST_PANEL_SIZE_PX  # 1025 - 600
+      overlay_y = (num_jokes - 1) * _PINTEREST_PANEL_SIZE_PX
     else:
       raise ValueError(f"Invalid blocker overlay URL: {blocker_url}")
     # Convert canvas to RGBA for alpha compositing

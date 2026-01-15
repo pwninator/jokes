@@ -73,6 +73,34 @@
     flex: 0 0 auto;
   }
 
+  .pin-selection-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 52px;
+  }
+
+  .pin-selection-item {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: var(--color-accent-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+  }
+
+  .pin-selection-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
   .get-pin-btn {
     background: var(--color-primary);
     border: none;
@@ -215,7 +243,7 @@
               </div>
               <div class="jokes-container">
                 {% for joke_image in sheet_data.joke_images %}
-                  <div class="joke-pair" data-joke-id="{{ joke_image.joke_id }}">
+                  <div class="joke-pair" data-joke-id="{{ joke_image.joke_id }}"{% if joke_image.setup_url %} data-setup-url="{{ joke_image.setup_url }}"{% endif %}>
                     {% if joke_image.setup_url %}
                       <div class="joke-image">
                         <img src="{{ joke_image.setup_url }}" 
@@ -247,6 +275,7 @@
                 {% endif %}
               </div>
               <div class="sheet-actions">
+                <div class="pin-selection-row"></div>
                 <button class="get-pin-btn" 
                         type="button"
                         data-sheet-row="{{ loop.index0 }}">
@@ -268,6 +297,7 @@
 
 <script>
   (function() {
+    const maxSelection = 5;
     const activeColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--color-primary-dark')
       .trim() || '#4a3b32';
@@ -276,10 +306,32 @@
     // Initialize selection state for each sheet row
     const sheetRows = document.querySelectorAll('.sheet-row');
     sheetRows.forEach((row) => {
-      const selectedJokeIds = new Set();
+      const selectedJokes = [];
       const jokePairs = row.querySelectorAll('.joke-pair');
       const getPinBtn = row.querySelector('.get-pin-btn');
       const pinImageContainer = row.querySelector('.pin-image-container');
+      const selectionRow = row.querySelector('.pin-selection-row');
+
+      function renderSelectionRow() {
+        if (!selectionRow) {
+          return;
+        }
+        selectionRow.innerHTML = '';
+        selectedJokes.forEach((joke) => {
+          const thumb = document.createElement('div');
+          thumb.className = 'pin-selection-item';
+          if (joke.setupUrl) {
+            const img = document.createElement('img');
+            img.src = joke.setupUrl;
+            img.alt = 'Selected setup image';
+            img.loading = 'lazy';
+            thumb.appendChild(img);
+          } else {
+            thumb.textContent = 'No setup';
+          }
+          selectionRow.appendChild(thumb);
+        });
+      }
       
       // Toggle selection on click
       jokePairs.forEach((pair) => {
@@ -287,34 +339,47 @@
           const jokeId = pair.dataset.jokeId;
           if (!jokeId) return;
           
-          if (selectedJokeIds.has(jokeId)) {
-            selectedJokeIds.delete(jokeId);
+          const existingIndex = selectedJokes.findIndex(
+            (item) => item.id === jokeId,
+          );
+          if (existingIndex >= 0) {
+            selectedJokes.splice(existingIndex, 1);
             pair.classList.remove('selected');
             pair.style.border = '';
           } else {
-            selectedJokeIds.add(jokeId);
+            if (selectedJokes.length >= maxSelection) {
+              alert('You can select up to 5 jokes.');
+              return;
+            }
+            selectedJokes.push({
+              id: jokeId,
+              setupUrl: pair.dataset.setupUrl || '',
+            });
             pair.classList.add('selected');
             pair.style.border = activeVariantBorder;
           }
           
           // Update button state
-          getPinBtn.disabled = selectedJokeIds.size === 0;
+          getPinBtn.disabled = selectedJokes.length === 0;
+          renderSelectionRow();
         });
       });
       
       // Handle Get Pin button click
       getPinBtn.addEventListener('click', async () => {
-        if (selectedJokeIds.size === 0) return;
+        if (selectedJokes.length === 0) return;
         
         const originalText = getPinBtn.textContent;
         getPinBtn.disabled = true;
         getPinBtn.textContent = 'Generating...';
         
         try {
-          const resp = await fetch('/admin/printable-notes/create-pin', {
+          const resp = await fetch('/admin/create-pin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ joke_ids: Array.from(selectedJokeIds) }),
+            body: JSON.stringify({
+              joke_ids: selectedJokes.map((joke) => joke.id),
+            }),
           });
           
           if (!resp.ok) {
@@ -344,13 +409,14 @@
           console.error('Failed to create pin image:', error);
           alert('Failed to create pin image: ' + error.message);
         } finally {
-          getPinBtn.disabled = selectedJokeIds.size === 0;
+          getPinBtn.disabled = selectedJokes.length === 0;
           getPinBtn.textContent = originalText;
         }
       });
       
       // Initialize button state
       getPinBtn.disabled = true;
+      renderSelectionRow();
     });
   })();
 </script>

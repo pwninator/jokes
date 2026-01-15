@@ -1,4 +1,4 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, is_future_daily=None, edit_payload=None) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, is_future_daily=None, edit_payload=None, selectable=false) -%}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
 {% set state_value = joke.state.value if joke.state is not none else '' %}
 {% set is_daily = state_value == 'DAILY' %}
@@ -18,9 +18,12 @@
 {% set edit_payload_value = {} %}
 {% endif %}
 {% set badge_state_class = 'future-daily' if is_future_daily_value else state_value|lower %}
-<article class="joke-card" aria-label="Joke {{ unique_id }}"
+{% set selectable_value = selectable|default(false) %}
+<article class="joke-card{% if selectable_value %} joke-card--selectable{% endif %}" aria-label="Joke {{ unique_id }}"
   style="--joke-card-max-width: {{ width }}px;"
   data-joke-id="{{ unique_id }}"
+  {% if selectable_value and joke.setup_image_url %}data-setup-url="{{ joke.setup_image_url | format_image_url(width=width) }}"{% endif %}
+  {% if selectable_value %}data-selectable="true" aria-selected="false"{% endif %}
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
     {% if admin_state_badge_enabled and state_value %}

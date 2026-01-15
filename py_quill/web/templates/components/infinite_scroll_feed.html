@@ -2,7 +2,8 @@
 admin_state_badge_enabled=false,
 admin_stats_enabled=false,
 admin_edit_enabled=false,
-grid_enabled=false) -%}
+grid_enabled=false,
+selectable_cards=false) -%}
 {% from "components/joke_card.html" import joke_card with context %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
@@ -61,7 +62,7 @@ grid_enabled=false) -%}
 <section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed">
   {% if initial_jokes %}
     {% for entry in initial_jokes %}
-    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_state_badge_enabled=admin_state_badge_enabled, admin_stats_enabled=admin_stats_enabled, admin_edit_enabled=admin_edit_enabled, is_future_daily=entry.is_future_daily, edit_payload=entry.edit_payload) }}
+    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor, admin_state_badge_enabled=admin_state_badge_enabled, admin_stats_enabled=admin_stats_enabled, admin_edit_enabled=admin_edit_enabled, is_future_daily=entry.is_future_daily, edit_payload=entry.edit_payload, selectable=selectable_cards) }}
     {% endfor %}
   {% endif %}
 </section>

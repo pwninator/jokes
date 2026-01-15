@@ -8,7 +8,7 @@ import unittest
 import zipfile
 from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 from common import image_operations, joke_notes_sheet_operations, models
 from PIL import Image, ImageFont
@@ -1707,6 +1707,49 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 7)
 
   @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_respects_input_order(
+      self, mock_cloud_storage, mock_firestore):
+    """create_pinterest_pin_image should follow the input joke_ids order."""
+    joke_ids = ["joke2", "joke1"]
+
+    mock_joke1 = Mock()
+    mock_joke1.key = "joke1"
+    mock_joke1.setup_image_url = "setup-1"
+    mock_joke1.punchline_image_url = "punch-1"
+
+    mock_joke2 = Mock()
+    mock_joke2.key = "joke2"
+    mock_joke2.setup_image_url = "setup-2"
+    mock_joke2.punchline_image_url = "punch-2"
+
+    # Return out of order to ensure we reorder by input.
+    mock_firestore.get_punny_jokes.return_value = [mock_joke1, mock_joke2]
+
+    test_images = [
+      Image.new('RGB', (1024, 1024), color='red'),
+      Image.new('RGB', (1024, 1024), color='blue'),
+      Image.new('RGB', (1024, 1024), color='green'),
+      Image.new('RGB', (1024, 1024), color='yellow'),
+      Image.new('RGBA', (1024, 1024), color=(0, 0, 0, 128)),
+    ]
+    mock_cloud_storage.download_image_from_gcs.side_effect = test_images
+
+    image_operations.create_pinterest_pin_image(joke_ids)
+
+    expected_calls = [
+      call("setup-2"),
+      call("punch-2"),
+      call("setup-1"),
+      call("punch-1"),
+      call(image_operations._PANEL_BLOCKER_OVERLAY_URL_POST_IT),
+    ]
+    self.assertEqual(
+      mock_cloud_storage.download_image_from_gcs.call_args_list,
+      expected_calls,
+    )
+
+  @patch('common.image_operations.firestore')
   def test_create_pinterest_pin_image_empty_list(self, mock_firestore):
     """create_pinterest_pin_image should raise ValueError for empty joke list."""
     with self.assertRaises(ValueError) as context:
@@ -1851,3 +1894,128 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     # Overlay extends from (425, 425) to (1025, 1025)
     self.assertEqual(result_2.size, (1000, 1000))  # 2 jokes = 1000x(2*500)
     self.assertEqual(result_2.mode, 'RGB')
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations._compute_pinterest_pin_divider_color')
+  def test_create_pinterest_pin_image_draws_dividers(
+      self,
+      mock_compute_divider_color,
+      mock_cloud_storage,
+      mock_firestore,
+  ):
+    mock_jokes = []
+    for i in range(2):
+      mock_joke = Mock()
+      mock_joke.key = f"joke{i+1}"
+      mock_joke.setup_image_url = f"https://images.quillsstorybook.com/joke{i+1}_setup.png"
+      mock_joke.punchline_image_url = f"https://images.quillsstorybook.com/joke{i+1}_punchline.png"
+      mock_jokes.append(mock_joke)
+
+    mock_firestore.get_punny_jokes.return_value = mock_jokes
+
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      Image.new('RGB', (1024, 1024), color='red'),
+      Image.new('RGB', (1024, 1024), color='blue'),
+      Image.new('RGB', (1024, 1024), color='green'),
+      Image.new('RGB', (1024, 1024), color='yellow'),
+    ]
+
+    divider_color = (10, 20, 30)
+    mock_compute_divider_color.return_value = divider_color
+
+    result = image_operations.create_pinterest_pin_image(
+      ["joke1", "joke2"],
+      block_last_panel=False,
+    )
+
+    self.assertEqual(result.getpixel((10, 499)), divider_color)
+    self.assertEqual(result.getpixel((10, 500)), divider_color)
+    self.assertEqual(result.getpixel((510, 499)), divider_color)
+    self.assertEqual(result.getpixel((510, 500)), divider_color)
+
+
+class PinterestDividerColorTest(unittest.TestCase):
+  """Tests for the Pinterest divider color sampling helper."""
+
+  def _relative_luminance(self, rgb):
+    def _to_linear(value):
+      value /= 255.0
+      if value <= 0.04045:
+        return value / 12.92
+      return ((value + 0.055) / 1.055)**2.4
+
+    r = _to_linear(rgb[0])
+    g = _to_linear(rgb[1])
+    b = _to_linear(rgb[2])
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+  def _contrast_ratio(self, rgb_a, rgb_b):
+    lum_a = self._relative_luminance(rgb_a)
+    lum_b = self._relative_luminance(rgb_b)
+    lighter = max(lum_a, lum_b)
+    darker = min(lum_a, lum_b)
+    return (lighter + 0.05) / (darker + 0.05)
+
+  def test_compute_pinterest_pin_divider_color_lightens_dark_source(self):
+    canvas = Image.new('RGB', (1000, 1000), (10, 10, 10))
+    divider_color = image_operations._compute_pinterest_pin_divider_color(
+      canvas,
+      2,
+    )
+
+    self.assertIsNotNone(divider_color)
+    self.assertGreater(
+      self._relative_luminance(divider_color),
+      self._relative_luminance((10, 10, 10)),
+    )
+    self.assertAlmostEqual(
+      self._contrast_ratio(divider_color, (10, 10, 10)),
+      3.0,
+      delta=0.2,
+    )
+
+  def test_compute_pinterest_pin_divider_color_darkens_light_source(self):
+    canvas = Image.new('RGB', (1000, 1000), (240, 240, 240))
+    divider_color = image_operations._compute_pinterest_pin_divider_color(
+      canvas,
+      2,
+    )
+
+    self.assertIsNotNone(divider_color)
+    self.assertLess(
+      self._relative_luminance(divider_color),
+      self._relative_luminance((240, 240, 240)),
+    )
+    self.assertAlmostEqual(
+      self._contrast_ratio(divider_color, (240, 240, 240)),
+      3.0,
+      delta=0.2,
+    )
+
+  def test_compute_pinterest_pin_divider_color_uses_boundary_samples(self):
+    canvas = Image.new('RGB', (1000, 1000), (200, 200, 200))
+    top_bottom_y = 499
+    bottom_top_y = 500
+
+    for x in range(500):
+      canvas.putpixel((x, top_bottom_y), (100, 0, 0))
+      canvas.putpixel((x, bottom_top_y), (0, 100, 0))
+
+    for x in range(500, 1000):
+      canvas.putpixel((x, top_bottom_y), (0, 0, 100))
+      canvas.putpixel((x, bottom_top_y), (100, 100, 0))
+
+    divider_color = image_operations._compute_pinterest_pin_divider_color(
+      canvas,
+      2,
+    )
+
+    self.assertIsNotNone(divider_color)
+    self.assertGreater(divider_color[0], divider_color[2])
+    self.assertGreater(divider_color[1], divider_color[2])
+    self.assertAlmostEqual(
+      self._contrast_ratio(divider_color, (50, 50, 25)),
+      3.0,
+      delta=0.2,
+    )

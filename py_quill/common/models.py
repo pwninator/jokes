@@ -1125,15 +1125,22 @@ class PunnyJoke:
                 and self.state in (JokeState.PUBLISHED, JokeState.DAILY))
 
   def get_category_cache_joke_data(self) -> dict[str, str | None]:
-    """Get the joke payload used by `joke_categories/*/category_jokes/cache`."""
+    """Get the joke payload used by `joke_categories/*/category_jokes/cache`.
+
+    Includes both the legacy category cache keys and the minimal joke keys to
+    support schema migration.
+
+    TODO: Remove the legacy category cache keys after schema migration.
+    """
     minimal = self.get_minimal_joke_data()
-    return {
+    payload = {
       "joke_id": minimal.get("key"),
       "setup": minimal.get("setup_text"),
       "punchline": minimal.get("punchline_text"),
       "setup_image_url": minimal.get("setup_image_url"),
       "punchline_image_url": minimal.get("punchline_image_url"),
     }
+    return {**minimal, **payload}
 
 
 def _parse_enum_field(

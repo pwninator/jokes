@@ -111,6 +111,12 @@ def sitemap():
     datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
   # Include key non-topic landing pages.
   urlset_parts.append('<url>')
+  urlset_parts.append(f'<loc>{base_url}/</loc>')
+  urlset_parts.append(f'<lastmod>{now}</lastmod>')
+  urlset_parts.append('<changefreq>daily</changefreq>')
+  urlset_parts.append('<priority>1.0</priority>')
+  urlset_parts.append('</url>')
+  urlset_parts.append('<url>')
   urlset_parts.append(f'<loc>{base_url}/printables/notes</loc>')
   urlset_parts.append(f'<lastmod>{now}</lastmod>')
   urlset_parts.append('<changefreq>weekly</changefreq>')

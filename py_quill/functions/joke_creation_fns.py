@@ -37,6 +37,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     punchline_image_description = get_param(req, 'punchline_image_description')
     setup_image_url = get_param(req, 'setup_image_url')
     punchline_image_url = get_param(req, 'punchline_image_url')
+    raw_seasonal = get_param(req, 'seasonal')
+    raw_tags = get_param(req, 'tags')
     admin_owned = get_bool_param(req, 'admin_owned', False)
 
     # Modifiers
@@ -55,21 +57,48 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         f'Invalid image_quality: {image_quality}. Must be one of: '
         f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}')
 
+    seasonal_provided = raw_seasonal is not None
+    seasonal_value = None
+    seasonal_arg = None
+    if seasonal_provided:
+      seasonal_value = str(raw_seasonal).strip() or None
+      seasonal_arg = seasonal_value if seasonal_value is not None else ''
+
+    tags = None
+    tags_provided = raw_tags is not None
+    if tags_provided:
+      if isinstance(raw_tags, str):
+        raw_tags_value = raw_tags.strip()
+        tags = [
+          t.strip() for t in raw_tags_value.replace('\n', ',').split(',')
+          if t.strip()
+        ]
+      else:
+        try:
+          tags = [str(t).strip() for t in raw_tags if str(t).strip()]
+        except TypeError:
+          tags = []
+
     # Joke initialization and patching
     try:
-      joke = joke_operations.initialize_joke(
-        joke_id=joke_id,
-        user_id=user_id,
-        admin_owned=admin_owned,
-        setup_text=setup_text,
-        punchline_text=punchline_text,
-        setup_scene_idea=setup_scene_idea,
-        punchline_scene_idea=punchline_scene_idea,
-        setup_image_description=setup_image_description,
-        punchline_image_description=punchline_image_description,
-        setup_image_url=setup_image_url,
-        punchline_image_url=punchline_image_url,
-      )
+      init_kwargs = {
+        "joke_id": joke_id,
+        "user_id": user_id,
+        "admin_owned": admin_owned,
+        "setup_text": setup_text,
+        "punchline_text": punchline_text,
+        "setup_scene_idea": setup_scene_idea,
+        "punchline_scene_idea": punchline_scene_idea,
+        "setup_image_description": setup_image_description,
+        "punchline_image_description": punchline_image_description,
+        "setup_image_url": setup_image_url,
+        "punchline_image_url": punchline_image_url,
+      }
+      if seasonal_provided:
+        init_kwargs["seasonal"] = seasonal_arg
+      if tags_provided:
+        init_kwargs["tags"] = tags
+      joke = joke_operations.initialize_joke(**init_kwargs)
     except joke_operations.JokeNotFoundError as exc:
       return error_response(str(exc))
     except ValueError:
@@ -81,9 +110,18 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     operation = None
     has_suggestions = bool(setup_suggestion or punchline_suggestion)
 
+    if seasonal_provided:
+      joke.seasonal = seasonal_value
+    if tags_provided:
+      joke.tags = tags
+
     # Generate metadata if text is provided
     if setup_text or punchline_text:
       joke = joke_operations.generate_joke_metadata(joke)
+      if seasonal_provided:
+        joke.seasonal = seasonal_value
+      if tags_provided:
+        joke.tags = tags
 
     # Generate scene ideas for new jokes or when requested
     if (not joke_id) or regenerate_scene_ideas:

@@ -101,6 +101,26 @@
     margin-bottom: 12px;
   }
 
+  .admin-modal__field-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .admin-modal__field-row .admin-modal__field {
+    margin-bottom: 0;
+  }
+
+  .admin-modal__field--seasonal {
+    flex: 0 0 200px;
+  }
+
+  .admin-modal__field--tags {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .admin-modal__label-row {
     display: flex;
     align-items: center;
@@ -173,9 +193,8 @@
     order: 2;
   }
 
-  .joke-edit-button {
+  .joke-admin-button {
     padding: 6px 12px;
-    border-radius: 999px;
   }
 
   .joke-admin-footer {
@@ -298,6 +317,16 @@
           <div class="admin-modal__field">
             <label class="admin-modal__label" for="admin-edit-joke-punchline">Punchline</label>
             <input class="admin-modal__input" id="admin-edit-joke-punchline" name="punchline_text" type="text" required>
+          </div>
+          <div class="admin-modal__field-row">
+            <div class="admin-modal__field admin-modal__field--seasonal">
+              <label class="admin-modal__label" for="admin-edit-joke-seasonal">Seasonal</label>
+              <input class="admin-modal__input" id="admin-edit-joke-seasonal" name="seasonal" type="text">
+            </div>
+            <div class="admin-modal__field admin-modal__field--tags">
+              <label class="admin-modal__label" for="admin-edit-joke-tags">Tags</label>
+              <input class="admin-modal__input" id="admin-edit-joke-tags" name="tags" type="text">
+            </div>
           </div>
           <div class="admin-modal__field">
             <div class="admin-modal__label-row">
@@ -453,6 +482,8 @@
   const editJokeIdInput = document.getElementById('admin-edit-joke-id');
   const editSetupInput = document.getElementById('admin-edit-joke-setup');
   const editPunchlineInput = document.getElementById('admin-edit-joke-punchline');
+  const editSeasonalInput = document.getElementById('admin-edit-joke-seasonal');
+  const editTagsInput = document.getElementById('admin-edit-joke-tags');
   const editSetupImageDescriptionInput = document.getElementById('admin-edit-joke-setup-image-description');
   const editPunchlineImageDescriptionInput = document.getElementById('admin-edit-joke-punchline-image-description');
   const editSetupImagesGrid = document.getElementById('admin-edit-joke-setup-images');
@@ -623,6 +654,23 @@
       return;
     }
     input.value = (value === null || value === undefined) ? '' : String(value);
+  }
+
+  function formatTags(tags) {
+    if (!tags) {
+      return '';
+    }
+    if (Array.isArray(tags)) {
+      return tags.filter(Boolean).join(', ');
+    }
+    return String(tags);
+  }
+
+  function parseTagsInput(value) {
+    return (value || '')
+      .split(/[,\\n]/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
   }
 
   function renderImageGrid(container, images, selectedUrl, onSelect) {
@@ -902,6 +950,8 @@
     setValue(editJokeIdInput, payload.joke_id || payload.jokeId || '');
     setValue(editSetupInput, payload.setup_text);
     setValue(editPunchlineInput, payload.punchline_text);
+    setValue(editSeasonalInput, payload.seasonal);
+    setValue(editTagsInput, formatTags(payload.tags));
     setValue(editSetupImageDescriptionInput, payload.setup_image_description);
     setValue(editPunchlineImageDescriptionInput, payload.punchline_image_description);
 
@@ -1023,6 +1073,8 @@
         joke_id: editJokeIdInput.value,
         setup_text: setupText,
         punchline_text: punchlineText,
+        seasonal: editSeasonalInput ? editSeasonalInput.value.trim() : '',
+        tags: editTagsInput ? parseTagsInput(editTagsInput.value) : [],
         setup_image_description: (editSetupImageDescriptionInput && editSetupImageDescriptionInput.value) ? editSetupImageDescriptionInput.value.trim() : '',
         punchline_image_description: (editPunchlineImageDescriptionInput && editPunchlineImageDescriptionInput.value) ? editPunchlineImageDescriptionInput.value.trim() : '',
         setup_image_url: selectedSetupImageUrl,

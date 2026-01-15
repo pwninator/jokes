@@ -83,13 +83,13 @@
         </div>
         {% endif %}
         {% if admin_edit_enabled %}
-        <button type="button" class="button-secondary text-button joke-regenerate-button"
+        <button type="button" class="button-secondary text-button joke-admin-button joke-regenerate-button"
           data-joke-id="{{ unique_id }}"
           aria-label="Regenerate images"
           title="Regenerate Images">
           <span aria-hidden="true">&#x1f504;</span>
         </button>
-        <button type="button" class="button-secondary text-button joke-edit-button"
+        <button type="button" class="button-secondary text-button joke-admin-button joke-edit-button"
           data-joke-id="{{ unique_id }}"
           data-joke-data='{{ edit_payload_value | tojson }}'
           aria-label="Edit joke"

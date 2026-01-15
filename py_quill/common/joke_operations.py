@@ -45,6 +45,8 @@ def initialize_joke(
   admin_owned: bool,
   setup_text: str | None = None,
   punchline_text: str | None = None,
+  seasonal: str | None = None,
+  tags: list[str] | str | None = None,
   setup_scene_idea: str | None = None,
   punchline_scene_idea: str | None = None,
   setup_image_description: str | None = None,
@@ -80,6 +82,14 @@ def initialize_joke(
     joke.setup_text = setup_text
   if punchline_text is not None:
     joke.punchline_text = punchline_text
+  if seasonal is not None:
+    seasonal_value = str(seasonal).strip()
+    joke.seasonal = seasonal_value or None
+  if tags is not None:
+    if isinstance(tags, str):
+      joke.tags = [t.strip() for t in tags.split(',') if t.strip()]
+    else:
+      joke.tags = [str(t).strip() for t in tags if str(t).strip()]
   if setup_scene_idea is not None:
     joke.setup_scene_idea = setup_scene_idea
   if punchline_scene_idea is not None:

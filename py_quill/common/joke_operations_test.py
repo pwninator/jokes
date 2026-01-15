@@ -95,6 +95,8 @@ def test_initialize_joke_creates_new_with_overrides(monkeypatch,
     admin_owned=False,
     setup_text="  Setup ",
     punchline_text="Punchline ",
+    seasonal="Holiday",
+    tags=["winter", "cozy"],
     setup_scene_idea="scene setup",
     punchline_scene_idea="scene punch",
     setup_image_description="setup desc",
@@ -110,6 +112,8 @@ def test_initialize_joke_creates_new_with_overrides(monkeypatch,
   assert joke.punchline_scene_idea == "scene punch"
   assert joke.setup_image_description == "setup desc"
   assert joke.punchline_image_description == "punch desc"
+  assert joke.seasonal == "Holiday"
+  assert joke.tags == ["winter", "cozy"]
   mock_firestore.get_punny_joke.assert_not_called()
 
 
@@ -130,6 +134,8 @@ def test_initialize_joke_updates_existing_fields(mock_firestore):
     admin_owned=False,
     setup_text="new setup",
     punchline_text="new punch",
+    seasonal="Spring",
+    tags=["fresh"],
     setup_scene_idea="new scene",
     setup_image_description="desc",
   )
@@ -141,6 +147,8 @@ def test_initialize_joke_updates_existing_fields(mock_firestore):
   assert updated.setup_scene_idea == "new scene"
   assert updated.punchline_scene_idea == "old punch scene"
   assert updated.setup_image_description == "desc"
+  assert updated.seasonal == "Spring"
+  assert updated.tags == ["fresh"]
   mock_firestore.get_punny_joke.assert_called_once_with("j-1")
 
 

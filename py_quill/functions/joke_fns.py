@@ -13,8 +13,8 @@ from functions import auth_helpers
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response,
-                                      handle_cors_preflight, handle_health_check,
-                                      html_response)
+                                      handle_cors_preflight,
+                                      handle_health_check, html_response)
 from google.cloud.firestore import FieldFilter
 from google.cloud.firestore_bundle import FirestoreBundle
 from google.cloud.firestore_v1.field_path import FieldPath
@@ -36,7 +36,9 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
     return response
 
   if req.method != 'POST':
-    return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
 
   bundle_secret = req.headers.get(BUNDLE_SECRET_HEADER)
   if bundle_secret:
@@ -45,7 +47,9 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
     except Exception as exc:  # pylint: disable=broad-except
       logger.error(f"Failed to load joke bundle secret: {str(exc)}")
       logger.error(traceback.format_exc())
-      return error_response('Failed to verify bundle secret', req=req, status=500)
+      return error_response('Failed to verify bundle secret',
+                            req=req,
+                            status=500)
     if bundle_secret != expected_secret:
       return error_response('Unauthorized', req=req, status=403)
   elif not utils.is_emulator():
@@ -99,7 +103,9 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
   except Exception as exc:  # pylint: disable=broad-except
     logger.error(f"Failed to build Firestore bundle: {str(exc)}")
     logger.error(traceback.format_exc())
-    return error_response(f'Failed to build bundle: {exc}', req=req, status=500)
+    return error_response(f'Failed to build bundle: {exc}',
+                          req=req,
+                          status=500)
 
 
 @https_fn.on_request(
@@ -115,7 +121,9 @@ def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
     return response
 
   if req.method != 'GET':
-    return error_response("Only GET requests are supported", req=req, status=405)
+    return error_response("Only GET requests are supported",
+                          req=req,
+                          status=405)
 
   try:
     dry_run = get_bool_param(req, 'dry_run', True)
@@ -125,7 +133,9 @@ def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
       return error_response("query parameter is required", req=req, status=400)
     seasonal = get_param(req, 'seasonal')
     if not seasonal or not isinstance(seasonal, str) or not seasonal.strip():
-      return error_response("seasonal parameter is required", req=req, status=400)
+      return error_response("seasonal parameter is required",
+                            req=req,
+                            status=400)
     seasonal = seasonal.strip()
     threshold = get_float_param(req, 'threshold', 0.4)
 
@@ -141,7 +151,9 @@ def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
   except Exception as e:  # pylint: disable=broad-except
     logger.error(f"Manual seasonal tag failed: {e}")
     logger.error(traceback.format_exc())
-    return error_response(f'Failed to run manual season tag: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to run manual season tag: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 def _run_manual_season_tag(
@@ -311,7 +323,9 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     # Get the search query and max results from request body or args
     search_query = get_param(req, 'search_query')
@@ -330,7 +344,9 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
     if category_id:
       category = firestore.get_joke_category(category_id)
       if not category:
-        return error_response(f'Category not found: {category_id}', req=req, status=404)
+        return error_response(f'Category not found: {category_id}',
+                              req=req,
+                              status=404)
 
       # If filtering by book, we need the full joke documents to check book_id
       if exclude_in_book:
@@ -367,7 +383,10 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
         try:
           max_results = int(max_results)
         except (ValueError, TypeError):
-          return error_response(f'Max results must be an integer: {max_results}', req=req, status=400)
+          return error_response(
+            f'Max results must be an integer: {max_results}',
+            req=req,
+            status=400)
 
       match_mode = get_param(req, 'match_mode', "TIGHT")
       if match_mode == "TIGHT":
@@ -375,7 +394,9 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
       elif match_mode == "LOOSE":
         distance_threshold = config.JOKE_SEARCH_LOOSE_THRESHOLD
       else:
-        return error_response(f'Invalid match_mode: {match_mode}', req=req, status=400)
+        return error_response(f'Invalid match_mode: {match_mode}',
+                              req=req,
+                              status=400)
 
       # Filter: public_only (default True) => public_timestamp <= now in LA
       public_only = get_bool_param(req, 'public_only', True)
@@ -418,7 +439,9 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error searching jokes: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to search jokes: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to search jokes: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 @https_fn.on_request(
@@ -436,7 +459,9 @@ def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     # Get the joke ID and instructions from request body or args
     joke_id = get_param(req, 'joke_id')
@@ -449,8 +474,8 @@ def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
     if not setup_instruction and not punchline_instruction:
       return error_response(
         'At least one instruction (setup_instruction or punchline_instruction) is required',
-        req=req, status=400
-      )
+        req=req,
+        status=400)
 
     # Load the joke from firestore
     joke = firestore.get_punny_joke(joke_id)
@@ -480,7 +505,9 @@ def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
     # Save the updated joke back to firestore
     saved_joke = firestore.upsert_punny_joke(joke)
     if not saved_joke:
-      return error_response('Failed to save modified joke', req=req, status=500)
+      return error_response('Failed to save modified joke',
+                            req=req,
+                            status=500)
 
     return success_response(
       {"joke_data": joke_operations.to_response_joke(saved_joke)}, req=req)
@@ -488,7 +515,9 @@ def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error modifying joke image: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to modify joke image: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to modify joke image: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 def _modify_and_set_image(
@@ -526,7 +555,9 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     user_id = get_user_id(req, allow_unauthenticated=True)
     if not user_id:
@@ -549,7 +580,9 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
         try:
           jokes = json.loads(jokes_str)
         except json.JSONDecodeError as e:
-          return error_response(f'Invalid JSON format for jokes: {str(e)}', req=req, status=400)
+          return error_response(f'Invalid JSON format for jokes: {str(e)}',
+                                req=req,
+                                status=400)
       else:
         jokes = []
 
@@ -575,14 +608,18 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
     # Extract the critique data
     critique_data = final_state.get(constants.STATE_CRITIQUE, {})
     if not critique_data:
-      return error_response('Failed to critique jokes - no results from agent', req=req, status=500)
+      return error_response('Failed to critique jokes - no results from agent',
+                            req=req,
+                            status=500)
 
     return success_response({"critique_data": critique_data}, req=req)
 
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error critiquing jokes: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to critique jokes: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to critique jokes: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 @https_fn.on_request(
@@ -599,7 +636,9 @@ def upscale_joke(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     joke_id = get_param(req, 'joke_id')
     if not joke_id:
@@ -617,11 +656,15 @@ def upscale_joke(req: https_fn.Request) -> https_fn.Response:
         compression_quality=compression_quality,
       )
     except Exception as e:
-      return error_response(f'Failed to upscale joke: {str(e)}', req=req, status=500)
+      return error_response(f'Failed to upscale joke: {str(e)}',
+                            req=req,
+                            status=500)
 
     return success_response(
       {"joke_data": joke_operations.to_response_joke(joke)}, req=req)
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error upscaling joke: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to upscale joke: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to upscale joke: {str(e)}',
+                          req=req,
+                          status=500)

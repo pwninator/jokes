@@ -51,7 +51,8 @@ def is_future_daily(joke: models.PunnyJoke, *,
   return public_ts > now_utc
 
 
-def build_edit_payload(joke: models.PunnyJoke, *,
+def build_edit_payload(joke: models.PunnyJoke,
+                       *,
                        thumb_size: int = _DEFAULT_THUMB_SIZE) -> dict:
   setup_urls = list(getattr(joke, "all_setup_image_urls", None) or [])
   punchline_urls = list(getattr(joke, "all_punchline_image_urls", None) or [])
@@ -71,6 +72,10 @@ def build_edit_payload(joke: models.PunnyJoke, *,
     joke.setup_text,
     "punchline_text":
     joke.punchline_text,
+    "seasonal":
+    joke.seasonal,
+    "tags":
+    list(joke.tags or []),
     "setup_scene_idea":
     joke.setup_scene_idea,
     "punchline_scene_idea":
@@ -104,6 +109,7 @@ def build_feed_entries(
   now_utc: datetime.datetime,
   thumb_size: int = _DEFAULT_THUMB_SIZE,
 ) -> list[JokeFeedEntry]:
+  """Build a list of joke feed entries."""
   return [
     JokeFeedEntry(
       joke=joke,

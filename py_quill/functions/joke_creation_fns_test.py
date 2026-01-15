@@ -1,5 +1,125 @@
 """Tests for joke_creation_fns."""
 
+from __future__ import annotations
+
+from common import models
+from functions import joke_creation_fns
+
+
+class DummyReq:
+  """Dummy request class for testing."""
+
+  def __init__(self,
+               is_json=True,
+               data=None,
+               args=None,
+               headers=None,
+               path="",
+               method='POST'):
+    self.is_json = is_json
+    self._data = data or {}
+    self.args = args or {}
+    self.headers = headers or {}
+    self.path = path
+    self.method = method
+
+  def get_json(self):
+    return {"data": self._data}
+
+
+def test_joke_creation_process_overrides_seasonal_tags(monkeypatch):
+  captured_init = {}
+  saved = {}
+
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "user-1")
+
+  created_joke = models.PunnyJoke(
+    key="j-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+
+  def fake_initialize_joke(**kwargs):
+    captured_init.update(kwargs)
+    return created_joke
+
+  def fake_generate_metadata(joke):
+    joke.seasonal = "Auto"
+    joke.tags = ["auto"]
+    return joke
+
+  def fake_upsert(joke, operation=None):  # pylint: disable=unused-argument
+    saved["joke"] = joke
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, "initialize_joke",
+                      fake_initialize_joke)
+  monkeypatch.setattr(joke_creation_fns.joke_operations, "generate_joke_metadata",
+                      fake_generate_metadata)
+  monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
+                      fake_upsert)
+
+  req = DummyReq(data={
+    "joke_id": "j-1",
+    "setup_text": "Setup",
+    "punchline_text": "Punch",
+    "seasonal": " Winter ",
+    "tags": "snow, cozy,",
+  })
+
+  joke_creation_fns.joke_creation_process(req)
+
+  assert captured_init["seasonal"] == "Winter"
+  assert captured_init["tags"] == ["snow", "cozy"]
+  assert saved["joke"].seasonal == "Winter"
+  assert saved["joke"].tags == ["snow", "cozy"]
+
+
+def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
+  captured_init = {}
+  saved = {}
+
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "user-1")
+
+  created_joke = models.PunnyJoke(
+    key="j-2",
+    setup_text="Setup",
+    punchline_text="Punch",
+    seasonal="Spring",
+    tags=["fresh"],
+  )
+
+  def fake_initialize_joke(**kwargs):
+    captured_init.update(kwargs)
+    return created_joke
+
+  def fake_upsert(joke, operation=None):  # pylint: disable=unused-argument
+    saved["joke"] = joke
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, "initialize_joke",
+                      fake_initialize_joke)
+  monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
+                      fake_upsert)
+
+  req = DummyReq(data={
+    "joke_id": "j-2",
+    "setup_text": "Setup",
+    "punchline_text": "Punch",
+    "seasonal": "",
+    "tags": "",
+  })
+
+  joke_creation_fns.joke_creation_process(req)
+
+  assert captured_init["seasonal"] == ""
+  assert captured_init["tags"] == []
+  assert saved["joke"].seasonal is None
+  assert saved["joke"].tags == []
+"""Tests for joke_creation_fns."""
+
 import pytest
 from common import models
 from functions import joke_creation_fns

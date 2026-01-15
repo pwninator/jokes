@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 
 import flask
-from common import models
+from common import image_generation, models
 from functions import auth_helpers
 from services import firestore
 from web.routes import web_bp
@@ -94,6 +94,7 @@ def admin_jokes():
     next_cursor=next_cursor,
     has_more=next_cursor is not None,
     image_size=_JOKE_IMAGE_SIZE,
+    image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
   )
 
 

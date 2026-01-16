@@ -742,7 +742,7 @@ class JokeSocialPost:
   """Represents a social post derived from jokes."""
 
   type: JokeSocialPostType
-  jokes: list[dict[str, str | None]] = field(default_factory=list)
+  jokes: list[PunnyJoke] = field(default_factory=list)
   key: str | None = None
 
   pinterest_image_url: str | None = None
@@ -768,6 +768,10 @@ class JokeSocialPost:
     data = dataclasses.asdict(self)
     if isinstance(self.type, JokeSocialPostType):
       data['type'] = self.type.value
+    data['jokes'] = [
+      joke.get_minimal_joke_data() for joke in self.jokes
+      if isinstance(joke, PunnyJoke)
+    ]
     data.pop('key', None)
     return data
 
@@ -788,10 +792,17 @@ class JokeSocialPost:
       raise ValueError(f"Invalid JokeSocialPost type: {type_value}") from exc
 
     raw_jokes = data.get('jokes')
-    if not isinstance(raw_jokes, list):
-      data['jokes'] = []
-    else:
-      data['jokes'] = [item for item in raw_jokes if isinstance(item, dict)]
+    jokes: list[PunnyJoke] = []
+    if isinstance(raw_jokes, list):
+      for item in raw_jokes:
+        if not isinstance(item, dict):
+          continue
+        try:
+          jokes.append(PunnyJoke.from_firestore_dict(item,
+                                                     key=item.get('key')))
+        except (TypeError, ValueError):
+          continue
+    data['jokes'] = jokes
 
     data['key'] = key
 

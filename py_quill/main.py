@@ -83,7 +83,7 @@ run_firestore_migration = util_fns.run_firestore_migration
 web = web_fns.web
 
 # Export social functions
-create_social_post = social_fns.create_social_post
+social_post_creation_process = social_fns.social_post_creation_process
 
 # Export analytics functions
 usage = analytics_fns.usage

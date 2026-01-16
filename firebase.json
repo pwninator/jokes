@@ -90,9 +90,9 @@
         }
       },
       {
-        "source": "/create_social_post",
+        "source": "/social_post_creation_process",
         "function": {
-          "functionId": "create_social_post",
+          "functionId": "social_post_creation_process",
           "region": "us-central1",
           "codebase": "default"
         }

@@ -233,15 +233,115 @@ def get_joke_social_posts(
   return entries
 
 
-def create_joke_social_post(
-  post: models.JokeSocialPost,
-) -> models.JokeSocialPost:
-  """Create a social post document in Firestore."""
-  post_data = post.to_dict()
-  post_data['creation_time'] = SERVER_TIMESTAMP
-  _, doc_ref = db().collection('joke_social_posts').add(post_data)
-  post.key = doc_ref.id
-  return post
+def get_joke_social_post(post_id: str, ) -> models.JokeSocialPost | None:
+  """Fetch a social post by document id."""
+  post_id = (post_id or "").strip()
+  if not post_id:
+    return None
+  doc = db().collection('joke_social_posts').document(post_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+  data = doc.to_dict() or {}
+  try:
+    return models.JokeSocialPost.from_firestore_dict(data, key=doc.id)
+  except ValueError as exc:
+    logger.warn(f"Skipping invalid social post {post_id}: {exc}")
+    return None
+
+
+def update_social_post(
+  post_id: str,
+  update_data: dict[str, Any],
+) -> dict[str, Any]:
+  """Update a social post document and return changed fields."""
+  post_id = (post_id or "").strip()
+  if not post_id:
+    raise ValueError("post_id is required")
+  if not update_data:
+    raise ValueError("update_data is required")
+
+  post_ref = db().collection('joke_social_posts').document(post_id)
+  post_snapshot = post_ref.get()
+  if not post_snapshot.exists:
+    raise ValueError(f"Social post {post_id} not found in Firestore")
+
+  existing_data = post_snapshot.to_dict() or {}
+  update_payload = dict(update_data)
+  update_payload['last_modification_time'] = SERVER_TIMESTAMP
+
+  changed_fields: dict[str, Any] = {}
+  for key, value in update_payload.items():
+    if key not in existing_data or existing_data.get(key) != value:
+      changed_fields[key] = value
+
+  post_ref.update(update_payload)
+  return changed_fields
+
+
+def upsert_social_post(
+  social_post: models.JokeSocialPost,
+  operation: str | None = None,
+) -> models.JokeSocialPost | None:
+  """Create or update a social post."""
+  if not operation:
+    operation = "CREATE" if not social_post.key else "UPDATE"
+
+  saved_post: models.JokeSocialPost | None
+  if social_post.key:
+    updated_fields = update_social_post(
+      social_post.key,
+      social_post.to_dict(),
+    )
+    saved_post = social_post
+  else:
+    joke_ids: list[str] = []
+    for joke in social_post.jokes:
+      if joke.key:
+        joke_ids.append(joke.key)
+    custom_id = utils.create_timestamped_firestore_key(
+      social_post.type.value,
+      *(joke_ids[:2] if joke_ids else []),
+    )
+    post_ref = db().collection('joke_social_posts').document(custom_id)
+    if post_ref.get().exists:
+      return None
+
+    post_data = social_post.to_dict()
+    updated_fields = post_data.copy()
+    post_data['creation_time'] = SERVER_TIMESTAMP
+    post_data['last_modification_time'] = SERVER_TIMESTAMP
+
+    post_ref.set(post_data)
+    social_post.key = custom_id
+    saved_post = social_post
+
+  # Update operations log
+  if saved_post and saved_post.key:
+    current_time = datetime.datetime.now(ZoneInfo("America/Los_Angeles"))
+    log_fields = {
+      OPERATION: operation,
+      OPERATION_TIMESTAMP: current_time,
+    }
+    for key, value in updated_fields.items():
+      if value == SERVER_TIMESTAMP:
+        value = "OPERATION_TIMESTAMP"
+      log_fields[key] = value
+
+    operations_ref = (db().collection('joke_social_posts').document(
+      saved_post.key).collection('metadata').document('operations'))
+    operations_doc = operations_ref.get()
+    log_entries: list[dict[str, Any]] = []
+    if operations_doc.exists:
+      existing_data = operations_doc.to_dict() or {}
+      existing_log = existing_data.get('log')
+      if isinstance(existing_log, list):
+        log_entries.extend(entry for entry in existing_log
+                           if isinstance(entry, dict))
+
+    log_entries.append(log_fields)
+    operations_ref.set({'log': log_entries}, merge=True)
+
+  return saved_post
 
 
 def upsert_joke_sheet(sheet: models.JokeSheet) -> models.JokeSheet:

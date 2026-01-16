@@ -97,7 +97,8 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   assert '/jokes/feed/load-more-admin-social' in html
   assert 'admin-social-create-button' in html
   assert 'admin-social-post-type' in html
-  assert 'create_social_post' in html
+  assert 'social_post_creation_process' in html
+  assert "createPostEndpoint = '/social_post_creation_process'" in html
   assert 'data-selectable="true"' in html
   assert 'joke-admin-stats' in html
   assert 'joke-edit-button' not in html
@@ -195,3 +196,5 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "Description" in html
   assert "JOKE_GRID" in html
   assert "pin.png" in html
+  assert "Edit text" in html
+  assert "Regenerate text" in html

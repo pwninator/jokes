@@ -150,6 +150,49 @@
     color: var(--color-text-muted);
   }
 
+  .social-posts-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .social-posts-edit {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface, #fff);
+  }
+
+  .social-posts-edit-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+  }
+
+  .social-posts-edit-input,
+  .social-posts-edit-textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+
+  .social-posts-edit-textarea {
+    min-height: 70px;
+    resize: vertical;
+  }
+
+  .social-posts-edit-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
   .social-posts-thumb {
     width: 56px;
     height: 56px;
@@ -223,7 +266,10 @@
       </thead>
       <tbody>
         {% for post, creation_time in social_posts %}
-        <tr>
+        <tr data-post-id="{{ post.key or '' }}"
+            data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
+            data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
+            data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}">
           <td>
             {% if creation_time %}
             {{ creation_time.strftime('%Y-%m-%d %H:%M') }}
@@ -235,6 +281,40 @@
           <td>
             <div class="social-posts-title">{{ post.pinterest_title or '' }}</div>
             <div class="social-posts-description">{{ post.pinterest_description or '' }}</div>
+            <div class="social-posts-actions">
+              <button type="button" class="text-button js-social-edit">Edit text</button>
+              <button type="button" class="text-button js-social-regenerate" data-regenerate-image="false">
+                Regenerate text
+              </button>
+              <button type="button" class="text-button js-social-regenerate" data-regenerate-image="true">
+                Regenerate image + text
+              </button>
+            </div>
+            <div class="social-posts-edit" hidden>
+              <label class="social-posts-edit-label" for="social-title-{{ post.key or loop.index }}">
+                Pinterest title
+              </label>
+              <input class="social-posts-edit-input js-social-title"
+                     id="social-title-{{ post.key or loop.index }}"
+                     type="text"
+                     maxlength="100">
+              <label class="social-posts-edit-label" for="social-description-{{ post.key or loop.index }}">
+                Pinterest description
+              </label>
+              <textarea class="social-posts-edit-textarea js-social-description"
+                        id="social-description-{{ post.key or loop.index }}"
+                        maxlength="500"></textarea>
+              <label class="social-posts-edit-label" for="social-alt-{{ post.key or loop.index }}">
+                Pinterest alt text
+              </label>
+              <textarea class="social-posts-edit-textarea js-social-alt-text"
+                        id="social-alt-{{ post.key or loop.index }}"
+                        maxlength="500"></textarea>
+              <div class="social-posts-edit-actions">
+                <button type="button" class="text-button js-social-cancel">Cancel</button>
+                <button type="button" class="text-button js-social-save">Save</button>
+              </div>
+            </div>
           </td>
           <td>
             {% if post.pinterest_image_url %}
@@ -314,12 +394,40 @@
     const postTypeSelect = document.getElementById('admin-social-post-type');
     const pinPreview = document.getElementById('admin-social-pin-preview');
     const selectionRow = document.getElementById('admin-social-pin-selection');
+    const socialPostsTable = document.querySelector('.social-posts-table');
     const selectedJokes = [];
     const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
-    const functionsOrigin = {{ functions_origin | tojson }};
-    const createPostEndpoint = functionsOrigin
-      ? `${functionsOrigin}/create_social_post`
-      : '/create_social_post';
+    // Use same-origin rewrite so the admin session cookie is included.
+    const createPostEndpoint = '/social_post_creation_process';
+
+    async function sendSocialRequest(payload) {
+      const resp = await fetch(createPostEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: payload }),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        const error = data?.data?.error || 'Failed to update social post';
+        throw new Error(error);
+      }
+
+      const data = await resp.json().catch(() => ({}));
+      return data?.data?.post_data || {};
+    }
+
+    async function runWithButtonState(button, actionText, action) {
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = actionText;
+      try {
+        await action();
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
 
     function renderSelectionRow() {
       if (!selectionRow) {
@@ -418,30 +526,12 @@
           return;
         }
 
-        const originalText = createPostBtn.textContent;
-        createPostBtn.disabled = true;
-        createPostBtn.textContent = 'Creating...';
-
-        try {
-          const resp = await fetch(createPostEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              data: {
-                joke_ids: selectedJokes.map((joke) => joke.id),
-                type: postTypeSelect?.value || '',
-              },
-            }),
+        await runWithButtonState(createPostBtn, 'Creating...', async () => {
+          const data = await sendSocialRequest({
+            joke_ids: selectedJokes.map((joke) => joke.id),
+            type: postTypeSelect?.value || '',
           });
-
-          if (!resp.ok) {
-            const data = await resp.json().catch(() => ({}));
-            const error = data?.data?.error || 'Failed to create social post';
-            throw new Error(error);
-          }
-
-          const data = await resp.json();
-          const pinUrl = data?.data?.pinterest_image_url;
+          const pinUrl = data?.pinterest_image_url;
 
           if (!pinUrl) {
             throw new Error('Pinterest image URL missing from response');
@@ -457,17 +547,81 @@
           }
           img.src = pinUrl;
           window.location.reload();
-        } catch (error) {
+        }).catch((error) => {
           console.error('Failed to create social post:', error);
           alert('Failed to create social post: ' + error.message);
-        } finally {
-          createPostBtn.disabled = selectedJokes.length === 0;
-          createPostBtn.textContent = originalText;
-        }
+        });
+
+        createPostBtn.disabled = selectedJokes.length === 0;
       });
 
       createPostBtn.disabled = true;
       renderSelectionRow();
+    }
+
+    if (socialPostsTable) {
+      socialPostsTable.addEventListener('click', async (event) => {
+        const editButton = event.target.closest('.js-social-edit');
+        const saveButton = event.target.closest('.js-social-save');
+        const cancelButton = event.target.closest('.js-social-cancel');
+        const regenButton = event.target.closest('.js-social-regenerate');
+
+        const row = event.target.closest('tr[data-post-id]');
+        if (!row || !row.dataset.postId) {
+          return;
+        }
+
+        const editPanel = row.querySelector('.social-posts-edit');
+        const titleInput = row.querySelector('.js-social-title');
+        const descriptionInput = row.querySelector('.js-social-description');
+        const altInput = row.querySelector('.js-social-alt-text');
+
+        if (editButton && editPanel) {
+          editPanel.hidden = !editPanel.hidden;
+          if (!editPanel.hidden) {
+            if (titleInput) titleInput.value = row.dataset.pinterestTitle || '';
+            if (descriptionInput) descriptionInput.value = row.dataset.pinterestDescription || '';
+            if (altInput) altInput.value = row.dataset.pinterestAltText || '';
+          }
+          return;
+        }
+
+        if (cancelButton && editPanel) {
+          editPanel.hidden = true;
+          return;
+        }
+
+        if (saveButton) {
+          await runWithButtonState(saveButton, 'Saving...', async () => {
+            await sendSocialRequest({
+              post_id: row.dataset.postId,
+              pinterest_title: titleInput ? titleInput.value : '',
+              pinterest_description: descriptionInput ? descriptionInput.value : '',
+              pinterest_alt_text: altInput ? altInput.value : '',
+            });
+            window.location.reload();
+          }).catch((error) => {
+            console.error('Failed to update social post:', error);
+            alert('Failed to update social post: ' + error.message);
+          });
+          return;
+        }
+
+        if (regenButton) {
+          const regenerateImage = regenButton.dataset.regenerateImage === 'true';
+          await runWithButtonState(regenButton, 'Regenerating...', async () => {
+            await sendSocialRequest({
+              post_id: row.dataset.postId,
+              regenerate_text: true,
+              regenerate_image: regenerateImage,
+            });
+            window.location.reload();
+          }).catch((error) => {
+            console.error('Failed to regenerate social post:', error);
+            alert('Failed to regenerate social post: ' + error.message);
+          });
+        }
+      });
     }
 
     if (categoryChips.length) {

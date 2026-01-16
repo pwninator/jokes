@@ -249,13 +249,18 @@ def test_joke_social_post_from_firestore_filters_jokes():
       "type": "JOKE_GRID_TEASER",
       "pinterest_title": "Title",
       "pinterest_description": "Desc",
-      "jokes": [{"key": "j1"}, "bad", 123],
+      "jokes": [{
+        "key": "j1",
+        "setup_text": "Setup",
+        "punchline_text": "Punch",
+      }, "bad", 123],
       "facebook_post_date": ts,
     },
     key="post1",
   )
   assert post.type == models.JokeSocialPostType.JOKE_GRID_TEASER
-  assert post.jokes == [{"key": "j1"}]
+  assert len(post.jokes) == 1
+  assert post.jokes[0].key == "j1"
   assert post.facebook_post_date == ts
 
 

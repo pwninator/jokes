@@ -93,28 +93,200 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
   assert "key" not in captured
 
 
-def test_create_joke_social_post_sets_creation_time(monkeypatch):
+def test_upsert_social_post_creates_document(monkeypatch):
+  joke = models.PunnyJoke(
+    key="j1",
+    setup_text="Setup 1",
+    punchline_text="Punch 1",
+  )
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
     pinterest_title="Title",
     pinterest_description="Description",
     pinterest_alt_text="Alt text",
-    jokes=[{"key": "j1"}],
+    jokes=[joke],
   )
 
   captured = {}
 
+  class DummyOperationsDoc:
+    def __init__(self):
+      self.exists = False
+      self.data = {}
+
+    def get(self):
+      return self
+
+    def to_dict(self):
+      return self.data
+
+    def set(self, data, merge=False):
+      self.data = data
+
+  class DummyDoc:
+    exists = False
+
   class DummyDocRef:
-    id = "post1"
+    def __init__(self):
+      self._operations_doc = DummyOperationsDoc()
+
+    def get(self):
+      return DummyDoc()
+
+    def set(self, data):
+      captured.update(data)
+
+    def collection(self, name):
+      assert name == "metadata"
+
+      class DummyMetadataCol:
+        def __init__(self, operations_doc):
+          self._operations_doc = operations_doc
+
+        def document(self, doc_name):
+          assert doc_name == "operations"
+          return self._operations_doc
+
+      return DummyMetadataCol(self._operations_doc)
 
   class DummyCol:
-
-    def add(self, data):
-      captured.update(data)
-      return None, DummyDocRef()
+    def document(self, doc_id):
+      captured["doc_id"] = doc_id
+      return DummyDocRef()
 
   class DummyDB:
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
 
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
+  monkeypatch.setattr(firestore.utils, "create_timestamped_firestore_key",
+                      lambda *args: "post1")
+
+  created = firestore.upsert_social_post(post)
+
+  assert created.key == "post1"
+  assert captured["doc_id"] == "post1"
+  assert captured["type"] == "JOKE_GRID"
+  assert captured["pinterest_title"] == "Title"
+  assert captured["pinterest_description"] == "Description"
+  assert captured["pinterest_alt_text"] == "Alt text"
+  assert captured["jokes"] == [{
+    "key": "j1",
+    "setup_text": "Setup 1",
+    "punchline_text": "Punch 1",
+    "setup_image_url": None,
+    "punchline_image_url": None,
+  }]
+  assert captured["creation_time"] == "TS"
+  assert captured["last_modification_time"] == "TS"
+
+
+def test_get_joke_social_post_returns_none_when_missing(monkeypatch):
+  class DummyDoc:
+    exists = False
+
+  class DummyDocRef:
+    def get(self):
+      return DummyDoc()
+
+  class DummyCol:
+    def document(self, _doc_id):
+      return DummyDocRef()
+
+  class DummyDB:
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  assert firestore.get_joke_social_post("post1") is None
+
+
+def test_get_joke_social_post_parses_post(monkeypatch):
+  class DummyDoc:
+    exists = True
+    id = "post1"
+
+    def to_dict(self):
+      return {
+        "type": "JOKE_GRID",
+        "pinterest_title": "Title",
+        "pinterest_description": "Description",
+      }
+
+  class DummyDocRef:
+    def get(self):
+      return DummyDoc()
+
+  class DummyCol:
+    def document(self, _doc_id):
+      return DummyDocRef()
+
+  class DummyDB:
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  post = firestore.get_joke_social_post("post1")
+  assert post is not None
+  assert post.key == "post1"
+  assert post.pinterest_title == "Title"
+
+
+def test_upsert_social_post_updates_document(monkeypatch):
+  captured = {}
+
+  class DummyOperationsDoc:
+    def __init__(self):
+      self.exists = False
+      self.data = {}
+
+    def get(self):
+      return self
+
+    def to_dict(self):
+      return self.data
+
+    def set(self, data, merge=False):
+      self.data = data
+
+  class DummyDoc:
+    exists = True
+
+    def to_dict(self):
+      return {"pinterest_title": "Old"}
+
+  class DummyDocRef:
+    def __init__(self):
+      self._operations_doc = DummyOperationsDoc()
+
+    def get(self):
+      return DummyDoc()
+
+    def update(self, data):
+      captured.update(data)
+
+    def collection(self, name):
+      assert name == "metadata"
+
+      class DummyMetadataCol:
+        def __init__(self, operations_doc):
+          self._operations_doc = operations_doc
+
+        def document(self, doc_name):
+          assert doc_name == "operations"
+          return self._operations_doc
+
+      return DummyMetadataCol(self._operations_doc)
+
+  class DummyCol:
+    def document(self, _doc_id):
+      return DummyDocRef()
+
+  class DummyDB:
     def collection(self, name):
       assert name == "joke_social_posts"
       return DummyCol()
@@ -122,15 +294,14 @@ def test_create_joke_social_post_sets_creation_time(monkeypatch):
   monkeypatch.setattr(firestore, "db", DummyDB)
   monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
 
-  created = firestore.create_joke_social_post(post)
-
-  assert created.key == "post1"
-  assert captured["type"] == "JOKE_GRID"
-  assert captured["pinterest_title"] == "Title"
-  assert captured["pinterest_description"] == "Description"
-  assert captured["pinterest_alt_text"] == "Alt text"
-  assert captured["jokes"] == [{"key": "j1"}]
-  assert captured["creation_time"] == "TS"
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    pinterest_title="Updated",
+  )
+  post.key = "post1"
+  firestore.upsert_social_post(post)
+  assert captured["pinterest_title"] == "Updated"
+  assert captured["last_modification_time"] == "TS"
 
 
 def test_upsert_punny_joke_logs_operation(monkeypatch):

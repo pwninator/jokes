@@ -51,8 +51,8 @@ Return ONLY valid JSON (no markdown, no commentary) with:
 _pinterest_llm = llm_client.get_client(
   label="Pinterest Social Post Text",
   model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
-  temperature=0.6,
-  output_tokens=400,
+  temperature=1.0,
+  output_tokens=8000,
   response_schema={
     "type":
     "OBJECT",

@@ -6,8 +6,9 @@ import traceback
 
 from common import image_generation, joke_operations
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (AuthError, error_response, get_bool_param,
-                                      get_param, get_user_id, success_response)
+from functions.function_utils import (AuthError, error_response,
+                                      get_bool_param, get_param, get_user_id,
+                                      success_response)
 from services import firestore
 
 
@@ -109,7 +110,6 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         'Unsupported parameter combination for joke creation',
         error_type='unsupported_parameters')
 
-    saved_joke = None
     operation = None
     has_suggestions = bool(setup_suggestion or punchline_suggestion)
 
@@ -150,9 +150,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       operation = "GENERATE_IMAGES"
       joke = joke_operations.generate_joke_images(joke, image_quality)
 
-    saved_joke = firestore.upsert_punny_joke(joke, operation=operation)
-
-    if saved_joke:
+    if saved_joke := firestore.upsert_punny_joke(joke, operation=operation):
       return success_response(
         {"joke_data": joke_operations.to_response_joke(saved_joke)})
     else:

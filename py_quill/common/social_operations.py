@@ -9,6 +9,7 @@ from functions.prompts import social_post_prompts
 from services import cloud_storage, firestore
 
 MAX_SOCIAL_POST_JOKES = 5
+PUBLIC_JOKE_BASE_URL = "https://snickerdoodlejokes.com/jokes"
 
 
 class SocialPostRequestError(Exception):
@@ -38,9 +39,11 @@ def initialize_social_post(
     joke_id_list = _validate_joke_ids(joke_ids)
     post_type = _validate_post_type(post_type)
     ordered_jokes = _load_ordered_jokes(joke_id_list)
+    link_url = _build_social_post_link_url(post_type, ordered_jokes)
     post = models.JokeSocialPost(
       type=post_type,
       jokes=ordered_jokes,
+      link_url=link_url,
     )
 
   if pinterest_title is not None:
@@ -78,6 +81,20 @@ def _load_ordered_jokes(joke_ids: list[str]) -> list[models.PunnyJoke]:
     ]
     raise SocialPostRequestError(f'Jokes not found: {missing}')
   return ordered_jokes
+
+
+def _build_social_post_link_url(
+  post_type: models.JokeSocialPostType,
+  jokes: list[models.PunnyJoke],
+) -> str:
+  if post_type in (
+      models.JokeSocialPostType.JOKE_GRID,
+      models.JokeSocialPostType.JOKE_GRID_TEASER,
+  ):
+    last_joke = jokes[-1]
+    slug = last_joke.human_readable_setup_text_slug
+    return f"{PUBLIC_JOKE_BASE_URL}/{slug}"
+  raise SocialPostRequestError(f'Unsupported post type: {post_type}')
 
 
 def generate_pinterest_post_text(

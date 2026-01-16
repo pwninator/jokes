@@ -75,16 +75,11 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
                       "get_public_cdn_url",
                       lambda _uri: "https://cdn.example.com/pin.png")
-  created_post = models.JokeSocialPost(
-    type=models.JokeSocialPostType.JOKE_GRID_TEASER,
-    pinterest_title="Title",
-    pinterest_description="Description",
-    pinterest_alt_text="Alt text",
-    jokes=jokes,
-    pinterest_image_url="https://cdn.example.com/pin.png",
-  )
-  created_post.key = "post1"
-  create_mock = Mock(return_value=created_post)
+  def _fake_upsert(post, **_kwargs):
+    post.key = "post1"
+    return post
+
+  create_mock = Mock(side_effect=_fake_upsert)
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", create_mock)
 
   req = DummyReq(data={"joke_ids": joke_ids, "type": "JOKE_GRID_TEASER"})
@@ -94,11 +89,14 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   payload = _json_payload(resp)
   assert payload["data"]["post_id"] == "post1"
   post_data = payload["data"]["post_data"]
+  expected_link_url = ("https://snickerdoodlejokes.com/jokes/"
+                       f"{jokes[-1].human_readable_setup_text_slug}")
   assert post_data["pinterest_title"] == "Title"
   assert post_data["pinterest_description"] == "Description"
   assert post_data["pinterest_alt_text"] == "Alt text"
   assert post_data["pinterest_image_url"] == "https://cdn.example.com/pin.png"
   assert post_data["type"] == "JOKE_GRID_TEASER"
+  assert post_data["link_url"] == expected_link_url
 
   create_image_mock.assert_called_once_with(
     jokes=jokes,
@@ -121,6 +119,7 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
     "Punch 2",
   ]
   assert created_arg.pinterest_image_url == "https://cdn.example.com/pin.png"
+  assert created_arg.link_url == expected_link_url
 
 
 def test_social_post_creation_process_invalid_type(monkeypatch: pytest.MonkeyPatch):
@@ -139,6 +138,7 @@ def test_social_post_creation_process_updates_text_manual(monkeypatch: pytest.Mo
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/old",
     pinterest_title="Old",
     pinterest_description="Old desc",
     pinterest_alt_text="Old alt",
@@ -176,6 +176,7 @@ def test_social_post_creation_process_regenerates_text(monkeypatch: pytest.Monke
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/pin",
     pinterest_image_url="https://cdn.example.com/pin.png",
   )
   post.key = "post1"
@@ -225,6 +226,7 @@ def test_social_post_creation_process_regenerates_text_and_image(
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID_TEASER,
+    link_url="https://snickerdoodlejokes.com/jokes/teaser",
     jokes=[
       models.PunnyJoke(key="j1", setup_text="Setup 1",
                        punchline_text="Punch 1"),
@@ -285,6 +287,7 @@ def test_social_post_creation_process_regenerate_overrides_manual(monkeypatch):
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/old",
     pinterest_title="Old",
     pinterest_image_url="https://cdn.example.com/pin.png",
   )

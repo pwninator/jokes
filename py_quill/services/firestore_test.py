@@ -101,6 +101,7 @@ def test_upsert_social_post_creates_document(monkeypatch):
   )
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/grid",
     pinterest_title="Title",
     pinterest_description="Description",
     pinterest_alt_text="Alt text",
@@ -169,6 +170,7 @@ def test_upsert_social_post_creates_document(monkeypatch):
   assert created.key == "post1"
   assert captured["doc_id"] == "post1"
   assert captured["type"] == "JOKE_GRID"
+  assert captured["link_url"] == "https://snickerdoodlejokes.com/jokes/grid"
   assert captured["pinterest_title"] == "Title"
   assert captured["pinterest_description"] == "Description"
   assert captured["pinterest_alt_text"] == "Alt text"
@@ -212,6 +214,7 @@ def test_get_joke_social_post_parses_post(monkeypatch):
     def to_dict(self):
       return {
         "type": "JOKE_GRID",
+        "link_url": "https://snickerdoodlejokes.com/jokes/test",
         "pinterest_title": "Title",
         "pinterest_description": "Description",
       }
@@ -296,6 +299,7 @@ def test_upsert_social_post_updates_document(monkeypatch):
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/updated",
     pinterest_title="Updated",
   )
   post.key = "post1"

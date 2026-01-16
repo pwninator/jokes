@@ -212,6 +212,7 @@ def test_joke_social_post_to_dict_serializes_type_and_keeps_dates():
   ts = datetime.datetime(2024, 3, 4, 5, 6, 7, tzinfo=datetime.timezone.utc)
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/grid",
     pinterest_title="Grid post",
     pinterest_description="A grid of jokes",
     pinterest_post_date=ts,
@@ -222,21 +223,36 @@ def test_joke_social_post_to_dict_serializes_type_and_keeps_dates():
   assert data["type"] == "JOKE_GRID"
   assert "key" not in data
   assert data["pinterest_post_date"] == ts
+  assert data["link_url"] == "https://snickerdoodlejokes.com/jokes/grid"
 
 
 def test_joke_social_post_from_firestore_requires_type():
   """JokeSocialPost requires a type field."""
   with pytest.raises(ValueError):
     models.JokeSocialPost.from_firestore_dict(
-      {"pinterest_title": "Title"},
+      {"pinterest_title": "Title", "link_url": "https://example.com"},
       key="post1",
     )
+
+
+def test_joke_social_post_from_firestore_requires_link_url():
+  """JokeSocialPost requires a link_url field."""
+  with pytest.raises(ValueError):
+    models.JokeSocialPost.from_firestore_dict(
+      {"type": "JOKE_GRID", "pinterest_title": "Title"},
+      key="post1",
+    )
+
 
 def test_joke_social_post_from_firestore_invalid_type():
   """JokeSocialPost rejects invalid type values."""
   with pytest.raises(ValueError):
     models.JokeSocialPost.from_firestore_dict(
-      {"type": "BAD", "pinterest_title": "Title"},
+      {
+        "type": "BAD",
+        "pinterest_title": "Title",
+        "link_url": "https://example.com",
+      },
       key="post1",
     )
 
@@ -247,6 +263,7 @@ def test_joke_social_post_from_firestore_filters_jokes():
   post = models.JokeSocialPost.from_firestore_dict(
     {
       "type": "JOKE_GRID_TEASER",
+      "link_url": "https://snickerdoodlejokes.com/jokes/test",
       "pinterest_title": "Title",
       "pinterest_description": "Desc",
       "jokes": [{

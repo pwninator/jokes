@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from common import utils
+
 
 class ReadingLevel(Enum):
   """Reading level enum matching the Flutter app's levels."""
@@ -744,6 +746,7 @@ class JokeSocialPost:
   type: JokeSocialPostType
   jokes: list[PunnyJoke] = field(default_factory=list)
   key: str | None = None
+  link_url: str | None = None
 
   pinterest_image_url: str | None = None
   pinterest_post_id: str | None = None
@@ -762,6 +765,10 @@ class JokeSocialPost:
   facebook_post_id: str | None = None
   facebook_post_date: datetime.datetime | None = None
   facebook_message: str | None = None
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.link_url, str) or not self.link_url:
+      raise ValueError("JokeSocialPost requires a link_url")
 
   def to_dict(self) -> dict:
     """Serialize social post fields for Firestore writes."""
@@ -790,6 +797,10 @@ class JokeSocialPost:
       data['type'] = JokeSocialPostType(type_value)
     except ValueError as exc:
       raise ValueError(f"Invalid JokeSocialPost type: {type_value}") from exc
+
+    link_url = data.get('link_url')
+    if not isinstance(link_url, str) or not link_url:
+      raise ValueError("JokeSocialPost requires a link_url")
 
     raw_jokes = data.get('jokes')
     jokes: list[PunnyJoke] = []
@@ -983,6 +994,11 @@ class PunnyJoke:
   is_public: bool = False
   generation_metadata: GenerationMetadata = field(
     default_factory=GenerationMetadata)
+
+  @property
+  def human_readable_setup_text_slug(self) -> str:
+    """Get the setup text slug."""
+    return utils.get_text_slug(self.setup_text, human_readable=True)
 
   @classmethod
   def from_firestore_dict(cls, data: dict, key: str) -> 'PunnyJoke':

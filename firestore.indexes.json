@@ -265,6 +265,25 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "setup_text_slug",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "jokes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "is_public",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "state",
           "order": "ASCENDING"
         },

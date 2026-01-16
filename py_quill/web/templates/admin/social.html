@@ -157,6 +157,21 @@
     margin-top: 8px;
   }
 
+  .social-posts-link {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+  }
+
+  .social-posts-link a {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .social-posts-link a:hover {
+    text-decoration: underline;
+  }
+
   .social-posts-edit {
     margin-top: 10px;
     padding: 10px;
@@ -269,7 +284,8 @@
         <tr data-post-id="{{ post.key or '' }}"
             data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
             data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
-            data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}">
+            data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}"
+            data-link-url="{{ (post.link_url or '') | e }}">
           <td>
             {% if creation_time %}
             {{ creation_time.strftime('%Y-%m-%d %H:%M') }}
@@ -281,6 +297,15 @@
           <td>
             <div class="social-posts-title">{{ post.pinterest_title or '' }}</div>
             <div class="social-posts-description">{{ post.pinterest_description or '' }}</div>
+            <div class="social-posts-link">
+              {% if post.link_url %}
+              <a class="js-social-link" href="{{ post.link_url | e }}" target="_blank" rel="noopener">
+                {{ post.link_url | e }}
+              </a>
+              {% else %}
+              <span class="muted js-social-link-empty">No link</span>
+              {% endif %}
+            </div>
             <div class="social-posts-actions">
               <button type="button" class="text-button js-social-edit">Edit text</button>
               <button type="button" class="text-button js-social-regenerate" data-regenerate-image="false">
@@ -482,6 +507,7 @@
       row.dataset.pinterestTitle = postData.pinterest_title || '';
       row.dataset.pinterestDescription = postData.pinterest_description || '';
       row.dataset.pinterestAltText = postData.pinterest_alt_text || '';
+      row.dataset.linkUrl = postData.link_url || '';
 
       const titleEl = row.querySelector('.social-posts-title');
       if (titleEl) {
@@ -490,6 +516,34 @@
       const descEl = row.querySelector('.social-posts-description');
       if (descEl) {
         descEl.textContent = postData.pinterest_description || '';
+      }
+
+      const linkEl = row.querySelector('.js-social-link');
+      const linkEmptyEl = row.querySelector('.js-social-link-empty');
+      if (postData.link_url) {
+        if (linkEl) {
+          linkEl.href = postData.link_url;
+          linkEl.textContent = postData.link_url;
+          linkEl.hidden = false;
+        }
+        if (linkEmptyEl) {
+          linkEmptyEl.remove();
+        }
+      } else {
+        if (linkEl) {
+          linkEl.removeAttribute('href');
+          linkEl.textContent = '';
+          linkEl.hidden = true;
+        }
+        if (!linkEmptyEl) {
+          const empty = document.createElement('span');
+          empty.className = 'muted js-social-link-empty';
+          empty.textContent = 'No link';
+          const linkContainer = row.querySelector('.social-posts-link');
+          if (linkContainer) {
+            linkContainer.appendChild(empty);
+          }
+        }
       }
 
       const titleInput = row.querySelector('.js-social-title');
@@ -553,6 +607,7 @@
       row.dataset.pinterestTitle = postData.pinterest_title || '';
       row.dataset.pinterestDescription = postData.pinterest_description || '';
       row.dataset.pinterestAltText = postData.pinterest_alt_text || '';
+      row.dataset.linkUrl = postData.link_url || '';
 
       const createdCell = document.createElement('td');
       const createdLabel = document.createElement('span');
@@ -570,6 +625,26 @@
       const descEl = document.createElement('div');
       descEl.className = 'social-posts-description';
       descEl.textContent = postData.pinterest_description || '';
+
+      const linkWrap = document.createElement('div');
+      linkWrap.className = 'social-posts-link';
+      const linkAnchor = document.createElement('a');
+      linkAnchor.className = 'js-social-link';
+      linkAnchor.target = '_blank';
+      linkAnchor.rel = 'noopener';
+      if (postData.link_url) {
+        linkAnchor.href = postData.link_url;
+        linkAnchor.textContent = postData.link_url;
+      } else {
+        linkAnchor.hidden = true;
+      }
+      linkWrap.appendChild(linkAnchor);
+      if (!postData.link_url) {
+        const empty = document.createElement('span');
+        empty.className = 'muted js-social-link-empty';
+        empty.textContent = 'No link';
+        linkWrap.appendChild(empty);
+      }
 
       const actions = document.createElement('div');
       actions.className = 'social-posts-actions';
@@ -654,6 +729,7 @@
 
       contentCell.appendChild(titleEl);
       contentCell.appendChild(descEl);
+      contentCell.appendChild(linkWrap);
       contentCell.appendChild(actions);
       contentCell.appendChild(editPanel);
 

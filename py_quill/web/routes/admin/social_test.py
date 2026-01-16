@@ -163,6 +163,7 @@ def test_admin_social_renders_social_posts(monkeypatch):
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/social",
     pinterest_title="Title",
     pinterest_description="Description",
   )
@@ -195,6 +196,7 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "Title" in html
   assert "Description" in html
   assert "JOKE_GRID" in html
+  assert "https://snickerdoodlejokes.com/jokes/social" in html
   assert "pin.png" in html
   assert "Edit text" in html
   assert "Regenerate text" in html

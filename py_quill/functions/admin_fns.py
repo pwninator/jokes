@@ -4,7 +4,7 @@ import traceback
 
 from firebase_admin import auth
 from firebase_functions import https_fn, options
-from functions.function_utils import (error_response, get_user_id,
+from functions.function_utils import (AuthError, error_response, get_user_id,
                                       success_response)
 
 
@@ -42,7 +42,10 @@ def set_user_role(req: https_fn.Request) -> https_fn.Response:
       return error_response('role parameter is required')
 
     # Get the requesting user ID for authentication
-    requesting_user_id = get_user_id(req, allow_unauthenticated=True)
+    try:
+      requesting_user_id = get_user_id(req, allow_unauthenticated=True)
+    except AuthError:
+      return error_response('Authentication required', status=401)
     # if not requesting_user_id:
     #   return error_response('Authentication required')
 

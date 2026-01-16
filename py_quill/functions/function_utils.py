@@ -4,10 +4,14 @@ import json
 from http.cookies import SimpleCookie
 from typing import Any
 
-from common import config
-from common import utils
+from common import config, utils
 from firebase_admin import auth
 from firebase_functions import https_fn, logger
+
+
+class AuthError(Exception):
+  """Raised when authentication or authorization fails."""
+
 
 # CORS constants
 _CORS_HEADERS = {
@@ -70,39 +74,82 @@ def handle_health_check(req: https_fn.Request) -> https_fn.Response | None:
 def get_user_id(
   req: https_fn.Request,
   allow_unauthenticated: bool = False,
+  require_admin: bool = False,
 ) -> str | None:
-  """Get the user's uid from the request."""
-  auth_header = req.headers.get('Authorization')
-  if not auth_header:
-    cookie_header = req.headers.get('Cookie') or req.headers.get('cookie')
-    if cookie_header:
-      try:
-        cookies = SimpleCookie()
-        cookies.load(cookie_header)
-        session_cookie_morsel = cookies.get(config.SESSION_COOKIE_NAME)
-        session_cookie = (session_cookie_morsel.value
-                          if session_cookie_morsel else None)
-        if session_cookie:
-          decoded = auth.verify_session_cookie(session_cookie,
-                                               check_revoked=True)
-          uid = decoded.get('uid')
-          if uid:
-            return uid
-      except Exception as e:
-        logger.error(f"Error verifying session cookie: {e}")
+  """Get the user's uid from the request.
 
-    if allow_unauthenticated:
-      return None
-    raise ValueError("Authorization header is missing")
+  Returns None only when unauthenticated access is allowed and no auth is present.
+  Raises AuthError for any authentication/authorization failure.
+  """
 
-  id_token = auth_header.split(' ')[1]
+  uid = None
+  is_admin = False
+  if auth_header := req.headers.get('Authorization'):
+    # Authorize with ID token (used by Flutter app)
+    parts = auth_header.split(' ')
+    if len(parts) < 2:
+      raise AuthError("Authorization header is malformed")
+    id_token = parts[1]
+
+    try:
+      decoded_token = auth.verify_id_token(id_token)
+    except Exception as e:
+      logger.error(f"Error verifying ID token '{id_token}': {e}")
+      raise AuthError("Invalid authorization token") from e
+
+    is_admin = _has_admin_role(decoded_token)
+    uid = decoded_token.get('uid')
+    if not uid:
+      raise AuthError("Authorization token missing uid")
+
+  elif verification := _get_session_claims(req):
+    # Authorize with session cookie (used by web app)
+    uid, claims = verification
+    is_admin = _has_admin_role(claims)
+
+  if require_admin and not is_admin:
+    raise AuthError("Admin privileges required")
+  if not allow_unauthenticated and not uid:
+    raise AuthError("Authorization required")
+  return uid
+
+
+def _has_admin_role(claims: dict | None) -> bool:
+  return bool(claims and claims.get('role') == 'admin')
+
+
+def _get_session_cookie(req: https_fn.Request) -> str | None:
+  if hasattr(req, "cookies"):
+    session_cookie = req.cookies.get(config.SESSION_COOKIE_NAME)
+    if session_cookie:
+      return session_cookie
+
+  cookie_header = req.headers.get('Cookie') or req.headers.get('cookie')
+  if not cookie_header:
+    return None
 
   try:
-    decoded_token = auth.verify_id_token(id_token)
-    return decoded_token['uid']
+    cookies = SimpleCookie()
+    cookies.load(cookie_header)
+    session_cookie_morsel = cookies.get(config.SESSION_COOKIE_NAME)
+    return session_cookie_morsel.value if session_cookie_morsel else None
   except Exception as e:
-    logger.error(f"Error verifying ID token '{id_token}': {e}")
+    logger.error(f"Error parsing session cookie header: {e}")
     return None
+
+
+def _get_session_claims(req: https_fn.Request) -> tuple[str, dict] | None:
+  session_cookie = _get_session_cookie(req)
+  if not session_cookie:
+    return None
+  try:
+    decoded = auth.verify_session_cookie(session_cookie, check_revoked=True)
+  except Exception as e:
+    raise AuthError("Invalid session cookie") from e
+  uid = decoded.get('uid')
+  if not uid:
+    raise AuthError("Session cookie missing uid claim")
+  return uid, decoded
 
 
 def success_response(

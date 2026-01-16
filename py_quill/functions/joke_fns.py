@@ -9,12 +9,12 @@ from agents import agents_common, constants
 from agents.endpoints import all_agents
 from common import config, image_generation, joke_operations, models, utils
 from firebase_functions import https_fn, logger, options
-from functions import auth_helpers
-from functions.function_utils import (error_response, get_bool_param,
-                                      get_float_param, get_int_param,
-                                      get_param, get_user_id, success_response,
+from functions.function_utils import (AuthError, error_response,
+                                      get_bool_param, get_float_param,
+                                      get_int_param, get_param, get_user_id,
                                       handle_cors_preflight,
-                                      handle_health_check, html_response)
+                                      handle_health_check, html_response,
+                                      success_response)
 from google.cloud.firestore import FieldFilter
 from google.cloud.firestore_bundle import FirestoreBundle
 from google.cloud.firestore_v1.field_path import FieldPath
@@ -53,8 +53,9 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
     if bundle_secret != expected_secret:
       return error_response('Unauthorized', req=req, status=403)
   elif not utils.is_emulator():
-    verification = auth_helpers.verify_session(req)
-    if not verification or verification[1].get('role') != 'admin':
+    try:
+      get_user_id(req, require_admin=True)
+    except AuthError:
       return error_response('Unauthorized', req=req, status=403)
 
   try:
@@ -559,7 +560,10 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
                             req=req,
                             status=405)
 
-    user_id = get_user_id(req, allow_unauthenticated=True)
+    try:
+      user_id = get_user_id(req, allow_unauthenticated=True)
+    except AuthError:
+      return error_response("Unauthenticated request", req=req, status=401)
     if not user_id:
       user_id = "ANONYMOUS"
 

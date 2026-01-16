@@ -572,8 +572,11 @@ class TestUpscaleJoke:
 def test_get_joke_bundle_requires_admin(monkeypatch):
   """Should reject when not admin (non-emulator)."""
   monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: False)
-  monkeypatch.setattr(joke_fns.auth_helpers, "verify_session",
-                      lambda req: None)
+  monkeypatch.setattr(
+    joke_fns,
+    "get_user_id",
+    lambda req, **kwargs: (_ for _ in ()).throw(joke_fns.AuthError("No admin")),
+  )
 
   resp = joke_fns.get_joke_bundle(DummyReq(method='POST'))
 
@@ -678,8 +681,8 @@ def test_get_joke_bundle_secret_bypasses_admin(monkeypatch):
   monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: False)
   monkeypatch.setattr(joke_fns.config, "get_joke_bundle_secret",
                       lambda: "secret123")
-  verify_session = Mock()
-  monkeypatch.setattr(joke_fns.auth_helpers, "verify_session", verify_session)
+  get_user_id = Mock()
+  monkeypatch.setattr(joke_fns, "get_user_id", get_user_id)
 
   mock_bundle, uploaded, _, _, _, _ = _setup_bundle_success(monkeypatch)
 
@@ -690,7 +693,7 @@ def test_get_joke_bundle_secret_bypasses_admin(monkeypatch):
   payload = json.loads(resp.get_data(as_text=True))
   assert payload["data"][
     "bundle_url"] == "https://storage.googleapis.com/temp/bundle.txt"
-  verify_session.assert_not_called()
+  get_user_id.assert_not_called()
   assert uploaded["bytes"] == b"bundle-bytes"
   assert uploaded["content_type"] == "application/octet-stream"
 
@@ -700,8 +703,8 @@ def test_get_joke_bundle_secret_mismatch_rejected(monkeypatch):
   monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: False)
   monkeypatch.setattr(joke_fns.config, "get_joke_bundle_secret",
                       lambda: "secret123")
-  verify_session = Mock()
-  monkeypatch.setattr(joke_fns.auth_helpers, "verify_session", verify_session)
+  get_user_id = Mock()
+  monkeypatch.setattr(joke_fns, "get_user_id", get_user_id)
 
   resp = joke_fns.get_joke_bundle(
     DummyReq(method='POST', headers={"X-Bundle-Secret": "wrong"}))
@@ -709,4 +712,4 @@ def test_get_joke_bundle_secret_mismatch_rejected(monkeypatch):
   assert resp.status_code == 403
   payload = json.loads(resp.get_data(as_text=True))
   assert "error" in payload["data"]
-  verify_session.assert_not_called()
+  get_user_id.assert_not_called()

@@ -4,10 +4,11 @@ import traceback
 
 from common import image_operations, utils
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_bool_param,
-                                      get_param, get_user_id, success_response,
-                                      handle_cors_preflight, handle_health_check,
-                                      html_response)
+from functions.function_utils import (AuthError, error_response,
+                                      get_bool_param, get_param, get_user_id,
+                                      handle_cors_preflight,
+                                      handle_health_check, html_response,
+                                      success_response)
 from services import firestore
 
 NUM_TOP_JOKES_FOR_BOOKS = 50
@@ -27,7 +28,9 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     joke_id = get_param(req, 'joke_id', required=True)
     setup_instructions = get_param(req, 'setup_instructions', required=False)
@@ -35,7 +38,10 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
                                        'punchline_instructions',
                                        required=False)
     style_update = get_bool_param(req, 'style_update', required=False)
-    include_text = get_bool_param(req, 'include_text', required=False, default=True)
+    include_text = get_bool_param(req,
+                                  'include_text',
+                                  required=False,
+                                  default=True)
 
     base_image_source = get_param(
       req,
@@ -44,8 +50,9 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
       default='original',
     )
     if base_image_source not in ('original', 'book_page'):
-      return error_response(
-          f'Invalid base_image_source: {base_image_source}', req=req, status=400)
+      return error_response(f'Invalid base_image_source: {base_image_source}',
+                            req=req,
+                            status=400)
 
     logger.info(f'Generating book page images for joke {joke_id}')
 
@@ -78,7 +85,9 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to create joke book: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to create joke book: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 @https_fn.on_request(
@@ -95,10 +104,13 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
-    user_id = get_user_id(req)
-    if not user_id:
+    try:
+      user_id = get_user_id(req)
+    except AuthError:
       return error_response('User not authenticated', req=req, status=401)
 
     raw_joke_ids = get_param(req, 'joke_ids')
@@ -114,7 +126,9 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
       )
       joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
       if not joke_ids:
-        return error_response('No jokes available to create joke book', req=req, status=400)
+        return error_response('No jokes available to create joke book',
+                              req=req,
+                              status=400)
     else:
       joke_ids = raw_joke_ids
 
@@ -141,7 +155,9 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to create joke book: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to create joke book: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 @https_fn.on_request(
@@ -158,7 +174,9 @@ def update_joke_book_zip(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['POST']:
-      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     joke_book_id = _get_joke_book_id_from_request(req)
     if not joke_book_id:
@@ -173,20 +191,25 @@ def update_joke_book_zip(req: https_fn.Request) -> https_fn.Response:
     book_data = book_doc.to_dict() or {}
     joke_ids = book_data.get('jokes') or []
     if not isinstance(joke_ids, list) or not joke_ids:
-      return error_response('Joke book has no jokes to zip', req=req, status=400)
+      return error_response('Joke book has no jokes to zip',
+                            req=req,
+                            status=400)
 
     zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
     book_ref.update({'zip_url': zip_url})
 
     return success_response({
-        'book_id': joke_book_id,
-        'zip_url': zip_url,
-      }, req=req)
+      'book_id': joke_book_id,
+      'zip_url': zip_url,
+    },
+                            req=req)
 
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error updating joke book ZIP: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to update joke book ZIP: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to update joke book ZIP: {str(e)}',
+                          req=req,
+                          status=500)
 
 
 def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:
@@ -249,7 +272,9 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
         punchline_img = metadata.get('book_page_punchline_image_url')
 
       if not setup_img or not punchline_img:
-        return error_response(f'Joke {joke_id} does not have book page images', req=req, status=400)
+        return error_response(f'Joke {joke_id} does not have book page images',
+                              req=req,
+                              status=400)
 
       setup_pages.append(str(setup_img))
       punchline_pages.append(str(punchline_img))
@@ -365,4 +390,6 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error getting joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to get joke book: {str(e)}', req=req, status=500)
+    return error_response(f'Failed to get joke book: {str(e)}',
+                          req=req,
+                          status=500)

@@ -1,7 +1,7 @@
 """Analytics and usage tracking functions."""
 
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_bool_param,
+from functions.function_utils import (AuthError, error_response, get_bool_param,
                                       get_int_param, get_param, get_user_id,
                                       success_response)
 from services import firestore as firestore_service
@@ -25,9 +25,12 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    user_id = get_user_id(req, allow_unauthenticated=True)
+    try:
+      user_id = get_user_id(req, allow_unauthenticated=True)
+    except AuthError:
+      return error_response("Unauthenticated request", status=401)
     if not user_id:
-      return error_response("Unauthenticated request")
+      return error_response("Unauthenticated request", status=401)
 
     # Parse client-reported metrics using helpers
     client_days_used_int = get_int_param(req, 'num_days_used', default=None)

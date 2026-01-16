@@ -6,7 +6,7 @@ import traceback
 
 from common import image_generation, joke_operations
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_bool_param,
+from functions.function_utils import (AuthError, error_response, get_bool_param,
                                       get_param, get_user_id, success_response)
 from services import firestore
 
@@ -25,7 +25,10 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    user_id = get_user_id(req, allow_unauthenticated=False)
+    try:
+      user_id = get_user_id(req, allow_unauthenticated=False)
+    except AuthError:
+      return error_response('User not authenticated', status=401)
 
     # Joke input data
     joke_id = get_param(req, 'joke_id')

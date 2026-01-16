@@ -2,7 +2,7 @@
 
 from common import models
 from firebase_functions import https_fn, options
-from functions.function_utils import (error_response, get_user_id,
+from functions.function_utils import (AuthError, error_response, get_user_id,
                                       success_response)
 from functions.prompts import character_prompts
 from services import firestore, image_client, leonardo
@@ -31,7 +31,10 @@ def create_character(req: https_fn.Request) -> https_fn.Response:
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}')
 
-  user_id = get_user_id(req)
+  try:
+    user_id = get_user_id(req)
+  except AuthError:
+    return error_response('User not authenticated', status=401)
 
   # Get the character data from request body
   request_data = req.get_json().get('data')
@@ -106,7 +109,10 @@ def update_character(req: https_fn.Request) -> https_fn.Response:
   new_character = models.Character.from_dict(character_data)
   generation_metadata = models.GenerationMetadata()
 
-  user_id = get_user_id(req)
+  try:
+    user_id = get_user_id(req)
+  except AuthError:
+    return error_response('User not authenticated', status=401)
   character = firestore.get_character(new_character.key)
 
   if not character:

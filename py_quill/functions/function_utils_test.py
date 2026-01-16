@@ -122,3 +122,42 @@ def test_get_user_id_prefers_authorization_header(monkeypatch):
 
   assert function_utils.get_user_id(
     req, allow_unauthenticated=False) == "bearer-uid"
+
+
+def test_get_user_id_require_admin_for_bearer_token(monkeypatch):
+  def fake_verify_id_token(token):
+    assert token == "id-token-123"
+    return {"uid": "bearer-uid", "role": "admin"}
+
+  monkeypatch.setattr(function_utils.auth, "verify_id_token",
+                      fake_verify_id_token)
+
+  req = FakeRequest(headers={"Authorization": "Bearer id-token-123"})
+
+  assert function_utils.get_user_id(req, require_admin=True) == "bearer-uid"
+
+
+def test_get_user_id_require_admin_rejects_non_admin_token(monkeypatch):
+  def fake_verify_id_token(token):
+    assert token == "id-token-123"
+    return {"uid": "bearer-uid", "role": "user"}
+
+  monkeypatch.setattr(function_utils.auth, "verify_id_token",
+                      fake_verify_id_token)
+
+  req = FakeRequest(headers={"Authorization": "Bearer id-token-123"})
+
+  with pytest.raises(function_utils.AuthError):
+    function_utils.get_user_id(req, require_admin=True)
+
+
+def test_get_user_id_require_admin_with_session_cookie(monkeypatch):
+  monkeypatch.setattr(function_utils.auth, "verify_session_cookie",
+                      lambda cookie, check_revoked=True: {
+                        "uid": "cookie-uid",
+                        "role": "admin"
+                      })
+
+  req = FakeRequest(headers={"Cookie": "__session=fake_session_cookie"})
+
+  assert function_utils.get_user_id(req, require_admin=True) == "cookie-uid"

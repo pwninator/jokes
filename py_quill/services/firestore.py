@@ -206,6 +206,44 @@ def get_punny_jokes(joke_ids: Collection[str]) -> list[models.PunnyJoke]:
   return jokes
 
 
+def get_joke_social_posts(
+  *,
+  limit: int | None = None,
+) -> list[tuple[models.JokeSocialPost, datetime.datetime | None]]:
+  """Fetch social posts ordered by creation_time descending."""
+  query = db().collection('joke_social_posts').order_by(
+    'creation_time',
+    direction=Query.DESCENDING,
+  )
+  if limit:
+    query = query.limit(limit)
+
+  entries: list[tuple[models.JokeSocialPost, datetime.datetime | None]] = []
+  for doc in query.stream():
+    if not doc.exists:
+      continue
+    data = doc.to_dict() or {}
+    creation_time = data.get('creation_time')
+    try:
+      post = models.JokeSocialPost.from_firestore_dict(data, key=doc.id)
+    except ValueError as exc:
+      logger.warn(f"Skipping invalid social post {doc.id}: {exc}")
+      continue
+    entries.append((post, creation_time))
+  return entries
+
+
+def create_joke_social_post(
+  post: models.JokeSocialPost,
+) -> models.JokeSocialPost:
+  """Create a social post document in Firestore."""
+  post_data = post.to_dict()
+  post_data['creation_time'] = SERVER_TIMESTAMP
+  _, doc_ref = db().collection('joke_social_posts').add(post_data)
+  post.key = doc_ref.id
+  return post
+
+
 def upsert_joke_sheet(sheet: models.JokeSheet) -> models.JokeSheet:
   """Ensure a joke_sheets document exists for the given joke sheet.
 

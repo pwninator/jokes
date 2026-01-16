@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import Mock
 
 from common import models
@@ -56,6 +57,11 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   monkeypatch.setattr(social_routes.firestore, "get_joke_by_state", mock_get)
   monkeypatch.setattr(
     social_routes.firestore,
+    "get_joke_social_posts",
+    Mock(return_value=[]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
     "get_all_joke_categories",
     Mock(return_value=[
       models.JokeCategory(id="cats", display_name="Cats", state="APPROVED"),
@@ -89,7 +95,9 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   assert 'data-joke-id="joke-private"' not in html
   assert '--joke-card-max-width: 200px' in html
   assert '/jokes/feed/load-more-admin-social' in html
-  assert 'admin-social-pin-button' in html
+  assert 'admin-social-create-button' in html
+  assert 'admin-social-post-type' in html
+  assert 'create_social_post' in html
   assert 'data-selectable="true"' in html
   assert 'joke-admin-stats' in html
   assert 'joke-edit-button' not in html
@@ -117,6 +125,11 @@ def test_admin_social_load_more(monkeypatch):
     return_value=([(public_joke, "joke-public"),
                    (private_joke, "joke-private")], "next-1"))
   monkeypatch.setattr(social_routes.firestore, "get_joke_by_state", mock_get)
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_social_posts",
+    Mock(return_value=[]),
+  )
 
   with app.test_client() as client:
     resp = client.get(
@@ -141,3 +154,44 @@ def test_admin_social_load_more(monkeypatch):
     models.JokeState.PUBLISHED,
   ]
   assert kwargs["category_id"] == "cats"
+
+
+def test_admin_social_renders_social_posts(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    title="Title",
+    description="Description",
+  )
+  post.pinterest_image_url = "https://example.com/pin.png"
+  created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
+                                 tzinfo=datetime.timezone.utc)
+
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_social_posts",
+    Mock(return_value=[(post, created_at)]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_all_joke_categories",
+    Mock(return_value=[]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_by_state",
+    Mock(return_value=([], None)),
+  )
+
+  with app.test_client() as client:
+    resp = client.get("/admin/social")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Social Posts" in html
+  assert "Title" in html
+  assert "Description" in html
+  assert "JOKE_GRID" in html
+  assert "pin.png" in html

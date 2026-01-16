@@ -60,6 +60,12 @@ class JokeAdminRating(Enum):
   REJECTED = "REJECTED"
 
 
+class JokeSocialPostType(Enum):
+  """Social post layout type for joke grids."""
+  JOKE_GRID = "JOKE_GRID"
+  JOKE_GRID_TEASER = "JOKE_GRID_TEASER"
+
+
 @dataclass
 class SingleGenerationMetadata:
   """Metadata about a single generation."""
@@ -716,6 +722,70 @@ class JokeSheet:
     data["key"] = key
 
     # Filter to dataclass fields to avoid unexpected keys.
+    allowed = {f.name for f in dataclasses.fields(cls)}
+    filtered = {k: v for k, v in data.items() if k in allowed}
+    return cls(**filtered)
+
+
+@dataclass(kw_only=True)
+class JokeSocialPost:
+  """Represents a social post derived from jokes."""
+
+  type: JokeSocialPostType
+  title: str
+  description: str
+  jokes: list[dict[str, str | None]] = field(default_factory=list)
+  key: str | None = None
+  pinterest_image_url: str | None = None
+  pinterest_post_id: str | None = None
+  pinterest_post_date: datetime.datetime | None = None
+  instagram_image_url: str | None = None
+  instagram_post_id: str | None = None
+  instagram_post_date: datetime.datetime | None = None
+  facebook_image_url: str | None = None
+  facebook_post_id: str | None = None
+  facebook_post_date: datetime.datetime | None = None
+
+  def to_dict(self) -> dict:
+    """Serialize social post fields for Firestore writes."""
+    data = dataclasses.asdict(self)
+    if isinstance(self.type, JokeSocialPostType):
+      data['type'] = self.type.value
+    data.pop('key', None)
+    return data
+
+  @classmethod
+  def from_firestore_dict(cls, data: dict, key: str) -> "JokeSocialPost":
+    """Create a JokeSocialPost from a Firestore dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    type_value = data.get('type')
+    if not isinstance(type_value, str) or not type_value:
+      raise ValueError("JokeSocialPost requires a type")
+    try:
+      data['type'] = JokeSocialPostType(type_value)
+    except ValueError as exc:
+      raise ValueError(f"Invalid JokeSocialPost type: {type_value}") from exc
+
+    title = data.get('title')
+    if not isinstance(title, str):
+      raise ValueError("JokeSocialPost requires a title")
+
+    description = data.get('description')
+    if not isinstance(description, str):
+      raise ValueError("JokeSocialPost requires a description")
+
+    raw_jokes = data.get('jokes')
+    if not isinstance(raw_jokes, list):
+      data['jokes'] = []
+    else:
+      data['jokes'] = [item for item in raw_jokes if isinstance(item, dict)]
+
+    data['key'] = key
+
     allowed = {f.name for f in dataclasses.fields(cls)}
     filtered = {k: v for k, v in data.items() if k in allowed}
     return cls(**filtered)

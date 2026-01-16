@@ -90,6 +90,14 @@
         }
       },
       {
+        "source": "/create_social_post",
+        "function": {
+          "functionId": "create_social_post",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
         "source": "**",
         "function": {
           "functionId": "web",

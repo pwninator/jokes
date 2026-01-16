@@ -40,6 +40,7 @@ def admin_social():
     c for c in all_categories
     if (c.state or "").strip() in ("APPROVED", "SEASONAL")
   ]
+  social_posts = firestore.get_joke_social_posts()
 
   joke_entries, next_cursor = firestore.get_joke_by_state(
     states=_SOCIAL_STATES,
@@ -62,6 +63,9 @@ def admin_social():
     next_cursor=next_cursor,
     has_more=next_cursor is not None,
     image_size=_SOCIAL_IMAGE_SIZE,
+    social_posts=social_posts,
+    post_type_options=[t.value for t in models.JokeSocialPostType],
+    default_post_type=models.JokeSocialPostType.JOKE_GRID_TEASER.value,
   )
 
 

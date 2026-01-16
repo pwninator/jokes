@@ -64,7 +64,7 @@
     align-items: flex-end;
   }
 
-  .get-pin-btn {
+  .create-post-btn {
     background: var(--color-primary);
     border: none;
     color: white;
@@ -76,11 +76,11 @@
     transition: opacity 0.2s;
   }
 
-  .get-pin-btn:hover:not(:disabled) {
+  .create-post-btn:hover:not(:disabled) {
     opacity: 0.9;
   }
 
-  .get-pin-btn:disabled {
+  .create-post-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -108,6 +108,71 @@
     border-color: var(--color-primary, #c56f3a);
     box-shadow: 0 0 0 2px var(--color-primary, #c56f3a);
   }
+
+  .social-posts {
+    margin-bottom: 24px;
+  }
+
+  .social-posts-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .social-posts-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .social-posts-table th,
+  .social-posts-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+
+  .social-posts-table th {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .social-posts-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .social-posts-description {
+    color: var(--color-text-muted);
+  }
+
+  .social-posts-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--color-border);
+    display: block;
+  }
+
+  .post-type-select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: white;
+    font-size: 14px;
+  }
+
+  .post-type-select-label {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    display: block;
+    margin-bottom: 4px;
+  }
 </style>
 {% endblock %}
 
@@ -121,13 +186,94 @@
     <div class="social-actions">
       <div class="pin-selection-row" id="admin-social-pin-selection"></div>
       <div class="pin-controls">
-        <button class="get-pin-btn" type="button" id="admin-social-pin-button" disabled>
-          Get Pin
+        <label class="post-type-select-label" for="admin-social-post-type">Post type</label>
+        <select class="post-type-select" id="admin-social-post-type">
+          {% for option in post_type_options %}
+          <option value="{{ option }}" {% if option == default_post_type %}selected{% endif %}>
+            {{ option.replace('_', ' ') }}
+          </option>
+          {% endfor %}
+        </select>
+        <button class="create-post-btn" type="button" id="admin-social-create-button" disabled>
+          Create Post
         </button>
         <div class="pin-image-container" id="admin-social-pin-preview" style="display: none;"></div>
       </div>
     </div>
   </header>
+
+  <section class="social-posts" aria-label="Social posts list">
+    <div class="social-posts-header">
+      <h3>Social Posts</h3>
+      <span class="muted">{{ social_posts | length }} posts</span>
+    </div>
+    {% if not social_posts %}
+    <p class="muted">No social posts yet.</p>
+    {% else %}
+    <table class="social-posts-table" aria-label="Social posts table">
+      <thead>
+        <tr>
+          <th scope="col">Created</th>
+          <th scope="col">Type</th>
+          <th scope="col">Content</th>
+          <th scope="col">Pinterest</th>
+          <th scope="col">Instagram</th>
+          <th scope="col">Facebook</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for post, creation_time in social_posts %}
+        <tr>
+          <td>
+            {% if creation_time %}
+            {{ creation_time.strftime('%Y-%m-%d %H:%M') }}
+            {% else %}
+            <span class="muted">Unknown</span>
+            {% endif %}
+          </td>
+          <td>{{ post.type.value }}</td>
+          <td>
+            <div class="social-posts-title">{{ post.title }}</div>
+            <div class="social-posts-description">{{ post.description }}</div>
+          </td>
+          <td>
+            {% if post.pinterest_image_url %}
+            <img class="social-posts-thumb" src="{{ post.pinterest_image_url }}" alt="Pinterest image">
+            {% else %}
+            <span class="muted">No image</span>
+            {% endif %}
+            <div class="muted">
+              {% if post.pinterest_post_date %}
+              {{ post.pinterest_post_date.strftime('%Y-%m-%d') }}
+              {% else %}
+              Not posted
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            <div class="muted">
+              {% if post.instagram_post_date %}
+              {{ post.instagram_post_date.strftime('%Y-%m-%d') }}
+              {% else %}
+              Not posted
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            <div class="muted">
+              {% if post.facebook_post_date %}
+              {{ post.facebook_post_date.strftime('%Y-%m-%d') }}
+              {% else %}
+              Not posted
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
 
   <section class="filter-chips" aria-label="Joke category filters">
     {% set all_selected = selected_category_id is none %}
@@ -164,11 +310,16 @@
   (function () {
     const maxSelection = 5;
     const feedContainer = document.getElementById('admin-social-feed');
-    const getPinBtn = document.getElementById('admin-social-pin-button');
+    const createPostBtn = document.getElementById('admin-social-create-button');
+    const postTypeSelect = document.getElementById('admin-social-post-type');
     const pinPreview = document.getElementById('admin-social-pin-preview');
     const selectionRow = document.getElementById('admin-social-pin-selection');
     const selectedJokes = [];
     const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
+    const functionsOrigin = {{ functions_origin | tojson }};
+    const createPostEndpoint = functionsOrigin
+      ? `${functionsOrigin}/create_social_post`
+      : '/create_social_post';
 
     function renderSelectionRow() {
       if (!selectionRow) {
@@ -199,8 +350,8 @@
           card.setAttribute('aria-selected', 'false');
         });
       }
-      if (getPinBtn) {
-        getPinBtn.disabled = true;
+      if (createPostBtn) {
+        createPostBtn.disabled = true;
       }
       if (pinPreview) {
         pinPreview.style.display = 'none';
@@ -226,7 +377,7 @@
       window.location.assign(url.toString());
     }
 
-    if (feedContainer && getPinBtn) {
+    if (feedContainer && createPostBtn) {
       feedContainer.addEventListener('click', (event) => {
         const mediaTarget = event.target.closest('.joke-slide-media, .joke-slide-placeholder');
         if (!mediaTarget) {
@@ -258,38 +409,42 @@
           card.setAttribute('aria-selected', 'true');
         }
 
-        getPinBtn.disabled = selectedJokes.length === 0;
+        createPostBtn.disabled = selectedJokes.length === 0;
         renderSelectionRow();
       });
 
-      getPinBtn.addEventListener('click', async () => {
+      createPostBtn.addEventListener('click', async () => {
         if (selectedJokes.length === 0) {
           return;
         }
 
-        const originalText = getPinBtn.textContent;
-        getPinBtn.disabled = true;
-        getPinBtn.textContent = 'Generating...';
+        const originalText = createPostBtn.textContent;
+        createPostBtn.disabled = true;
+        createPostBtn.textContent = 'Creating...';
 
         try {
-          const resp = await fetch('/admin/create-pin', {
+          const resp = await fetch(createPostEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              joke_ids: selectedJokes.map((joke) => joke.id),
+              data: {
+                joke_ids: selectedJokes.map((joke) => joke.id),
+                type: postTypeSelect?.value || '',
+              },
             }),
           });
 
           if (!resp.ok) {
-            const data = await resp.json();
-            throw new Error(data.error || 'Failed to create pin image');
+            const data = await resp.json().catch(() => ({}));
+            const error = data?.data?.error || 'Failed to create social post';
+            throw new Error(error);
           }
 
           const data = await resp.json();
-          const pinUrl = data.pin_url;
+          const pinUrl = data?.data?.pinterest_image_url;
 
           if (!pinUrl) {
-            throw new Error('Pin URL missing from response');
+            throw new Error('Pinterest image URL missing from response');
           }
 
           pinPreview.style.display = 'block';
@@ -301,16 +456,17 @@
             pinPreview.appendChild(img);
           }
           img.src = pinUrl;
+          window.location.reload();
         } catch (error) {
-          console.error('Failed to create pin image:', error);
-          alert('Failed to create pin image: ' + error.message);
+          console.error('Failed to create social post:', error);
+          alert('Failed to create social post: ' + error.message);
         } finally {
-          getPinBtn.disabled = selectedJokes.length === 0;
-          getPinBtn.textContent = originalText;
+          createPostBtn.disabled = selectedJokes.length === 0;
+          createPostBtn.textContent = originalText;
         }
       });
 
-      getPinBtn.disabled = true;
+      createPostBtn.disabled = true;
       renderSelectionRow();
     }
 

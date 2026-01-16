@@ -1,6 +1,8 @@
 """Tests for the models module."""
 import datetime
 
+import pytest
+
 from common import models
 
 
@@ -203,6 +205,77 @@ def test_get_minimal_joke_data_with_partial_image_urls():
   assert minimal_data["punchline_text"] == "To get to the other side."
   assert minimal_data["setup_image_url"] == "http://example.com/setup.png"
   assert minimal_data["punchline_image_url"] is None
+
+
+def test_joke_social_post_to_dict_serializes_type_and_keeps_dates():
+  """JokeSocialPost should serialize enums and pass through post dates."""
+  ts = datetime.datetime(2024, 3, 4, 5, 6, 7, tzinfo=datetime.timezone.utc)
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    title="Grid post",
+    description="A grid of jokes",
+    pinterest_post_date=ts,
+  )
+  post.key = "post1"
+
+  data = post.to_dict()
+  assert data["type"] == "JOKE_GRID"
+  assert "key" not in data
+  assert data["pinterest_post_date"] == ts
+
+
+def test_joke_social_post_from_firestore_requires_type():
+  """JokeSocialPost requires a type field."""
+  with pytest.raises(ValueError):
+    models.JokeSocialPost.from_firestore_dict(
+      {"title": "Title", "description": "Desc"},
+      key="post1",
+    )
+
+
+def test_joke_social_post_from_firestore_requires_title():
+  """JokeSocialPost requires a title field."""
+  with pytest.raises(ValueError):
+    models.JokeSocialPost.from_firestore_dict(
+      {"type": "JOKE_GRID", "description": "Desc"},
+      key="post1",
+    )
+
+
+def test_joke_social_post_from_firestore_requires_description():
+  """JokeSocialPost requires a description field."""
+  with pytest.raises(ValueError):
+    models.JokeSocialPost.from_firestore_dict(
+      {"type": "JOKE_GRID", "title": "Title"},
+      key="post1",
+    )
+
+
+def test_joke_social_post_from_firestore_invalid_type():
+  """JokeSocialPost rejects invalid type values."""
+  with pytest.raises(ValueError):
+    models.JokeSocialPost.from_firestore_dict(
+      {"type": "BAD", "title": "Title", "description": "Desc"},
+      key="post1",
+    )
+
+
+def test_joke_social_post_from_firestore_filters_jokes():
+  """JokeSocialPost should keep only dict entries in jokes."""
+  ts = datetime.datetime(2024, 4, 5, 6, 7, 8, tzinfo=datetime.timezone.utc)
+  post = models.JokeSocialPost.from_firestore_dict(
+    {
+      "type": "JOKE_GRID_TEASER",
+      "title": "Title",
+      "description": "Desc",
+      "jokes": [{"key": "j1"}, "bad", 123],
+      "facebook_post_date": ts,
+    },
+    key="post1",
+  )
+  assert post.type == models.JokeSocialPostType.JOKE_GRID_TEASER
+  assert post.jokes == [{"key": "j1"}]
+  assert post.facebook_post_date == ts
 
 
 def test_jokesheet_slug_builds_from_category_and_index():

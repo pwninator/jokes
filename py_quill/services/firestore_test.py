@@ -93,6 +93,44 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
   assert "key" not in captured
 
 
+def test_create_joke_social_post_sets_creation_time(monkeypatch):
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    title="Title",
+    description="Description",
+    jokes=[{"key": "j1"}],
+  )
+
+  captured = {}
+
+  class DummyDocRef:
+    id = "post1"
+
+  class DummyCol:
+
+    def add(self, data):
+      captured.update(data)
+      return None, DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
+
+  created = firestore.create_joke_social_post(post)
+
+  assert created.key == "post1"
+  assert captured["type"] == "JOKE_GRID"
+  assert captured["title"] == "Title"
+  assert captured["description"] == "Description"
+  assert captured["jokes"] == [{"key": "j1"}]
+  assert captured["creation_time"] == "TS"
+
+
 def test_upsert_punny_joke_logs_operation(monkeypatch):
   """upsert_punny_joke should append operation log entries."""
   joke = models.PunnyJoke(

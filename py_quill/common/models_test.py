@@ -215,14 +215,14 @@ def test_joke_social_post_to_dict_serializes_type_and_keeps_dates():
     link_url="https://snickerdoodlejokes.com/jokes/grid",
     pinterest_title="Grid post",
     pinterest_description="A grid of jokes",
-    pinterest_post_date=ts,
+    pinterest_post_time=ts,
   )
   post.key = "post1"
 
   data = post.to_dict()
   assert data["type"] == "JOKE_GRID"
   assert "key" not in data
-  assert data["pinterest_post_date"] == ts
+  assert data["pinterest_post_time"] == ts
   assert data["link_url"] == "https://snickerdoodlejokes.com/jokes/grid"
 
 
@@ -230,7 +230,10 @@ def test_joke_social_post_from_firestore_requires_type():
   """JokeSocialPost requires a type field."""
   with pytest.raises(ValueError):
     models.JokeSocialPost.from_firestore_dict(
-      {"pinterest_title": "Title", "link_url": "https://example.com"},
+      {
+        "pinterest_title": "Title",
+        "link_url": "https://example.com"
+      },
       key="post1",
     )
 
@@ -239,7 +242,10 @@ def test_joke_social_post_from_firestore_requires_link_url():
   """JokeSocialPost requires a link_url field."""
   with pytest.raises(ValueError):
     models.JokeSocialPost.from_firestore_dict(
-      {"type": "JOKE_GRID", "pinterest_title": "Title"},
+      {
+        "type": "JOKE_GRID",
+        "pinterest_title": "Title"
+      },
       key="post1",
     )
 
@@ -262,28 +268,34 @@ def test_joke_social_post_from_firestore_filters_jokes():
   ts = datetime.datetime(2024, 4, 5, 6, 7, 8, tzinfo=datetime.timezone.utc)
   post = models.JokeSocialPost.from_firestore_dict(
     {
-      "type": "JOKE_GRID_TEASER",
-      "link_url": "https://snickerdoodlejokes.com/jokes/test",
-      "pinterest_title": "Title",
-      "pinterest_description": "Desc",
+      "type":
+      "JOKE_GRID_TEASER",
+      "link_url":
+      "https://snickerdoodlejokes.com/jokes/test",
+      "pinterest_title":
+      "Title",
+      "pinterest_description":
+      "Desc",
       "jokes": [{
         "key": "j1",
         "setup_text": "Setup",
         "punchline_text": "Punch",
       }, "bad", 123],
-      "facebook_post_date": ts,
+      "facebook_post_time":
+      ts,
     },
     key="post1",
   )
   assert post.type == models.JokeSocialPostType.JOKE_GRID_TEASER
   assert len(post.jokes) == 1
   assert post.jokes[0].key == "j1"
-  assert post.facebook_post_date == ts
+  assert post.facebook_post_time == ts
 
 
 def test_joke_social_post_type_description():
   assert "grid" in models.JokeSocialPostType.JOKE_GRID.description.lower()
-  assert "teaser" in models.JokeSocialPostType.JOKE_GRID_TEASER.description.lower()
+  assert "teaser" in models.JokeSocialPostType.JOKE_GRID_TEASER.description.lower(
+  )
 
 
 def test_jokesheet_slug_builds_from_category_and_index():
@@ -316,8 +328,7 @@ def test_jokesheet_parse_slug_rejects_invalid_slug():
   category_id, index = models.JokeSheet.parse_slug("bad-slug")
   assert category_id is None
   assert index is None
-  category_id, index = models.JokeSheet.parse_slug(
-    "free-animals-jokes-0")
+  category_id, index = models.JokeSheet.parse_slug("free-animals-jokes-0")
   assert category_id is None
   assert index is None
 

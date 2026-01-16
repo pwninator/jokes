@@ -253,8 +253,12 @@
     color: var(--color-text-muted);
   }
 
-  .social-platform-meta {
-    font-size: 0.8rem;
+  .social-platform-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.85rem;
     color: var(--color-text-muted);
   }
 
@@ -382,25 +386,25 @@
     {% else %}
     <div class="social-posts-list" aria-label="Social posts list">
       {% for post, creation_time in social_posts %}
-      {% set pinterest_locked = post.pinterest_post_date or post.pinterest_post_id %}
-      {% set instagram_locked = post.instagram_post_date or post.instagram_post_id %}
-      {% set facebook_locked = post.facebook_post_date or post.facebook_post_id %}
+      {% set pinterest_locked = post.pinterest_post_time or post.pinterest_post_id %}
+      {% set instagram_locked = post.instagram_post_time or post.instagram_post_id %}
+      {% set facebook_locked = post.facebook_post_time or post.facebook_post_id %}
       {% set all_locked = pinterest_locked and instagram_locked and facebook_locked %}
       <article class="social-post-card" data-post-id="{{ post.key or '' }}"
         data-link-url="{{ (post.link_url or '') | e }}" data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
         data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
         data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}"
         data-pinterest-post-id="{{ (post.pinterest_post_id or '') | e }}"
-        data-pinterest-post-date="{{ post.pinterest_post_date.isoformat() if post.pinterest_post_date else '' }}"
+        data-pinterest-post-time="{{ post.pinterest_post_time.isoformat() if post.pinterest_post_time else '' }}"
         data-pinterest-image-url="{{ (post.pinterest_image_url or '') | e }}"
         data-instagram-caption="{{ (post.instagram_caption or '') | e }}"
         data-instagram-alt-text="{{ (post.instagram_alt_text or '') | e }}"
         data-instagram-post-id="{{ (post.instagram_post_id or '') | e }}"
-        data-instagram-post-date="{{ post.instagram_post_date.isoformat() if post.instagram_post_date else '' }}"
+        data-instagram-post-time="{{ post.instagram_post_time.isoformat() if post.instagram_post_time else '' }}"
         data-instagram-image-url="{{ (post.instagram_image_url or '') | e }}"
         data-facebook-message="{{ (post.facebook_message or '') | e }}"
         data-facebook-post-id="{{ (post.facebook_post_id or '') | e }}"
-        data-facebook-post-date="{{ post.facebook_post_date.isoformat() if post.facebook_post_date else '' }}"
+        data-facebook-post-time="{{ post.facebook_post_time.isoformat() if post.facebook_post_time else '' }}"
         data-facebook-image-url="{{ (post.facebook_image_url or '') | e }}">
         <header class="social-post-card__header">
           <span class="social-post-card__timestamp js-social-created">
@@ -457,31 +461,21 @@
               <textarea class="social-posts-edit-textarea js-social-pinterest-alt-text-input"
                 maxlength="500"></textarea>
             </div>
-            <div class="social-platform-meta">
-              Posted:
-              <span
-                class="social-platform-value js-social-pinterest-post-date{% if not post.pinterest_post_date %} is-empty{% endif %}"
-                data-empty-text="Not posted">
-                {% if post.pinterest_post_date %}
-                {{ post.pinterest_post_date.strftime('%Y-%m-%d') }}
+            <div class="social-platform-status">
+              <span class="social-platform-value js-social-pinterest-status{% if not pinterest_locked %} is-empty{% endif %}"
+                    data-empty-text="Not posted">
+                {% if post.pinterest_post_id or post.pinterest_post_time %}
+                {{ post.pinterest_post_id or '' }}{% if post.pinterest_post_time %} ({{ post.pinterest_post_time.strftime('%Y-%m-%d %H:%M') }}){% endif %}
                 {% else %}
                 Not posted
                 {% endif %}
               </span>
+              {% if not pinterest_locked %}
+              <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
+                Post
+              </button>
+              {% endif %}
             </div>
-            <div class="social-platform-meta">
-              Post ID:
-              <span
-                class="social-platform-value js-social-pinterest-post-id{% if not post.pinterest_post_id %} is-empty{% endif %}"
-                data-empty-text="Not set">
-                {{ post.pinterest_post_id or 'Not set' }}
-              </span>
-            </div>
-            {% if not pinterest_locked %}
-            <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
-              Post
-            </button>
-            {% endif %}
           </div>
           <div class="social-platform{% if instagram_locked %} social-platform--locked{% endif %}"
             data-platform="instagram">
@@ -508,31 +502,21 @@
                 data-empty-text="No alt text">{{ post.instagram_alt_text or 'No alt text' }}</span>
               <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"></textarea>
             </div>
-            <div class="social-platform-meta">
-              Posted:
-              <span
-                class="social-platform-value js-social-instagram-post-date{% if not post.instagram_post_date %} is-empty{% endif %}"
-                data-empty-text="Not posted">
-                {% if post.instagram_post_date %}
-                {{ post.instagram_post_date.strftime('%Y-%m-%d') }}
+            <div class="social-platform-status">
+              <span class="social-platform-value js-social-instagram-status{% if not instagram_locked %} is-empty{% endif %}"
+                    data-empty-text="Not posted">
+                {% if post.instagram_post_id or post.instagram_post_time %}
+                {{ post.instagram_post_id or '' }}{% if post.instagram_post_time %} ({{ post.instagram_post_time.strftime('%Y-%m-%d %H:%M') }}){% endif %}
                 {% else %}
                 Not posted
                 {% endif %}
               </span>
+              {% if not instagram_locked %}
+              <button type="button" class="text-button js-social-post-button" data-platform="instagram">
+                Post
+              </button>
+              {% endif %}
             </div>
-            <div class="social-platform-meta">
-              Post ID:
-              <span
-                class="social-platform-value js-social-instagram-post-id{% if not post.instagram_post_id %} is-empty{% endif %}"
-                data-empty-text="Not set">
-                {{ post.instagram_post_id or 'Not set' }}
-              </span>
-            </div>
-            {% if not instagram_locked %}
-            <button type="button" class="text-button js-social-post-button" data-platform="instagram">
-              Post
-            </button>
-            {% endif %}
           </div>
           <div class="social-platform{% if facebook_locked %} social-platform--locked{% endif %}"
             data-platform="facebook">
@@ -552,31 +536,21 @@
                 data-empty-text="No message">{{ post.facebook_message or 'No message' }}</span>
               <textarea class="social-posts-edit-textarea js-social-facebook-message-input"></textarea>
             </div>
-            <div class="social-platform-meta">
-              Posted:
-              <span
-                class="social-platform-value js-social-facebook-post-date{% if not post.facebook_post_date %} is-empty{% endif %}"
-                data-empty-text="Not posted">
-                {% if post.facebook_post_date %}
-                {{ post.facebook_post_date.strftime('%Y-%m-%d') }}
+            <div class="social-platform-status">
+              <span class="social-platform-value js-social-facebook-status{% if not facebook_locked %} is-empty{% endif %}"
+                    data-empty-text="Not posted">
+                {% if post.facebook_post_id or post.facebook_post_time %}
+                {{ post.facebook_post_id or '' }}{% if post.facebook_post_time %} ({{ post.facebook_post_time.strftime('%Y-%m-%d %H:%M') }}){% endif %}
                 {% else %}
                 Not posted
                 {% endif %}
               </span>
+              {% if not facebook_locked %}
+              <button type="button" class="text-button js-social-post-button" data-platform="facebook">
+                Post
+              </button>
+              {% endif %}
             </div>
-            <div class="social-platform-meta">
-              Post ID:
-              <span
-                class="social-platform-value js-social-facebook-post-id{% if not post.facebook_post_id %} is-empty{% endif %}"
-                data-empty-text="Not set">
-                {{ post.facebook_post_id or 'Not set' }}
-              </span>
-            </div>
-            {% if not facebook_locked %}
-            <button type="button" class="text-button js-social-post-button" data-platform="facebook">
-              Post
-            </button>
-            {% endif %}
           </div>
         </div>
         {% if not all_locked %}
@@ -719,19 +693,6 @@
       }
     }
 
-    function setDateValue(element, value) {
-      if (!element) {
-        return;
-      }
-      if (value) {
-        element.textContent = formatPostDate(value);
-        element.classList.remove('is-empty');
-      } else {
-        element.textContent = element.dataset.emptyText || '';
-        element.classList.add('is-empty');
-      }
-    }
-
     function setPlatformLocked(card, platform, isLocked) {
       const platformRoot = card.querySelector(
         `.social-platform[data-platform="${platform}"]`);
@@ -825,7 +786,7 @@
       if (Number.isNaN(parsed.getTime())) {
         return String(value);
       }
-      return parsed.toISOString().slice(0, 10);
+      return parsed.toISOString().slice(0, 16).replace('T', ' ');
     }
 
     function updatePostsCount() {
@@ -843,11 +804,11 @@
         return;
       }
       const pinterestLocked = Boolean(
-        card.dataset.pinterestPostDate || card.dataset.pinterestPostId);
+        card.dataset.pinterestPostTime || card.dataset.pinterestPostId);
       const instagramLocked = Boolean(
-        card.dataset.instagramPostDate || card.dataset.instagramPostId);
+        card.dataset.instagramPostTime || card.dataset.instagramPostId);
       const facebookLocked = Boolean(
-        card.dataset.facebookPostDate || card.dataset.facebookPostId);
+        card.dataset.facebookPostTime || card.dataset.facebookPostId);
       actions.hidden = pinterestLocked && instagramLocked && facebookLocked;
       if (actions.hidden) {
         card.classList.remove('is-editing');
@@ -880,6 +841,28 @@
         span.className = 'js-social-title js-social-link-empty';
         span.textContent = titleText;
         titleContainer.appendChild(span);
+      }
+    }
+
+    function setStatusValue(element, postId, postTime) {
+      if (!element) {
+        return;
+      }
+      const emptyText = element.dataset.emptyText || '';
+      if (postId || postTime) {
+        let text = '';
+        if (postId && postTime) {
+          text = `${postId} (${formatPostDate(postTime)})`;
+        } else if (postId) {
+          text = postId;
+        } else {
+          text = `(${formatPostDate(postTime)})`;
+        }
+        element.textContent = text;
+        element.classList.remove('is-empty');
+      } else {
+        element.textContent = emptyText;
+        element.classList.add('is-empty');
       }
     }
 
@@ -920,16 +903,16 @@
       card.dataset.pinterestDescription = postData.pinterest_description || '';
       card.dataset.pinterestAltText = postData.pinterest_alt_text || '';
       card.dataset.pinterestPostId = postData.pinterest_post_id || '';
-      card.dataset.pinterestPostDate = postData.pinterest_post_date || '';
+      card.dataset.pinterestPostTime = postData.pinterest_post_time || '';
       card.dataset.pinterestImageUrl = postData.pinterest_image_url || '';
       card.dataset.instagramCaption = postData.instagram_caption || '';
       card.dataset.instagramAltText = postData.instagram_alt_text || '';
       card.dataset.instagramPostId = postData.instagram_post_id || '';
-      card.dataset.instagramPostDate = postData.instagram_post_date || '';
+      card.dataset.instagramPostTime = postData.instagram_post_time || '';
       card.dataset.instagramImageUrl = postData.instagram_image_url || '';
       card.dataset.facebookMessage = postData.facebook_message || '';
       card.dataset.facebookPostId = postData.facebook_post_id || '';
-      card.dataset.facebookPostDate = postData.facebook_post_date || '';
+      card.dataset.facebookPostTime = postData.facebook_post_time || '';
       card.dataset.facebookImageUrl = postData.facebook_image_url || '';
 
       if (postData.type) {
@@ -967,29 +950,20 @@
         postData.facebook_message,
       );
 
-      setDateValue(
-        card.querySelector('.js-social-pinterest-post-date'),
-        postData.pinterest_post_date,
-      );
-      setFieldValue(
-        card.querySelector('.js-social-pinterest-post-id'),
+      setStatusValue(
+        card.querySelector('.js-social-pinterest-status'),
         postData.pinterest_post_id,
+        postData.pinterest_post_time,
       );
-      setDateValue(
-        card.querySelector('.js-social-instagram-post-date'),
-        postData.instagram_post_date,
-      );
-      setFieldValue(
-        card.querySelector('.js-social-instagram-post-id'),
+      setStatusValue(
+        card.querySelector('.js-social-instagram-status'),
         postData.instagram_post_id,
+        postData.instagram_post_time,
       );
-      setDateValue(
-        card.querySelector('.js-social-facebook-post-date'),
-        postData.facebook_post_date,
-      );
-      setFieldValue(
-        card.querySelector('.js-social-facebook-post-id'),
+      setStatusValue(
+        card.querySelector('.js-social-facebook-status'),
         postData.facebook_post_id,
+        postData.facebook_post_time,
       );
 
       updatePlatformImage(card, 'pinterest', postData.pinterest_image_url,
@@ -1004,17 +978,17 @@
       setPlatformLocked(
         card,
         'pinterest',
-        Boolean(postData.pinterest_post_date || postData.pinterest_post_id),
+        Boolean(postData.pinterest_post_time || postData.pinterest_post_id),
       );
       setPlatformLocked(
         card,
         'instagram',
-        Boolean(postData.instagram_post_date || postData.instagram_post_id),
+        Boolean(postData.instagram_post_time || postData.instagram_post_id),
       );
       setPlatformLocked(
         card,
         'facebook',
-        Boolean(postData.facebook_post_date || postData.facebook_post_id),
+        Boolean(postData.facebook_post_time || postData.facebook_post_id),
       );
       updateCardActionsVisibility(card);
     }
@@ -1061,19 +1035,13 @@
               <textarea class="social-posts-edit-textarea js-social-pinterest-alt-text-input"
                         maxlength="500"></textarea>
             </div>
-            <div class="social-platform-meta">
-              Posted:
-              <span class="social-platform-value js-social-pinterest-post-date is-empty"
+            <div class="social-platform-status">
+              <span class="social-platform-value js-social-pinterest-status is-empty"
                     data-empty-text="Not posted">Not posted</span>
+              <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
+                Post
+              </button>
             </div>
-            <div class="social-platform-meta">
-              Post ID:
-              <span class="social-platform-value js-social-pinterest-post-id is-empty"
-                    data-empty-text="Not set">Not set</span>
-            </div>
-            <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
-              Post
-            </button>
           </div>
           <div class="social-platform" data-platform="instagram">
             <div class="social-posts-image js-social-platform-image" data-platform="instagram">
@@ -1091,19 +1059,13 @@
                     data-empty-text="No alt text">No alt text</span>
               <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"></textarea>
             </div>
-            <div class="social-platform-meta">
-              Posted:
-              <span class="social-platform-value js-social-instagram-post-date is-empty"
+            <div class="social-platform-status">
+              <span class="social-platform-value js-social-instagram-status is-empty"
                     data-empty-text="Not posted">Not posted</span>
+              <button type="button" class="text-button js-social-post-button" data-platform="instagram">
+                Post
+              </button>
             </div>
-            <div class="social-platform-meta">
-              Post ID:
-              <span class="social-platform-value js-social-instagram-post-id is-empty"
-                    data-empty-text="Not set">Not set</span>
-            </div>
-            <button type="button" class="text-button js-social-post-button" data-platform="instagram">
-              Post
-            </button>
           </div>
           <div class="social-platform" data-platform="facebook">
             <div class="social-posts-image js-social-platform-image" data-platform="facebook">
@@ -1115,19 +1077,13 @@
                     data-empty-text="No message">No message</span>
               <textarea class="social-posts-edit-textarea js-social-facebook-message-input"></textarea>
             </div>
-            <div class="social-platform-meta">
-              Posted:
-              <span class="social-platform-value js-social-facebook-post-date is-empty"
+            <div class="social-platform-status">
+              <span class="social-platform-value js-social-facebook-status is-empty"
                     data-empty-text="Not posted">Not posted</span>
+              <button type="button" class="text-button js-social-post-button" data-platform="facebook">
+                Post
+              </button>
             </div>
-            <div class="social-platform-meta">
-              Post ID:
-              <span class="social-platform-value js-social-facebook-post-id is-empty"
-                    data-empty-text="Not set">Not set</span>
-            </div>
-            <button type="button" class="text-button js-social-post-button" data-platform="facebook">
-              Post
-            </button>
           </div>
         </div>
         <div class="social-post-card__actions">

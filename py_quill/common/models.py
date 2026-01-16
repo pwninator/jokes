@@ -757,20 +757,20 @@ class JokeSocialPost:
 
   pinterest_image_url: str | None = None
   pinterest_post_id: str | None = None
-  pinterest_post_date: datetime.datetime | None = None
+  pinterest_post_time: datetime.datetime | None = None
   pinterest_title: str | None = None
   pinterest_description: str | None = None
   pinterest_alt_text: str | None = None
 
   instagram_image_url: str | None = None
   instagram_post_id: str | None = None
-  instagram_post_date: datetime.datetime | None = None
+  instagram_post_time: datetime.datetime | None = None
   instagram_caption: str | None = None
   instagram_alt_text: str | None = None
 
   facebook_image_url: str | None = None
   facebook_post_id: str | None = None
-  facebook_post_date: datetime.datetime | None = None
+  facebook_post_time: datetime.datetime | None = None
   facebook_message: str | None = None
 
   def __post_init__(self) -> None:
@@ -782,9 +782,9 @@ class JokeSocialPost:
     if not isinstance(platform, SocialPlatform):
       raise ValueError("platform must be a SocialPlatform")
     prefix = platform.value
-    post_date = getattr(self, f"{prefix}_post_date", None)
+    post_time = getattr(self, f"{prefix}_post_time", None)
     post_id = getattr(self, f"{prefix}_post_id", None)
-    return bool(post_date or post_id)
+    return bool(post_time or post_id)
 
   def to_dict(self) -> dict:
     """Serialize social post fields for Firestore writes."""

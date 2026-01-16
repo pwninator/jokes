@@ -126,7 +126,7 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
         post,
         platform=mark_posted_platform,
         platform_post_id=platform_post_id,
-        post_date=datetime.datetime.now(datetime.timezone.utc),
+        post_time=datetime.datetime.now(datetime.timezone.utc),
       )
       operation = f"MARK_POSTED_{mark_posted_platform.value.upper()}"
 

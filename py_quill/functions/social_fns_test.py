@@ -388,11 +388,11 @@ def test_social_post_creation_process_marks_platform_posted(
   payload = _json_payload(resp)
   post_data = payload["data"]["post_data"]
   assert post_data["instagram_post_id"] == "ig-123"
-  assert isinstance(post_data["instagram_post_date"], str)
+  assert isinstance(post_data["instagram_post_time"], str)
 
   saved_post = update_mock.call_args[0][0]
   assert saved_post.instagram_post_id == "ig-123"
-  assert isinstance(saved_post.instagram_post_date, datetime.datetime)
+  assert isinstance(saved_post.instagram_post_time, datetime.datetime)
 
 
 def test_social_post_creation_process_skips_pinterest_updates_when_posted(
@@ -403,7 +403,7 @@ def test_social_post_creation_process_skips_pinterest_updates_when_posted(
     type=models.JokeSocialPostType.JOKE_GRID,
     link_url="https://snickerdoodlejokes.com/jokes/pin",
     pinterest_title="Existing",
-    pinterest_post_date=datetime.datetime(2024,
+    pinterest_post_time=datetime.datetime(2024,
                                           1,
                                           2,
                                           tzinfo=datetime.timezone.utc),

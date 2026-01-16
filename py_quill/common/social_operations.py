@@ -67,7 +67,7 @@ def mark_platform_posted(
   *,
   platform: models.SocialPlatform,
   platform_post_id: str | None,
-  post_date: datetime.datetime | None = None,
+  post_time: datetime.datetime | None = None,
 ) -> models.JokeSocialPost:
   """Stamp the post id and post date for a platform."""
   if not isinstance(platform, models.SocialPlatform):
@@ -78,10 +78,10 @@ def mark_platform_posted(
   if not isinstance(platform_post_id, str) or not platform_post_id.strip():
     raise SocialPostRequestError("platform_post_id is required")
 
-  now = post_date or datetime.datetime.now(datetime.timezone.utc)
+  now = post_time or datetime.datetime.now(datetime.timezone.utc)
   prefix = platform.value
   setattr(post, f"{prefix}_post_id", platform_post_id.strip())
-  setattr(post, f"{prefix}_post_date", now)
+  setattr(post, f"{prefix}_post_time", now)
   return post
 
 

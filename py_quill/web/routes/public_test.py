@@ -110,6 +110,9 @@ def test_home2_page_renders_top_jokes(monkeypatch):
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
   assert 'data-analytics-event="web_joke_reveal_click"' in html
+  assert 'data-analytics-label="joke_card"' in html
+  assert 'data-analytics-params=' in html
+  assert '"joke_id": "joke123"' in html
   assert 'data-analytics-event="web_index_play_store_click"' in html
   assert 'data-analytics-label="joke_end_card"' in html
   # Badge alt text per template
@@ -244,6 +247,9 @@ def test_about_page_renders_family_story():
   assert 'width="480"' in html
   assert 'height="480"' in html
   assert 'loading="lazy"' in html
+  assert 'data-meta-event="ViewContent"' in html
+  assert 'data-meta-event="Lead"' in html
+  assert 'data-meta-event="InitiateCheckout"' in html
   assert 'maas_adg_67CA692EED615032D6E3E602791A40E5' in html
   assert f'<link rel="canonical" href="{urls.canonical_url("/about")}">' in html
   assert 'Cache-Control' in resp.headers
@@ -711,8 +717,12 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   # GA4 present on both pages
   assert 'gtag/js?id=G-D2B7E8PXJJ' in topic_html
   assert "gtag('config', 'G-D2B7E8PXJJ')" in topic_html
+  assert 'data-meta-event' in topic_html
+  assert 'trackCustom' in topic_html
   assert 'gtag/js?id=G-D2B7E8PXJJ' in home2_html
   assert "gtag('config', 'G-D2B7E8PXJJ')" in home2_html
+  assert 'data-meta-event' in home2_html
+  assert 'trackCustom' in home2_html
   assert 'data-analytics-event="web_index_play_store_click"' in home2_html
 
   # Background palette variables present on both pages

@@ -4,15 +4,16 @@
   <article class="notes-card" aria-label="{{ card.aria_label }}">
     <h3 class="notes-card__title text-button">{{ card.title }}</h3>
     <div class="notes-card__image">
-      <a href="{{ card.detail_url }}"
-        data-analytics-event="web_notes_view_pack_click" data-analytics-label="{{ card.category_id }}"
+      <a href="{{ card.detail_url }}" data-meta-event="ViewContent" data-analytics-event="web_notes_view_pack_click"
+        data-analytics-label="notes_view_pack"
         data-analytics-params="{{ card.analytics_params | tojson }}">
         <img src="{{ card.image_url }}" alt="{{ card.image_alt }}" width="{{ notes_image_width }}"
           height="{{ notes_image_height }}" loading="lazy" />
       </a>
     </div>
     <a class="nav-cta text-button notes-card__cta button-full" href="{{ card.detail_url }}"
-      data-analytics-event="web_notes_view_pack_click" data-analytics-label="{{ card.category_id }}"
+      data-meta-event="ViewContent" data-analytics-event="web_notes_view_pack_click"
+      data-analytics-label="notes_view_pack"
       data-analytics-params="{{ card.analytics_params | tojson }}">
       View Pack
     </a>

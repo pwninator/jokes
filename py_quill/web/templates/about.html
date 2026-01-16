@@ -54,7 +54,8 @@ laughs every day.{% endblock %}
   <div class="notes-card-grid">
     <article class="notes-card">
       <h3 class="notes-card__title text-button"><a class="lunchbox-download__link text-button"
-          href="{{ url_for('web.notes') }}" data-analytics-event="web_about_notes_click"
+          href="{{ url_for('web.notes') }}" data-meta-event="ViewContent"
+          data-analytics-event="web_about_notes_click"
           data-analytics-label="free_printable_notes"
           aria-label="Browse free printable notes">Free Printable Notes</a></h3>
       <p class="text-body">Sneak a giggle into their lunch bag. (Warning: May cause eye-rolling from older siblings).
@@ -64,7 +65,8 @@ laughs every day.{% endblock %}
       <h3 class="notes-card__title text-button"><a class="lunchbox-download__link text-button"
           href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
           target="_blank" rel="noopener noreferrer"
-          data-analytics-event="web_about_app_click" data-analytics-label="the_mobile_app"
+          data-meta-event="Lead"
+          data-analytics-event="web_about_app_click" data-analytics-label="mobile_app_outlink"
           aria-label="Get Snickerdoodle on Google Play (opens in new tab)">
           The Mobile App</a></h3>
       <p class="text-body">Turn the morning commute to school into a daily joke ritual with fresh new jokes every day.
@@ -73,7 +75,8 @@ laughs every day.{% endblock %}
     <article class="notes-card">
       <h3 class="notes-card__title text-button"><a class="lunchbox-download__link text-button"
           href="{{ amazon_url }}" target="_blank" rel="nofollow noopener noreferrer"
-          data-analytics-event="web_about_book_click" data-analytics-label="the_book"
+          data-meta-event="InitiateCheckout"
+          data-analytics-event="web_about_book_click" data-analytics-label="book_outlink"
           aria-label="Shop the Snickerdoodle joke book">The Book</a></h3>
       <p class="text-body">Sit down, snuggle up, and read together. No blue light, just laughs.</p>
     </article>

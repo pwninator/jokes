@@ -53,20 +53,12 @@
       if (typeof document === 'undefined' || !document.addEventListener) {
         return;
       }
-      document.addEventListener('click', function (event) {
-        var target = event.target;
-        if (!target || typeof target.closest !== 'function') {
-          return;
-        }
-        var tracker = target.closest('[data-analytics-event]');
-        if (!tracker) {
-          return;
-        }
-        var eventName = tracker.dataset.analyticsEvent;
-        if (!eventName) {
-          return;
-        }
+
+      function parseAnalyticsParams(tracker) {
         var params = {};
+        if (!tracker || !tracker.dataset) {
+          return params;
+        }
         var rawParams = tracker.dataset.analyticsParams;
         if (rawParams) {
           try {
@@ -91,10 +83,106 @@
           var numericValue = Number(value);
           params.value = isNaN(numericValue) ? value : numericValue;
         }
-        params.transport_type = 'beacon';
-        if (typeof window.gtag === 'function') {
-          window.gtag('event', eventName, params);
+        return params;
+      }
+
+      function buildEventId(eventName) {
+        return eventName + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      }
+
+      function fireAnalyticsEvent(eventName, params, metaEventName) {
+        if (eventName && typeof window.gtag === 'function') {
+          var gaParams = Object.assign({}, params);
+          gaParams.transport_type = 'beacon';
+          window.gtag('event', eventName, gaParams);
         }
+        var pixelEventName = metaEventName || eventName;
+        if (pixelEventName && typeof window.fbq === 'function') {
+          var pixelAction = metaEventName ? 'track' : 'trackCustom';
+          window.fbq(pixelAction, pixelEventName, params || {}, {
+            eventID: buildEventId(pixelEventName),
+          });
+        }
+      }
+
+      function fireFromTracker(tracker) {
+        if (!tracker || !tracker.dataset) {
+          return;
+        }
+        var eventName = tracker.dataset.analyticsEvent;
+        var metaEventName = tracker.dataset.metaEvent;
+        if (!eventName && !metaEventName) {
+          return;
+        }
+        var params = parseAnalyticsParams(tracker);
+        fireAnalyticsEvent(eventName, params, metaEventName);
+      }
+
+      function isSubmitElement(el) {
+        if (!el || !el.tagName) {
+          return false;
+        }
+        var tagName = el.tagName.toLowerCase();
+        if (tagName === 'button') {
+          var buttonType = (el.getAttribute('type') || 'submit').toLowerCase();
+          return buttonType === 'submit';
+        }
+        if (tagName === 'input') {
+          var inputType = (el.getAttribute('type') || '').toLowerCase();
+          return inputType === 'submit' || inputType === 'image';
+        }
+        return false;
+      }
+
+      document.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!target || typeof target.closest !== 'function') {
+          return;
+        }
+        var tracker = target.closest('[data-analytics-event],[data-meta-event]');
+        if (!tracker) {
+          return;
+        }
+        if (tracker.tagName && tracker.tagName.toLowerCase() === 'form') {
+          return;
+        }
+        if (isSubmitElement(tracker)) {
+          return;
+        }
+        fireFromTracker(tracker);
+      });
+
+      document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form || !form.querySelector) {
+          return;
+        }
+        var submitter = event.submitter || null;
+        var tracker = null;
+
+        if (submitter && submitter.dataset &&
+            (submitter.dataset.analyticsEvent || submitter.dataset.metaEvent)) {
+          tracker = submitter;
+        } else if (form.dataset &&
+                   (form.dataset.analyticsEvent || form.dataset.metaEvent)) {
+          tracker = form;
+        } else {
+          tracker = form.querySelector(
+            'button[data-analytics-event][type="submit"],' +
+            'button[data-analytics-event]:not([type]),' +
+            'input[data-analytics-event][type="submit"],' +
+            'input[data-analytics-event][type="image"],' +
+            'button[data-meta-event][type="submit"],' +
+            'button[data-meta-event]:not([type]),' +
+            'input[data-meta-event][type="submit"],' +
+            'input[data-meta-event][type="image"]'
+          );
+        }
+
+        if (!tracker) {
+          return;
+        }
+        fireFromTracker(tracker);
       });
     })();
   </script>
@@ -386,4 +474,3 @@
 </body>
 
 </html>
-

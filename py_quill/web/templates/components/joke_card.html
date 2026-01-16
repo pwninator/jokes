@@ -101,7 +101,10 @@
     {% endif %}
     <button class="button-primary joke-reveal text-button" type="button" data-role="reveal" data-label-show="{{ reveal_label }}"
       data-label-hide="Back to Setup" aria-controls="joke-{{ unique_id }}-punchline" aria-expanded="false"
-      data-analytics-event="web_joke_reveal_click" data-analytics-label="{{ joke.key|default('unknown')|e }}">
+      data-meta-event="ViewContent"
+      data-analytics-event="web_joke_reveal_click"
+      data-analytics-label="joke_card_reveal"
+      data-analytics-params='{{ {"joke_id": joke.key|default("unknown")} | tojson }}'>
       {{ reveal_label }}
     </button>
   </div>

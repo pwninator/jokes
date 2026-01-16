@@ -1660,7 +1660,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
       setup_img, punchline_img, blocker_img
     ]
 
-    result = image_operations.create_pinterest_pin_image([joke_id])
+    result = image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
 
     self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
     self.assertEqual(result.mode, 'RGB')
@@ -1698,13 +1698,52 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images
 
-    result = image_operations.create_pinterest_pin_image(joke_ids)
+    result = image_operations.create_pinterest_pin_image(joke_ids=joke_ids)
 
     self.assertEqual(result.size, (1000, 1500))  # 3 jokes = 1000x(3*500)
     self.assertEqual(result.mode, 'RGB')
 
     # Verify all images were downloaded (2 per joke + 1 blocker overlay)
     self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 7)
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_uses_jokes_list(self, mock_cloud_storage,
+                                                      mock_firestore):
+    """create_pinterest_pin_image should use provided jokes list order."""
+    mock_jokes = []
+    for joke_id in ["joke1", "joke2"]:
+      mock_joke = Mock()
+      mock_joke.key = joke_id
+      mock_joke.setup_image_url = f"{joke_id}_setup"
+      mock_joke.punchline_image_url = f"{joke_id}_punchline"
+      mock_jokes.append(mock_joke)
+
+    test_images = [
+      Image.new('RGB', (1024, 1024), color='red'),
+      Image.new('RGB', (1024, 1024), color='blue'),
+      Image.new('RGB', (1024, 1024), color='green'),
+      Image.new('RGB', (1024, 1024), color='yellow'),
+    ]
+    mock_cloud_storage.download_image_from_gcs.side_effect = test_images
+
+    result = image_operations.create_pinterest_pin_image(
+      jokes=mock_jokes,
+      block_last_panel=False,
+    )
+
+    self.assertEqual(result.size, (1000, 1000))
+    self.assertEqual(result.mode, 'RGB')
+    mock_firestore.get_punny_jokes.assert_not_called()
+    self.assertEqual(
+      mock_cloud_storage.download_image_from_gcs.call_args_list,
+      [
+        call("joke1_setup"),
+        call("joke1_punchline"),
+        call("joke2_setup"),
+        call("joke2_punchline"),
+      ],
+    )
 
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
@@ -1735,7 +1774,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images
 
-    image_operations.create_pinterest_pin_image(joke_ids)
+    image_operations.create_pinterest_pin_image(joke_ids=joke_ids)
 
     expected_calls = [
       call("setup-2"),
@@ -1753,9 +1792,10 @@ class CreatePinterestPinImageTest(unittest.TestCase):
   def test_create_pinterest_pin_image_empty_list(self, mock_firestore):
     """create_pinterest_pin_image should raise ValueError for empty joke list."""
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image([])
+      image_operations.create_pinterest_pin_image(joke_ids=[])
 
-    self.assertIn("No joke IDs provided", str(context.exception))
+    self.assertIn("joke_ids must be a non-empty list",
+                  str(context.exception))
 
   @patch('common.image_operations.firestore')
   def test_create_pinterest_pin_image_joke_not_found(self, mock_firestore):
@@ -1764,7 +1804,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_firestore.get_punny_jokes.return_value = []
 
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image([joke_id])
+      image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
 
     self.assertIn("Jokes not found", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
@@ -1783,7 +1823,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_firestore.get_punny_jokes.return_value = [mock_joke]
 
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image([joke_id])
+      image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
 
     self.assertIn("missing setup or punchline image", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
@@ -1802,7 +1842,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_firestore.get_punny_jokes.return_value = [mock_joke]
 
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image([joke_id])
+      image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
 
     self.assertIn("missing setup or punchline image", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
@@ -1830,7 +1870,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
 
     result = image_operations.create_pinterest_pin_image(
-      [joke_id], block_last_panel=False)
+      joke_ids=[joke_id], block_last_panel=False)
 
     self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
     self.assertEqual(result.mode, 'RGB')
@@ -1859,7 +1899,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
       setup_img, punchline_img, blocker_img
     ]
 
-    result = image_operations.create_pinterest_pin_image(["joke1"])
+    result = image_operations.create_pinterest_pin_image(joke_ids=["joke1"])
 
     # For 1 joke: last_row_y = (1 - 1) * 500 = 0
     # Overlay should be at (425, 0 - 75) = (425, -75)
@@ -1887,7 +1927,8 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images_2
 
-    result_2 = image_operations.create_pinterest_pin_image(["joke1", "joke2"])
+    result_2 = image_operations.create_pinterest_pin_image(
+      joke_ids=["joke1", "joke2"])
 
     # For 2 jokes: last_row_y = (2 - 1) * 500 = 500
     # Overlay should be at (425, 500 - 75) = (425, 425)
@@ -1925,7 +1966,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_compute_divider_color.return_value = divider_color
 
     result = image_operations.create_pinterest_pin_image(
-      ["joke1", "joke2"],
+      joke_ids=["joke1", "joke2"],
       block_last_panel=False,
     )
 

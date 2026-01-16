@@ -105,7 +105,7 @@ def create_pinterest_pin_assets(
     post: models.JokeSocialPost) -> tuple[models.JokeSocialPost, bytes]:
   """Create Pinterest pin assets for a social post."""
   pin_image = image_operations.create_pinterest_pin_image(
-    [j.key for j in post.jokes if j.key],
+    jokes=post.jokes,
     block_last_panel=post.type == models.JokeSocialPostType.JOKE_GRID_TEASER,
   )
 

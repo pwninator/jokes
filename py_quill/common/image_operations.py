@@ -1014,8 +1014,9 @@ def _compute_pinterest_pin_divider_color(
 
 
 def create_pinterest_pin_image(
-  joke_ids: list[str],
   *,
+  joke_ids: list[str] | None = None,
+  jokes: list[models.PunnyJoke] | None = None,
   block_last_panel: bool = True,
 ) -> Image.Image:
   """Create a Pinterest pin image from multiple jokes.
@@ -1023,10 +1024,11 @@ def create_pinterest_pin_image(
   Creates a single large image with all setup and punchline images arranged
   in rows. Each joke takes one row with setup on the left and punchline on
   the right. Each image is scaled to 500x500 pixels. Rows follow the order
-  of the joke_ids input.
+  of the joke_ids input when provided, otherwise the jokes list order.
   
   Args:
     joke_ids: List of joke IDs to include in the pin image.
+    jokes: Optional list of joke models to render (skips Firestore fetch).
     block_last_panel: If True, overlay a blocker image over the bottom right
       punchline panel. Defaults to True.
     
@@ -1036,45 +1038,48 @@ def create_pinterest_pin_image(
   Raises:
     ValueError: If any joke is missing or missing required images.
   """
-  if not joke_ids:
-    raise ValueError("No joke IDs provided")
+  if jokes is None:
+    if not joke_ids:
+      raise ValueError("joke_ids must be a non-empty list")
+    jokes = firestore.get_punny_jokes(joke_ids)
+  elif not jokes:
+    raise ValueError("jokes must be a non-empty list")
 
-  jokes = firestore.get_punny_jokes(joke_ids)
-  if len(jokes) != len(joke_ids):
-    found_ids = {joke.key for joke in jokes if joke.key}
-    missing = set(joke_ids) - found_ids
-    raise ValueError(f"Jokes not found: {missing}")
-
-  jokes_by_id = {joke.key: joke for joke in jokes if joke.key}
-  jokes = [jokes_by_id[joke_id] for joke_id in joke_ids if joke_id in jokes_by_id]
+  ordered_jokes = list(jokes)
+  if joke_ids:
+    jokes_by_id = {joke.key: joke for joke in jokes if joke.key}
+    missing = [joke_id for joke_id in joke_ids if joke_id not in jokes_by_id]
+    if missing:
+      raise ValueError(f"Jokes not found: {missing}")
+    ordered_jokes = [jokes_by_id[joke_id] for joke_id in joke_ids]
 
   # Verify all jokes have images
-  for joke in jokes:
+  for joke in ordered_jokes:
     if not joke.setup_image_url or not joke.punchline_image_url:
       raise ValueError(f"Joke {joke.key} is missing setup or punchline image")
 
-  num_jokes = len(jokes)
+  num_jokes = len(ordered_jokes)
   canvas_width = _PINTEREST_PANEL_SIZE_PX * 2
   canvas_height = num_jokes * _PINTEREST_PANEL_SIZE_PX
 
   # Create blank white canvas
   canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
 
-  for row_index, joke in enumerate(jokes):
+  for row_index, joke in enumerate(ordered_jokes):
     y_offset = row_index * _PINTEREST_PANEL_SIZE_PX
 
     # Download and process setup image
     setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
-    setup_img = setup_img.resize((_PINTEREST_PANEL_SIZE_PX,
-                                  _PINTEREST_PANEL_SIZE_PX),
-                                 Image.Resampling.LANCZOS)
+    setup_img = setup_img.resize(
+      (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
+      Image.Resampling.LANCZOS)
 
     # Download and process punchline image
     punchline_img = cloud_storage.download_image_from_gcs(
       joke.punchline_image_url)
-    punchline_img = punchline_img.resize((_PINTEREST_PANEL_SIZE_PX,
-                                          _PINTEREST_PANEL_SIZE_PX),
-                                         Image.Resampling.LANCZOS)
+    punchline_img = punchline_img.resize(
+      (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
+      Image.Resampling.LANCZOS)
 
     # Paste setup on left (x=0), punchline on right (x=500)
     canvas.paste(setup_img, (0, y_offset))
@@ -1111,9 +1116,9 @@ def create_pinterest_pin_image(
       overlay_x = 425  # 1025 - 600
       overlay_y = last_row_y - 75  # (last_row_y + 525) - 600
     elif blocker_url == _PANEL_BLOCKER_OVERLAY_URL_POST_IT:
-      blocker_img = blocker_img.resize((_PINTEREST_PANEL_SIZE_PX,
-                                        _PINTEREST_PANEL_SIZE_PX),
-                                       Image.Resampling.LANCZOS)
+      blocker_img = blocker_img.resize(
+        (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
+        Image.Resampling.LANCZOS)
       overlay_x = _PINTEREST_PANEL_SIZE_PX  # 1025 - 600
       overlay_y = (num_jokes - 1) * _PINTEREST_PANEL_SIZE_PX
     else:

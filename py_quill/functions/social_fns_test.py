@@ -101,7 +101,7 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   assert post_data["type"] == "JOKE_GRID_TEASER"
 
   create_image_mock.assert_called_once_with(
-    joke_ids,
+    jokes=jokes,
     block_last_panel=True,
   )
   create_mock.assert_called_once()

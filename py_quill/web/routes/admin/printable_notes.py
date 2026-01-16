@@ -166,7 +166,8 @@ def admin_create_pin_image():
 
   try:
     # Create the pin image
-    pin_image = image_operations.create_pinterest_pin_image(joke_ids)
+    pin_image = image_operations.create_pinterest_pin_image(
+      joke_ids=joke_ids)
 
     # Convert PIL Image to PNG bytes
     buffer = BytesIO()

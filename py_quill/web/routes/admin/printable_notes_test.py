@@ -110,7 +110,7 @@ def test_admin_create_pin_image_success(monkeypatch):
   monkeypatch.setattr(
     printable_notes_routes.image_operations,
     "create_pinterest_pin_image",
-    lambda ids: mock_pin_image,
+    lambda *, joke_ids: mock_pin_image,
   )
 
   # Mock cloud_storage functions
@@ -205,9 +205,9 @@ def test_admin_create_pin_image_value_error(monkeypatch):
   monkeypatch.setattr(
     printable_notes_routes.image_operations,
     "create_pinterest_pin_image",
-    lambda ids:
-    (_ for _ in
-     ()).throw(ValueError("Joke joke1 is missing setup or punchline image")),
+    lambda *, joke_ids:
+    (_ for _ in ()).throw(ValueError(
+      "Joke joke1 is missing setup or punchline image")),
   )
 
   with app.test_client() as client:
@@ -233,7 +233,7 @@ def test_admin_create_pin_image_unexpected_error(monkeypatch):
   monkeypatch.setattr(
     printable_notes_routes.image_operations,
     "create_pinterest_pin_image",
-    lambda ids: (_ for _ in ()).throw(Exception("Unexpected error")),
+    lambda *, joke_ids: (_ for _ in ()).throw(Exception("Unexpected error")),
   )
 
   with app.test_client() as client:

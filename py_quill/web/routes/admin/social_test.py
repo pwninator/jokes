@@ -202,6 +202,6 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "JOKE_GRID" in html
   assert "https://snickerdoodlejokes.com/jokes/social" in html
   assert "pin.png" in html
-  assert "Edit text" in html
+  assert "Edit" in html
   assert "Regenerate text" in html
-  assert "Mark Posted" in html
+  assert "Post" in html

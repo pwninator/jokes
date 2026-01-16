@@ -121,70 +121,70 @@
     margin-bottom: 8px;
   }
 
-  .social-posts-table {
-    width: 100%;
-    border-collapse: collapse;
+  .social-posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  .social-posts-table th,
-  .social-posts-table td {
-    text-align: left;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: top;
+  .social-post-card {
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 16px;
+    background: var(--color-surface, #fff);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  .social-posts-table th {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .social-posts-title {
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .social-posts-description {
-    color: var(--color-text-muted);
-  }
-
-  .social-posts-actions {
+  .social-post-card__header {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 8px;
+    gap: 6px;
+    align-items: baseline;
+    font-size: 0.95rem;
   }
 
-  .social-posts-link {
-    margin-top: 6px;
-    font-size: 0.85rem;
-    overflow-wrap: anywhere;
+  .social-post-card__timestamp {
+    font-weight: 600;
   }
 
-  .social-posts-link a {
+  .social-post-card__title a,
+  .social-post-card__title span {
     color: var(--color-primary);
     text-decoration: none;
+    font-weight: 600;
   }
 
-  .social-posts-link a:hover {
+  .social-post-card__title a:hover {
     text-decoration: underline;
   }
 
-  .social-posts-edit {
-    margin-top: 10px;
-    padding: 10px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: var(--color-surface, #fff);
+  .social-post-card__type {
+    color: var(--color-text-muted);
   }
 
-  .social-posts-edit-label {
+  .social-post-card__columns {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+  }
+
+  .social-post-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .social-post-card.is-editing .social-platform:not(.social-platform--locked) .social-platform-field .social-platform-value {
+    display: none;
+  }
+
+  .social-post-card.is-editing .social-platform:not(.social-platform--locked) .social-platform-field .social-posts-edit-input,
+  .social-post-card.is-editing .social-platform:not(.social-platform--locked) .social-platform-field .social-posts-edit-textarea {
     display: block;
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    margin-bottom: 4px;
   }
 
   .social-posts-edit-input,
@@ -195,6 +195,7 @@
     border: 1px solid var(--color-border);
     font-size: 0.9rem;
     margin-bottom: 8px;
+    display: none;
   }
 
   .social-posts-edit-textarea {
@@ -202,15 +203,11 @@
     resize: vertical;
   }
 
-  .social-posts-edit-actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  }
-
   .social-posts-thumb {
-    width: 56px;
-    height: 56px;
+    width: 100%;
+    max-width: 200px;
+    max-height: 200px;
+    height: auto;
     border-radius: 8px;
     object-fit: cover;
     border: 1px solid var(--color-border);
@@ -286,6 +283,66 @@
     display: block;
     margin-bottom: 4px;
   }
+
+  .admin-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .admin-modal.admin-modal--open {
+    display: flex;
+  }
+
+  .admin-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  .admin-modal__dialog {
+    position: relative;
+    width: min(520px, calc(100vw - 40px));
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .admin-modal__title {
+    margin: 0;
+  }
+
+  .admin-modal__content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #admin-social-post-modal .social-posts-edit-input {
+    display: block;
+  }
+
+  .social-post-modal__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .social-post-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+  }
 </style>
 {% endblock %}
 
@@ -302,7 +359,7 @@
         <label class="post-type-select-label" for="admin-social-post-type">Post type</label>
         <select class="post-type-select" id="admin-social-post-type">
           {% for option in post_type_options %}
-          <option value="{{ option }}" {% if option == default_post_type %}selected{% endif %}>
+          <option value="{{ option }}" {% if option==default_post_type %}selected{% endif %}>
             {{ option.replace('_', ' ') }}
           </option>
           {% endfor %}
@@ -323,356 +380,221 @@
     {% if not social_posts %}
     <p class="muted">No social posts yet.</p>
     {% else %}
-    <table class="social-posts-table" aria-label="Social posts table">
-      <thead>
-        <tr>
-          <th scope="col">Created</th>
-          <th scope="col">Type</th>
-          <th scope="col">Link</th>
-          <th scope="col">Pinterest</th>
-          <th scope="col">Instagram</th>
-          <th scope="col">Facebook</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for post, creation_time in social_posts %}
-        {% set pinterest_locked = post.pinterest_post_date or post.pinterest_post_id %}
-        {% set instagram_locked = post.instagram_post_date or post.instagram_post_id %}
-        {% set facebook_locked = post.facebook_post_date or post.facebook_post_id %}
-        <tr data-post-id="{{ post.key or '' }}"
-            data-link-url="{{ (post.link_url or '') | e }}"
-            data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
-            data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
-            data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}"
-            data-pinterest-post-id="{{ (post.pinterest_post_id or '') | e }}"
-            data-pinterest-post-date="{{ post.pinterest_post_date.isoformat() if post.pinterest_post_date else '' }}"
-            data-pinterest-image-url="{{ (post.pinterest_image_url or '') | e }}"
-            data-instagram-caption="{{ (post.instagram_caption or '') | e }}"
-            data-instagram-alt-text="{{ (post.instagram_alt_text or '') | e }}"
-            data-instagram-post-id="{{ (post.instagram_post_id or '') | e }}"
-            data-instagram-post-date="{{ post.instagram_post_date.isoformat() if post.instagram_post_date else '' }}"
-            data-instagram-image-url="{{ (post.instagram_image_url or '') | e }}"
-            data-facebook-message="{{ (post.facebook_message or '') | e }}"
-            data-facebook-post-id="{{ (post.facebook_post_id or '') | e }}"
-            data-facebook-post-date="{{ post.facebook_post_date.isoformat() if post.facebook_post_date else '' }}"
-            data-facebook-image-url="{{ (post.facebook_image_url or '') | e }}">
-          <td>
+    <div class="social-posts-list" aria-label="Social posts list">
+      {% for post, creation_time in social_posts %}
+      {% set pinterest_locked = post.pinterest_post_date or post.pinterest_post_id %}
+      {% set instagram_locked = post.instagram_post_date or post.instagram_post_id %}
+      {% set facebook_locked = post.facebook_post_date or post.facebook_post_id %}
+      {% set all_locked = pinterest_locked and instagram_locked and facebook_locked %}
+      <article class="social-post-card" data-post-id="{{ post.key or '' }}"
+        data-link-url="{{ (post.link_url or '') | e }}" data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
+        data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
+        data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}"
+        data-pinterest-post-id="{{ (post.pinterest_post_id or '') | e }}"
+        data-pinterest-post-date="{{ post.pinterest_post_date.isoformat() if post.pinterest_post_date else '' }}"
+        data-pinterest-image-url="{{ (post.pinterest_image_url or '') | e }}"
+        data-instagram-caption="{{ (post.instagram_caption or '') | e }}"
+        data-instagram-alt-text="{{ (post.instagram_alt_text or '') | e }}"
+        data-instagram-post-id="{{ (post.instagram_post_id or '') | e }}"
+        data-instagram-post-date="{{ post.instagram_post_date.isoformat() if post.instagram_post_date else '' }}"
+        data-instagram-image-url="{{ (post.instagram_image_url or '') | e }}"
+        data-facebook-message="{{ (post.facebook_message or '') | e }}"
+        data-facebook-post-id="{{ (post.facebook_post_id or '') | e }}"
+        data-facebook-post-date="{{ post.facebook_post_date.isoformat() if post.facebook_post_date else '' }}"
+        data-facebook-image-url="{{ (post.facebook_image_url or '') | e }}">
+        <header class="social-post-card__header">
+          <span class="social-post-card__timestamp js-social-created">
             {% if creation_time %}
             {{ creation_time.strftime('%Y-%m-%d %H:%M') }}
             {% else %}
-            <span class="muted">Unknown</span>
+            Unknown
             {% endif %}
-          </td>
-          <td class="js-social-type">{{ post.type.value }}</td>
-          <td>
-            <div class="social-posts-link">
-              {% if post.link_url %}
-              <a class="js-social-link" href="{{ post.link_url | e }}" target="_blank" rel="noopener">
-                {{ post.link_url | e }}
+          </span>
+          <span>:</span>
+          <span class="social-post-card__title">
+            {% if post.link_url %}
+            <a class="js-social-link" href="{{ post.link_url | e }}" target="_blank" rel="noopener">
+              <span class="js-social-title">{{ post.pinterest_title or 'No title' }}</span>
+            </a>
+            {% else %}
+            <span class="js-social-title js-social-link-empty">{{ post.pinterest_title or 'No title' }}</span>
+            {% endif %}
+          </span>
+          <span class="social-post-card__type js-social-type">({{ post.type.value }})</span>
+        </header>
+        <div class="social-post-card__columns">
+          <div class="social-platform{% if pinterest_locked %} social-platform--locked{% endif %}"
+            data-platform="pinterest">
+            <div class="social-posts-image js-social-platform-image" data-platform="pinterest">
+              {% if post.pinterest_image_url %}
+              <a href="{{ post.pinterest_image_url }}" target="_blank" rel="noopener">
+                <img class="social-posts-thumb" src="{{ post.pinterest_image_url }}" alt="Pinterest image">
               </a>
               {% else %}
-              <span class="muted js-social-link-empty">No link</span>
+              <span class="muted js-social-no-image">No image</span>
               {% endif %}
             </div>
-          </td>
-          <td>
-            <div class="social-platform{% if pinterest_locked %} social-platform--locked{% endif %}"
-                 data-platform="pinterest">
-              <div class="social-platform-field">
-                <span class="social-platform-label">Title</span>
-                <span class="social-platform-value social-posts-title js-social-pinterest-title{% if not post.pinterest_title %} is-empty{% endif %}"
-                      data-empty-text="No title">{{ post.pinterest_title or 'No title' }}</span>
-              </div>
-              <div class="social-platform-field">
-                <span class="social-platform-label">Description</span>
-                <span class="social-platform-value social-posts-description js-social-pinterest-description{% if not post.pinterest_description %} is-empty{% endif %}"
-                      data-empty-text="No description">{{ post.pinterest_description or 'No description' }}</span>
-              </div>
-              <div class="social-platform-field">
-                <span class="social-platform-label">Alt text</span>
-                <span class="social-platform-value js-social-pinterest-alt-text{% if not post.pinterest_alt_text %} is-empty{% endif %}"
-                      data-empty-text="No alt text">{{ post.pinterest_alt_text or 'No alt text' }}</span>
-              </div>
-              <div class="social-posts-actions">
-                <button type="button"
-                        class="text-button js-social-edit"
-                        data-platform="pinterest"
-                        {% if pinterest_locked %}disabled{% endif %}>
-                  Edit text
-                </button>
-                <button type="button"
-                        class="text-button js-social-regenerate"
-                        data-platform="pinterest"
-                        data-regenerate-image="false"
-                        {% if pinterest_locked %}disabled{% endif %}>
-                  Regenerate text
-                </button>
-                <button type="button"
-                        class="text-button js-social-regenerate"
-                        data-platform="pinterest"
-                        data-regenerate-image="true"
-                        {% if pinterest_locked %}disabled{% endif %}>
-                  Regenerate image + text
-                </button>
-              </div>
-              <div class="social-posts-edit" data-platform="pinterest" hidden>
-                <label class="social-posts-edit-label" for="social-pinterest-title-{{ post.key or loop.index }}">
-                  Pinterest title
-                </label>
-                <input class="social-posts-edit-input js-social-pinterest-title-input"
-                       id="social-pinterest-title-{{ post.key or loop.index }}"
-                       type="text"
-                       maxlength="100"
-                       {% if pinterest_locked %}disabled{% endif %}>
-                <label class="social-posts-edit-label" for="social-pinterest-description-{{ post.key or loop.index }}">
-                  Pinterest description
-                </label>
-                <textarea class="social-posts-edit-textarea js-social-pinterest-description-input"
-                          id="social-pinterest-description-{{ post.key or loop.index }}"
-                          maxlength="500"
-                          {% if pinterest_locked %}disabled{% endif %}></textarea>
-                <label class="social-posts-edit-label" for="social-pinterest-alt-{{ post.key or loop.index }}">
-                  Pinterest alt text
-                </label>
-                <textarea class="social-posts-edit-textarea js-social-pinterest-alt-text-input"
-                          id="social-pinterest-alt-{{ post.key or loop.index }}"
-                          maxlength="500"
-                          {% if pinterest_locked %}disabled{% endif %}></textarea>
-                <div class="social-posts-edit-actions">
-                  <button type="button"
-                          class="text-button js-social-cancel"
-                          data-platform="pinterest"
-                          {% if pinterest_locked %}disabled{% endif %}>
-                    Cancel
-                  </button>
-                  <button type="button"
-                          class="text-button js-social-save"
-                          data-platform="pinterest"
-                          {% if pinterest_locked %}disabled{% endif %}>
-                    Save
-                  </button>
-                </div>
-              </div>
-              <div class="social-posts-image js-social-platform-image" data-platform="pinterest">
-                {% if post.pinterest_image_url %}
-                <a href="{{ post.pinterest_image_url }}" target="_blank" rel="noopener">
-                  <img class="social-posts-thumb" src="{{ post.pinterest_image_url }}" alt="Pinterest image">
-                </a>
-                {% else %}
-                <span class="muted js-social-no-image">No image</span>
-                {% endif %}
-              </div>
-              <div class="social-platform-meta">
-                Posted:
-                <span class="social-platform-value js-social-pinterest-post-date{% if not post.pinterest_post_date %} is-empty{% endif %}"
-                      data-empty-text="Not posted">
-                  {% if post.pinterest_post_date %}
-                  {{ post.pinterest_post_date.strftime('%Y-%m-%d') }}
-                  {% else %}
-                  Not posted
-                  {% endif %}
-                </span>
-              </div>
-              <div class="social-platform-meta">
-                Post ID:
-                <span class="social-platform-value js-social-pinterest-post-id{% if not post.pinterest_post_id %} is-empty{% endif %}"
-                      data-empty-text="Not set">
-                  {{ post.pinterest_post_id or 'Not set' }}
-                </span>
-              </div>
-              <div class="social-platform-mark">
-                <input class="social-posts-edit-input js-social-post-id-input"
-                       data-platform="pinterest"
-                       type="text"
-                       placeholder="Pinterest post ID"
-                       value="{{ (post.pinterest_post_id or '') | e }}"
-                       {% if pinterest_locked %}disabled{% endif %}>
-                <button type="button"
-                        class="text-button js-social-mark-posted"
-                        data-platform="pinterest"
-                        {% if pinterest_locked %}disabled{% endif %}>
-                  Mark Posted
-                </button>
-              </div>
+            <div class="social-platform-field">
+              <span class="social-platform-label">Title</span>
+              <span
+                class="social-platform-value js-social-pinterest-title{% if not post.pinterest_title %} is-empty{% endif %}"
+                data-empty-text="No title">{{ post.pinterest_title or 'No title' }}</span>
+              <input class="social-posts-edit-input js-social-pinterest-title-input" type="text" maxlength="100">
             </div>
-          </td>
-          <td>
-            <div class="social-platform{% if instagram_locked %} social-platform--locked{% endif %}"
-                 data-platform="instagram">
-              <div class="social-platform-field">
-                <span class="social-platform-label">Caption</span>
-                <span class="social-platform-value js-social-instagram-caption{% if not post.instagram_caption %} is-empty{% endif %}"
-                      data-empty-text="No caption">{{ post.instagram_caption or 'No caption' }}</span>
-              </div>
-              <div class="social-platform-field">
-                <span class="social-platform-label">Alt text</span>
-                <span class="social-platform-value js-social-instagram-alt-text{% if not post.instagram_alt_text %} is-empty{% endif %}"
-                      data-empty-text="No alt text">{{ post.instagram_alt_text or 'No alt text' }}</span>
-              </div>
-              <div class="social-posts-actions">
-                <button type="button"
-                        class="text-button js-social-edit"
-                        data-platform="instagram"
-                        {% if instagram_locked %}disabled{% endif %}>
-                  Edit text
-                </button>
-              </div>
-              <div class="social-posts-edit" data-platform="instagram" hidden>
-                <label class="social-posts-edit-label" for="social-instagram-caption-{{ post.key or loop.index }}">
-                  Instagram caption
-                </label>
-                <textarea class="social-posts-edit-textarea js-social-instagram-caption-input"
-                          id="social-instagram-caption-{{ post.key or loop.index }}"
-                          {% if instagram_locked %}disabled{% endif %}></textarea>
-                <label class="social-posts-edit-label" for="social-instagram-alt-{{ post.key or loop.index }}">
-                  Instagram alt text
-                </label>
-                <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"
-                          id="social-instagram-alt-{{ post.key or loop.index }}"
-                          {% if instagram_locked %}disabled{% endif %}></textarea>
-                <div class="social-posts-edit-actions">
-                  <button type="button"
-                          class="text-button js-social-cancel"
-                          data-platform="instagram"
-                          {% if instagram_locked %}disabled{% endif %}>
-                    Cancel
-                  </button>
-                  <button type="button"
-                          class="text-button js-social-save"
-                          data-platform="instagram"
-                          {% if instagram_locked %}disabled{% endif %}>
-                    Save
-                  </button>
-                </div>
-              </div>
-              <div class="social-posts-image js-social-platform-image" data-platform="instagram">
-                {% if post.instagram_image_url %}
-                <a href="{{ post.instagram_image_url }}" target="_blank" rel="noopener">
-                  <img class="social-posts-thumb" src="{{ post.instagram_image_url }}" alt="Instagram image">
-                </a>
-                {% else %}
-                <span class="muted js-social-no-image">No image</span>
-                {% endif %}
-              </div>
-              <div class="social-platform-meta">
-                Posted:
-                <span class="social-platform-value js-social-instagram-post-date{% if not post.instagram_post_date %} is-empty{% endif %}"
-                      data-empty-text="Not posted">
-                  {% if post.instagram_post_date %}
-                  {{ post.instagram_post_date.strftime('%Y-%m-%d') }}
-                  {% else %}
-                  Not posted
-                  {% endif %}
-                </span>
-              </div>
-              <div class="social-platform-meta">
-                Post ID:
-                <span class="social-platform-value js-social-instagram-post-id{% if not post.instagram_post_id %} is-empty{% endif %}"
-                      data-empty-text="Not set">
-                  {{ post.instagram_post_id or 'Not set' }}
-                </span>
-              </div>
-              <div class="social-platform-mark">
-                <input class="social-posts-edit-input js-social-post-id-input"
-                       data-platform="instagram"
-                       type="text"
-                       placeholder="Instagram post ID"
-                       value="{{ (post.instagram_post_id or '') | e }}"
-                       {% if instagram_locked %}disabled{% endif %}>
-                <button type="button"
-                        class="text-button js-social-mark-posted"
-                        data-platform="instagram"
-                        {% if instagram_locked %}disabled{% endif %}>
-                  Mark Posted
-                </button>
-              </div>
+            <div class="social-platform-field">
+              <span class="social-platform-label">Description</span>
+              <span
+                class="social-platform-value js-social-pinterest-description{% if not post.pinterest_description %} is-empty{% endif %}"
+                data-empty-text="No description">{{ post.pinterest_description or 'No description' }}</span>
+              <textarea class="social-posts-edit-textarea js-social-pinterest-description-input"
+                maxlength="500"></textarea>
             </div>
-          </td>
-          <td>
-            <div class="social-platform{% if facebook_locked %} social-platform--locked{% endif %}"
-                 data-platform="facebook">
-              <div class="social-platform-field">
-                <span class="social-platform-label">Message</span>
-                <span class="social-platform-value js-social-facebook-message{% if not post.facebook_message %} is-empty{% endif %}"
-                      data-empty-text="No message">{{ post.facebook_message or 'No message' }}</span>
-              </div>
-              <div class="social-posts-actions">
-                <button type="button"
-                        class="text-button js-social-edit"
-                        data-platform="facebook"
-                        {% if facebook_locked %}disabled{% endif %}>
-                  Edit text
-                </button>
-              </div>
-              <div class="social-posts-edit" data-platform="facebook" hidden>
-                <label class="social-posts-edit-label" for="social-facebook-message-{{ post.key or loop.index }}">
-                  Facebook message
-                </label>
-                <textarea class="social-posts-edit-textarea js-social-facebook-message-input"
-                          id="social-facebook-message-{{ post.key or loop.index }}"
-                          {% if facebook_locked %}disabled{% endif %}></textarea>
-                <div class="social-posts-edit-actions">
-                  <button type="button"
-                          class="text-button js-social-cancel"
-                          data-platform="facebook"
-                          {% if facebook_locked %}disabled{% endif %}>
-                    Cancel
-                  </button>
-                  <button type="button"
-                          class="text-button js-social-save"
-                          data-platform="facebook"
-                          {% if facebook_locked %}disabled{% endif %}>
-                    Save
-                  </button>
-                </div>
-              </div>
-              <div class="social-posts-image js-social-platform-image" data-platform="facebook">
-                {% if post.facebook_image_url %}
-                <a href="{{ post.facebook_image_url }}" target="_blank" rel="noopener">
-                  <img class="social-posts-thumb" src="{{ post.facebook_image_url }}" alt="Facebook image">
-                </a>
-                {% else %}
-                <span class="muted js-social-no-image">No image</span>
-                {% endif %}
-              </div>
-              <div class="social-platform-meta">
-                Posted:
-                <span class="social-platform-value js-social-facebook-post-date{% if not post.facebook_post_date %} is-empty{% endif %}"
-                      data-empty-text="Not posted">
-                  {% if post.facebook_post_date %}
-                  {{ post.facebook_post_date.strftime('%Y-%m-%d') }}
-                  {% else %}
-                  Not posted
-                  {% endif %}
-                </span>
-              </div>
-              <div class="social-platform-meta">
-                Post ID:
-                <span class="social-platform-value js-social-facebook-post-id{% if not post.facebook_post_id %} is-empty{% endif %}"
-                      data-empty-text="Not set">
-                  {{ post.facebook_post_id or 'Not set' }}
-                </span>
-              </div>
-              <div class="social-platform-mark">
-                <input class="social-posts-edit-input js-social-post-id-input"
-                       data-platform="facebook"
-                       type="text"
-                       placeholder="Facebook post ID"
-                       value="{{ (post.facebook_post_id or '') | e }}"
-                       {% if facebook_locked %}disabled{% endif %}>
-                <button type="button"
-                        class="text-button js-social-mark-posted"
-                        data-platform="facebook"
-                        {% if facebook_locked %}disabled{% endif %}>
-                  Mark Posted
-                </button>
-              </div>
+            <div class="social-platform-field">
+              <span class="social-platform-label">Alt text</span>
+              <span
+                class="social-platform-value js-social-pinterest-alt-text{% if not post.pinterest_alt_text %} is-empty{% endif %}"
+                data-empty-text="No alt text">{{ post.pinterest_alt_text or 'No alt text' }}</span>
+              <textarea class="social-posts-edit-textarea js-social-pinterest-alt-text-input"
+                maxlength="500"></textarea>
             </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+            <div class="social-platform-meta">
+              Posted:
+              <span
+                class="social-platform-value js-social-pinterest-post-date{% if not post.pinterest_post_date %} is-empty{% endif %}"
+                data-empty-text="Not posted">
+                {% if post.pinterest_post_date %}
+                {{ post.pinterest_post_date.strftime('%Y-%m-%d') }}
+                {% else %}
+                Not posted
+                {% endif %}
+              </span>
+            </div>
+            <div class="social-platform-meta">
+              Post ID:
+              <span
+                class="social-platform-value js-social-pinterest-post-id{% if not post.pinterest_post_id %} is-empty{% endif %}"
+                data-empty-text="Not set">
+                {{ post.pinterest_post_id or 'Not set' }}
+              </span>
+            </div>
+            {% if not pinterest_locked %}
+            <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
+              Post
+            </button>
+            {% endif %}
+          </div>
+          <div class="social-platform{% if instagram_locked %} social-platform--locked{% endif %}"
+            data-platform="instagram">
+            <div class="social-posts-image js-social-platform-image" data-platform="instagram">
+              {% if post.instagram_image_url %}
+              <a href="{{ post.instagram_image_url }}" target="_blank" rel="noopener">
+                <img class="social-posts-thumb" src="{{ post.instagram_image_url }}" alt="Instagram image">
+              </a>
+              {% else %}
+              <span class="muted js-social-no-image">No image</span>
+              {% endif %}
+            </div>
+            <div class="social-platform-field">
+              <span class="social-platform-label">Caption</span>
+              <span
+                class="social-platform-value js-social-instagram-caption{% if not post.instagram_caption %} is-empty{% endif %}"
+                data-empty-text="No caption">{{ post.instagram_caption or 'No caption' }}</span>
+              <textarea class="social-posts-edit-textarea js-social-instagram-caption-input"></textarea>
+            </div>
+            <div class="social-platform-field">
+              <span class="social-platform-label">Alt text</span>
+              <span
+                class="social-platform-value js-social-instagram-alt-text{% if not post.instagram_alt_text %} is-empty{% endif %}"
+                data-empty-text="No alt text">{{ post.instagram_alt_text or 'No alt text' }}</span>
+              <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"></textarea>
+            </div>
+            <div class="social-platform-meta">
+              Posted:
+              <span
+                class="social-platform-value js-social-instagram-post-date{% if not post.instagram_post_date %} is-empty{% endif %}"
+                data-empty-text="Not posted">
+                {% if post.instagram_post_date %}
+                {{ post.instagram_post_date.strftime('%Y-%m-%d') }}
+                {% else %}
+                Not posted
+                {% endif %}
+              </span>
+            </div>
+            <div class="social-platform-meta">
+              Post ID:
+              <span
+                class="social-platform-value js-social-instagram-post-id{% if not post.instagram_post_id %} is-empty{% endif %}"
+                data-empty-text="Not set">
+                {{ post.instagram_post_id or 'Not set' }}
+              </span>
+            </div>
+            {% if not instagram_locked %}
+            <button type="button" class="text-button js-social-post-button" data-platform="instagram">
+              Post
+            </button>
+            {% endif %}
+          </div>
+          <div class="social-platform{% if facebook_locked %} social-platform--locked{% endif %}"
+            data-platform="facebook">
+            <div class="social-posts-image js-social-platform-image" data-platform="facebook">
+              {% if post.facebook_image_url %}
+              <a href="{{ post.facebook_image_url }}" target="_blank" rel="noopener">
+                <img class="social-posts-thumb" src="{{ post.facebook_image_url }}" alt="Facebook image">
+              </a>
+              {% else %}
+              <span class="muted js-social-no-image">No image</span>
+              {% endif %}
+            </div>
+            <div class="social-platform-field">
+              <span class="social-platform-label">Message</span>
+              <span
+                class="social-platform-value js-social-facebook-message{% if not post.facebook_message %} is-empty{% endif %}"
+                data-empty-text="No message">{{ post.facebook_message or 'No message' }}</span>
+              <textarea class="social-posts-edit-textarea js-social-facebook-message-input"></textarea>
+            </div>
+            <div class="social-platform-meta">
+              Posted:
+              <span
+                class="social-platform-value js-social-facebook-post-date{% if not post.facebook_post_date %} is-empty{% endif %}"
+                data-empty-text="Not posted">
+                {% if post.facebook_post_date %}
+                {{ post.facebook_post_date.strftime('%Y-%m-%d') }}
+                {% else %}
+                Not posted
+                {% endif %}
+              </span>
+            </div>
+            <div class="social-platform-meta">
+              Post ID:
+              <span
+                class="social-platform-value js-social-facebook-post-id{% if not post.facebook_post_id %} is-empty{% endif %}"
+                data-empty-text="Not set">
+                {{ post.facebook_post_id or 'Not set' }}
+              </span>
+            </div>
+            {% if not facebook_locked %}
+            <button type="button" class="text-button js-social-post-button" data-platform="facebook">
+              Post
+            </button>
+            {% endif %}
+          </div>
+        </div>
+        {% if not all_locked %}
+        <div class="social-post-card__actions">
+          <button type="button" class="text-button js-social-edit-toggle">
+            Edit
+          </button>
+          <button type="button" class="text-button js-social-regenerate" data-regenerate-image="false">
+            Regenerate text
+          </button>
+          <button type="button" class="text-button js-social-regenerate" data-regenerate-image="true">
+            Regenerate image + text
+          </button>
+        </div>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
     {% endif %}
   </section>
 
@@ -707,6 +629,29 @@
   ) }}
 </div>
 
+<div class="admin-modal" id="admin-social-post-modal" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-close="true"></div>
+  <div class="admin-modal__dialog">
+    <h4 class="admin-modal__title">Mark as posted</h4>
+    <div class="admin-modal__content">
+      <div class="social-post-modal__field">
+        <label class="post-type-select-label" for="admin-social-post-id-input">
+          Post ID
+        </label>
+        <input class="social-posts-edit-input" id="admin-social-post-id-input" type="text" placeholder="Enter post ID">
+      </div>
+    </div>
+    <div class="social-post-modal__actions">
+      <button type="button" class="text-button" id="admin-social-post-cancel">
+        Cancel
+      </button>
+      <button type="button" class="text-button" id="admin-social-post-submit">
+        Submit
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
   (function () {
     const maxSelection = 5;
@@ -715,9 +660,15 @@
     const postTypeSelect = document.getElementById('admin-social-post-type');
     const pinPreview = document.getElementById('admin-social-pin-preview');
     const selectionRow = document.getElementById('admin-social-pin-selection');
-    const socialPostsTable = document.querySelector('.social-posts-table');
+    const socialPostsList = document.querySelector('.social-posts-list');
     const selectedJokes = [];
     const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
+    const postModal = document.getElementById('admin-social-post-modal');
+    const postModalInput = document.getElementById('admin-social-post-id-input');
+    const postModalSubmit = document.getElementById('admin-social-post-submit');
+    const postModalCancel = document.getElementById('admin-social-post-cancel');
+    let activePostCard = null;
+    let activePostPlatform = '';
     // Use same-origin rewrite so the admin session cookie is included.
     const createPostEndpoint = '/social_post_creation_process';
 
@@ -781,8 +732,8 @@
       }
     }
 
-    function setPlatformLocked(row, platform, isLocked) {
-      const platformRoot = row.querySelector(
+    function setPlatformLocked(card, platform, isLocked) {
+      const platformRoot = card.querySelector(
         `.social-platform[data-platform="${platform}"]`);
       if (!platformRoot) {
         return;
@@ -791,11 +742,9 @@
       platformRoot.querySelectorAll('button, input, textarea').forEach((el) => {
         el.disabled = isLocked;
       });
-      if (isLocked) {
-        const editPanel = platformRoot.querySelector('.social-posts-edit');
-        if (editPanel) {
-          editPanel.hidden = true;
-        }
+      const postButton = platformRoot.querySelector('.js-social-post-button');
+      if (postButton) {
+        postButton.style.display = isLocked ? 'none' : '';
       }
     }
 
@@ -881,263 +830,236 @@
 
     function updatePostsCount() {
       const countLabel = document.querySelector('.social-posts-header .muted');
-      if (!countLabel || !socialPostsTable) {
+      if (!countLabel || !socialPostsList) {
         return;
       }
-      const rows = socialPostsTable.querySelectorAll('tbody tr');
-      countLabel.textContent = `${rows.length} posts`;
+      const cards = socialPostsList.querySelectorAll('.social-post-card');
+      countLabel.textContent = `${cards.length} posts`;
     }
 
-    function updatePostRow(row, postId, postData) {
-      row.dataset.postId = postId || '';
-      row.dataset.linkUrl = postData.link_url || '';
-      row.dataset.pinterestTitle = postData.pinterest_title || '';
-      row.dataset.pinterestDescription = postData.pinterest_description || '';
-      row.dataset.pinterestAltText = postData.pinterest_alt_text || '';
-      row.dataset.pinterestPostId = postData.pinterest_post_id || '';
-      row.dataset.pinterestPostDate = postData.pinterest_post_date || '';
-      row.dataset.pinterestImageUrl = postData.pinterest_image_url || '';
-      row.dataset.instagramCaption = postData.instagram_caption || '';
-      row.dataset.instagramAltText = postData.instagram_alt_text || '';
-      row.dataset.instagramPostId = postData.instagram_post_id || '';
-      row.dataset.instagramPostDate = postData.instagram_post_date || '';
-      row.dataset.instagramImageUrl = postData.instagram_image_url || '';
-      row.dataset.facebookMessage = postData.facebook_message || '';
-      row.dataset.facebookPostId = postData.facebook_post_id || '';
-      row.dataset.facebookPostDate = postData.facebook_post_date || '';
-      row.dataset.facebookImageUrl = postData.facebook_image_url || '';
+    function updateCardActionsVisibility(card) {
+      const actions = card.querySelector('.social-post-card__actions');
+      if (!actions) {
+        return;
+      }
+      const pinterestLocked = Boolean(
+        card.dataset.pinterestPostDate || card.dataset.pinterestPostId);
+      const instagramLocked = Boolean(
+        card.dataset.instagramPostDate || card.dataset.instagramPostId);
+      const facebookLocked = Boolean(
+        card.dataset.facebookPostDate || card.dataset.facebookPostId);
+      actions.hidden = pinterestLocked && instagramLocked && facebookLocked;
+      if (actions.hidden) {
+        card.classList.remove('is-editing');
+        const editButton = card.querySelector('.js-social-edit-toggle');
+        if (editButton) {
+          editButton.textContent = 'Edit';
+        }
+      }
+    }
+
+    function setTitleLink(card, titleText, linkUrl) {
+      const titleContainer = card.querySelector('.social-post-card__title');
+      if (!titleContainer) {
+        return;
+      }
+      titleContainer.innerHTML = '';
+      if (linkUrl) {
+        const link = document.createElement('a');
+        link.className = 'js-social-link';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.href = linkUrl;
+        const span = document.createElement('span');
+        span.className = 'js-social-title';
+        span.textContent = titleText;
+        link.appendChild(span);
+        titleContainer.appendChild(link);
+      } else {
+        const span = document.createElement('span');
+        span.className = 'js-social-title js-social-link-empty';
+        span.textContent = titleText;
+        titleContainer.appendChild(span);
+      }
+    }
+
+    function populateEditInputs(card) {
+      const pinterestTitleInput = card.querySelector('.js-social-pinterest-title-input');
+      const pinterestDescriptionInput = card.querySelector(
+        '.js-social-pinterest-description-input');
+      const pinterestAltInput = card.querySelector('.js-social-pinterest-alt-text-input');
+      if (pinterestTitleInput) {
+        pinterestTitleInput.value = card.dataset.pinterestTitle || '';
+      }
+      if (pinterestDescriptionInput) {
+        pinterestDescriptionInput.value = card.dataset.pinterestDescription || '';
+      }
+      if (pinterestAltInput) {
+        pinterestAltInput.value = card.dataset.pinterestAltText || '';
+      }
+
+      const instagramCaptionInput = card.querySelector('.js-social-instagram-caption-input');
+      const instagramAltInput = card.querySelector('.js-social-instagram-alt-text-input');
+      if (instagramCaptionInput) {
+        instagramCaptionInput.value = card.dataset.instagramCaption || '';
+      }
+      if (instagramAltInput) {
+        instagramAltInput.value = card.dataset.instagramAltText || '';
+      }
+
+      const facebookMessageInput = card.querySelector('.js-social-facebook-message-input');
+      if (facebookMessageInput) {
+        facebookMessageInput.value = card.dataset.facebookMessage || '';
+      }
+    }
+
+    function updatePostCard(card, postId, postData) {
+      card.dataset.postId = postId || '';
+      card.dataset.linkUrl = postData.link_url || '';
+      card.dataset.pinterestTitle = postData.pinterest_title || '';
+      card.dataset.pinterestDescription = postData.pinterest_description || '';
+      card.dataset.pinterestAltText = postData.pinterest_alt_text || '';
+      card.dataset.pinterestPostId = postData.pinterest_post_id || '';
+      card.dataset.pinterestPostDate = postData.pinterest_post_date || '';
+      card.dataset.pinterestImageUrl = postData.pinterest_image_url || '';
+      card.dataset.instagramCaption = postData.instagram_caption || '';
+      card.dataset.instagramAltText = postData.instagram_alt_text || '';
+      card.dataset.instagramPostId = postData.instagram_post_id || '';
+      card.dataset.instagramPostDate = postData.instagram_post_date || '';
+      card.dataset.instagramImageUrl = postData.instagram_image_url || '';
+      card.dataset.facebookMessage = postData.facebook_message || '';
+      card.dataset.facebookPostId = postData.facebook_post_id || '';
+      card.dataset.facebookPostDate = postData.facebook_post_date || '';
+      card.dataset.facebookImageUrl = postData.facebook_image_url || '';
 
       if (postData.type) {
-        const typeCell = row.querySelector('.js-social-type');
+        const typeCell = card.querySelector('.js-social-type');
         if (typeCell) {
-          typeCell.textContent = postData.type;
+          typeCell.textContent = `(${postData.type})`;
         }
       }
 
-      const linkEl = row.querySelector('.js-social-link');
-      const linkEmptyEl = row.querySelector('.js-social-link-empty');
-      if (postData.link_url) {
-        if (linkEl) {
-          linkEl.href = postData.link_url;
-          linkEl.textContent = postData.link_url;
-          linkEl.hidden = false;
-        }
-        if (linkEmptyEl) {
-          linkEmptyEl.remove();
-        }
-      } else {
-        if (linkEl) {
-          linkEl.removeAttribute('href');
-          linkEl.textContent = '';
-          linkEl.hidden = true;
-        }
-        if (!linkEmptyEl) {
-          const empty = document.createElement('span');
-          empty.className = 'muted js-social-link-empty';
-          empty.textContent = 'No link';
-          const linkContainer = row.querySelector('.social-posts-link');
-          if (linkContainer) {
-            linkContainer.appendChild(empty);
-          }
-        }
-      }
+      const titleText = postData.pinterest_title || 'No title';
+      setTitleLink(card, titleText, postData.link_url || '');
 
       setFieldValue(
-        row.querySelector('.js-social-pinterest-title'),
+        card.querySelector('.js-social-pinterest-title'),
         postData.pinterest_title,
       );
       setFieldValue(
-        row.querySelector('.js-social-pinterest-description'),
+        card.querySelector('.js-social-pinterest-description'),
         postData.pinterest_description,
       );
       setFieldValue(
-        row.querySelector('.js-social-pinterest-alt-text'),
+        card.querySelector('.js-social-pinterest-alt-text'),
         postData.pinterest_alt_text,
       );
       setFieldValue(
-        row.querySelector('.js-social-instagram-caption'),
+        card.querySelector('.js-social-instagram-caption'),
         postData.instagram_caption,
       );
       setFieldValue(
-        row.querySelector('.js-social-instagram-alt-text'),
+        card.querySelector('.js-social-instagram-alt-text'),
         postData.instagram_alt_text,
       );
       setFieldValue(
-        row.querySelector('.js-social-facebook-message'),
+        card.querySelector('.js-social-facebook-message'),
         postData.facebook_message,
       );
 
       setDateValue(
-        row.querySelector('.js-social-pinterest-post-date'),
+        card.querySelector('.js-social-pinterest-post-date'),
         postData.pinterest_post_date,
       );
       setFieldValue(
-        row.querySelector('.js-social-pinterest-post-id'),
+        card.querySelector('.js-social-pinterest-post-id'),
         postData.pinterest_post_id,
       );
       setDateValue(
-        row.querySelector('.js-social-instagram-post-date'),
+        card.querySelector('.js-social-instagram-post-date'),
         postData.instagram_post_date,
       );
       setFieldValue(
-        row.querySelector('.js-social-instagram-post-id'),
+        card.querySelector('.js-social-instagram-post-id'),
         postData.instagram_post_id,
       );
       setDateValue(
-        row.querySelector('.js-social-facebook-post-date'),
+        card.querySelector('.js-social-facebook-post-date'),
         postData.facebook_post_date,
       );
       setFieldValue(
-        row.querySelector('.js-social-facebook-post-id'),
+        card.querySelector('.js-social-facebook-post-id'),
         postData.facebook_post_id,
       );
 
-      updatePlatformImage(row, 'pinterest', postData.pinterest_image_url,
-                          'Pinterest image');
-      updatePlatformImage(row, 'instagram', postData.instagram_image_url,
-                          'Instagram image');
-      updatePlatformImage(row, 'facebook', postData.facebook_image_url,
-                          'Facebook image');
+      updatePlatformImage(card, 'pinterest', postData.pinterest_image_url,
+        'Pinterest image');
+      updatePlatformImage(card, 'instagram', postData.instagram_image_url,
+        'Instagram image');
+      updatePlatformImage(card, 'facebook', postData.facebook_image_url,
+        'Facebook image');
 
-      const pinterestTitleInput = row.querySelector('.js-social-pinterest-title-input');
-      const pinterestDescriptionInput = row.querySelector(
-        '.js-social-pinterest-description-input');
-      const pinterestAltInput = row.querySelector('.js-social-pinterest-alt-text-input');
-      if (pinterestTitleInput) pinterestTitleInput.value = postData.pinterest_title || '';
-      if (pinterestDescriptionInput) {
-        pinterestDescriptionInput.value = postData.pinterest_description || '';
-      }
-      if (pinterestAltInput) pinterestAltInput.value = postData.pinterest_alt_text || '';
-
-      const instagramCaptionInput = row.querySelector('.js-social-instagram-caption-input');
-      const instagramAltInput = row.querySelector('.js-social-instagram-alt-text-input');
-      if (instagramCaptionInput) {
-        instagramCaptionInput.value = postData.instagram_caption || '';
-      }
-      if (instagramAltInput) instagramAltInput.value = postData.instagram_alt_text || '';
-
-      const facebookMessageInput = row.querySelector('.js-social-facebook-message-input');
-      if (facebookMessageInput) facebookMessageInput.value = postData.facebook_message || '';
-
-      const pinterestPostIdInput = row.querySelector(
-        '.js-social-post-id-input[data-platform="pinterest"]');
-      if (pinterestPostIdInput) {
-        pinterestPostIdInput.value = postData.pinterest_post_id || '';
-      }
-      const instagramPostIdInput = row.querySelector(
-        '.js-social-post-id-input[data-platform="instagram"]');
-      if (instagramPostIdInput) {
-        instagramPostIdInput.value = postData.instagram_post_id || '';
-      }
-      const facebookPostIdInput = row.querySelector(
-        '.js-social-post-id-input[data-platform="facebook"]');
-      if (facebookPostIdInput) {
-        facebookPostIdInput.value = postData.facebook_post_id || '';
-      }
+      populateEditInputs(card);
 
       setPlatformLocked(
-        row,
+        card,
         'pinterest',
         Boolean(postData.pinterest_post_date || postData.pinterest_post_id),
       );
       setPlatformLocked(
-        row,
+        card,
         'instagram',
         Boolean(postData.instagram_post_date || postData.instagram_post_id),
       );
       setPlatformLocked(
-        row,
+        card,
         'facebook',
         Boolean(postData.facebook_post_date || postData.facebook_post_id),
       );
+      updateCardActionsVisibility(card);
     }
 
-    function createPostRow(postId, postData) {
-      if (!socialPostsTable) {
+    function createPostCard(postId, postData) {
+      if (!socialPostsList) {
         return null;
       }
-      let tbody = socialPostsTable.querySelector('tbody');
-      if (!tbody) {
-        tbody = document.createElement('tbody');
-        socialPostsTable.appendChild(tbody);
-      }
-
-      const row = document.createElement('tr');
-      const fallbackId = postId || `new-${Date.now()}`;
-      row.innerHTML = `
-        <td><span class="muted">Just now</span></td>
-        <td class="js-social-type"></td>
-        <td>
-          <div class="social-posts-link">
-            <a class="js-social-link" target="_blank" rel="noopener" hidden></a>
-            <span class="muted js-social-link-empty">No link</span>
-          </div>
-        </td>
-        <td>
+      const card = document.createElement('article');
+      card.className = 'social-post-card';
+      card.innerHTML = `
+        <header class="social-post-card__header">
+          <span class="social-post-card__timestamp js-social-created">Just now</span>
+          <span>:</span>
+          <span class="social-post-card__title">
+            <span class="js-social-title js-social-link-empty">No title</span>
+          </span>
+          <span class="social-post-card__type js-social-type"></span>
+        </header>
+        <div class="social-post-card__columns">
           <div class="social-platform" data-platform="pinterest">
+            <div class="social-posts-image js-social-platform-image" data-platform="pinterest">
+              <span class="muted js-social-no-image">No image</span>
+            </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Title</span>
-              <span class="social-platform-value social-posts-title js-social-pinterest-title is-empty"
+              <span class="social-platform-value js-social-pinterest-title is-empty"
                     data-empty-text="No title">No title</span>
+              <input class="social-posts-edit-input js-social-pinterest-title-input"
+                     type="text"
+                     maxlength="100">
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Description</span>
-              <span class="social-platform-value social-posts-description js-social-pinterest-description is-empty"
+              <span class="social-platform-value js-social-pinterest-description is-empty"
                     data-empty-text="No description">No description</span>
+              <textarea class="social-posts-edit-textarea js-social-pinterest-description-input"
+                        maxlength="500"></textarea>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Alt text</span>
               <span class="social-platform-value js-social-pinterest-alt-text is-empty"
                     data-empty-text="No alt text">No alt text</span>
-            </div>
-            <div class="social-posts-actions">
-              <button type="button" class="text-button js-social-edit" data-platform="pinterest">
-                Edit text
-              </button>
-              <button type="button"
-                      class="text-button js-social-regenerate"
-                      data-platform="pinterest"
-                      data-regenerate-image="false">
-                Regenerate text
-              </button>
-              <button type="button"
-                      class="text-button js-social-regenerate"
-                      data-platform="pinterest"
-                      data-regenerate-image="true">
-                Regenerate image + text
-              </button>
-            </div>
-            <div class="social-posts-edit" data-platform="pinterest" hidden>
-              <label class="social-posts-edit-label" for="social-pinterest-title-${fallbackId}">
-                Pinterest title
-              </label>
-              <input class="social-posts-edit-input js-social-pinterest-title-input"
-                     id="social-pinterest-title-${fallbackId}"
-                     type="text"
-                     maxlength="100">
-              <label class="social-posts-edit-label" for="social-pinterest-description-${fallbackId}">
-                Pinterest description
-              </label>
-              <textarea class="social-posts-edit-textarea js-social-pinterest-description-input"
-                        id="social-pinterest-description-${fallbackId}"
-                        maxlength="500"></textarea>
-              <label class="social-posts-edit-label" for="social-pinterest-alt-${fallbackId}">
-                Pinterest alt text
-              </label>
               <textarea class="social-posts-edit-textarea js-social-pinterest-alt-text-input"
-                        id="social-pinterest-alt-${fallbackId}"
                         maxlength="500"></textarea>
-              <div class="social-posts-edit-actions">
-                <button type="button" class="text-button js-social-cancel" data-platform="pinterest">
-                  Cancel
-                </button>
-                <button type="button" class="text-button js-social-save" data-platform="pinterest">
-                  Save
-                </button>
-              </div>
-            </div>
-            <div class="social-posts-image js-social-platform-image" data-platform="pinterest">
-              <span class="muted js-social-no-image">No image</span>
             </div>
             <div class="social-platform-meta">
               Posted:
@@ -1149,56 +1071,25 @@
               <span class="social-platform-value js-social-pinterest-post-id is-empty"
                     data-empty-text="Not set">Not set</span>
             </div>
-            <div class="social-platform-mark">
-              <input class="social-posts-edit-input js-social-post-id-input"
-                     data-platform="pinterest"
-                     type="text"
-                     placeholder="Pinterest post ID">
-              <button type="button" class="text-button js-social-mark-posted" data-platform="pinterest">
-                Mark Posted
-              </button>
-            </div>
+            <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
+              Post
+            </button>
           </div>
-        </td>
-        <td>
           <div class="social-platform" data-platform="instagram">
+            <div class="social-posts-image js-social-platform-image" data-platform="instagram">
+              <span class="muted js-social-no-image">No image</span>
+            </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Caption</span>
               <span class="social-platform-value js-social-instagram-caption is-empty"
                     data-empty-text="No caption">No caption</span>
+              <textarea class="social-posts-edit-textarea js-social-instagram-caption-input"></textarea>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Alt text</span>
               <span class="social-platform-value js-social-instagram-alt-text is-empty"
                     data-empty-text="No alt text">No alt text</span>
-            </div>
-            <div class="social-posts-actions">
-              <button type="button" class="text-button js-social-edit" data-platform="instagram">
-                Edit text
-              </button>
-            </div>
-            <div class="social-posts-edit" data-platform="instagram" hidden>
-              <label class="social-posts-edit-label" for="social-instagram-caption-${fallbackId}">
-                Instagram caption
-              </label>
-              <textarea class="social-posts-edit-textarea js-social-instagram-caption-input"
-                        id="social-instagram-caption-${fallbackId}"></textarea>
-              <label class="social-posts-edit-label" for="social-instagram-alt-${fallbackId}">
-                Instagram alt text
-              </label>
-              <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"
-                        id="social-instagram-alt-${fallbackId}"></textarea>
-              <div class="social-posts-edit-actions">
-                <button type="button" class="text-button js-social-cancel" data-platform="instagram">
-                  Cancel
-                </button>
-                <button type="button" class="text-button js-social-save" data-platform="instagram">
-                  Save
-                </button>
-              </div>
-            </div>
-            <div class="social-posts-image js-social-platform-image" data-platform="instagram">
-              <span class="muted js-social-no-image">No image</span>
+              <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"></textarea>
             </div>
             <div class="social-platform-meta">
               Posted:
@@ -1210,46 +1101,19 @@
               <span class="social-platform-value js-social-instagram-post-id is-empty"
                     data-empty-text="Not set">Not set</span>
             </div>
-            <div class="social-platform-mark">
-              <input class="social-posts-edit-input js-social-post-id-input"
-                     data-platform="instagram"
-                     type="text"
-                     placeholder="Instagram post ID">
-              <button type="button" class="text-button js-social-mark-posted" data-platform="instagram">
-                Mark Posted
-              </button>
-            </div>
+            <button type="button" class="text-button js-social-post-button" data-platform="instagram">
+              Post
+            </button>
           </div>
-        </td>
-        <td>
           <div class="social-platform" data-platform="facebook">
+            <div class="social-posts-image js-social-platform-image" data-platform="facebook">
+              <span class="muted js-social-no-image">No image</span>
+            </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Message</span>
               <span class="social-platform-value js-social-facebook-message is-empty"
                     data-empty-text="No message">No message</span>
-            </div>
-            <div class="social-posts-actions">
-              <button type="button" class="text-button js-social-edit" data-platform="facebook">
-                Edit text
-              </button>
-            </div>
-            <div class="social-posts-edit" data-platform="facebook" hidden>
-              <label class="social-posts-edit-label" for="social-facebook-message-${fallbackId}">
-                Facebook message
-              </label>
-              <textarea class="social-posts-edit-textarea js-social-facebook-message-input"
-                        id="social-facebook-message-${fallbackId}"></textarea>
-              <div class="social-posts-edit-actions">
-                <button type="button" class="text-button js-social-cancel" data-platform="facebook">
-                  Cancel
-                </button>
-                <button type="button" class="text-button js-social-save" data-platform="facebook">
-                  Save
-                </button>
-              </div>
-            </div>
-            <div class="social-posts-image js-social-platform-image" data-platform="facebook">
-              <span class="muted js-social-no-image">No image</span>
+              <textarea class="social-posts-edit-textarea js-social-facebook-message-input"></textarea>
             </div>
             <div class="social-platform-meta">
               Posted:
@@ -1261,36 +1125,39 @@
               <span class="social-platform-value js-social-facebook-post-id is-empty"
                     data-empty-text="Not set">Not set</span>
             </div>
-            <div class="social-platform-mark">
-              <input class="social-posts-edit-input js-social-post-id-input"
-                     data-platform="facebook"
-                     type="text"
-                     placeholder="Facebook post ID">
-              <button type="button" class="text-button js-social-mark-posted" data-platform="facebook">
-                Mark Posted
-              </button>
-            </div>
+            <button type="button" class="text-button js-social-post-button" data-platform="facebook">
+              Post
+            </button>
           </div>
-        </td>
+        </div>
+        <div class="social-post-card__actions">
+          <button type="button" class="text-button js-social-edit-toggle">Edit</button>
+          <button type="button" class="text-button js-social-regenerate" data-regenerate-image="false">
+            Regenerate text
+          </button>
+          <button type="button" class="text-button js-social-regenerate" data-regenerate-image="true">
+            Regenerate image + text
+          </button>
+        </div>
       `;
 
-      tbody.insertBefore(row, tbody.firstChild);
-      updatePostRow(row, postId, postData);
+      socialPostsList.insertBefore(card, socialPostsList.firstChild);
+      updatePostCard(card, postId, postData);
       updatePostsCount();
-      return row;
+      return card;
     }
 
-    function upsertPostRow(postId, postData) {
-      if (!socialPostsTable || !postId) {
+    function upsertPostCard(postId, postData) {
+      if (!socialPostsList || !postId) {
         return;
       }
-      const selector = `tr[data-post-id="${escapeSelector(postId)}"]`;
-      const existingRow = socialPostsTable.querySelector(selector);
-      if (existingRow) {
-        updatePostRow(existingRow, postId, postData);
+      const selector = `.social-post-card[data-post-id="${escapeSelector(postId)}"]`;
+      const existingCard = socialPostsList.querySelector(selector);
+      if (existingCard) {
+        updatePostCard(existingCard, postId, postData);
         return;
       }
-      createPostRow(postId, postData);
+      createPostCard(postId, postData);
     }
 
     function clearSelection() {
@@ -1391,7 +1258,7 @@
             pinPreview.appendChild(img);
           }
           img.src = pinUrl;
-          upsertPostRow(postId, postData);
+          upsertPostCard(postId, postData);
           clearSelection();
         }).catch((error) => {
           console.error('Failed to create social post:', error);
@@ -1405,19 +1272,16 @@
       renderSelectionRow();
     }
 
-    if (socialPostsTable) {
-      socialPostsTable.addEventListener('click', async (event) => {
-        const editButton = event.target.closest('.js-social-edit');
-        const saveButton = event.target.closest('.js-social-save');
-        const cancelButton = event.target.closest('.js-social-cancel');
+    if (socialPostsList) {
+      socialPostsList.addEventListener('click', async (event) => {
+        const editButton = event.target.closest('.js-social-edit-toggle');
         const regenButton = event.target.closest('.js-social-regenerate');
-        const markPostedButton = event.target.closest('.js-social-mark-posted');
-        const actionButton = editButton || saveButton || cancelButton || regenButton
-          || markPostedButton;
+        const postButton = event.target.closest('.js-social-post-button');
+        const actionButton = editButton || regenButton || postButton;
 
-        const row = actionButton ? actionButton.closest('tr[data-post-id]')
-          : event.target.closest('tr[data-post-id]');
-        if (!row || !row.dataset.postId) {
+        const card = actionButton ? actionButton.closest('.social-post-card')
+          : event.target.closest('.social-post-card');
+        if (!card || !card.dataset.postId) {
           return;
         }
 
@@ -1425,77 +1289,68 @@
           return;
         }
 
-        const platform = actionButton.dataset.platform || '';
-        const editPanel = platform
-          ? row.querySelector(`.social-posts-edit[data-platform="${platform}"]`)
-          : null;
-
-        if (editButton && editPanel) {
-          editPanel.hidden = !editPanel.hidden;
-          if (!editPanel.hidden) {
-            if (platform === 'pinterest') {
-              const titleInput = row.querySelector('.js-social-pinterest-title-input');
-              const descriptionInput = row.querySelector(
-                '.js-social-pinterest-description-input');
-              const altInput = row.querySelector('.js-social-pinterest-alt-text-input');
-              if (titleInput) titleInput.value = row.dataset.pinterestTitle || '';
-              if (descriptionInput) {
-                descriptionInput.value = row.dataset.pinterestDescription || '';
-              }
-              if (altInput) altInput.value = row.dataset.pinterestAltText || '';
-            } else if (platform === 'instagram') {
-              const captionInput = row.querySelector('.js-social-instagram-caption-input');
-              const altInput = row.querySelector('.js-social-instagram-alt-text-input');
-              if (captionInput) {
-                captionInput.value = row.dataset.instagramCaption || '';
-              }
-              if (altInput) altInput.value = row.dataset.instagramAltText || '';
-            } else if (platform === 'facebook') {
-              const messageInput = row.querySelector('.js-social-facebook-message-input');
-              if (messageInput) {
-                messageInput.value = row.dataset.facebookMessage || '';
-              }
-            }
+        if (postButton) {
+          activePostCard = card;
+          activePostPlatform = postButton.dataset.platform || '';
+          if (postModalInput) {
+            const platformKey = activePostPlatform || '';
+            const currentValue = card.dataset[`${platformKey}PostId`] || '';
+            postModalInput.value = currentValue;
+          }
+          if (postModal) {
+            postModal.classList.add('admin-modal--open');
+            postModal.setAttribute('aria-hidden', 'false');
           }
           return;
         }
 
-        if (cancelButton && editPanel) {
-          editPanel.hidden = true;
-          return;
-        }
+        if (editButton) {
+          const isEditing = card.classList.contains('is-editing');
+          if (!isEditing) {
+            populateEditInputs(card);
+            card.classList.add('is-editing');
+            editButton.textContent = 'Save';
+            return;
+          }
 
-        if (saveButton) {
-          await runWithButtonState(saveButton, 'Saving...', async () => {
-            const payload = { post_id: row.dataset.postId };
-            if (platform === 'pinterest') {
-              const titleInput = row.querySelector('.js-social-pinterest-title-input');
-              const descriptionInput = row.querySelector(
+          await runWithButtonState(editButton, 'Saving...', async () => {
+            const payload = { post_id: card.dataset.postId };
+            const pinterestLocked = card.querySelector(
+              '.social-platform[data-platform="pinterest"]',
+            )?.classList.contains('social-platform--locked');
+            const instagramLocked = card.querySelector(
+              '.social-platform[data-platform="instagram"]',
+            )?.classList.contains('social-platform--locked');
+            const facebookLocked = card.querySelector(
+              '.social-platform[data-platform="facebook"]',
+            )?.classList.contains('social-platform--locked');
+
+            if (!pinterestLocked) {
+              const titleInput = card.querySelector('.js-social-pinterest-title-input');
+              const descriptionInput = card.querySelector(
                 '.js-social-pinterest-description-input');
-              const altInput = row.querySelector('.js-social-pinterest-alt-text-input');
+              const altInput = card.querySelector('.js-social-pinterest-alt-text-input');
               payload.pinterest_title = titleInput ? titleInput.value : '';
               payload.pinterest_description = descriptionInput ? descriptionInput.value : '';
               payload.pinterest_alt_text = altInput ? altInput.value : '';
-            } else if (platform === 'instagram') {
-              const captionInput = row.querySelector('.js-social-instagram-caption-input');
-              const altInput = row.querySelector('.js-social-instagram-alt-text-input');
+            }
+            if (!instagramLocked) {
+              const captionInput = card.querySelector('.js-social-instagram-caption-input');
+              const altInput = card.querySelector('.js-social-instagram-alt-text-input');
               payload.instagram_caption = captionInput ? captionInput.value : '';
               payload.instagram_alt_text = altInput ? altInput.value : '';
-            } else if (platform === 'facebook') {
-              const messageInput = row.querySelector('.js-social-facebook-message-input');
-              payload.facebook_message = messageInput ? messageInput.value : '';
-            } else {
-              return;
             }
-            await sendSocialRequest({
-              ...payload,
-            }).then((data) => {
+            if (!facebookLocked) {
+              const messageInput = card.querySelector('.js-social-facebook-message-input');
+              payload.facebook_message = messageInput ? messageInput.value : '';
+            }
+
+            await sendSocialRequest(payload).then((data) => {
               const postData = data?.post_data || {};
-              const postId = data?.post_id || row.dataset.postId;
-              upsertPostRow(postId, postData);
-              if (editPanel) {
-                editPanel.hidden = true;
-              }
+              const postId = data?.post_id || card.dataset.postId;
+              upsertPostCard(postId, postData);
+              card.classList.remove('is-editing');
+              editButton.textContent = 'Edit';
             });
           }).catch((error) => {
             console.error('Failed to update social post:', error);
@@ -1508,44 +1363,76 @@
           const regenerateImage = regenButton.dataset.regenerateImage === 'true';
           await runWithButtonState(regenButton, 'Regenerating...', async () => {
             await sendSocialRequest({
-              post_id: row.dataset.postId,
+              post_id: card.dataset.postId,
               regenerate_text: true,
               regenerate_image: regenerateImage,
             }).then((data) => {
               const postData = data?.post_data || {};
-              const postId = data?.post_id || row.dataset.postId;
-              upsertPostRow(postId, postData);
+              const postId = data?.post_id || card.dataset.postId;
+              upsertPostCard(postId, postData);
             });
           }).catch((error) => {
             console.error('Failed to regenerate social post:', error);
             alert('Failed to regenerate social post: ' + error.message);
           });
+        }
+      });
+    }
+
+    function closePostModal() {
+      if (!postModal) {
+        return;
+      }
+      postModal.classList.remove('admin-modal--open');
+      postModal.setAttribute('aria-hidden', 'true');
+      if (postModalInput) {
+        postModalInput.value = '';
+      }
+      activePostCard = null;
+      activePostPlatform = '';
+    }
+
+    if (postModalCancel) {
+      postModalCancel.addEventListener('click', closePostModal);
+    }
+    if (postModal) {
+      postModal.addEventListener('click', (event) => {
+        if (event.target.closest('[data-close="true"]')) {
+          closePostModal();
+        }
+      });
+    }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closePostModal();
+      }
+    });
+    if (postModalSubmit) {
+      postModalSubmit.addEventListener('click', async () => {
+        if (!activePostCard || !activePostPlatform) {
+          closePostModal();
           return;
         }
-
-        if (markPostedButton) {
-          const postIdInput = row.querySelector(
-            `.js-social-post-id-input[data-platform="${platform}"]`);
-          const platformPostId = postIdInput ? postIdInput.value.trim() : '';
-          if (!platformPostId) {
-            alert('Please enter a post ID before marking as posted.');
-            return;
-          }
-          await runWithButtonState(markPostedButton, 'Saving...', async () => {
-            await sendSocialRequest({
-              post_id: row.dataset.postId,
-              mark_posted_platform: platform,
-              platform_post_id: platformPostId,
-            }).then((data) => {
-              const postData = data?.post_data || {};
-              const postId = data?.post_id || row.dataset.postId;
-              upsertPostRow(postId, postData);
-            });
-          }).catch((error) => {
-            console.error('Failed to mark post as posted:', error);
-            alert('Failed to mark post as posted: ' + error.message);
-          });
+        const platformPostId = postModalInput ? postModalInput.value.trim() : '';
+        if (!platformPostId) {
+          alert('Please enter a post ID before marking as posted.');
+          return;
         }
+        await runWithButtonState(postModalSubmit, 'Saving...', async () => {
+          await sendSocialRequest({
+            post_id: activePostCard.dataset.postId,
+            mark_posted_platform: activePostPlatform,
+            platform_post_id: platformPostId,
+          }).then((data) => {
+            const postData = data?.post_data || {};
+            const postId = data?.post_id || activePostCard.dataset.postId;
+            upsertPostCard(postId, postData);
+            closePostModal();
+          });
+        }).catch((error) => {
+          console.error('Failed to mark post as posted:', error);
+          alert('Failed to mark post as posted: ' + error.message);
+        });
       });
     }
 

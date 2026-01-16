@@ -43,25 +43,33 @@ def test_create_social_post_success(monkeypatch: pytest.MonkeyPatch):
     models.PunnyJoke(key="j2", setup_text="Setup 2", punchline_text="Punch 2"),
   ]
   monkeypatch.setattr(social_fns.firestore, "get_punny_jokes", lambda ids: jokes)
-  monkeypatch.setattr(social_fns.social_operations,
-                      "generate_social_post_text",
-                      lambda _j, _t: ("Title", "Description"))
+  def _fake_generate_pinterest_post_text(image_bytes, post_type):
+    assert image_bytes.startswith(b"\x89PNG")
+    assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    return "Title", "Description", "Alt text"
+
+  monkeypatch.setattr(
+    social_fns.social_operations,
+    "generate_pinterest_post_text",
+    _fake_generate_pinterest_post_text,
+  )
 
   create_image_mock = Mock(
     return_value=Image.new('RGB', (1000, 500), color='white'))
   monkeypatch.setattr(social_fns.image_operations,
                       "create_pinterest_pin_image", create_image_mock)
 
-  monkeypatch.setattr(social_fns.cloud_storage, "get_gcs_uri",
-                      lambda bucket, base, ext: "gs://bucket/pin.png")
+  monkeypatch.setattr(social_fns.cloud_storage, "get_image_gcs_uri",
+                      lambda base, ext: "gs://bucket/pin.png")
   monkeypatch.setattr(social_fns.cloud_storage, "upload_bytes_to_gcs",
                       lambda _bytes, _uri, _content_type: None)
   monkeypatch.setattr(social_fns.cloud_storage, "get_public_cdn_url",
                       lambda _uri: "https://cdn.example.com/pin.png")
   created_post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID_TEASER,
-    title="Title",
-    description="Description",
+    pinterest_title="Title",
+    pinterest_description="Description",
+    pinterest_alt_text="Alt text",
     jokes=[{"key": "j1"}, {"key": "j2"}],
     pinterest_image_url="https://cdn.example.com/pin.png",
   )
@@ -76,8 +84,9 @@ def test_create_social_post_success(monkeypatch: pytest.MonkeyPatch):
   assert resp.status_code == 200
   payload = _json_payload(resp)
   assert payload["data"]["post_id"] == "post1"
-  assert payload["data"]["title"] == "Title"
-  assert payload["data"]["description"] == "Description"
+  assert payload["data"]["pinterest_title"] == "Title"
+  assert payload["data"]["pinterest_description"] == "Description"
+  assert payload["data"]["pinterest_alt_text"] == "Alt text"
   assert payload["data"]["pinterest_image_url"] == "https://cdn.example.com/pin.png"
   assert payload["data"]["type"] == "JOKE_GRID_TEASER"
 
@@ -89,8 +98,9 @@ def test_create_social_post_success(monkeypatch: pytest.MonkeyPatch):
   created_arg = create_mock.call_args[0][0]
   assert isinstance(created_arg, models.JokeSocialPost)
   assert created_arg.type == models.JokeSocialPostType.JOKE_GRID_TEASER
-  assert created_arg.title == "Title"
-  assert created_arg.description == "Description"
+  assert created_arg.pinterest_title == "Title"
+  assert created_arg.pinterest_description == "Description"
+  assert created_arg.pinterest_alt_text == "Alt text"
   assert created_arg.jokes == [
     {
       "key": "j1",

@@ -21,7 +21,7 @@ _MAX_SOCIAL_POST_JOKES = 5
   timeout_sec=600,
 )
 def create_social_post(req: https_fn.Request) -> https_fn.Response:
-  """Create a social post with generated title/description and pin image."""
+  """Create a social post with generated Pinterest text and pin image."""
   if response := handle_cors_preflight(req):
     return response
 
@@ -71,9 +71,6 @@ def create_social_post(req: https_fn.Request) -> https_fn.Response:
       ]
       return error_response(f'Jokes not found: {missing}', req=req, status=400)
 
-    title, description = social_operations.generate_social_post_text(
-      ordered_jokes, post_type)
-
     pin_image = image_operations.create_pinterest_pin_image(
       joke_ids,
       block_last_panel=post_type == models.JokeSocialPostType.JOKE_GRID_TEASER,
@@ -82,6 +79,11 @@ def create_social_post(req: https_fn.Request) -> https_fn.Response:
     buffer = BytesIO()
     pin_image.save(buffer, format='PNG')
     image_bytes = buffer.getvalue()
+
+    title, description, alt_text = social_operations.generate_pinterest_post_text(
+      image_bytes,
+      post_type=post_type,
+    )
 
     gcs_uri = cloud_storage.get_image_gcs_uri('social_pinterest', 'png')
     cloud_storage.upload_bytes_to_gcs(
@@ -93,9 +95,10 @@ def create_social_post(req: https_fn.Request) -> https_fn.Response:
 
     post = models.JokeSocialPost(
       type=post_type,
-      title=title,
-      description=description,
       jokes=[joke.get_minimal_joke_data() for joke in ordered_jokes],
+      pinterest_title=title,
+      pinterest_description=description,
+      pinterest_alt_text=alt_text,
       pinterest_image_url=pin_url,
     )
     post = firestore.create_joke_social_post(post)
@@ -103,8 +106,9 @@ def create_social_post(req: https_fn.Request) -> https_fn.Response:
     return success_response(
       {
         'post_id': post.key,
-        'title': title,
-        'description': description,
+        'pinterest_title': title,
+        'pinterest_description': description,
+        'pinterest_alt_text': alt_text,
         'pinterest_image_url': pin_url,
         'type': post_type.value,
       },

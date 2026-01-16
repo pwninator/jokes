@@ -96,8 +96,9 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
 def test_create_joke_social_post_sets_creation_time(monkeypatch):
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
-    title="Title",
-    description="Description",
+    pinterest_title="Title",
+    pinterest_description="Description",
+    pinterest_alt_text="Alt text",
     jokes=[{"key": "j1"}],
   )
 
@@ -125,8 +126,9 @@ def test_create_joke_social_post_sets_creation_time(monkeypatch):
 
   assert created.key == "post1"
   assert captured["type"] == "JOKE_GRID"
-  assert captured["title"] == "Title"
-  assert captured["description"] == "Description"
+  assert captured["pinterest_title"] == "Title"
+  assert captured["pinterest_description"] == "Description"
+  assert captured["pinterest_alt_text"] == "Alt text"
   assert captured["jokes"] == [{"key": "j1"}]
   assert captured["creation_time"] == "TS"
 

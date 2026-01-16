@@ -212,8 +212,8 @@ def test_joke_social_post_to_dict_serializes_type_and_keeps_dates():
   ts = datetime.datetime(2024, 3, 4, 5, 6, 7, tzinfo=datetime.timezone.utc)
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
-    title="Grid post",
-    description="A grid of jokes",
+    pinterest_title="Grid post",
+    pinterest_description="A grid of jokes",
     pinterest_post_date=ts,
   )
   post.key = "post1"
@@ -228,34 +228,15 @@ def test_joke_social_post_from_firestore_requires_type():
   """JokeSocialPost requires a type field."""
   with pytest.raises(ValueError):
     models.JokeSocialPost.from_firestore_dict(
-      {"title": "Title", "description": "Desc"},
+      {"pinterest_title": "Title"},
       key="post1",
     )
-
-
-def test_joke_social_post_from_firestore_requires_title():
-  """JokeSocialPost requires a title field."""
-  with pytest.raises(ValueError):
-    models.JokeSocialPost.from_firestore_dict(
-      {"type": "JOKE_GRID", "description": "Desc"},
-      key="post1",
-    )
-
-
-def test_joke_social_post_from_firestore_requires_description():
-  """JokeSocialPost requires a description field."""
-  with pytest.raises(ValueError):
-    models.JokeSocialPost.from_firestore_dict(
-      {"type": "JOKE_GRID", "title": "Title"},
-      key="post1",
-    )
-
 
 def test_joke_social_post_from_firestore_invalid_type():
   """JokeSocialPost rejects invalid type values."""
   with pytest.raises(ValueError):
     models.JokeSocialPost.from_firestore_dict(
-      {"type": "BAD", "title": "Title", "description": "Desc"},
+      {"type": "BAD", "pinterest_title": "Title"},
       key="post1",
     )
 
@@ -266,8 +247,8 @@ def test_joke_social_post_from_firestore_filters_jokes():
   post = models.JokeSocialPost.from_firestore_dict(
     {
       "type": "JOKE_GRID_TEASER",
-      "title": "Title",
-      "description": "Desc",
+      "pinterest_title": "Title",
+      "pinterest_description": "Desc",
       "jokes": [{"key": "j1"}, "bad", 123],
       "facebook_post_date": ts,
     },
@@ -276,6 +257,11 @@ def test_joke_social_post_from_firestore_filters_jokes():
   assert post.type == models.JokeSocialPostType.JOKE_GRID_TEASER
   assert post.jokes == [{"key": "j1"}]
   assert post.facebook_post_date == ts
+
+
+def test_joke_social_post_type_description():
+  assert "grid" in models.JokeSocialPostType.JOKE_GRID.description.lower()
+  assert "teaser" in models.JokeSocialPostType.JOKE_GRID_TEASER.description.lower()
 
 
 def test_jokesheet_slug_builds_from_category_and_index():

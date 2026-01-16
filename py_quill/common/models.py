@@ -65,6 +65,16 @@ class JokeSocialPostType(Enum):
   JOKE_GRID = "JOKE_GRID"
   JOKE_GRID_TEASER = "JOKE_GRID_TEASER"
 
+  @property
+  def description(self) -> str:
+    """Human-friendly description of the post layout."""
+    if self == JokeSocialPostType.JOKE_GRID:
+      return "A grid of joke setup and punchline images."
+    if self == JokeSocialPostType.JOKE_GRID_TEASER:
+      return ("A grid of joke setup and punchline images with the last "
+              "punchline covered as a teaser.")
+    return self.value
+
 
 @dataclass
 class SingleGenerationMetadata:
@@ -732,19 +742,26 @@ class JokeSocialPost:
   """Represents a social post derived from jokes."""
 
   type: JokeSocialPostType
-  title: str
-  description: str
   jokes: list[dict[str, str | None]] = field(default_factory=list)
   key: str | None = None
+
   pinterest_image_url: str | None = None
   pinterest_post_id: str | None = None
   pinterest_post_date: datetime.datetime | None = None
+  pinterest_title: str | None = None
+  pinterest_description: str | None = None
+  pinterest_alt_text: str | None = None
+
   instagram_image_url: str | None = None
   instagram_post_id: str | None = None
   instagram_post_date: datetime.datetime | None = None
+  instagram_caption: str | None = None
+  instagram_alt_text: str | None = None
+
   facebook_image_url: str | None = None
   facebook_post_id: str | None = None
   facebook_post_date: datetime.datetime | None = None
+  facebook_message: str | None = None
 
   def to_dict(self) -> dict:
     """Serialize social post fields for Firestore writes."""
@@ -769,14 +786,6 @@ class JokeSocialPost:
       data['type'] = JokeSocialPostType(type_value)
     except ValueError as exc:
       raise ValueError(f"Invalid JokeSocialPost type: {type_value}") from exc
-
-    title = data.get('title')
-    if not isinstance(title, str):
-      raise ValueError("JokeSocialPost requires a title")
-
-    description = data.get('description')
-    if not isinstance(description, str):
-      raise ValueError("JokeSocialPost requires a description")
 
     raw_jokes = data.get('jokes')
     if not isinstance(raw_jokes, list):

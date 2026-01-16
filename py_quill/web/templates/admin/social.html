@@ -233,8 +233,8 @@
           </td>
           <td>{{ post.type.value }}</td>
           <td>
-            <div class="social-posts-title">{{ post.title }}</div>
-            <div class="social-posts-description">{{ post.description }}</div>
+            <div class="social-posts-title">{{ post.pinterest_title or '' }}</div>
+            <div class="social-posts-description">{{ post.pinterest_description or '' }}</div>
           </td>
           <td>
             {% if post.pinterest_image_url %}

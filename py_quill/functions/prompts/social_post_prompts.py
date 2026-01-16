@@ -2,73 +2,131 @@
 
 from __future__ import annotations
 
-from firebase_functions import logger
+import json
+from dataclasses import dataclass
 
 from common import models
-from functions.prompts import prompt_utils
+from firebase_functions import logger
 from services import llm_client
 from services.llm_client import LlmModel
 
-_social_post_llm = llm_client.get_client(
-  label="Social Post Text",
+
+@dataclass(frozen=True)
+class SocialPostStrategy:
+  """Strategy for generating social post text."""
+
+  goal: str
+  cta: str
+  audience: str
+
+
+_PINTEREST_STRATEGIES: dict[models.JokeSocialPostType, SocialPostStrategy] = {
+  models.JokeSocialPostType.JOKE_GRID_TEASER:
+  SocialPostStrategy(
+    goal=("CURIOSITY. The punchline is hidden. Description must intrigue "
+          "users to click. Do NOT reveal the answer."),
+    cta="Get the answer",
+    audience="Families looking for quick entertainment, bored kids.",
+  ),
+  models.JokeSocialPostType.JOKE_GRID:
+  SocialPostStrategy(
+    goal="SAVES. High-value resource. Optimize for users saving to boards.",
+    cta="Save this for later",
+    audience="Parents, teachers, and grandparents.",
+  ),
+}
+
+_PINTEREST_SYSTEM_PROMPT = """You are a social media marketing expert for a wholesome kids jokes brand called Snickerdoodle Jokes.
+
+Your job: analyze the attached image and generate Pinterest-ready text for the pin.
+Do not invent details that are not visible in the image.
+Never include hashtags. Keep the tone friendly, playful, and family-safe.
+
+Return ONLY valid JSON (no markdown, no commentary) with:
+- pinterest_title: Max 100 characters. Front-load keywords.
+- pinterest_description: Max 500 characters. Natural sentences. No hashtags.
+- pinterest_alt_text: Max 500 characters. Describe the visual content for accessibility/SEO.
+"""
+
+_pinterest_llm = llm_client.get_client(
+  label="Pinterest Social Post Text",
   model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
-  output_tokens=300,
-  temperature=0.7,
+  temperature=0.6,
+  output_tokens=400,
+  response_schema={
+    "type":
+    "OBJECT",
+    "properties": {
+      "pinterest_title": {
+        "type": "STRING",
+        "description": "Pinterest title, max 100 characters."
+      },
+      "pinterest_description": {
+        "type": "STRING",
+        "description": "Pinterest description, max 500 characters."
+      },
+      "pinterest_alt_text": {
+        "type":
+        "STRING",
+        "description":
+        "Accessibility alt text describing the image, max 500 characters."
+      },
+    },
+    "required": [
+      "pinterest_title",
+      "pinterest_description",
+      "pinterest_alt_text",
+    ],
+    "property_ordering": [
+      "pinterest_title",
+      "pinterest_description",
+      "pinterest_alt_text",
+    ],
+  },
   system_instructions=[
-    """You are an expert social copywriter for a wholesome kids jokes brand.
-
-You write short, upbeat titles and descriptions that work across Pinterest,
-Instagram, and Facebook. Keep everything family-friendly and avoid profanity,
-violence, or adult themes.
-
-Rules:
-- Keep the title under 60 characters.
-- Keep the description 1-2 sentences, under 200 characters.
-- For JOKE_GRID_TEASER, do NOT reveal the final punchline. Tease curiosity.
-- For JOKE_GRID, it is fine to mention the jokes or humor at a high level.
-- Avoid hashtags, calls to buy, or links.
-
-Return plain text in this exact format:
-
-TITLE:
-<title>
-
-DESCRIPTION:
-<description>
-""",
+    _PINTEREST_SYSTEM_PROMPT,
   ],
 )
 
 
-def generate_social_post_text(
-  jokes: list[models.PunnyJoke],
-  post_type: models.JokeSocialPostType,
-) -> tuple[str, str, models.GenerationMetadata]:
-  """Generate a title and description for a social post."""
-  if not jokes:
-    raise ValueError("jokes must not be empty")
-
-  jokes_payload = "\n".join(
-    f"- Setup: {joke.setup_text}\n  Punchline: {joke.punchline_text}"
-    for joke in jokes
+def _get_pinterest_strategy(
+  post_type: models.JokeSocialPostType, ) -> SocialPostStrategy:
+  return _PINTEREST_STRATEGIES.get(
+    post_type,
+    _PINTEREST_STRATEGIES[models.JokeSocialPostType.JOKE_GRID],
   )
-  prompt = f"""
-POST_TYPE: {post_type.value}
 
-JOKES:
-{jokes_payload}
+
+def generate_pinterest_post_text(
+  image_bytes: bytes,
+  *,
+  post_type: models.JokeSocialPostType,
+) -> tuple[str, str, str, models.GenerationMetadata]:
+  """Generate Pinterest text fields based on the provided image."""
+  strategy = _get_pinterest_strategy(post_type)
+  prompt = f"""STRATEGIC CONTEXT
+* Post format: {post_type.description}
+* Audience: {strategy.audience}
+* CTA: {strategy.cta}
+* Goal: {strategy.goal}
 """
 
-  response = _social_post_llm.generate([prompt])
-  parsed = prompt_utils.parse_llm_response_line_separated(
-    ["TITLE", "DESCRIPTION"],
-    response.text,
-  )
+  response = _pinterest_llm.generate([
+    prompt,
+    ("image/png", image_bytes),
+  ])
 
-  title = parsed.get("TITLE", "").strip()
-  description = parsed.get("DESCRIPTION", "").strip()
-  if not title or not description:
-    logger.error("Invalid social post response: %s", response.text)
-    raise ValueError("Failed to generate social post text")
+  try:
+    result = json.loads(response.text)
+  except json.JSONDecodeError as exc:
+    logger.error("Invalid Pinterest JSON response: %s", response.text)
+    raise ValueError("Failed to generate Pinterest post text") from exc
 
-  return title, description, response.metadata
+  title = result.get("pinterest_title")
+  description = result.get("pinterest_description")
+  alt_text = result.get("pinterest_alt_text")
+  if not title or not description or not alt_text:
+    logger.error("Missing Pinterest fields in response: %s", response.text)
+    raise ValueError("Failed to generate Pinterest post text")
+
+  return title, description, alt_text, response.metadata

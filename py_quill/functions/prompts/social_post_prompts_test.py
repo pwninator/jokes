@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from common import models
@@ -17,39 +19,46 @@ class _FakeResponse:
 class _FakeClient:
   def __init__(self, text: str):
     self._text = text
+    self.prompts = None
 
-  def generate(self, _prompts):
+  def generate(self, prompts):
+    self.prompts = prompts
     return _FakeResponse(self._text)
 
 
-def test_generate_social_post_text_parses_fields(monkeypatch):
-  fake_text = """TITLE:
-Cute Jokes
+def test_generate_pinterest_post_text_parses_fields(monkeypatch):
+  fake_text = json.dumps({
+    "pinterest_title": "Cute Jokes",
+    "pinterest_description": "Tiny giggles for your day.",
+    "pinterest_alt_text": "A two-row grid of joke panels.",
+  })
+  fake_client = _FakeClient(fake_text)
+  monkeypatch.setattr(social_post_prompts, "_pinterest_llm", fake_client)
 
-DESCRIPTION:
-Tiny giggles for your day."""
-  monkeypatch.setattr(social_post_prompts, "_social_post_llm",
-                      _FakeClient(fake_text))
-
-  joke = models.PunnyJoke(setup_text="Setup", punchline_text="Punch")
-  title, description, metadata = social_post_prompts.generate_social_post_text(
-    [joke],
-    models.JokeSocialPostType.JOKE_GRID,
+  image_bytes = b"\x89PNGfake"
+  title, description, alt_text, metadata = social_post_prompts.generate_pinterest_post_text(
+    image_bytes,
+    post_type=models.JokeSocialPostType.JOKE_GRID,
   )
 
   assert title == "Cute Jokes"
   assert description == "Tiny giggles for your day."
+  assert alt_text == "A two-row grid of joke panels."
   assert isinstance(metadata, models.GenerationMetadata)
+  assert fake_client.prompts[1] == ("image/png", image_bytes)
 
 
-def test_generate_social_post_text_requires_output(monkeypatch):
-  fake_text = "TITLE:\n\nDESCRIPTION:\n"
-  monkeypatch.setattr(social_post_prompts, "_social_post_llm",
+def test_generate_pinterest_post_text_requires_output(monkeypatch):
+  fake_text = json.dumps({
+    "pinterest_title": "Cute Jokes",
+    "pinterest_description": "",
+    "pinterest_alt_text": "Alt text",
+  })
+  monkeypatch.setattr(social_post_prompts, "_pinterest_llm",
                       _FakeClient(fake_text))
 
-  joke = models.PunnyJoke(setup_text="Setup", punchline_text="Punch")
   with pytest.raises(ValueError):
-    social_post_prompts.generate_social_post_text(
-      [joke],
-      models.JokeSocialPostType.JOKE_GRID_TEASER,
+    social_post_prompts.generate_pinterest_post_text(
+      b"image",
+      post_type=models.JokeSocialPostType.JOKE_GRID_TEASER,
     )

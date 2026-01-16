@@ -162,8 +162,8 @@ def test_admin_social_renders_social_posts(monkeypatch):
 
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_GRID,
-    title="Title",
-    description="Description",
+    pinterest_title="Title",
+    pinterest_description="Description",
   )
   post.pinterest_image_url = "https://example.com/pin.png"
   created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,

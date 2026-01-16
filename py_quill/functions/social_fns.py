@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import traceback
 from typing import Any
 
@@ -48,6 +49,12 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
     pinterest_title = get_param(req, 'pinterest_title')
     pinterest_description = get_param(req, 'pinterest_description')
     pinterest_alt_text = get_param(req, 'pinterest_alt_text')
+    instagram_caption = get_param(req, 'instagram_caption')
+    instagram_alt_text = get_param(req, 'instagram_alt_text')
+    facebook_message = get_param(req, 'facebook_message')
+    mark_posted_platform_raw = get_param(req, 'mark_posted_platform')
+    platform_post_id = get_param(req, 'platform_post_id')
+    mark_posted_platform = _parse_platform(mark_posted_platform_raw)
 
     if post_id and (joke_ids is not None or type_raw is not None):
       raise social_operations.SocialPostRequestError(
@@ -60,10 +67,12 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
         'regenerate_image requires regenerate_text',
         status=400,
       )
+    if mark_posted_platform and not post_id:
+      raise social_operations.SocialPostRequestError(
+        'post_id is required to mark a social post as posted')
 
     operation = None
     post_type = None
-    joke_id_list = None
     if post_id is None:
       if not isinstance(type_raw, str) or not type_raw:
         raise social_operations.SocialPostRequestError('type is required')
@@ -76,55 +85,71 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
       if not isinstance(joke_ids, list) or not joke_ids:
         raise social_operations.SocialPostRequestError(
           'joke_ids must be a non-empty list')
-      joke_id_list = joke_ids
       operation = "CREATE"
 
     # Initialize social post state (existing or new).
-    post = social_operations.initialize_social_post(
+    post, manual_updates_applied = social_operations.initialize_social_post(
       post_id=post_id,
-      joke_ids=joke_id_list,
+      joke_ids=joke_ids,
       post_type=post_type,
       pinterest_title=pinterest_title,
       pinterest_description=pinterest_description,
       pinterest_alt_text=pinterest_alt_text,
+      instagram_caption=instagram_caption,
+      instagram_alt_text=instagram_alt_text,
+      facebook_message=facebook_message,
     )
     is_new = post_id is None
 
-    if _any_not_none(
-        pinterest_title,
-        pinterest_description,
-        pinterest_alt_text,
-    ):
+    if manual_updates_applied:
       operation = "UPDATE_TEXT"
 
-    # Generate Pinterest image when creating or explicitly requested.
-    pin_image_bytes: bytes | None = None
+    image_bytes_by_platform: dict[models.SocialPlatform, bytes] = {}
+    # Generate images when creating or explicitly requested.
     if is_new or regenerate_image:
-      operation = "GENERATE_PIN_IMAGE"
-      joke_id_list = [j.key for j in post.jokes if j.key]
-      post, pin_image_bytes = social_operations.create_pinterest_pin_assets(
-        post)
+      post, image_bytes_by_platform, did_generate_images = (
+        social_operations.generate_social_post_images(post))
+      if did_generate_images:
+        operation = "GENERATE_IMAGES"
 
-    # Generate Pinterest text from the image when needed.
-    if is_new or pin_image_bytes or regenerate_text:
-      operation = "GENERATE_PIN_TEXT"
-      post = social_operations.generate_pinterest_post_text(
-        post, pin_image_bytes)
+    # Generate text from the image when needed.
+    if is_new or image_bytes_by_platform or regenerate_text:
+      post, did_generate_text = social_operations.generate_social_post_text(
+        post,
+        image_bytes_by_platform=image_bytes_by_platform,
+      )
+      if did_generate_text:
+        operation = "GENERATE_TEXT"
+
+    if mark_posted_platform:
+      post = social_operations.mark_platform_posted(
+        post,
+        platform=mark_posted_platform,
+        platform_post_id=platform_post_id,
+        post_date=datetime.datetime.now(datetime.timezone.utc),
+      )
+      operation = f"MARK_POSTED_{mark_posted_platform.value.upper()}"
 
     # Persist updates.
     if not operation:
-      return error_response("No operation to perform", req=req, status=400)
+      return success_response(
+        {
+          "post_id": post.key,
+          "post_data": _serialize_social_post(post),
+        },
+        req=req,
+      )
 
     if saved_post := firestore.upsert_social_post(post, operation=operation):
       return success_response(
         {
           "post_id": saved_post.key,
-          "post_data": saved_post.to_dict(),
+          "post_data": _serialize_social_post(saved_post),
         },
         req=req,
       )
-    else:
-      return error_response('Failed to save social post', req=req, status=500)
+
+    return error_response('Failed to save social post', req=req, status=500)
 
   except social_operations.SocialPostRequestError as exc:
     return error_response(str(exc), req=req, status=exc.status)
@@ -136,5 +161,25 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
                           status=500)
 
 
-def _any_not_none(*vals: Any) -> bool:
-  return any(val is not None for val in vals)
+def _serialize_social_post(post: models.JokeSocialPost) -> dict[str, Any]:
+  data = post.to_dict()
+  for key, value in data.items():
+    if isinstance(value, datetime.datetime):
+      data[key] = value.isoformat()
+  return data
+
+
+def _parse_platform(
+  platform_raw: str | None, ) -> models.SocialPlatform | None:
+  if platform_raw is None:
+    return None
+  if not isinstance(platform_raw, str) or not platform_raw.strip():
+    raise social_operations.SocialPostRequestError(
+      "mark_posted_platform is required")
+  normalized = platform_raw.strip().lower()
+  try:
+    return models.SocialPlatform(normalized)
+  except ValueError as exc:
+    allowed = ", ".join(p.value for p in models.SocialPlatform)
+    raise social_operations.SocialPostRequestError(
+      f"mark_posted_platform must be one of: {allowed}") from exc

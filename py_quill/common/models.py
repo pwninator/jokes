@@ -78,6 +78,13 @@ class JokeSocialPostType(Enum):
     return self.value
 
 
+class SocialPlatform(Enum):
+  """Supported social platforms for joke posts."""
+  PINTEREST = "pinterest"
+  INSTAGRAM = "instagram"
+  FACEBOOK = "facebook"
+
+
 @dataclass
 class SingleGenerationMetadata:
   """Metadata about a single generation."""
@@ -769,6 +776,15 @@ class JokeSocialPost:
   def __post_init__(self) -> None:
     if not isinstance(self.link_url, str) or not self.link_url:
       raise ValueError("JokeSocialPost requires a link_url")
+
+  def is_platform_posted(self, platform: SocialPlatform) -> bool:
+    """Return True if the platform has already been posted."""
+    if not isinstance(platform, SocialPlatform):
+      raise ValueError("platform must be a SocialPlatform")
+    prefix = platform.value
+    post_date = getattr(self, f"{prefix}_post_date", None)
+    post_id = getattr(self, f"{prefix}_post_id", None)
+    return bool(post_date or post_id)
 
   def to_dict(self) -> dict:
     """Serialize social post fields for Firestore writes."""

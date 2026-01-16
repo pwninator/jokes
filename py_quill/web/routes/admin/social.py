@@ -65,7 +65,7 @@ def admin_social():
     image_size=_SOCIAL_IMAGE_SIZE,
     social_posts=social_posts,
     post_type_options=[t.value for t in models.JokeSocialPostType],
-    default_post_type=models.JokeSocialPostType.JOKE_GRID_TEASER.value,
+    default_post_type=models.JokeSocialPostType.JOKE_GRID.value,
   )
 
 

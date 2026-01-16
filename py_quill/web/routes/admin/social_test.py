@@ -166,6 +166,8 @@ def test_admin_social_renders_social_posts(monkeypatch):
     link_url="https://snickerdoodlejokes.com/jokes/social",
     pinterest_title="Title",
     pinterest_description="Description",
+    instagram_caption="Insta caption",
+    facebook_message="FB message",
   )
   post.pinterest_image_url = "https://example.com/pin.png"
   created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
@@ -195,8 +197,11 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "Social Posts" in html
   assert "Title" in html
   assert "Description" in html
+  assert "Insta caption" in html
+  assert "FB message" in html
   assert "JOKE_GRID" in html
   assert "https://snickerdoodlejokes.com/jokes/social" in html
   assert "pin.png" in html
   assert "Edit text" in html
   assert "Regenerate text" in html
+  assert "Mark Posted" in html

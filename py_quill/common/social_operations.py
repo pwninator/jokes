@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from io import BytesIO
 
 from common import image_operations, models
@@ -20,6 +21,70 @@ class SocialPostRequestError(Exception):
     self.status = status
 
 
+def apply_platform_text_updates(
+  post: models.JokeSocialPost,
+  *,
+  pinterest_title: str | None = None,
+  pinterest_description: str | None = None,
+  pinterest_alt_text: str | None = None,
+  instagram_caption: str | None = None,
+  instagram_alt_text: str | None = None,
+  facebook_message: str | None = None,
+) -> bool:
+  """Apply manual text updates to the social post."""
+  updated = False
+  if any((pinterest_title, pinterest_description, pinterest_alt_text)):
+    if not post.is_platform_posted(models.SocialPlatform.PINTEREST):
+      if pinterest_title:
+        post.pinterest_title = pinterest_title
+        updated = True
+      if pinterest_description:
+        post.pinterest_description = pinterest_description
+        updated = True
+      if pinterest_alt_text:
+        post.pinterest_alt_text = pinterest_alt_text
+        updated = True
+
+  if any((instagram_caption, instagram_alt_text)):
+    if not post.is_platform_posted(models.SocialPlatform.INSTAGRAM):
+      if instagram_caption:
+        post.instagram_caption = instagram_caption
+        updated = True
+      if instagram_alt_text:
+        post.instagram_alt_text = instagram_alt_text
+        updated = True
+
+  if facebook_message:
+    if not post.is_platform_posted(models.SocialPlatform.FACEBOOK):
+      post.facebook_message = facebook_message
+      updated = True
+
+  return updated
+
+
+def mark_platform_posted(
+  post: models.JokeSocialPost,
+  *,
+  platform: models.SocialPlatform,
+  platform_post_id: str | None,
+  post_date: datetime.datetime | None = None,
+) -> models.JokeSocialPost:
+  """Stamp the post id and post date for a platform."""
+  if not isinstance(platform, models.SocialPlatform):
+    raise SocialPostRequestError("platform must be a SocialPlatform")
+  if post.is_platform_posted(platform):
+    raise SocialPostRequestError(
+      f"{platform.value.title()} post already marked as posted")
+  if not isinstance(platform_post_id, str) or not platform_post_id.strip():
+    raise SocialPostRequestError("platform_post_id is required")
+
+  now = post_date or datetime.datetime.now(datetime.timezone.utc)
+  prefix = platform.value
+  setattr(post, f"{prefix}_post_id", platform_post_id.strip())
+  setattr(post, f"{prefix}_post_date", now)
+  return post
+
+
 def initialize_social_post(
   *,
   post_id: str | None,
@@ -28,7 +93,10 @@ def initialize_social_post(
   pinterest_title: str | None = None,
   pinterest_description: str | None = None,
   pinterest_alt_text: str | None = None,
-) -> models.JokeSocialPost:
+  instagram_caption: str | None = None,
+  instagram_alt_text: str | None = None,
+  facebook_message: str | None = None,
+) -> tuple[models.JokeSocialPost, bool]:
   """Load or create a social post and apply manual overrides."""
   if post_id:
     post = firestore.get_joke_social_post(post_id)
@@ -46,14 +114,17 @@ def initialize_social_post(
       link_url=link_url,
     )
 
-  if pinterest_title is not None:
-    post.pinterest_title = pinterest_title
-  if pinterest_description is not None:
-    post.pinterest_description = pinterest_description
-  if pinterest_alt_text is not None:
-    post.pinterest_alt_text = pinterest_alt_text
+  updated = apply_platform_text_updates(
+    post,
+    pinterest_title=pinterest_title,
+    pinterest_description=pinterest_description,
+    pinterest_alt_text=pinterest_alt_text,
+    instagram_caption=instagram_caption,
+    instagram_alt_text=instagram_alt_text,
+    facebook_message=facebook_message,
+  )
 
-  return post
+  return post, updated
 
 
 def _validate_post_type(
@@ -95,6 +166,42 @@ def _build_social_post_link_url(
     slug = last_joke.human_readable_setup_text_slug
     return f"{PUBLIC_JOKE_BASE_URL}/{slug}"
   raise SocialPostRequestError(f'Unsupported post type: {post_type}')
+
+
+def generate_social_post_images(
+  post: models.JokeSocialPost,
+) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, bytes], bool]:
+  """Generate image assets for each unposted platform."""
+  image_bytes_by_platform: dict[models.SocialPlatform, bytes] = {}
+  updated = False
+  for platform in models.SocialPlatform:
+    if post.is_platform_posted(platform):
+      continue
+    if platform == models.SocialPlatform.PINTEREST:
+      post, image_bytes = create_pinterest_pin_assets(post)
+      image_bytes_by_platform[platform] = image_bytes
+      updated = True
+  return post, image_bytes_by_platform, updated
+
+
+def generate_social_post_text(
+  post: models.JokeSocialPost,
+  *,
+  image_bytes_by_platform: dict[models.SocialPlatform, bytes] | None = None,
+) -> tuple[models.JokeSocialPost, bool]:
+  """Generate text content for each unposted platform."""
+  updated = False
+  for platform in models.SocialPlatform:
+    if post.is_platform_posted(platform):
+      continue
+    if platform == models.SocialPlatform.PINTEREST:
+      pin_image_bytes = None
+      if image_bytes_by_platform:
+        pin_image_bytes = image_bytes_by_platform.get(
+          models.SocialPlatform.PINTEREST)
+      post = generate_pinterest_post_text(post, pin_image_bytes)
+      updated = True
+  return post, updated
 
 
 def generate_pinterest_post_text(

@@ -110,7 +110,7 @@ def test_home2_page_renders_top_jokes(monkeypatch):
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
   assert 'data-analytics-event="web_joke_reveal_click"' in html
-  assert 'data-analytics-label="joke_card"' in html
+  assert 'data-analytics-label="joke_card_reveal"' in html
   assert 'data-analytics-params=' in html
   assert '"joke_id": "joke123"' in html
   assert 'data-analytics-event="web_index_play_store_click"' in html
@@ -530,6 +530,7 @@ def test_handle_joke_slug_long_nearest_match(monkeypatch):
 
   # Make collection() return different mocks based on call count
   collection_call_count = [0]
+
   def collection_side_effect(collection_name):
     collection_call_count[0] += 1
     if collection_call_count[0] == 1:

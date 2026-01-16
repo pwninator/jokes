@@ -414,7 +414,7 @@
       }
 
       const data = await resp.json().catch(() => ({}));
-      return data?.data?.post_data || {};
+      return data?.data || {};
     }
 
     async function runWithButtonState(button, actionText, action) {
@@ -448,6 +448,268 @@
         }
         selectionRow.appendChild(thumb);
       });
+    }
+
+    function escapeSelector(value) {
+      if (window.CSS && typeof CSS.escape === 'function') {
+        return CSS.escape(value);
+      }
+      return value.replace(/["\\]/g, '\\$&');
+    }
+
+    function formatPostDate(value) {
+      if (!value) {
+        return 'Not posted';
+      }
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {
+        return String(value);
+      }
+      return parsed.toISOString().slice(0, 10);
+    }
+
+    function updatePostsCount() {
+      const countLabel = document.querySelector('.social-posts-header .muted');
+      if (!countLabel || !socialPostsTable) {
+        return;
+      }
+      const rows = socialPostsTable.querySelectorAll('tbody tr');
+      countLabel.textContent = `${rows.length} posts`;
+    }
+
+    function updatePostRow(row, postId, postData) {
+      row.dataset.postId = postId || '';
+      row.dataset.pinterestTitle = postData.pinterest_title || '';
+      row.dataset.pinterestDescription = postData.pinterest_description || '';
+      row.dataset.pinterestAltText = postData.pinterest_alt_text || '';
+
+      const titleEl = row.querySelector('.social-posts-title');
+      if (titleEl) {
+        titleEl.textContent = postData.pinterest_title || '';
+      }
+      const descEl = row.querySelector('.social-posts-description');
+      if (descEl) {
+        descEl.textContent = postData.pinterest_description || '';
+      }
+
+      const titleInput = row.querySelector('.js-social-title');
+      const descriptionInput = row.querySelector('.js-social-description');
+      const altInput = row.querySelector('.js-social-alt-text');
+      if (titleInput) titleInput.value = postData.pinterest_title || '';
+      if (descriptionInput) descriptionInput.value = postData.pinterest_description || '';
+      if (altInput) altInput.value = postData.pinterest_alt_text || '';
+
+      if (postData.type) {
+        const typeCell = row.querySelectorAll('td')[1];
+        if (typeCell) {
+          typeCell.textContent = postData.type;
+        }
+      }
+
+      const pinterestCell = row.querySelectorAll('td')[3];
+      if (pinterestCell) {
+        const existingImg = pinterestCell.querySelector('img.social-posts-thumb');
+        const noImage = pinterestCell.querySelector('.js-social-no-image');
+        if (postData.pinterest_image_url) {
+          const img = existingImg || document.createElement('img');
+          img.className = 'social-posts-thumb';
+          img.alt = 'Pinterest image';
+          img.src = postData.pinterest_image_url;
+          if (!existingImg) {
+            pinterestCell.insertBefore(img, pinterestCell.firstChild);
+          }
+          if (noImage) {
+            noImage.remove();
+          }
+        } else if (!noImage) {
+          if (existingImg) {
+            existingImg.remove();
+          }
+          const empty = document.createElement('span');
+          empty.className = 'muted js-social-no-image';
+          empty.textContent = 'No image';
+          pinterestCell.insertBefore(empty, pinterestCell.firstChild);
+        }
+
+        const dateEl = pinterestCell.querySelector('.js-social-pinterest-date');
+        if (dateEl) {
+          dateEl.textContent = formatPostDate(postData.pinterest_post_date);
+        }
+      }
+    }
+
+    function createPostRow(postId, postData) {
+      if (!socialPostsTable) {
+        return null;
+      }
+      let tbody = socialPostsTable.querySelector('tbody');
+      if (!tbody) {
+        tbody = document.createElement('tbody');
+        socialPostsTable.appendChild(tbody);
+      }
+
+      const row = document.createElement('tr');
+      row.dataset.postId = postId || '';
+      row.dataset.pinterestTitle = postData.pinterest_title || '';
+      row.dataset.pinterestDescription = postData.pinterest_description || '';
+      row.dataset.pinterestAltText = postData.pinterest_alt_text || '';
+
+      const createdCell = document.createElement('td');
+      const createdLabel = document.createElement('span');
+      createdLabel.className = 'muted';
+      createdLabel.textContent = 'Just now';
+      createdCell.appendChild(createdLabel);
+
+      const typeCell = document.createElement('td');
+      typeCell.textContent = postData.type || '';
+
+      const contentCell = document.createElement('td');
+      const titleEl = document.createElement('div');
+      titleEl.className = 'social-posts-title';
+      titleEl.textContent = postData.pinterest_title || '';
+      const descEl = document.createElement('div');
+      descEl.className = 'social-posts-description';
+      descEl.textContent = postData.pinterest_description || '';
+
+      const actions = document.createElement('div');
+      actions.className = 'social-posts-actions';
+
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'text-button js-social-edit';
+      editButton.textContent = 'Edit text';
+      actions.appendChild(editButton);
+
+      const regenTextButton = document.createElement('button');
+      regenTextButton.type = 'button';
+      regenTextButton.className = 'text-button js-social-regenerate';
+      regenTextButton.dataset.regenerateImage = 'false';
+      regenTextButton.textContent = 'Regenerate text';
+      actions.appendChild(regenTextButton);
+
+      const regenImageButton = document.createElement('button');
+      regenImageButton.type = 'button';
+      regenImageButton.className = 'text-button js-social-regenerate';
+      regenImageButton.dataset.regenerateImage = 'true';
+      regenImageButton.textContent = 'Regenerate image + text';
+      actions.appendChild(regenImageButton);
+
+      const editPanel = document.createElement('div');
+      editPanel.className = 'social-posts-edit';
+      editPanel.hidden = true;
+
+      const fallbackId = postId || `new-${Date.now()}`;
+
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'social-posts-edit-label';
+      titleLabel.htmlFor = `social-title-${fallbackId}`;
+      titleLabel.textContent = 'Pinterest title';
+      const titleInput = document.createElement('input');
+      titleInput.className = 'social-posts-edit-input js-social-title';
+      titleInput.id = `social-title-${fallbackId}`;
+      titleInput.type = 'text';
+      titleInput.maxLength = 100;
+      titleInput.value = postData.pinterest_title || '';
+
+      const descriptionLabel = document.createElement('label');
+      descriptionLabel.className = 'social-posts-edit-label';
+      descriptionLabel.htmlFor = `social-description-${fallbackId}`;
+      descriptionLabel.textContent = 'Pinterest description';
+      const descriptionInput = document.createElement('textarea');
+      descriptionInput.className = 'social-posts-edit-textarea js-social-description';
+      descriptionInput.id = `social-description-${fallbackId}`;
+      descriptionInput.maxLength = 500;
+      descriptionInput.value = postData.pinterest_description || '';
+
+      const altLabel = document.createElement('label');
+      altLabel.className = 'social-posts-edit-label';
+      altLabel.htmlFor = `social-alt-${fallbackId}`;
+      altLabel.textContent = 'Pinterest alt text';
+      const altInput = document.createElement('textarea');
+      altInput.className = 'social-posts-edit-textarea js-social-alt-text';
+      altInput.id = `social-alt-${fallbackId}`;
+      altInput.maxLength = 500;
+      altInput.value = postData.pinterest_alt_text || '';
+
+      const editActions = document.createElement('div');
+      editActions.className = 'social-posts-edit-actions';
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.className = 'text-button js-social-cancel';
+      cancelButton.textContent = 'Cancel';
+      const saveButton = document.createElement('button');
+      saveButton.type = 'button';
+      saveButton.className = 'text-button js-social-save';
+      saveButton.textContent = 'Save';
+      editActions.appendChild(cancelButton);
+      editActions.appendChild(saveButton);
+
+      editPanel.appendChild(titleLabel);
+      editPanel.appendChild(titleInput);
+      editPanel.appendChild(descriptionLabel);
+      editPanel.appendChild(descriptionInput);
+      editPanel.appendChild(altLabel);
+      editPanel.appendChild(altInput);
+      editPanel.appendChild(editActions);
+
+      contentCell.appendChild(titleEl);
+      contentCell.appendChild(descEl);
+      contentCell.appendChild(actions);
+      contentCell.appendChild(editPanel);
+
+      const pinterestCell = document.createElement('td');
+      if (postData.pinterest_image_url) {
+        const img = document.createElement('img');
+        img.className = 'social-posts-thumb';
+        img.alt = 'Pinterest image';
+        img.src = postData.pinterest_image_url;
+        pinterestCell.appendChild(img);
+      } else {
+        const empty = document.createElement('span');
+        empty.className = 'muted js-social-no-image';
+        empty.textContent = 'No image';
+        pinterestCell.appendChild(empty);
+      }
+      const pinterestDate = document.createElement('div');
+      pinterestDate.className = 'muted js-social-pinterest-date';
+      pinterestDate.textContent = formatPostDate(postData.pinterest_post_date);
+      pinterestCell.appendChild(pinterestDate);
+
+      const instagramCell = document.createElement('td');
+      const instagramDate = document.createElement('div');
+      instagramDate.className = 'muted';
+      instagramDate.textContent = formatPostDate(postData.instagram_post_date);
+      instagramCell.appendChild(instagramDate);
+
+      const facebookCell = document.createElement('td');
+      const facebookDate = document.createElement('div');
+      facebookDate.className = 'muted';
+      facebookDate.textContent = formatPostDate(postData.facebook_post_date);
+      facebookCell.appendChild(facebookDate);
+
+      row.appendChild(createdCell);
+      row.appendChild(typeCell);
+      row.appendChild(contentCell);
+      row.appendChild(pinterestCell);
+      row.appendChild(instagramCell);
+      row.appendChild(facebookCell);
+
+      tbody.insertBefore(row, tbody.firstChild);
+      updatePostsCount();
+      return row;
+    }
+
+    function upsertPostRow(postId, postData) {
+      if (!socialPostsTable || !postId) {
+        return;
+      }
+      const selector = `tr[data-post-id="${escapeSelector(postId)}"]`;
+      const existingRow = socialPostsTable.querySelector(selector);
+      if (existingRow) {
+        updatePostRow(existingRow, postId, postData);
+        return;
+      }
+      createPostRow(postId, postData);
     }
 
     function clearSelection() {
@@ -531,7 +793,9 @@
             joke_ids: selectedJokes.map((joke) => joke.id),
             type: postTypeSelect?.value || '',
           });
-          const pinUrl = data?.pinterest_image_url;
+          const postData = data?.post_data || {};
+          const postId = data?.post_id || '';
+          const pinUrl = postData?.pinterest_image_url;
 
           if (!pinUrl) {
             throw new Error('Pinterest image URL missing from response');
@@ -546,7 +810,8 @@
             pinPreview.appendChild(img);
           }
           img.src = pinUrl;
-          window.location.reload();
+          upsertPostRow(postId, postData);
+          clearSelection();
         }).catch((error) => {
           console.error('Failed to create social post:', error);
           alert('Failed to create social post: ' + error.message);
@@ -598,8 +863,11 @@
               pinterest_title: titleInput ? titleInput.value : '',
               pinterest_description: descriptionInput ? descriptionInput.value : '',
               pinterest_alt_text: altInput ? altInput.value : '',
+            }).then((data) => {
+              const postData = data?.post_data || {};
+              const postId = data?.post_id || row.dataset.postId;
+              upsertPostRow(postId, postData);
             });
-            window.location.reload();
           }).catch((error) => {
             console.error('Failed to update social post:', error);
             alert('Failed to update social post: ' + error.message);
@@ -614,8 +882,11 @@
               post_id: row.dataset.postId,
               regenerate_text: true,
               regenerate_image: regenerateImage,
+            }).then((data) => {
+              const postData = data?.post_data || {};
+              const postId = data?.post_id || row.dataset.postId;
+              upsertPostRow(postId, postData);
             });
-            window.location.reload();
           }).catch((error) => {
             console.error('Failed to regenerate social post:', error);
             alert('Failed to regenerate social post: ' + error.message);

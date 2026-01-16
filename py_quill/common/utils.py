@@ -145,8 +145,16 @@ def format_image_url(
   return f"https://images.quillsstorybook.com/cdn-cgi/image/{new_params_str}/{object_path}"
 
 
-def get_text_slug(setup_text: str) -> str:
-  """Generate a slug from setup_text by lowercasing and removing non-alphanumeric characters."""
-  if not setup_text:
+def get_text_slug(text: str, human_readable: bool = False) -> str:
+  """Generate a slug from input text with optional human-readable separators."""
+  if not text:
     return ""
-  return re.sub(r'[^a-z0-9]', '', setup_text.lower())
+
+  normalized_text = text.lower()
+  if not human_readable:
+    return re.sub(r'[^a-z0-9]', '', normalized_text)
+  else:
+    # Remove punctuation/symbols but keep whitespace as word separators.
+    stripped_text = re.sub(r'[^a-z0-9\s]', '', normalized_text)
+    words = [word for word in re.split(r'\s+', stripped_text) if word]
+    return "_".join(words)

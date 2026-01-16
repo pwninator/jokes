@@ -88,3 +88,22 @@ def test_format_image_url_adds_missing_params():
   assert result.endswith("/photo.jpg")
   assert "format=auto" in result
   assert "width=500" in result
+
+
+def test_get_text_slug_default_removes_non_alphanumeric():
+  """Default behavior returns an alphanumeric-only slug."""
+  result = utils.get_text_slug("What's the time?")
+  assert result == "whatsthetime"
+
+
+def test_get_text_slug_human_readable_separates_words():
+  """Human-readable slugs use underscores only for whitespace."""
+  result = utils.get_text_slug("What's the time?", human_readable=True)
+  assert result == "whats_the_time"
+
+
+def test_get_text_slug_human_readable_cleans_punctuation():
+  """Punctuation is removed without creating extra separators."""
+  result = utils.get_text_slug("He said 'hi!' and 'hello?'",
+                               human_readable=True)
+  assert result == "he_said_hi_and_hello"

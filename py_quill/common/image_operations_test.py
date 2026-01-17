@@ -208,16 +208,16 @@ class CreateAdAssetsTest(unittest.TestCase):
     ]
     self.assertCountEqual(editor.scale_calls, expected_scale_calls)
 
-    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 4)
-    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
-    self.assertEqual(upload_calls[0].args[1], landscape_gcs_uri)
-    self.assertEqual(upload_calls[1].args[1], portrait_drawing_gcs_uri)
-    self.assertEqual(upload_calls[2].args[1], portrait_desk_gcs_uri)
-    self.assertEqual(upload_calls[3].args[1], portrait_corkboard_gcs_uri)
+    self.assertEqual(mock_storage.upload_image_to_gcs.call_count, 4)
+    upload_calls = mock_storage.upload_image_to_gcs.call_args_list
+    self.assertEqual(upload_calls[0].kwargs["gcs_uri"], landscape_gcs_uri)
+    self.assertEqual(upload_calls[1].kwargs["gcs_uri"], portrait_drawing_gcs_uri)
+    self.assertEqual(upload_calls[2].kwargs["gcs_uri"], portrait_desk_gcs_uri)
+    self.assertEqual(upload_calls[3].kwargs["gcs_uri"], portrait_corkboard_gcs_uri)
     for call in upload_calls:
-      self.assertIsInstance(call.args[0], (bytes, bytearray))
-      self.assertEqual(call.args[2], "image/png")
-      self.assertEqual(call.kwargs, {})
+      self.assertIsInstance(call.args[0], Image.Image)
+      self.assertEqual(call.args[2], "png")
+      self.assertIn("gcs_uri", call.kwargs)
 
     mock_storage.get_final_image_url.assert_any_call(
       landscape_gcs_uri,
@@ -339,13 +339,13 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 
     editor = RecordingImageEditor()
 
-    bytes_out, width = image_operations._compose_square_drawing_ad_image(
+    image_out, width = image_operations._compose_square_drawing_ad_image(
       editor,
       setup,
       punchline,
       background_uri=image_operations._AD_BACKGROUND_SQUARE_DRAWING_URI)
 
-    self.assertIsInstance(bytes_out, (bytes, bytearray))
+    self.assertIsInstance(image_out, Image.Image)
     self.assertEqual(width, 1024)
     self.assertEqual(editor.scale_calls, [
       (
@@ -456,12 +456,12 @@ class ComposePortraitDrawingTest(unittest.TestCase):
     ])
 
     # Four uploads with expected URIs
-    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 4)
-    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
-    self.assertEqual(upload_calls[0].args[1], landscape_gcs_uri)
-    self.assertEqual(upload_calls[1].args[1], portrait_drawing_gcs_uri)
-    self.assertEqual(upload_calls[2].args[1], portrait_desk_gcs_uri)
-    self.assertEqual(upload_calls[3].args[1], portrait_corkboard_gcs_uri)
+    self.assertEqual(mock_storage.upload_image_to_gcs.call_count, 4)
+    upload_calls = mock_storage.upload_image_to_gcs.call_args_list
+    self.assertEqual(upload_calls[0].kwargs["gcs_uri"], landscape_gcs_uri)
+    self.assertEqual(upload_calls[1].kwargs["gcs_uri"], portrait_drawing_gcs_uri)
+    self.assertEqual(upload_calls[2].kwargs["gcs_uri"], portrait_desk_gcs_uri)
+    self.assertEqual(upload_calls[3].kwargs["gcs_uri"], portrait_corkboard_gcs_uri)
 
     # Metadata updated with new URLs
     mock_storage.get_final_image_url.assert_any_call(
@@ -1660,7 +1660,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
       setup_img, punchline_img, blocker_img
     ]
 
-    result = image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
+    result = image_operations.create_joke_grid_image_3x2(joke_ids=[joke_id])
 
     self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
     self.assertEqual(result.mode, 'RGB')
@@ -1698,7 +1698,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images
 
-    result = image_operations.create_pinterest_pin_image(joke_ids=joke_ids)
+    result = image_operations.create_joke_grid_image_3x2(joke_ids=joke_ids)
 
     self.assertEqual(result.size, (1000, 1500))  # 3 jokes = 1000x(3*500)
     self.assertEqual(result.mode, 'RGB')
@@ -1727,7 +1727,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images
 
-    result = image_operations.create_pinterest_pin_image(
+    result = image_operations.create_joke_grid_image_3x2(
       jokes=mock_jokes,
       block_last_panel=False,
     )
@@ -1774,7 +1774,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images
 
-    image_operations.create_pinterest_pin_image(joke_ids=joke_ids)
+    image_operations.create_joke_grid_image_3x2(joke_ids=joke_ids)
 
     expected_calls = [
       call("setup-2"),
@@ -1792,10 +1792,9 @@ class CreatePinterestPinImageTest(unittest.TestCase):
   def test_create_pinterest_pin_image_empty_list(self, mock_firestore):
     """create_pinterest_pin_image should raise ValueError for empty joke list."""
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image(joke_ids=[])
+      image_operations.create_joke_grid_image_3x2(joke_ids=[])
 
-    self.assertIn("joke_ids must be a non-empty list",
-                  str(context.exception))
+    self.assertIn("joke_ids must be a non-empty list", str(context.exception))
 
   @patch('common.image_operations.firestore')
   def test_create_pinterest_pin_image_joke_not_found(self, mock_firestore):
@@ -1804,7 +1803,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_firestore.get_punny_jokes.return_value = []
 
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
+      image_operations.create_joke_grid_image_3x2(joke_ids=[joke_id])
 
     self.assertIn("Jokes not found", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
@@ -1823,7 +1822,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_firestore.get_punny_jokes.return_value = [mock_joke]
 
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
+      image_operations.create_joke_grid_image_3x2(joke_ids=[joke_id])
 
     self.assertIn("missing setup or punchline image", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
@@ -1842,7 +1841,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     mock_firestore.get_punny_jokes.return_value = [mock_joke]
 
     with self.assertRaises(ValueError) as context:
-      image_operations.create_pinterest_pin_image(joke_ids=[joke_id])
+      image_operations.create_joke_grid_image_3x2(joke_ids=[joke_id])
 
     self.assertIn("missing setup or punchline image", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
@@ -1869,7 +1868,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
       setup_img, punchline_img
     ]
 
-    result = image_operations.create_pinterest_pin_image(
+    result = image_operations.create_joke_grid_image_3x2(
       joke_ids=[joke_id], block_last_panel=False)
 
     self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
@@ -1899,7 +1898,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
       setup_img, punchline_img, blocker_img
     ]
 
-    result = image_operations.create_pinterest_pin_image(joke_ids=["joke1"])
+    result = image_operations.create_joke_grid_image_3x2(joke_ids=["joke1"])
 
     # For 1 joke: last_row_y = (1 - 1) * 500 = 0
     # Overlay should be at (425, 0 - 75) = (425, -75)
@@ -1927,7 +1926,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images_2
 
-    result_2 = image_operations.create_pinterest_pin_image(
+    result_2 = image_operations.create_joke_grid_image_3x2(
       joke_ids=["joke1", "joke2"])
 
     # For 2 jokes: last_row_y = (2 - 1) * 500 = 500
@@ -1940,10 +1939,10 @@ class CreatePinterestPinImageTest(unittest.TestCase):
   @patch('common.image_operations.cloud_storage')
   @patch('common.image_operations._compute_pinterest_pin_divider_color')
   def test_create_pinterest_pin_image_draws_dividers(
-      self,
-      mock_compute_divider_color,
-      mock_cloud_storage,
-      mock_firestore,
+    self,
+    mock_compute_divider_color,
+    mock_cloud_storage,
+    mock_firestore,
   ):
     mock_jokes = []
     for i in range(2):
@@ -1965,7 +1964,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     divider_color = (10, 20, 30)
     mock_compute_divider_color.return_value = divider_color
 
-    result = image_operations.create_pinterest_pin_image(
+    result = image_operations.create_joke_grid_image_3x2(
       joke_ids=["joke1", "joke2"],
       block_last_panel=False,
     )
@@ -1975,11 +1974,54 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     self.assertEqual(result.getpixel((510, 499)), divider_color)
     self.assertEqual(result.getpixel((510, 500)), divider_color)
 
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_joke_grid_3x2_uses_last_three_jokes(
+    self, mock_cloud_storage, mock_firestore
+  ):
+    """create_joke_grid_image_3x2 should use only the last 3 jokes when more are provided."""
+    # Create 5 mock jokes
+    joke_ids = ["joke1", "joke2", "joke3", "joke4", "joke5"]
+    mock_jokes = []
+    for joke_id in joke_ids:
+      mock_joke = Mock()
+      mock_joke.key = joke_id
+      mock_joke.setup_image_url = f"https://images.quillsstorybook.com/{joke_id}_setup.png"
+      mock_joke.punchline_image_url = f"https://images.quillsstorybook.com/{joke_id}_punchline.png"
+      mock_jokes.append(mock_joke)
+
+    mock_firestore.get_punny_jokes.return_value = mock_jokes
+
+    # Create test images
+    test_images = [
+      Image.new('RGB', (1024, 1024), color='red'),
+      Image.new('RGB', (1024, 1024), color='blue'),
+      Image.new('RGB', (1024, 1024), color='green'),
+      Image.new('RGB', (1024, 1024), color='yellow'),
+      Image.new('RGB', (1024, 1024), color='purple'),
+      Image.new('RGB', (1024, 1024), color='orange'),
+      Image.new('RGBA', (1024, 1024), color=(0, 0, 0, 128)),  # Blocker overlay
+    ]
+    mock_cloud_storage.download_image_from_gcs.side_effect = test_images
+
+    result = image_operations.create_joke_grid_image_3x2(joke_ids=joke_ids)
+
+    # Verify that only the last 3 jokes were fetched
+    mock_firestore.get_punny_jokes.assert_called_once_with(["joke3", "joke4", "joke5"])
+    
+    # Verify the result dimensions (3 jokes = 1000x1500)
+    self.assertEqual(result.size, (1000, 1500))
+    self.assertEqual(result.mode, 'RGB')
+
+    # Verify that 6 joke images + 1 blocker overlay were downloaded
+    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 7)
+
 
 class PinterestDividerColorTest(unittest.TestCase):
   """Tests for the Pinterest divider color sampling helper."""
 
   def _relative_luminance(self, rgb):
+
     def _to_linear(value):
       value /= 255.0
       if value <= 0.04045:

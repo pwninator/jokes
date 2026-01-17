@@ -48,22 +48,21 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   def _fake_generate_pinterest_post_text(post, pin_image_bytes):
     assert pin_image_bytes.startswith(b"\x89PNG")
     assert post.type == models.JokeSocialPostType.JOKE_GRID_TEASER
-    post.pinterest_title = "Title"
-    post.pinterest_description = "Description"
-    post.pinterest_alt_text = "Alt text"
     return post
 
-  monkeypatch.setattr(
-    social_fns.social_operations,
-    "generate_pinterest_post_text",
-    _fake_generate_pinterest_post_text,
-  )
+  def _fake_prompt(pin_image_bytes: bytes, *, post_type):
+    assert pin_image_bytes.startswith(b"\x89PNG")
+    assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    return "Title", "Description", "Alt text", {}
+
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_pinterest_post_text", _fake_prompt)
 
   create_image_mock = Mock(
     return_value=Image.new('RGB', (1000, 500), color='white'))
   monkeypatch.setattr(
     social_fns.social_operations.image_operations,
-    "create_pinterest_pin_image",
+    "create_joke_grid_image_3x2",
     create_image_mock,
   )
 
@@ -152,9 +151,11 @@ def test_social_post_creation_process_updates_text_manual(
                       "get_joke_social_post", lambda _post_id: post)
   update_mock = Mock(side_effect=lambda post, **_kwargs: post)
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
-  monkeypatch.setattr(social_fns.social_operations,
-                      "generate_pinterest_post_text",
-                      Mock(side_effect=AssertionError("LLM should not run")))
+  monkeypatch.setattr(
+    social_fns.social_operations.social_post_prompts,
+    "generate_pinterest_post_text",
+    Mock(side_effect=AssertionError("LLM should not run")),
+  )
 
   req = DummyReq(data={
     "post_id": "post1",
@@ -193,17 +194,13 @@ def test_social_post_creation_process_regenerates_text(
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
                       "download_bytes_from_gcs", lambda _uri: b"image-bytes")
 
-  def _fake_generate_text(post, pin_image_bytes):
-    post.pinterest_title = "New"
-    post.pinterest_description = "Desc"
-    post.pinterest_alt_text = "Alt"
-    return post
+  def _fake_prompt(pin_image_bytes: bytes, *, post_type):
+    assert pin_image_bytes == b"image-bytes"
+    assert post_type == models.JokeSocialPostType.JOKE_GRID
+    return "New", "Desc", "Alt", {}
 
-  monkeypatch.setattr(
-    social_fns.social_operations,
-    "generate_pinterest_post_text",
-    _fake_generate_text,
-  )
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_pinterest_post_text", _fake_prompt)
   update_mock = Mock(side_effect=lambda post, **_kwargs: post)
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
@@ -244,26 +241,22 @@ def test_social_post_creation_process_regenerates_text_and_image(
 
   captured = {}
 
-  def _fake_create_assets(post):
+  def _fake_generate_images(post):
     captured["joke_ids"] = [j.key for j in post.jokes if j.key]
     captured["post_type"] = post.type
     post.pinterest_image_url = "https://cdn.example.com/new.png"
-    return post, b"new-image"
+    return post, {models.SocialPlatform.PINTEREST: b"new-image"}, True
 
-  monkeypatch.setattr(social_fns.social_operations,
-                      "create_pinterest_pin_assets", _fake_create_assets)
+  monkeypatch.setattr(social_fns.social_operations, "generate_social_post_images",
+                      _fake_generate_images)
 
-  def _fake_generate_text(post, pin_image_bytes):
-    post.pinterest_title = "New"
-    post.pinterest_description = "Desc"
-    post.pinterest_alt_text = "Alt"
-    return post
+  def _fake_prompt(pin_image_bytes: bytes, *, post_type):
+    assert pin_image_bytes == b"new-image"
+    assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    return "New", "Desc", "Alt", {}
 
-  monkeypatch.setattr(
-    social_fns.social_operations,
-    "generate_pinterest_post_text",
-    _fake_generate_text,
-  )
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_pinterest_post_text", _fake_prompt)
   update_mock = Mock(side_effect=lambda post, **_kwargs: post)
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
@@ -306,17 +299,13 @@ def test_social_post_creation_process_regenerate_overrides_manual(monkeypatch):
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
                       "download_bytes_from_gcs", lambda _uri: b"image-bytes")
 
-  def _fake_generate_text(post, pin_image_bytes):
-    post.pinterest_title = "Generated"
-    post.pinterest_description = "Generated desc"
-    post.pinterest_alt_text = "Generated alt"
-    return post
+  def _fake_prompt(pin_image_bytes: bytes, *, post_type):
+    assert pin_image_bytes == b"image-bytes"
+    assert post_type == models.JokeSocialPostType.JOKE_GRID
+    return "Generated", "Generated desc", "Generated alt", {}
 
-  monkeypatch.setattr(
-    social_fns.social_operations,
-    "generate_pinterest_post_text",
-    _fake_generate_text,
-  )
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_pinterest_post_text", _fake_prompt)
 
   req = DummyReq(data={
     "post_id": "post1",

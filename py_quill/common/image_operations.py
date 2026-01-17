@@ -372,7 +372,7 @@ def create_ad_assets(
 
   composers: dict[str, Callable[
     [image_editor.ImageEditor, Image.Image, Image.Image],
-    tuple[bytes, int]]] = {
+    tuple[Image.Image, int]]] = {
       'landscape':
       _compose_landscape_ad_image,
       'square_drawing':
@@ -419,11 +419,17 @@ def create_ad_assets(
       final_urls.append(existing_url)
       continue
 
-    image_bytes, composed_width = compose_fn(editor, setup_img, punchline_img)
+    composed_image, composed_width = compose_fn(editor, setup_img,
+                                                punchline_img)
     filename = f"{joke_id}_ad_{key}_{timestamp}.png"
     gcs_uri = f"gs://{config.IMAGE_BUCKET_NAME}/{filename}"
 
-    cloud_storage.upload_bytes_to_gcs(image_bytes, gcs_uri, "image/png")
+    cloud_storage.upload_image_to_gcs(
+      composed_image,
+      f"{joke_id}_ad_{key}",
+      "png",
+      gcs_uri=gcs_uri,
+    )
     final_url = cloud_storage.get_final_image_url(gcs_uri,
                                                   width=composed_width)
     final_urls.append(final_url)
@@ -684,6 +690,7 @@ def generate_book_pages_style_update(
   include_image_description: bool = True,
 ) -> _BookPageGenerationResult:
   """Generate book pages using simplified style-update flow."""
+  del include_image_description
   generation_client = image_client.get_client(
     label='book_page_generation',
     model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
@@ -1013,7 +1020,37 @@ def _compute_pinterest_pin_divider_color(
   return _adjust_color_to_target_luminance(average, target_luminance)
 
 
-def create_pinterest_pin_image(
+def create_joke_grid_image_3x2(
+  *,
+  joke_ids: list[str] | None = None,
+  jokes: list[models.PunnyJoke] | None = None,
+  block_last_panel: bool = True,
+) -> Image.Image:
+  """Create a 3x2 image for a joke grid social post. If more than 3 jokes are provided, the last 3 jokes are used."""
+  num_jokes = 3
+  return _create_joke_grid_image(
+    joke_ids=joke_ids[-num_jokes:] if joke_ids else None,
+    jokes=jokes[-num_jokes:] if jokes else None,
+    block_last_panel=block_last_panel,
+  )
+
+
+def create_joke_grid_image_square(
+  *,
+  joke_ids: list[str] | None = None,
+  jokes: list[models.PunnyJoke] | None = None,
+  block_last_panel: bool = True,
+) -> Image.Image:
+  """Create a square image for a joke grid social post. If more than 2 jokes are provided, the last 2 jokes are used."""
+  num_jokes = 2
+  return _create_joke_grid_image(
+    joke_ids=joke_ids[-num_jokes:] if joke_ids else None,
+    jokes=jokes[-num_jokes:] if jokes else None,
+    block_last_panel=block_last_panel,
+  )
+
+
+def _create_joke_grid_image(
   *,
   joke_ids: list[str] | None = None,
   jokes: list[models.PunnyJoke] | None = None,
@@ -1192,7 +1229,7 @@ def _compose_landscape_ad_image(
   editor: image_editor.ImageEditor,
   setup_image: Image.Image,
   punchline_image: Image.Image,
-) -> tuple[bytes, int]:
+) -> tuple[Image.Image, int]:
   """Create a 2048x1024 landscape PNG of the setup/punchline images."""
   base = editor.create_blank_image(_AD_LANDSCAPE_CANVAS_WIDTH,
                                    _AD_LANDSCAPE_CANVAS_HEIGHT)
@@ -1211,9 +1248,7 @@ def _compose_landscape_ad_image(
   base = editor.paste_image(base, setup_scaled, 0, 0)
   base = editor.paste_image(base, punchline_scaled, half_width, 0)
 
-  buffer = BytesIO()
-  base.save(buffer, format='PNG')
-  return buffer.getvalue(), base.width
+  return base, base.width
 
 
 def _compose_square_drawing_ad_image(
@@ -1221,7 +1256,7 @@ def _compose_square_drawing_ad_image(
   setup_image: Image.Image,
   punchline_image: Image.Image,
   background_uri: str,
-) -> tuple[bytes, int]:
+) -> tuple[Image.Image, int]:
   """Create a 1200x1200 square PNG with background and post-it style shadows."""
   # Load the portrait background image from GCS
   base = cloud_storage.download_image_from_gcs(background_uri)
@@ -1247,6 +1282,4 @@ def _compose_square_drawing_ad_image(
   # Paste near top-left
   base = editor.paste_image(base, setup_rotated, 190, 35, add_shadow=True)
 
-  buffer = BytesIO()
-  base.save(buffer, format='PNG')
-  return buffer.getvalue(), base.width
+  return base, base.width

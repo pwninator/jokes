@@ -210,6 +210,103 @@ def test_get_storage_googleapis_public_url_formats_url():
   assert result == "http://test-bucket/path/to/file.pdf"
 
 
+def test_upload_image_to_gcs_png_uses_png_content_type(monkeypatch):
+  image = Image.new("RGB", (2, 2), color="red")
+  expected_uri = "gs://test-bucket/sample.png"
+  captured: dict[str, object] = {}
+
+  def fake_get_gcs_uri(file_name_base: str, extension: str) -> str:
+    captured["extension"] = extension
+    return expected_uri
+
+  def fake_upload(content_bytes: bytes, gcs_uri: str,
+                  content_type: str) -> str:
+    captured["bytes"] = content_bytes
+    captured["gcs_uri"] = gcs_uri
+    captured["content_type"] = content_type
+    return gcs_uri
+
+  monkeypatch.setattr(cloud_storage, "get_image_gcs_uri", fake_get_gcs_uri)
+  monkeypatch.setattr(cloud_storage, "upload_bytes_to_gcs", fake_upload)
+
+  result_uri, result_bytes = cloud_storage.upload_image_to_gcs(
+    image, "sample", "png")
+
+  assert captured["extension"] == "png"
+  assert captured["gcs_uri"] == expected_uri
+  assert captured["content_type"] == "image/png"
+  assert result_uri == expected_uri
+  assert result_bytes == captured["bytes"]
+  assert result_bytes.startswith(b"\x89PNG")
+
+
+def test_upload_image_to_gcs_jpeg_normalizes_extension(monkeypatch):
+  image = Image.new("RGB", (2, 2), color="blue")
+  expected_uri = "gs://test-bucket/sample.jpeg"
+  captured: dict[str, object] = {}
+
+  def fake_get_gcs_uri(file_name_base: str, extension: str) -> str:
+    captured["extension"] = extension
+    return expected_uri
+
+  def fake_upload(content_bytes: bytes, gcs_uri: str,
+                  content_type: str) -> str:
+    captured["content_type"] = content_type
+    return gcs_uri
+
+  monkeypatch.setattr(cloud_storage, "get_image_gcs_uri", fake_get_gcs_uri)
+  monkeypatch.setattr(cloud_storage, "upload_bytes_to_gcs", fake_upload)
+
+  result_uri, result_bytes = cloud_storage.upload_image_to_gcs(
+    image, "sample", ".JpEg")
+
+  assert captured["extension"] == "jpeg"
+  assert captured["content_type"] == "image/jpeg"
+  assert result_uri == expected_uri
+  assert result_bytes.startswith(b"\xff\xd8")
+
+
+def test_upload_image_to_gcs_rejects_unknown_extension():
+  image = Image.new("RGB", (2, 2), color="green")
+
+  try:
+    cloud_storage.upload_image_to_gcs(image, "sample", "tiff")
+    assert False, "Should have raised ValueError"
+  except ValueError as e:
+    assert "Unsupported image extension" in str(e)
+
+
+def test_upload_image_to_gcs_accepts_explicit_gcs_uri(monkeypatch):
+  image = Image.new("RGB", (2, 2), color="red")
+  expected_uri = "gs://test-bucket/fixed.png"
+  captured: dict[str, object] = {}
+
+  def fake_get_gcs_uri(_file_name_base: str, _extension: str) -> str:
+    raise AssertionError("get_image_gcs_uri should not be called")
+
+  def fake_upload(content_bytes: bytes, gcs_uri: str,
+                  content_type: str) -> str:
+    captured["gcs_uri"] = gcs_uri
+    captured["content_type"] = content_type
+    captured["bytes"] = content_bytes
+    return gcs_uri
+
+  monkeypatch.setattr(cloud_storage, "get_image_gcs_uri", fake_get_gcs_uri)
+  monkeypatch.setattr(cloud_storage, "upload_bytes_to_gcs", fake_upload)
+
+  result_uri, result_bytes = cloud_storage.upload_image_to_gcs(
+    image,
+    "ignored",
+    "png",
+    gcs_uri=expected_uri,
+  )
+
+  assert captured["gcs_uri"] == expected_uri
+  assert captured["content_type"] == "image/png"
+  assert result_uri == expected_uri
+  assert result_bytes == captured["bytes"]
+
+
 def test_gcs_file_exists_delegates_to_gcs_blob(monkeypatch):
 
   class FakeBlob:

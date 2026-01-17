@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-from io import BytesIO
 
 from common import image_operations, models
 from functions.prompts import social_post_prompts
@@ -177,10 +176,20 @@ def generate_social_post_images(
   for platform in models.SocialPlatform:
     if post.is_platform_posted(platform):
       continue
+
+    image_url, image_bytes = _create_social_post_image(post, platform)
+    image_bytes_by_platform[platform] = image_bytes
+    updated = True
+
     if platform == models.SocialPlatform.PINTEREST:
-      post, image_bytes = create_pinterest_pin_assets(post)
-      image_bytes_by_platform[platform] = image_bytes
-      updated = True
+      post.pinterest_image_url = image_url
+    elif platform == models.SocialPlatform.INSTAGRAM:
+      post.instagram_image_url = image_url
+    elif platform == models.SocialPlatform.FACEBOOK:
+      post.facebook_image_url = image_url
+    else:
+      raise SocialPostRequestError(f"Unsupported platform: {platform}")
+
   return post, image_bytes_by_platform, updated
 
 
@@ -199,12 +208,12 @@ def generate_social_post_text(
       if image_bytes_by_platform:
         pin_image_bytes = image_bytes_by_platform.get(
           models.SocialPlatform.PINTEREST)
-      post = generate_pinterest_post_text(post, pin_image_bytes)
+      post = _generate_pinterest_post_text(post, pin_image_bytes)
       updated = True
   return post, updated
 
 
-def generate_pinterest_post_text(
+def _generate_pinterest_post_text(
   post: models.JokeSocialPost,
   pin_image_bytes: bytes | None = None,
 ) -> models.JokeSocialPost:
@@ -225,24 +234,27 @@ def generate_pinterest_post_text(
   return post
 
 
-def create_pinterest_pin_assets(
-    post: models.JokeSocialPost) -> tuple[models.JokeSocialPost, bytes]:
+def _create_social_post_image(
+    post: models.JokeSocialPost,
+    platform: models.SocialPlatform) -> tuple[str, bytes]:
   """Create Pinterest pin assets for a social post."""
-  pin_image = image_operations.create_pinterest_pin_image(
-    jokes=post.jokes,
-    block_last_panel=post.type == models.JokeSocialPostType.JOKE_GRID_TEASER,
-  )
+  if platform == models.SocialPlatform.PINTEREST:
+    post_image = image_operations.create_joke_grid_image_3x2(
+      jokes=post.jokes,
+      block_last_panel=post.type == models.JokeSocialPostType.JOKE_GRID_TEASER,
+    )
+  elif platform == models.SocialPlatform.INSTAGRAM or platform == models.SocialPlatform.FACEBOOK:
+    post_image = image_operations.create_joke_grid_image_square(
+      jokes=post.jokes,
+      block_last_panel=post.type == models.JokeSocialPostType.JOKE_GRID_TEASER,
+    )
+  else:
+    raise SocialPostRequestError(f"Unsupported platform: {platform}")
 
-  buffer = BytesIO()
-  pin_image.save(buffer, format='PNG')
-  image_bytes = buffer.getvalue()
-
-  gcs_uri = cloud_storage.get_image_gcs_uri('social_pinterest', 'png')
-  cloud_storage.upload_bytes_to_gcs(
-    image_bytes,
-    gcs_uri,
-    'image/png',
+  uploaded_gcs_uri, image_bytes = cloud_storage.upload_image_to_gcs(
+    post_image,
+    'social_post',
+    'png',
   )
-  pin_url = cloud_storage.get_public_cdn_url(gcs_uri)
-  post.pinterest_image_url = pin_url
-  return post, image_bytes
+  image_url = cloud_storage.get_public_cdn_url(uploaded_gcs_uri)
+  return image_url, image_bytes

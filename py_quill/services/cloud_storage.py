@@ -10,6 +10,30 @@ from PIL import Image
 
 _client = None  # pylint: disable=invalid-name
 
+_IMAGE_EXTENSION_CONFIG: dict[str, tuple[str, str]] = {
+  "png": ("PNG", "image/png"),
+  "jpg": ("JPEG", "image/jpeg"),
+  "jpeg": ("JPEG", "image/jpeg"),
+  "webp": ("WEBP", "image/webp"),
+}
+
+
+def _normalize_image_extension(extension: str) -> str:
+  """Normalize an image extension to lowercase without leading dots."""
+  normalized = extension.lower().lstrip(".")
+  if not normalized:
+    raise ValueError("Image extension must be non-empty")
+  return normalized
+
+
+def _resolve_image_format_and_mime(extension: str) -> tuple[str, str, str]:
+  """Resolve extension to normalized extension, PIL format, and MIME type."""
+  normalized = _normalize_image_extension(extension)
+  if normalized not in _IMAGE_EXTENSION_CONFIG:
+    raise ValueError(f"Unsupported image extension: {extension}")
+  format_name, content_type = _IMAGE_EXTENSION_CONFIG[normalized]
+  return normalized, format_name, content_type
+
 
 def client() -> gcs.Client:
   """Get the Google Cloud Storage client."""
@@ -69,6 +93,30 @@ def upload_bytes_to_gcs(
   blob.upload_from_string(content_bytes, content_type=content_type)
 
   return gcs_uri
+
+
+def upload_image_to_gcs(
+  image: Image.Image,
+  file_name_base: str,
+  extension: str,
+  *,
+  gcs_uri: str | None = None,
+) -> tuple[str, bytes]:
+  """Upload an image to Google Cloud Storage."""
+  normalized_extension, format_name, content_type = (
+    _resolve_image_format_and_mime(extension))
+  resolved_gcs_uri = gcs_uri
+  if resolved_gcs_uri is None:
+    resolved_gcs_uri = get_image_gcs_uri(file_name_base, normalized_extension)
+  else:
+    # Validate format early (and fail fast) without doing any uploads.
+    parse_gcs_uri(resolved_gcs_uri)
+  buffer = BytesIO()
+  image.save(buffer, format=format_name)
+  image_bytes = buffer.getvalue()
+  uploaded_gcs_uri = upload_bytes_to_gcs(image_bytes, resolved_gcs_uri,
+                                         content_type)
+  return uploaded_gcs_uri, image_bytes
 
 
 def upload_file_to_gcs(

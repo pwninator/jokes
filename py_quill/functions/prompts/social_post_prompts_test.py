@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import pytest
@@ -11,12 +12,14 @@ from functions.prompts import social_post_prompts
 
 
 class _FakeResponse:
+
   def __init__(self, text: str):
     self.text = text
     self.metadata = models.GenerationMetadata()
 
 
 class _FakeClient:
+
   def __init__(self, text: str):
     self._text = text
     self.prompts = None
@@ -28,12 +31,21 @@ class _FakeClient:
 
 def test_generate_pinterest_post_text_parses_fields(monkeypatch):
   fake_text = json.dumps({
-    "pinterest_title": "Cute Jokes",
-    "pinterest_description": "Tiny giggles for your day.",
-    "pinterest_alt_text": "A two-row grid of joke panels.",
+    "pinterest_title":
+    "Cute Jokes",
+    "pinterest_description":
+    "Tiny giggles for your day.",
+    "pinterest_alt_text":
+    "A two-row grid of joke panels.",
   })
   fake_client = _FakeClient(fake_text)
-  monkeypatch.setattr(social_post_prompts, "_pinterest_llm", fake_client)
+  config = social_post_prompts._PLATFORM_CONFIGS[
+    models.SocialPlatform.PINTEREST]
+  monkeypatch.setitem(
+    social_post_prompts._PLATFORM_CONFIGS,
+    models.SocialPlatform.PINTEREST,
+    dataclasses.replace(config, client=fake_client),
+  )
 
   image_bytes = b"\x89PNGfake"
   title, description, alt_text, metadata = social_post_prompts.generate_pinterest_post_text(
@@ -54,8 +66,14 @@ def test_generate_pinterest_post_text_requires_output(monkeypatch):
     "pinterest_description": "",
     "pinterest_alt_text": "Alt text",
   })
-  monkeypatch.setattr(social_post_prompts, "_pinterest_llm",
-                      _FakeClient(fake_text))
+  fake_client = _FakeClient(fake_text)
+  config = social_post_prompts._PLATFORM_CONFIGS[
+    models.SocialPlatform.PINTEREST]
+  monkeypatch.setitem(
+    social_post_prompts._PLATFORM_CONFIGS,
+    models.SocialPlatform.PINTEREST,
+    dataclasses.replace(config, client=fake_client),
+  )
 
   with pytest.raises(ValueError):
     social_post_prompts.generate_pinterest_post_text(

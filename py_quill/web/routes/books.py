@@ -21,7 +21,7 @@ def books():
   is_download_redirect = ref == 'notes_download'
   if is_download_redirect:
     hero_title = (
-      "Love the notes? There's a whole lot more where those came from!")
+      "Like the notes? There's a whole lot more where those came from!")
     hero_subtitle = (
       'The jokes are hand-picked favorites from our paperback book. Get the full collection of 36 illustrated jokes today.'
     )

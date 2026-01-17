@@ -125,6 +125,34 @@ def test_home2_page_renders_top_jokes(monkeypatch):
   assert 'Cache-Control' in resp.headers
 
 
+def test_books_page_renders_book_promo():
+  with app.test_client() as client:
+    resp = client.get('/books?country_override=US')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'Your Lunchbox Notes are on their way' not in html
+  assert 'Get the Book on Amazon' in html
+  assert 'data-analytics-event="web_book_amazon_click"' in html
+  assert f'<link rel="canonical" href="{urls.canonical_url("/books")}">' in html
+  assert 'href="https://www.amazon.com/dp/' in html
+  assert 'Cache-Control' in resp.headers
+
+
+def test_books_page_ref_notes_download_overrides_hero_copy():
+  with app.test_client() as client:
+    resp = client.get('/books?country_override=US&ref=notes_download')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'Your Lunchbox Notes are on their way to your inbox' in html
+  # Note: Jinja may HTML-escape apostrophes.
+  assert 'Love the notes?' in html
+  assert 'whole lot more where those came from' in html
+  assert 'hand-picked favorites from our paperback book' in html
+  assert 'full collection of 36 illustrated jokes today' in html
+
+
 def test_home2_page_includes_nonempty_unique_meta_tags(monkeypatch):
   """Home2 page should render a single, non-empty set of SEO meta tags."""
   mock_get_top_jokes = Mock()
@@ -249,8 +277,7 @@ def test_about_page_renders_family_story():
   assert 'loading="lazy"' in html
   assert 'data-meta-event="ViewContent"' in html
   assert 'data-meta-event="Lead"' in html
-  assert 'data-meta-event="InitiateCheckout"' in html
-  assert 'maas_adg_67CA692EED615032D6E3E602791A40E5' in html
+  assert 'href="/books"' in html
   assert f'<link rel="canonical" href="{urls.canonical_url("/about")}">' in html
   assert 'Cache-Control' in resp.headers
 
@@ -277,7 +304,7 @@ def test_nav_includes_book_and_app_links(monkeypatch):
 
   # Book Link
   assert 'Book' in html
-  assert 'href="https://www.amazon.com/dp/' in html
+  assert 'href="/books"' in html
   assert 'data-analytics-event="web_nav_book_click"' in html
   assert 'data-analytics-label="book"' in html
 

@@ -6,9 +6,8 @@ import datetime
 import zoneinfo
 
 import flask
-from firebase_functions import logger
-
 from common import models
+from firebase_functions import logger
 from services import firestore
 from web.routes import web_bp
 from web.utils import urls

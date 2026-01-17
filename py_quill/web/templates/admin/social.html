@@ -278,6 +278,11 @@
     color: var(--color-text-muted);
   }
 
+  /* Status should not preserve template whitespace/newlines. */
+  .social-platform-status .social-platform-value {
+    white-space: normal;
+  }
+
   .social-platform-mark {
     display: flex;
     flex-wrap: wrap;

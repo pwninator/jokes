@@ -50,17 +50,12 @@
     "redirects": [
       {
         "source": "/book",
-        "destination": "/?utm_source=book&utm_medium=offline&utm_campaign=book_animaljokes",
-        "type": 301
-      },
-      {
-        "source": "/books",
-        "destination": "/?utm_source=book&utm_medium=offline&utm_campaign=book_animaljokes",
+        "destination": "/books?utm_source=book&utm_medium=offline&utm_campaign=book_animaljokes",
         "type": 301
       },
       {
         "source": "/lunchbox-book",
-        "destination": "/?utm_source=book&utm_medium=offline&utm_campaign=lunchbox_animaljokes",
+        "destination": "/books?utm_source=book&utm_medium=offline&utm_campaign=lunchbox_animaljokes",
         "type": 301
       }
     ],

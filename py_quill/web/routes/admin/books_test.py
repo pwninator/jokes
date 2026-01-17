@@ -10,7 +10,7 @@ from google.cloud.firestore import ArrayUnion
 from functions import auth_helpers
 from services import firestore as firestore_service
 from web.app import app
-from web.routes.admin import books as books_routes
+from web.routes.admin import admin_books as books_routes
 
 
 def _mock_admin_session(monkeypatch):
@@ -504,5 +504,3 @@ def test_admin_set_main_image_from_book_page(monkeypatch):
   assert isinstance(update_args['all_setup_image_urls'], ArrayUnion)
   assert update_args['setup_image_url_upscaled'] is None
   assert resp.get_json()['setup_image_url'] == "https://cdn/book-setup.png"
-
-

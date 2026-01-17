@@ -156,6 +156,64 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   assert created_arg.link_url == expected_link_url
 
 
+def test_initialize_social_post_joke_grid_picks_most_shared_tag(
+    monkeypatch: pytest.MonkeyPatch):
+  jokes = [
+    models.PunnyJoke(key="j1",
+                     setup_text="Setup 1",
+                     punchline_text="Punch 1",
+                     tags=["cat", "dog"]),
+    models.PunnyJoke(key="j2",
+                     setup_text="Setup 2",
+                     punchline_text="Punch 2",
+                     tags=["cat", "fish"]),
+    models.PunnyJoke(key="j3",
+                     setup_text="Setup 3",
+                     punchline_text="Punch 3",
+                     tags=["dog", "cat"]),
+  ]
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_punny_jokes", lambda ids: jokes)
+
+  post, _updated = social_fns.social_operations.initialize_social_post(
+    post_id=None,
+    joke_ids=["j1", "j2", "j3"],
+    post_type=models.JokeSocialPostType.JOKE_GRID,
+  )
+
+  assert post.link_url == "https://snickerdoodlejokes.com/jokes/cat"
+
+
+def test_initialize_social_post_joke_grid_breaks_tie_by_earliest_tag_position(
+    monkeypatch: pytest.MonkeyPatch):
+  # dog and cat each appear in 2 jokes; dog wins because it appears at position 0,
+  # while cat's lowest position is 1.
+  jokes = [
+    models.PunnyJoke(key="j1",
+                     setup_text="Setup 1",
+                     punchline_text="Punch 1",
+                     tags=["dog", "cat"]),
+    models.PunnyJoke(key="j2",
+                     setup_text="Setup 2",
+                     punchline_text="Punch 2",
+                     tags=["bird", "cat"]),
+    models.PunnyJoke(key="j3",
+                     setup_text="Setup 3",
+                     punchline_text="Punch 3",
+                     tags=["dog", "fish"]),
+  ]
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_punny_jokes", lambda ids: jokes)
+
+  post, _updated = social_fns.social_operations.initialize_social_post(
+    post_id=None,
+    joke_ids=["j1", "j2", "j3"],
+    post_type=models.JokeSocialPostType.JOKE_GRID,
+  )
+
+  assert post.link_url == "https://snickerdoodlejokes.com/jokes/dog"
+
+
 def test_social_post_creation_process_invalid_type(
     monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)

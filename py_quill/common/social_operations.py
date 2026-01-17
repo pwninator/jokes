@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 
-from common import image_operations, models
+from common import image_operations, models, utils
 from functions.prompts import social_post_prompts
 from services import cloud_storage, firestore
 
@@ -18,6 +18,48 @@ class SocialPostRequestError(Exception):
   def __init__(self, message: str, status: int = 400):
     super().__init__(message)
     self.status = status
+
+
+def initialize_social_post(
+  *,
+  post_id: str | None,
+  joke_ids: list[str] | None,
+  post_type: models.JokeSocialPostType | None,
+  pinterest_title: str | None = None,
+  pinterest_description: str | None = None,
+  pinterest_alt_text: str | None = None,
+  instagram_caption: str | None = None,
+  instagram_alt_text: str | None = None,
+  facebook_message: str | None = None,
+) -> tuple[models.JokeSocialPost, bool]:
+  """Load or create a social post and apply manual overrides."""
+  if post_id:
+    post = firestore.get_joke_social_post(post_id)
+    if not post:
+      raise SocialPostRequestError(f'Social post not found: {post_id}',
+                                   status=404)
+  else:
+    joke_id_list = _validate_joke_ids(joke_ids)
+    post_type = _validate_post_type(post_type)
+    ordered_jokes = _load_ordered_jokes(joke_id_list)
+    link_url = _build_social_post_link_url(post_type, ordered_jokes)
+    post = models.JokeSocialPost(
+      type=post_type,
+      jokes=ordered_jokes,
+      link_url=link_url,
+    )
+
+  updated = apply_platform_text_updates(
+    post,
+    pinterest_title=pinterest_title,
+    pinterest_description=pinterest_description,
+    pinterest_alt_text=pinterest_alt_text,
+    instagram_caption=instagram_caption,
+    instagram_alt_text=instagram_alt_text,
+    facebook_message=facebook_message,
+  )
+
+  return post, updated
 
 
 def apply_platform_text_updates(
@@ -84,48 +126,6 @@ def mark_platform_posted(
   return post
 
 
-def initialize_social_post(
-  *,
-  post_id: str | None,
-  joke_ids: list[str] | None,
-  post_type: models.JokeSocialPostType | None,
-  pinterest_title: str | None = None,
-  pinterest_description: str | None = None,
-  pinterest_alt_text: str | None = None,
-  instagram_caption: str | None = None,
-  instagram_alt_text: str | None = None,
-  facebook_message: str | None = None,
-) -> tuple[models.JokeSocialPost, bool]:
-  """Load or create a social post and apply manual overrides."""
-  if post_id:
-    post = firestore.get_joke_social_post(post_id)
-    if not post:
-      raise SocialPostRequestError(f'Social post not found: {post_id}',
-                                   status=404)
-  else:
-    joke_id_list = _validate_joke_ids(joke_ids)
-    post_type = _validate_post_type(post_type)
-    ordered_jokes = _load_ordered_jokes(joke_id_list)
-    link_url = _build_social_post_link_url(post_type, ordered_jokes)
-    post = models.JokeSocialPost(
-      type=post_type,
-      jokes=ordered_jokes,
-      link_url=link_url,
-    )
-
-  updated = apply_platform_text_updates(
-    post,
-    pinterest_title=pinterest_title,
-    pinterest_description=pinterest_description,
-    pinterest_alt_text=pinterest_alt_text,
-    instagram_caption=instagram_caption,
-    instagram_alt_text=instagram_alt_text,
-    facebook_message=facebook_message,
-  )
-
-  return post, updated
-
-
 def _validate_post_type(
   post_type: models.JokeSocialPostType | None, ) -> models.JokeSocialPostType:
   if not post_type:
@@ -157,14 +157,58 @@ def _build_social_post_link_url(
   post_type: models.JokeSocialPostType,
   jokes: list[models.PunnyJoke],
 ) -> str:
-  if post_type in (
-      models.JokeSocialPostType.JOKE_GRID,
-      models.JokeSocialPostType.JOKE_GRID_TEASER,
-  ):
+
+  if post_type == models.JokeSocialPostType.JOKE_GRID_TEASER:
     last_joke = jokes[-1]
     slug = last_joke.human_readable_setup_text_slug
-    return f"{PUBLIC_JOKE_BASE_URL}/{slug}"
-  raise SocialPostRequestError(f'Unsupported post type: {post_type}')
+  elif post_type == models.JokeSocialPostType.JOKE_GRID:
+    tag = _select_joke_grid_tag(jokes)
+    slug = utils.get_text_slug(tag, human_readable=True)
+  else:
+    raise SocialPostRequestError(f'Unsupported post type: {post_type}')
+
+  return f"{PUBLIC_JOKE_BASE_URL}/{slug}"
+
+
+def _select_joke_grid_tag(jokes: list[models.PunnyJoke]) -> str:
+  """Pick the best tag for a JOKE_GRID link.
+
+  Sort tags by:
+  1) number of jokes containing the tag (descending)
+  2) lowest position the tag appears in any joke's tag list (ascending)
+  3) tie-break deterministically (tag string)
+  """
+  tag_to_joke_indexes: dict[str, set[int]] = {}
+  tag_to_min_position: dict[str, int] = {}
+
+  for joke_index, joke in enumerate(jokes):
+    if not joke or not joke.tags:
+      continue
+
+    seen_in_joke: set[str] = set()
+    for tag_position, raw_tag in enumerate(joke.tags):
+      tag = (raw_tag or "").strip()
+      if not tag:
+        continue
+
+      if tag not in seen_in_joke:
+        tag_to_joke_indexes.setdefault(tag, set()).add(joke_index)
+        seen_in_joke.add(tag)
+
+      prev_pos = tag_to_min_position.get(tag)
+      if prev_pos is None or tag_position < prev_pos:
+        tag_to_min_position[tag] = tag_position
+
+  # Preserve previous behavior (IndexError) if no tags exist.
+  if not tag_to_joke_indexes:
+    return jokes[0].tags[0]
+
+  best_tag = sorted(
+    tag_to_joke_indexes.keys(),
+    key=lambda t:
+    (-len(tag_to_joke_indexes[t]), tag_to_min_position.get(t, 1 << 30), t),
+  )[0]
+  return best_tag
 
 
 def generate_social_post_images(

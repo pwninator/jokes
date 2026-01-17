@@ -215,13 +215,29 @@
   }
 
   .social-posts-image {
-    display: inline-flex;
-    align-items: center;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
     min-height: 56px;
   }
 
   .social-posts-image a {
     display: inline-flex;
+  }
+
+  .social-posts-logo {
+    width: 70px;
+    flex: 0 0 70px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .social-posts-logo img {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    display: block;
   }
 
   .social-platform {
@@ -430,13 +446,19 @@
           <div class="social-platform{% if pinterest_locked %} social-platform--locked{% endif %}"
             data-platform="pinterest">
             <div class="social-posts-image js-social-platform-image" data-platform="pinterest">
-              {% if post.pinterest_image_url %}
-              <a href="{{ post.pinterest_image_url }}" target="_blank" rel="noopener">
-                <img class="social-posts-thumb" src="{{ post.pinterest_image_url }}" alt="Pinterest image">
-              </a>
-              {% else %}
-              <span class="muted js-social-no-image">No image</span>
-              {% endif %}
+              <div class="social-posts-logo" aria-hidden="true">
+                <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=50,format=auto,quality=50/_joke_assets/logos/logo_pinterest.png"
+                  alt="" loading="lazy" decoding="async">
+              </div>
+              <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="pinterest">
+                {% if post.pinterest_image_url %}
+                <a href="{{ post.pinterest_image_url }}" target="_blank" rel="noopener">
+                  <img class="social-posts-thumb" src="{{ post.pinterest_image_url }}" alt="Pinterest image">
+                </a>
+                {% else %}
+                <span class="muted js-social-no-image">No image</span>
+                {% endif %}
+              </div>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Title</span>
@@ -480,13 +502,19 @@
           <div class="social-platform{% if instagram_locked %} social-platform--locked{% endif %}"
             data-platform="instagram">
             <div class="social-posts-image js-social-platform-image" data-platform="instagram">
-              {% if post.instagram_image_url %}
-              <a href="{{ post.instagram_image_url }}" target="_blank" rel="noopener">
-                <img class="social-posts-thumb" src="{{ post.instagram_image_url }}" alt="Instagram image">
-              </a>
-              {% else %}
-              <span class="muted js-social-no-image">No image</span>
-              {% endif %}
+              <div class="social-posts-logo" aria-hidden="true">
+                <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=50,format=auto,quality=50/_joke_assets/logos/logo_instagram.png"
+                  alt="" loading="lazy" decoding="async">
+              </div>
+              <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="instagram">
+                {% if post.instagram_image_url %}
+                <a href="{{ post.instagram_image_url }}" target="_blank" rel="noopener">
+                  <img class="social-posts-thumb" src="{{ post.instagram_image_url }}" alt="Instagram image">
+                </a>
+                {% else %}
+                <span class="muted js-social-no-image">No image</span>
+                {% endif %}
+              </div>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Caption</span>
@@ -521,13 +549,19 @@
           <div class="social-platform{% if facebook_locked %} social-platform--locked{% endif %}"
             data-platform="facebook">
             <div class="social-posts-image js-social-platform-image" data-platform="facebook">
-              {% if post.facebook_image_url %}
-              <a href="{{ post.facebook_image_url }}" target="_blank" rel="noopener">
-                <img class="social-posts-thumb" src="{{ post.facebook_image_url }}" alt="Facebook image">
-              </a>
-              {% else %}
-              <span class="muted js-social-no-image">No image</span>
-              {% endif %}
+              <div class="social-posts-logo" aria-hidden="true">
+                <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=50,format=auto,quality=50/_joke_assets/logos/logo_facebook.png"
+                  alt="" loading="lazy" decoding="async">
+              </div>
+              <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="facebook">
+                {% if post.facebook_image_url %}
+                <a href="{{ post.facebook_image_url }}" target="_blank" rel="noopener">
+                  <img class="social-posts-thumb" src="{{ post.facebook_image_url }}" alt="Facebook image">
+                </a>
+                {% else %}
+                <span class="muted js-social-no-image">No image</span>
+                {% endif %}
+              </div>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Message</span>
@@ -715,9 +749,10 @@
       if (!container) {
         return;
       }
-      const existingLink = container.querySelector('a');
-      const existingImg = container.querySelector('img');
-      const noImage = container.querySelector('.js-social-no-image');
+      const slot = container.querySelector('.js-social-platform-image-slot') || container;
+      const existingLink = slot.querySelector('a');
+      const existingImg = slot.querySelector('img.social-posts-thumb');
+      const noImage = slot.querySelector('.js-social-no-image');
 
       if (imageUrl) {
         let link = existingLink;
@@ -725,8 +760,8 @@
           link = document.createElement('a');
           link.target = '_blank';
           link.rel = 'noopener';
-          container.innerHTML = '';
-          container.appendChild(link);
+          slot.innerHTML = '';
+          slot.appendChild(link);
         }
         let img = existingImg;
         if (!img) {
@@ -745,7 +780,7 @@
           const empty = document.createElement('span');
           empty.className = 'muted js-social-no-image';
           empty.textContent = 'No image';
-          container.appendChild(empty);
+          slot.appendChild(empty);
         }
       }
     }
@@ -1011,7 +1046,13 @@
         <div class="social-post-card__columns">
           <div class="social-platform" data-platform="pinterest">
             <div class="social-posts-image js-social-platform-image" data-platform="pinterest">
-              <span class="muted js-social-no-image">No image</span>
+              <div class="social-posts-logo" aria-hidden="true">
+                <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=50,format=auto,quality=50/_joke_assets/logos/logo_pinterest.png"
+                  alt="" loading="lazy" decoding="async">
+              </div>
+              <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="pinterest">
+                <span class="muted js-social-no-image">No image</span>
+              </div>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Title</span>
@@ -1045,7 +1086,13 @@
           </div>
           <div class="social-platform" data-platform="instagram">
             <div class="social-posts-image js-social-platform-image" data-platform="instagram">
-              <span class="muted js-social-no-image">No image</span>
+              <div class="social-posts-logo" aria-hidden="true">
+                <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=50,format=auto,quality=50/_joke_assets/logos/logo_instagram.png"
+                  alt="" loading="lazy" decoding="async">
+              </div>
+              <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="instagram">
+                <span class="muted js-social-no-image">No image</span>
+              </div>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Caption</span>
@@ -1069,7 +1116,13 @@
           </div>
           <div class="social-platform" data-platform="facebook">
             <div class="social-posts-image js-social-platform-image" data-platform="facebook">
-              <span class="muted js-social-no-image">No image</span>
+              <div class="social-posts-logo" aria-hidden="true">
+                <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=50,format=auto,quality=50/_joke_assets/logos/logo_facebook.png"
+                  alt="" loading="lazy" decoding="async">
+              </div>
+              <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="facebook">
+                <span class="muted js-social-no-image">No image</span>
+              </div>
             </div>
             <div class="social-platform-field">
               <span class="social-platform-label">Message</span>

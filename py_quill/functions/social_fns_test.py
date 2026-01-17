@@ -44,26 +44,45 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   ]
   monkeypatch.setattr(social_fns.social_operations.firestore,
                       "get_punny_jokes", lambda ids: jokes)
-
-  def _fake_generate_pinterest_post_text(post, pin_image_bytes):
-    assert pin_image_bytes.startswith(b"\x89PNG")
-    assert post.type == models.JokeSocialPostType.JOKE_GRID_TEASER
-    return post
+  expected_link_url = ("https://snickerdoodlejokes.com/jokes/"
+                       f"{jokes[-1].human_readable_setup_text_slug}")
 
   def _fake_prompt(pin_image_bytes: bytes, *, post_type):
     assert pin_image_bytes.startswith(b"\x89PNG")
     assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
     return "Title", "Description", "Alt text", {}
 
+  def _fake_instagram_prompt(image_bytes: bytes, *, post_type):
+    assert image_bytes.startswith(b"\x89PNG")
+    assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    return "IG caption", "IG alt", {}
+
+  def _fake_facebook_prompt(image_bytes: bytes, *, post_type, link_url):
+    assert image_bytes.startswith(b"\x89PNG")
+    assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    assert link_url == expected_link_url
+    return "FB message", {}
+
   monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
                       "generate_pinterest_post_text", _fake_prompt)
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_instagram_post_text", _fake_instagram_prompt)
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_facebook_post_text", _fake_facebook_prompt)
 
   create_image_mock = Mock(
     return_value=Image.new('RGB', (1000, 500), color='white'))
+  create_square_image_mock = Mock(
+    return_value=Image.new('RGB', (1000, 1000), color='white'))
   monkeypatch.setattr(
     social_fns.social_operations.image_operations,
     "create_joke_grid_image_3x2",
     create_image_mock,
+  )
+  monkeypatch.setattr(
+    social_fns.social_operations.image_operations,
+    "create_joke_grid_image_square",
+    create_square_image_mock,
   )
 
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
@@ -90,16 +109,25 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   payload = _json_payload(resp)
   assert payload["data"]["post_id"] == "post1"
   post_data = payload["data"]["post_data"]
-  expected_link_url = ("https://snickerdoodlejokes.com/jokes/"
-                       f"{jokes[-1].human_readable_setup_text_slug}")
+  # link_url is used by the Facebook prompt generator.
   assert post_data["pinterest_title"] == "Title"
   assert post_data["pinterest_description"] == "Description"
   assert post_data["pinterest_alt_text"] == "Alt text"
   assert post_data["pinterest_image_url"] == "https://cdn.example.com/pin.png"
+  assert post_data["instagram_caption"] == "IG caption"
+  assert post_data["instagram_alt_text"] == "IG alt"
+  assert post_data["instagram_image_url"] == "https://cdn.example.com/pin.png"
+  assert post_data["facebook_message"] == "FB message"
+  assert post_data["facebook_image_url"] == "https://cdn.example.com/pin.png"
   assert post_data["type"] == "JOKE_GRID_TEASER"
   assert post_data["link_url"] == expected_link_url
 
   create_image_mock.assert_called_once_with(
+    jokes=jokes,
+    block_last_panel=True,
+  )
+  assert create_square_image_mock.call_count == 1
+  create_square_image_mock.assert_called_with(
     jokes=jokes,
     block_last_panel=True,
   )
@@ -110,6 +138,9 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   assert created_arg.pinterest_title == "Title"
   assert created_arg.pinterest_description == "Description"
   assert created_arg.pinterest_alt_text == "Alt text"
+  assert created_arg.instagram_caption == "IG caption"
+  assert created_arg.instagram_alt_text == "IG alt"
+  assert created_arg.facebook_message == "FB message"
   assert [joke.key for joke in created_arg.jokes] == ["j1", "j2"]
   assert [joke.setup_text for joke in created_arg.jokes] == [
     "Setup 1",
@@ -120,6 +151,8 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
     "Punch 2",
   ]
   assert created_arg.pinterest_image_url == "https://cdn.example.com/pin.png"
+  assert created_arg.instagram_image_url == "https://cdn.example.com/pin.png"
+  assert created_arg.facebook_image_url == "https://cdn.example.com/pin.png"
   assert created_arg.link_url == expected_link_url
 
 
@@ -247,8 +280,8 @@ def test_social_post_creation_process_regenerates_text_and_image(
     post.pinterest_image_url = "https://cdn.example.com/new.png"
     return post, {models.SocialPlatform.PINTEREST: b"new-image"}, True
 
-  monkeypatch.setattr(social_fns.social_operations, "generate_social_post_images",
-                      _fake_generate_images)
+  monkeypatch.setattr(social_fns.social_operations,
+                      "generate_social_post_images", _fake_generate_images)
 
   def _fake_prompt(pin_image_bytes: bytes, *, post_type):
     assert pin_image_bytes == b"new-image"

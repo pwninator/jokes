@@ -105,11 +105,11 @@ def test_admin_create_pin_image_success(monkeypatch):
 
   joke_ids = ["joke1", "joke2"]
 
-  # Mock create_pinterest_pin_image
+  # Mock image generation
   mock_pin_image = Image.new('RGB', (1000, 1000), color='white')
   monkeypatch.setattr(
     printable_notes_routes.image_operations,
-    "create_pinterest_pin_image",
+    "create_joke_grid_image_3x2",
     lambda *, joke_ids: mock_pin_image,
   )
 
@@ -201,10 +201,10 @@ def test_admin_create_pin_image_value_error(monkeypatch):
 
   joke_ids = ["joke1"]
 
-  # Mock create_pinterest_pin_image to raise ValueError
+  # Mock image generation to raise ValueError
   monkeypatch.setattr(
     printable_notes_routes.image_operations,
-    "create_pinterest_pin_image",
+    "create_joke_grid_image_3x2",
     lambda *, joke_ids:
     (_ for _ in ()).throw(ValueError(
       "Joke joke1 is missing setup or punchline image")),
@@ -229,10 +229,10 @@ def test_admin_create_pin_image_unexpected_error(monkeypatch):
 
   joke_ids = ["joke1"]
 
-  # Mock create_pinterest_pin_image to raise unexpected error
+  # Mock image generation to raise unexpected error
   monkeypatch.setattr(
     printable_notes_routes.image_operations,
-    "create_pinterest_pin_image",
+    "create_joke_grid_image_3x2",
     lambda *, joke_ids: (_ for _ in ()).throw(Exception("Unexpected error")),
   )
 

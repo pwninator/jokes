@@ -170,25 +170,53 @@ def _build_social_post_link_url(
 def generate_social_post_images(
   post: models.JokeSocialPost,
 ) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, bytes], bool]:
-  """Generate image assets for each unposted platform."""
+  """Generate image assets for each unposted platform.
+
+  Instagram and Facebook share the same square image asset. We generate at most
+  one square image and apply its URL to both platforms (without modifying a
+  platform already marked as posted).
+  """
   image_bytes_by_platform: dict[models.SocialPlatform, bytes] = {}
   updated = False
-  for platform in models.SocialPlatform:
-    if post.is_platform_posted(platform):
-      continue
 
-    image_url, image_bytes = _create_social_post_image(post, platform)
-    image_bytes_by_platform[platform] = image_bytes
+  # Pinterest: always its own asset (3x2).
+  if not post.is_platform_posted(models.SocialPlatform.PINTEREST):
+    image_url, image_bytes = _create_social_post_image(
+      post,
+      models.SocialPlatform.PINTEREST,
+    )
+    image_bytes_by_platform[models.SocialPlatform.PINTEREST] = image_bytes
+    post.pinterest_image_url = image_url
     updated = True
 
-    if platform == models.SocialPlatform.PINTEREST:
-      post.pinterest_image_url = image_url
-    elif platform == models.SocialPlatform.INSTAGRAM:
-      post.instagram_image_url = image_url
-    elif platform == models.SocialPlatform.FACEBOOK:
-      post.facebook_image_url = image_url
+  # Instagram + Facebook: shared square asset.
+  square_platforms = (models.SocialPlatform.INSTAGRAM,
+                      models.SocialPlatform.FACEBOOK)
+  unposted_square_platforms = [
+    platform for platform in square_platforms
+    if not post.is_platform_posted(platform)
+  ]
+  if unposted_square_platforms:
+    existing_square_url = post.instagram_image_url or post.facebook_image_url
+    if existing_square_url:
+      for platform in unposted_square_platforms:
+        if platform == models.SocialPlatform.INSTAGRAM:
+          post.instagram_image_url = existing_square_url
+        elif platform == models.SocialPlatform.FACEBOOK:
+          post.facebook_image_url = existing_square_url
+      updated = True
     else:
-      raise SocialPostRequestError(f"Unsupported platform: {platform}")
+      image_url, image_bytes = _create_social_post_image(
+        post,
+        models.SocialPlatform.INSTAGRAM,
+      )
+      for platform in unposted_square_platforms:
+        image_bytes_by_platform[platform] = image_bytes
+        if platform == models.SocialPlatform.INSTAGRAM:
+          post.instagram_image_url = image_url
+        elif platform == models.SocialPlatform.FACEBOOK:
+          post.facebook_image_url = image_url
+      updated = True
 
   return post, image_bytes_by_platform, updated
 
@@ -203,13 +231,27 @@ def generate_social_post_text(
   for platform in models.SocialPlatform:
     if post.is_platform_posted(platform):
       continue
+    platform_image_bytes = None
+    if image_bytes_by_platform:
+      platform_image_bytes = image_bytes_by_platform.get(platform)
+
     if platform == models.SocialPlatform.PINTEREST:
-      pin_image_bytes = None
-      if image_bytes_by_platform:
-        pin_image_bytes = image_bytes_by_platform.get(
-          models.SocialPlatform.PINTEREST)
-      post = _generate_pinterest_post_text(post, pin_image_bytes)
+      if not platform_image_bytes and not post.pinterest_image_url:
+        continue
+      post = _generate_pinterest_post_text(post, platform_image_bytes)
       updated = True
+    elif platform == models.SocialPlatform.INSTAGRAM:
+      if not platform_image_bytes and not post.instagram_image_url:
+        continue
+      post = _generate_instagram_post_text(post, platform_image_bytes)
+      updated = True
+    elif platform == models.SocialPlatform.FACEBOOK:
+      if not platform_image_bytes and not post.facebook_image_url:
+        continue
+      post = _generate_facebook_post_text(post, platform_image_bytes)
+      updated = True
+    else:
+      raise SocialPostRequestError(f"Unsupported platform: {platform}")
   return post, updated
 
 
@@ -219,6 +261,8 @@ def _generate_pinterest_post_text(
 ) -> models.JokeSocialPost:
   """Generate Pinterest text fields based on the composed image."""
   if not pin_image_bytes:
+    if not post.pinterest_image_url:
+      return post
     gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
       post.pinterest_image_url)
     pin_image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
@@ -231,6 +275,49 @@ def _generate_pinterest_post_text(
   post.pinterest_title = title
   post.pinterest_description = description
   post.pinterest_alt_text = alt_text
+  return post
+
+
+def _generate_instagram_post_text(
+  post: models.JokeSocialPost,
+  instagram_image_bytes: bytes | None = None,
+) -> models.JokeSocialPost:
+  """Generate Instagram text fields based on the composed image."""
+  if not instagram_image_bytes:
+    if not post.instagram_image_url:
+      return post
+    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+      post.instagram_image_url)
+    instagram_image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+
+  caption, alt_text, _metadata = (
+    social_post_prompts.generate_instagram_post_text(
+      instagram_image_bytes,
+      post_type=post.type,
+    ))
+  post.instagram_caption = caption
+  post.instagram_alt_text = alt_text
+  return post
+
+
+def _generate_facebook_post_text(
+  post: models.JokeSocialPost,
+  facebook_image_bytes: bytes | None = None,
+) -> models.JokeSocialPost:
+  """Generate Facebook text fields based on the composed image."""
+  if not facebook_image_bytes:
+    if not post.facebook_image_url:
+      return post
+    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+      post.facebook_image_url)
+    facebook_image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+
+  message, _metadata = social_post_prompts.generate_facebook_post_text(
+    facebook_image_bytes,
+    post_type=post.type,
+    link_url=post.link_url or "",
+  )
+  post.facebook_message = message
   return post
 
 

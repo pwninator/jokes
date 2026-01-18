@@ -477,6 +477,83 @@
       });
     }
 
+    async function hydrateEditForm(details, categoryId) {
+      if (!details || !categoryId) return;
+      if (details.dataset.formHydrated === 'true') return;
+      if (details.dataset.formHydrating === 'true') return;
+
+      const panel = details.querySelector('[data-edit-panel="true"]');
+      if (!panel) return;
+
+      const saveButton = panel.querySelector('button[type="submit"]');
+      if (saveButton) saveButton.disabled = true;
+
+      details.dataset.formHydrating = 'true';
+      try {
+        const resp = await fetch(
+          `/admin/joke-categories/${encodeURIComponent(categoryId)}/live`,
+          {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store',
+          },
+        );
+        if (!resp.ok) {
+          throw new Error(`Failed fetching live category data (${resp.status})`);
+        }
+
+        const data = await resp.json();
+
+        const setInputValue = (name, value) => {
+          const input = panel.querySelector(`[name="${name}"]`);
+          if (!input) return;
+          input.value = value == null ? '' : String(value);
+        };
+
+        const setSelectValue = (name, value) => {
+          const select = panel.querySelector(`select[name="${name}"]`);
+          if (!select) return;
+          const target = (value == null ? '' : String(value)).toUpperCase();
+          select.value = target;
+        };
+
+        setInputValue('display_name', data.display_name);
+        setSelectValue('state', data.state);
+        setInputValue('joke_description_query', data.joke_description_query);
+        setInputValue('search_distance', data.search_distance);
+        setInputValue('seasonal_name', data.seasonal_name);
+        setInputValue('book_id', data.book_id);
+        setInputValue('image_url', data.image_url);
+
+        // List fields are stored as arrays in Firestore, but the form uses CSV.
+        const tags = Array.isArray(data.tags) ? data.tags : [];
+        const negativeTags = Array.isArray(data.negative_tags)
+          ? data.negative_tags
+          : [];
+        setInputValue('tags', tags.join(', '));
+        setInputValue('negative_tags', negativeTags.join(', '));
+
+        const jokeIdOrder = Array.isArray(data.joke_id_order)
+          ? data.joke_id_order
+          : [];
+        setInputValue('joke_id_order', jokeIdOrder.join(','));
+
+        const textarea = panel.querySelector('textarea[name="image_description"]');
+        if (textarea) {
+          textarea.value = data.image_description == null ? '' : String(data.image_description);
+        }
+
+        details.dataset.formHydrated = 'true';
+      } catch (err) {
+        console.error(err);
+        alert('Failed loading live category fields. Please refresh and try again.');
+      } finally {
+        details.dataset.formHydrating = 'false';
+        if (saveButton) saveButton.disabled = false;
+      }
+    }
+
     document.querySelectorAll('details.category-details').forEach((details) => {
       details.addEventListener('toggle', () => {
         if (!details.open) return;
@@ -518,6 +595,9 @@
         const nextShow = Boolean(isHidden);
         details.dataset.editMode = nextShow ? 'true' : 'false';
         toggleEditPanel(details, nextShow);
+        if (nextShow) {
+          hydrateEditForm(details, btn.dataset.categoryId);
+        }
       });
     });
 

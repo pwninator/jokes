@@ -406,3 +406,52 @@ def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):
     "joke-approved-1\n\nseasonal: None\n\ntags:\ntag_a\ntag_b")
   assert _decoded_title_for("joke-uncat-1") == (
     "joke-uncat-1\n\nseasonal: Winter\n\ntags:\nfirst_tag\nsecond_tag")
+
+
+def test_admin_get_joke_category_live_returns_live_fields(monkeypatch):
+  """Live endpoint should return full edit-form fields from the category doc."""
+  _mock_admin_session(monkeypatch)
+
+  mock_doc = Mock()
+  mock_doc.exists = True
+  mock_doc.to_dict.return_value = {
+    "display_name": "Animals",
+    "state": "APPROVED",
+    "joke_description_query": "animals",
+    "search_distance": 0.33,
+    "seasonal_name": "Winter",
+    "book_id": "book-123",
+    "tags": ["cats", "dogs"],
+    "negative_tags": ["nsfw"],
+    "image_url": "https://cdn/cat.png",
+    "image_description": "Cute animals",
+    "joke_id_order": ["joke-1", "joke-2"],
+  }
+
+  mock_document = Mock()
+  mock_document.get.return_value = mock_doc
+
+  mock_collection = Mock()
+  mock_collection.document.return_value = mock_document
+
+  mock_db = Mock()
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(categories_routes.firestore, "db", lambda: mock_db)
+
+  with app.test_client() as client:
+    resp = client.get('/admin/joke-categories/animals/live')
+
+  assert resp.status_code == 200
+  data = resp.get_json()
+  assert data["category_id"] == "animals"
+  assert data["display_name"] == "Animals"
+  assert data["state"] == "APPROVED"
+  assert data["joke_description_query"] == "animals"
+  assert data["search_distance"] == 0.33
+  assert data["seasonal_name"] == "Winter"
+  assert data["book_id"] == "book-123"
+  assert data["tags"] == ["cats", "dogs"]
+  assert data["negative_tags"] == ["nsfw"]
+  assert data["image_url"] == "https://cdn/cat.png"
+  assert data["image_description"] == "Cute animals"
+  assert data["joke_id_order"] == ["joke-1", "joke-2"]

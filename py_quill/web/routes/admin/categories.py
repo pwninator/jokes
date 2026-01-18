@@ -7,6 +7,7 @@ from firebase_functions import logger
 from google.cloud.firestore import DELETE_FIELD
 
 from common import config
+from common import models
 from common import joke_category_operations
 from functions import auth_helpers
 import services.firestore as firestore
@@ -80,6 +81,53 @@ def admin_joke_categories():
     updated=flask.request.args.get('updated'),
     error=flask.request.args.get('error'),
   )
+
+
+@web_bp.route('/admin/joke-categories/<category_id>/live')
+@auth_helpers.require_admin
+def admin_get_joke_category_live(category_id: str):
+  """Return live category fields for edit-form hydration.
+
+  The admin categories page lists categories from `joke_cache/joke_categories`
+  for speed, but the edit form needs live fields from `joke_categories/{id}`.
+  """
+  category_id = (category_id or "").strip()
+  if not category_id:
+    return flask.jsonify({"error": "missing_category_id"}), 400
+
+  doc = firestore.db().collection("joke_categories").document(
+    category_id).get()
+  if not getattr(doc, "exists", False):
+    return flask.jsonify({"error": "not_found"}), 404
+
+  category = models.JokeCategory.from_firestore_dict(doc.to_dict() or {},
+                                                     key=category_id)
+
+  return flask.jsonify({
+    "category_id":
+    category.id or category_id,
+    "display_name":
+    category.display_name or "",
+    "state": (category.state or "PROPOSED").upper(),
+    "joke_description_query":
+    category.joke_description_query or "",
+    "search_distance":
+    category.search_distance,
+    "seasonal_name":
+    category.seasonal_name or "",
+    "book_id":
+    category.book_id or "",
+    "tags":
+    category.tags or [],
+    "negative_tags":
+    category.negative_tags or [],
+    "image_url":
+    category.image_url or "",
+    "image_description":
+    category.image_description or "",
+    "joke_id_order":
+    category.joke_id_order or [],
+  })
 
 
 @web_bp.route('/admin/joke-categories/create', methods=['POST'])

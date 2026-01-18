@@ -28,42 +28,82 @@ class PlatformConfig:
   client: llm_client.LlmClient
 
 
+# 1. SHARED LOGIC VARIABLES
+# -------------------------
+
+_COMMON_VISUAL_LOGIC = """
+### STEP 1: VISUAL ANALYSIS
+Analyze the input image(s) to determine the Content Type. 
+
+**TYPE A: Joke Entertainment (Single, Grid, or Carousel)**
+*Visual Cues:* One or more cartoon illustrations with jokes/text. Could be a single image, a 4-panel grid, or a carousel.
+*Critical Distinction:* Does NOT have "cut here" lines or scissors icons.
+*Content Goal:* Pure Entertainment / Laughter.
+
+**TYPE B: The "Printable Resource"**
+*Visual Cues:* Explicit "worksheet" vibes. Look for dotted lines (for cutting), scissors icons, "Name: ___" fields, or text like "Free Download" or "Page 1".
+*Content Goal:* Utility / Tool.
+
+**TYPE C: The "Physical Book"**
+*Visual Cues:* Photo of a physical book object (curved pages, spine), hands holding a book, or a 3D product mockup.
+*Content Goal:* Product Desire / Sales.
+"""
+
+_GLOBAL_CONSTRAINTS = """
+### GLOBAL CONSTRAINTS
+1. NO first-person language ("I", "We", "My", "Our"). Speak as an observer.
+2. NO slang ("Bestie", "Vibes", "Fam"). Keep it timeless.
+3. RETURN ONLY VALID JSON.
+"""
+
+# 2. PLATFORM CONFIGURATION
+# -------------------------
+
 _PLATFORM_CONFIGS: dict[models.SocialPlatform, PlatformConfig] = {
   models.SocialPlatform.PINTEREST:
   PlatformConfig(
     strategies={
       models.JokeSocialPostType.JOKE_GRID_TEASER:
       SocialPostStrategy(
-        goal=(
-          "CURIOSITY GAP. The punchline is hidden. You MUST intrigue the user to click. "
-          "Do NOT reveal the answer. Focus on the 'mystery'."),
-        cta="See the answer",
-        audience="Families looking for quick entertainment, bored kids.",
+        goal="CLARITY. Punchline hidden. Link to answer.",
+        cta="Answer at link",
+        audience="Families.",
       ),
       models.JokeSocialPostType.JOKE_GRID:
       SocialPostStrategy(
-        goal=
-        "SAVES & UTILITY. This is a complete resource. Optimize for users saving this to their boards for later.",
-        cta="Save this for later",
-        audience="Parents, teachers, and grandparents.",
+        goal="SEO. Describe the content for search.",
+        cta="",
+        audience="Parents.",
       ),
     },
     client=llm_client.get_client(
       label="Pinterest Social Post Text",
       model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
-      temperature=1.0,
+      temperature=0.5,
       output_tokens=8000,
       system_instructions=[
-        """You are a Pinterest SEO expert for Snickerdoodle Jokes.
+        f"""You are a Pinterest SEO expert for Snickerdoodle Jokes.
                 
-Your job: Analyze the image and generate high-intent Pinterest copy.
-RULES:
-1. Title: Max 100 chars. **CRITICAL: Front-load the main keyword in the first 30 characters.**
-2. Description: Max 500 chars. Use natural sentences, not lists. Integrate keywords organically.
-3. NO HASHTAGS in description.
-4. Alt Text: Describe the image visually for accessibility.
+{_COMMON_VISUAL_LOGIC}
 
-Return ONLY valid JSON."""
+### STEP 2: GENERATE METADATA
+Based on the determined Content Type:
+
+**IF TYPE A (Joke Content):**
+- Title: Keyword focus (e.g., "Funny Animal Jokes for Kids").
+- Description: Describe the content. (e.g., "A collection of clean dad jokes featuring cute animal illustrations.")
+
+**IF TYPE B (Printable):**
+- Title: Benefit focus (e.g., "Free Printable Lunchbox Notes").
+- Description: Utility keywords. (e.g., "Downloadable pdf with cut-out lines for school lunches.")
+
+**IF TYPE C (Book):**
+- Title: Product focus (e.g., "Best Joke Book for Early Readers").
+- Description: Gift details. (e.g., "Paperback collection. Great gift for ages 5-8.")
+
+{_GLOBAL_CONSTRAINTS}
+- SPECIFIC PINTEREST RULE: NO HASHTAGS.
+"""
       ],
       response_schema={
         "type":
@@ -71,15 +111,15 @@ Return ONLY valid JSON."""
         "properties": {
           "pinterest_title": {
             "type": "STRING",
-            "description": "SEO optimized title, max 100 chars."
+            "description": "SEO title."
           },
           "pinterest_description": {
             "type": "STRING",
-            "description": "Keyword rich description, max 500 chars."
+            "description": "SEO description."
           },
           "pinterest_alt_text": {
             "type": "STRING",
-            "description": "Visual description, max 500 chars."
+            "description": "Visual description."
           },
         },
         "required":
@@ -92,47 +132,57 @@ Return ONLY valid JSON."""
     strategies={
       models.JokeSocialPostType.JOKE_GRID_TEASER:
       SocialPostStrategy(
-        goal=(
-          "ENGAGEMENT. The punchline is hidden. Ask users to GUESS the answer in the comments."
-        ),
-        cta="Guess the punchline below! 👇",
-        audience="Parents and families.",
+        goal="MINIMAL TEASE. Direct to caption.",
+        cta="Check caption",
+        audience="Followers.",
       ),
       models.JokeSocialPostType.JOKE_GRID:
       SocialPostStrategy(
-        goal=(
-          "RELATABILITY. This is shareable content. Write a caption that feels like a friend recommending a laugh."
-        ),
-        cta="Send this to a parent who needs a smile",
-        audience="Parents, teachers, and grandparents.",
+        goal="AESTHETIC. Image is hero.",
+        cta="",
+        audience="Followers.",
       ),
     },
     client=llm_client.get_client(
       label="Instagram Social Post Text",
       model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
-      temperature=1.0,  # High temp for creativity
+      temperature=0.7,
       output_tokens=8000,
       system_instructions=[
-        """You are an Instagram Growth expert for Snickerdoodle Jokes.
+        f"""You are an Instagram caption generator.
 
-Your job: Analyze the image and generate engaging Instagram copy.
-RULES:
-1. Caption: Max 2200 chars. Start with a "Hook" (short, punchy first line). Use line breaks.
-2. Tone: Friendly, playful, "Bestie" energy.
-3. HASHTAGS: You MUST append a block of 20-30 relevant hashtags at the very bottom of the caption. Mix broad tags (#parenting) with niche tags (#lunchboxjokes).
+{_COMMON_VISUAL_LOGIC}
 
-Return ONLY valid JSON."""
+### STEP 2: GENERATE CAPTION
+Based on the determined Content Type:
+
+**IF TYPE A (Joke Content):**
+- Rule: Abstract minimal reaction. Max 1 sentence.
+- Note: If there are multiple jokes (grid/carousel), do NOT list them. Just react to the collection.
+- Examples: "Choose your fighter. 🦖🐢", "A solid lineup.", "Monday mood."
+
+**IF TYPE B (Printable):**
+- Rule: Utility promise.
+- Example: "Lunchbox notes sorted. ✅ Link in bio."
+
+**IF TYPE C (Book):**
+- Rule: Product highlight.
+- Example: "Screen-free entertainment. 📚"
+
+{_GLOBAL_CONSTRAINTS}
+- SPECIFIC INSTAGRAM RULE: Exactly 3-5 relevant hashtags.
+"""
       ],
       response_schema={
         "type": "OBJECT",
         "properties": {
           "instagram_caption": {
             "type": "STRING",
-            "description": "Caption with hook, body, CTA, and 30 hashtags."
+            "description": "Minimal caption + tags."
           },
           "instagram_alt_text": {
             "type": "STRING",
-            "description": "Visual description only."
+            "description": "Visual description."
           },
         },
         "required": ["instagram_caption", "instagram_alt_text"],
@@ -144,43 +194,52 @@ Return ONLY valid JSON."""
     strategies={
       models.JokeSocialPostType.JOKE_GRID_TEASER:
       SocialPostStrategy(
-        goal=(
-          "CLICK-THROUGH. Tease the hidden punchline. Make them want to click the link to see the answer."
-        ),
-        cta="Click the link to see the punchline",
-        audience="Families and community groups.",
+        goal="DIRECT. Link to answer.",
+        cta="See punchline",
+        audience="Families.",
       ),
       models.JokeSocialPostType.JOKE_GRID:
       SocialPostStrategy(
-        goal=(
-          "SHARING. Keep it short. Encourage them to share this with friends."
-        ),
-        cta="Share if this made you smile!",
-        audience="Parents and grandparents.",
+        goal="PASSIVE. Just the joke.",
+        cta="",
+        audience="Parents.",
       ),
     },
     client=llm_client.get_client(
       label="Facebook Social Post Text",
       model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
-      temperature=1.0,
+      temperature=0.7,
       output_tokens=8000,
       system_instructions=[
-        """You are a Facebook Community Manager for Snickerdoodle Jokes.
+        f"""You are a Facebook Community Manager.
 
-Your job: Analyze the image and generate a Facebook post.
-RULES:
-1. Message: Max 600 chars. Conversational and warm.
-2. LINKS: You MUST incorporate the provided URL naturally into the message text.
-3. HASHTAGS: Use 1-3 hashtags max (or none).
+{_COMMON_VISUAL_LOGIC}
 
-Return ONLY valid JSON."""
+### STEP 2: GENERATE MESSAGE
+Based on the determined Content Type:
+
+**IF TYPE A (Joke Content):**
+- Rule: Low energy, casual sharing. Max 1 sentence.
+- Example: "Here's a good one." or "Some favorites from this week."
+
+**IF TYPE B (Printable):**
+- Rule: Direct link sharing.
+- Example: "We put these up as a free PDF. Grab them here: [Link]"
+
+**IF TYPE C (Book):**
+- Rule: Soft recommendation.
+- Example: "Great option if you need a screen-free gift idea."
+
+{_GLOBAL_CONSTRAINTS}
+- SPECIFIC FACEBOOK RULE: 0-1 hashtags. Include URL naturally.
+"""
       ],
       response_schema={
         "type": "OBJECT",
         "properties": {
           "facebook_message": {
             "type": "STRING",
-            "description": "Post text including the link."
+            "description": "Post text."
           },
         },
         "required": ["facebook_message"],

@@ -102,6 +102,34 @@ def _to_utc_datetime(value: object) -> datetime.datetime | None:
   return value.astimezone(datetime.timezone.utc)
 
 
+def _build_book_id_index(db_client) -> tuple[dict[str, str], int]:
+  """Return a map of joke_id -> book_id based on joke_books documents."""
+  book_id_by_joke: dict[str, str] = {}
+  duplicate_jokes = 0
+  for book_doc in db_client.collection("joke_books").stream():
+    if not getattr(book_doc, "exists", False):
+      continue
+    book_data = book_doc.to_dict() or {}
+    joke_ids = book_data.get("jokes")
+    if not isinstance(joke_ids, list):
+      continue
+    for joke_id in joke_ids:
+      if not joke_id:
+        continue
+      joke_key = str(joke_id).strip()
+      if not joke_key:
+        continue
+      existing_book = book_id_by_joke.get(joke_key)
+      if existing_book and existing_book != book_doc.id:
+        duplicate_jokes += 1
+        logger.warn(
+          f"Joke {joke_key} appears in multiple books: {existing_book}, {book_doc.id}"
+        )
+        continue
+      book_id_by_joke[joke_key] = book_doc.id
+  return book_id_by_joke, duplicate_jokes
+
+
 def _expected_is_public(
   data: dict[str, object],
   now_utc: datetime.datetime,
@@ -160,12 +188,14 @@ def _update_joke_attributes(
 
   db_client = firestore.db()
   jokes_collection = db_client.collection("jokes")
+  book_id_by_joke, duplicate_book_jokes = _build_book_id_index(db_client)
   joke_docs = jokes_collection.stream()
 
   batch = db_client.batch()
   writes_in_batch = 0
   jokes_decayed = 0
   public_updated = 0
+  book_id_updated = 0
   jokes_skipped = 0
 
   public_jokes: list[models.PunnyJoke] = []
@@ -193,6 +223,21 @@ def _update_joke_attributes(
       if not isinstance(current_category_id,
                         str) or not current_category_id.strip():
         payload["category_id"] = firestore.UNCATEGORIZED_CATEGORY_ID
+
+    expected_book_id = book_id_by_joke.get(joke_doc.id)
+    has_book_id = "book_id" in joke_data
+    current_book_id = joke_data.get("book_id")
+    if isinstance(current_book_id, str):
+      current_book_id = current_book_id.strip() or None
+    else:
+      current_book_id = None
+    if expected_book_id is None:
+      if not has_book_id or current_book_id is not None:
+        payload["book_id"] = None
+        book_id_updated += 1
+    elif current_book_id != expected_book_id:
+      payload["book_id"] = expected_book_id
+      book_id_updated += 1
 
     # Decay recent stats if needed
     should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
@@ -246,12 +291,14 @@ def _update_joke_attributes(
       [j.get_minimal_joke_data() for j in sorted_feed])
 
   logger.info(
-    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
+    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {book_id_updated} book_id updated, {jokes_skipped} jokes skipped"
   )
 
   return {
     "jokes_decayed": jokes_decayed,
     "public_updated": public_updated,
+    "book_id_updated": book_id_updated,
+    "duplicate_book_jokes": duplicate_book_jokes,
     "jokes_skipped": jokes_skipped,
     "num_public_jokes": len(public_jokes),
   }, jokes_by_id

@@ -31,11 +31,22 @@ def _create_test_datetime(year=2024, month=1, day=20, hour=0, minute=0):
                            tzinfo=datetime.timezone.utc)
 
 
-def _setup_mock_db_and_batch(monkeypatch, docs):
+def _setup_mock_db_and_batch(monkeypatch, docs, book_docs=None):
   """Helper to set up mock Firestore db and batch."""
   mock_batch = MagicMock()
   mock_db = MagicMock()
-  mock_db.collection.return_value.stream.return_value = docs
+
+  def _collection_side_effect(name):
+    collection = MagicMock()
+    if name == "jokes":
+      collection.stream.return_value = docs
+    elif name == "joke_books":
+      collection.stream.return_value = book_docs or []
+    else:
+      collection.stream.return_value = []
+    return collection
+
+  mock_db.collection.side_effect = _collection_side_effect
   mock_db.batch.return_value = mock_batch
   monkeypatch.setattr('functions.joke_auto_fns.firestore.db', lambda: mock_db)
   return mock_db, mock_batch
@@ -107,6 +118,7 @@ def _create_mock_joke_doc(joke_id: str,
     "all_setup_image_urls": [],
     "all_punchline_image_urls": [],
     "admin_rating": models.JokeAdminRating.UNREVIEWED.value,
+    "book_id": None,
     "owner_user_id": None,
     "generation_metadata": {
       "generations": []
@@ -121,6 +133,15 @@ def _create_mock_joke_doc(joke_id: str,
   doc.id = joke_id
   doc.reference = MagicMock()
   doc.to_dict.return_value = default_data
+  return doc
+
+
+def _create_mock_book_doc(book_id: str, joke_ids: list[str]) -> MagicMock:
+  """Creates a mock Firestore document for a joke book."""
+  doc = MagicMock()
+  doc.exists = True
+  doc.id = book_id
+  doc.to_dict.return_value = {"jokes": joke_ids}
   return doc
 
 
@@ -424,6 +445,7 @@ class TestDecayRecentJokeStats:
         "punchline_text": f"Punchline for {joke_id}",
         "state": state.value,
         "is_public": is_public,
+        "book_id": None,
         "num_saved_users_fraction": 0.5,
         "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
       }
@@ -484,6 +506,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Punchline 1",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
+      "book_id": None,
       "num_saved_users_fraction": 0.3,  # Lowest
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
     }
@@ -497,6 +520,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Punchline 2",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
+      "book_id": None,
       "num_saved_users_fraction": 0.7,  # Highest
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
     }
@@ -510,6 +534,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Punchline 3",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
+      "book_id": None,
       "num_saved_users_fraction": 0.5,  # Middle
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
     }
@@ -612,6 +637,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Test punchline",
       "state": models.JokeState.PUBLISHED.value,
       "category_id": "_uncategorized",
+      "book_id": None,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
     }
     full_doc_data.update(doc_data)
@@ -679,6 +705,7 @@ class TestDecayRecentJokeStats:
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
       "category_id": "_uncategorized",
+      "book_id": None,
       "num_viewed_users_recent": 10.0,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=22),
@@ -695,6 +722,7 @@ class TestDecayRecentJokeStats:
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
       "category_id": "_uncategorized",
+      "book_id": None,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
     }
@@ -741,6 +769,7 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Test punchline",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": False,
+      "book_id": None,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=22),
     }
@@ -774,6 +803,74 @@ class TestDecayRecentJokeStats:
     warn_call = str(mock_logger.warn.call_args)
     assert "Failed to sync updated joke joke1" in warn_call
     assert "Sync failed" in warn_call
+
+
+class TestBookIdEnsurer:
+  """Tests for syncing book_id based on joke_books."""
+
+  def test_sets_book_id_from_books(self, monkeypatch):
+    now_utc = _create_test_datetime()
+    doc = _create_mock_joke_doc(
+      "joke-1",
+      overrides={
+        "is_public": True,
+        "state": models.JokeState.PUBLISHED.value,
+        "category_id": "cat-1",
+        "last_recent_stats_update_time":
+        now_utc - datetime.timedelta(hours=4),
+      },
+    )
+    book_doc = _create_mock_book_doc("book-1", ["joke-1"])
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc], [book_doc])
+    monkeypatch.setattr(
+      'common.joke_operations.sync_joke_to_search_collection', Mock())
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
+                        Mock())
+    monkeypatch.setattr(
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(return_value={}))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
+      Mock(return_value={}))
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+
+    mock_batch.update.assert_called_once()
+    payload = mock_batch.update.call_args.args[1]
+    assert payload == {"book_id": "book-1"}
+
+  def test_clears_book_id_when_missing_from_books(self, monkeypatch):
+    now_utc = _create_test_datetime()
+    doc = _create_mock_joke_doc(
+      "joke-1",
+      overrides={
+        "book_id": "book-1",
+        "is_public": True,
+        "state": models.JokeState.PUBLISHED.value,
+        "category_id": "cat-1",
+        "last_recent_stats_update_time":
+        now_utc - datetime.timedelta(hours=4),
+      },
+    )
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc], [])
+    monkeypatch.setattr(
+      'common.joke_operations.sync_joke_to_search_collection', Mock())
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
+                        Mock())
+    monkeypatch.setattr(
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(return_value={}))
+    monkeypatch.setattr(
+      'common.joke_category_operations.rebuild_joke_categories_index',
+      Mock(return_value={}))
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+
+    mock_batch.update.assert_called_once()
+    payload = mock_batch.update.call_args.args[1]
+    assert payload == {"book_id": None}
 
 
 def _create_joke(key: str,

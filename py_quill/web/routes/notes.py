@@ -30,84 +30,22 @@ _PROMO_MIN_QUALITY = 30
 _PROMO_QUALITY_STEP = 5
 
 
-def _legacy_redirect(target_url: str) -> flask.Response:
-  if flask.request.query_string:
-    query = flask.request.query_string.decode('utf-8', errors='ignore')
-    target_url = f"{target_url}?{query}"
-  return flask.redirect(target_url, code=301)
-
-
-def _calculate_promo_params(count: int) -> tuple[int, int]:
-  """Calculate width and quality based on card count."""
-  if count <= 1:
-    return _PROMO_MAX_WIDTH, _PROMO_MAX_QUALITY
-
-  # Interpolation factor (0.0 to 1.0)
-  # Max cards -> t=1.0 -> Min Width/Quality
-  limit = _PROMO_CARD_LIMIT
-  t = min(1.0, (count - 1) / (limit - 1))
-
-  # Linear interpolation
-  raw_width = _PROMO_MAX_WIDTH - t * (_PROMO_MAX_WIDTH - _PROMO_MIN_WIDTH)
-  raw_quality = _PROMO_MAX_QUALITY - t * (_PROMO_MAX_QUALITY -
-                                          _PROMO_MIN_QUALITY)
-
-  # Round to steps
-  width = int(round(raw_width / _PROMO_WIDTH_STEP) * _PROMO_WIDTH_STEP)
-  quality = int(round(raw_quality / _PROMO_QUALITY_STEP) * _PROMO_QUALITY_STEP)
-
-  return width, quality
-
-
-def _prepare_fan_stack(cards: list[dict[str, object]]) -> dict[str, object]:
-  """Prepare a list of cards for rendering in the fan stack component.
-  
-  This function limits the card count, reverses the list for top-stacking,
-  and calculates all necessary metadata for rendering.
-
-  Args:
-    cards: The list of card objects to prepare.
-
-  Returns:
-    A dictionary containing the prepared data for the fan stack.
-  """
-  display_cards = cards[:_PROMO_CARD_LIMIT]
-  count = len(display_cards)
-  if not count:
-    return {"has_fan": False}
-
-  cdn_width, cdn_quality = _calculate_promo_params(count)
-
-  # Reverse list so the first items from Python are rendered last in the DOM,
-  # giving them the highest z-index and placing them on top of the stack.
-  display_cards.reverse()
-
-  return {
-    "has_fan": True,
-    "cards": display_cards,
-    "count": count,
-    "center_index": (count - 1) / 2,
-    "cdn_width": cdn_width,
-    "cdn_quality": cdn_quality,
-  }
-
-
 @web_bp.route('/notes')
 def notes_legacy():
   """Redirect legacy notes landing page."""
-  return _legacy_redirect(flask.url_for('web.notes'))
+  return _canonical_redirect(flask.url_for('web.notes'))
 
 
 @web_bp.route('/notes/<slug>')
 def notes_detail_legacy(slug: str):
   """Redirect legacy notes detail pages."""
-  return _legacy_redirect(flask.url_for('web.notes_detail', slug=slug))
+  return _canonical_redirect(flask.url_for('web.notes_detail', slug=slug))
 
 
 @web_bp.route('/notes-all')
 def notes_all_legacy():
   """Redirect legacy notes-all page."""
-  return _legacy_redirect(flask.url_for('web.notes_all'))
+  return _canonical_redirect(flask.url_for('web.notes_all'))
 
 
 @web_bp.route('/printables/notes')
@@ -157,33 +95,7 @@ def notes():
       download_cards.append(card)
 
   promo_cards: list[dict[str, object]] = []
-  for category, sheets in cache_entries:
-    if len(promo_cards) >= _PROMO_CARD_LIMIT:
-      break
-    if not sheets:
-      continue
-    target_sheet = sheets[1] if len(sheets) > 1 else sheets[0]
-    # Use a dummy index for slug since this card isn't for navigation
-    # but we need a valid URL for the builder.
-    dummy_index = target_sheet.index if target_sheet.index is not None else 0
-    detail_url = flask.url_for(
-      'web.notes_detail',
-      slug=_cache_sheet_slug(category.id, dummy_index),
-    )
-    card = _build_notes_sheet_card(
-      category_id=category.id,
-      title=category.display_name,
-      aria_label=f"{category.display_name} joke notes",
-      image_alt=f"{category.display_name} joke notes sheet",
-      image_gcs_uri=target_sheet.image_gcs_uri,
-      detail_url=detail_url,
-      analytics_params={
-        "category_id": category.id,
-        "access": "promo",
-      },
-    )
-    if card:
-      promo_cards.append(card)
+  promo_cards = _build_promo_cards_from_cache(cache_entries=cache_entries)
 
   fan_stack = _prepare_fan_stack(promo_cards)
 
@@ -209,9 +121,32 @@ def notes():
 
 @web_bp.route('/printables/notes/<slug>')
 def notes_detail(slug: str):
-  """Render a joke sheet details page."""
+  """Render a joke sheet details page.
+
+  Supports:
+  - Category-based sheets: `/printables/notes/free-<category>-jokes-<n>`
+  - Custom slug sheets: `/printables/notes/<sheet_slug>`
+  """
   category_id, index = models.JokeSheet.parse_slug(slug)
-  if not category_id or index is None:
+  if category_id and index is not None:
+    return _render_category_sheet(category_id=category_id, index=index)
+
+  sheet = firestore.get_joke_sheet_by_slug(slug)
+  if not sheet or not sheet.sheet_slug:
+    return flask.redirect(flask.url_for('web.notes'))
+
+  # Normalize to the stored slug if needed (e.g. trailing whitespace)
+  if sheet.sheet_slug != slug:
+    return _canonical_redirect(
+      flask.url_for('web.notes_detail', slug=sheet.sheet_slug))
+
+  return _render_custom_sheet(sheet)
+
+
+def _render_category_sheet(*, category_id: str, index: int) -> flask.Response:
+  """Render a category-based joke sheet detail page."""
+  category_id = (category_id or "").strip()
+  if not category_id:
     return flask.redirect(flask.url_for('web.notes'))
 
   cache_entries = _get_joke_sheets_cache()
@@ -229,24 +164,19 @@ def notes_detail(slug: str):
     return flask.redirect(flask.url_for('web.notes'))
 
   sheet = sheets[index]
-  try:
-    pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
-    image_url = cloud_storage.get_public_image_cdn_url(
-      sheet.image_gcs_uri or "",
-      width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
-    )
-  except ValueError as exc:
-    logger.error(
-      f"Failed to build URLs for {category_id} sheet: {exc}",
-      extra={
-        "json_fields": {
-          "event": "notes_detail_sheet_url_failed",
-          "category_id": category_id,
-          "index": index,
-        }
-      },
-    )
+  asset_urls = _build_notes_detail_asset_urls(
+    sheet_id=sheet.key,
+    pdf_gcs_uri=sheet.pdf_gcs_uri,
+    image_gcs_uri=sheet.image_gcs_uri,
+    error_event="notes_detail_sheet_url_failed",
+    extra_json_fields={
+      "category_id": category_id,
+      "index": index,
+    },
+  )
+  if not asset_urls:
     return flask.redirect(flask.url_for('web.notes'))
+  pdf_url, image_url = asset_urls
 
   category_label = category.display_name
   display_index = sheet.display_index or (index + 1)
@@ -255,41 +185,9 @@ def notes_detail(slug: str):
   if display_index > 1 and not is_signed_in:
     return flask.redirect(flask.url_for('web.notes'))
 
-  related_candidates: list[dict[str, object]] = []
-  for entry_category, entry_sheets in cache_entries:
-    entry_category_id = entry_category.id
-    if not entry_category_id:
-      continue
-    if entry_category_id == category_id:
-      continue
-    if not entry_sheets:
-      continue
-    related_sheet = entry_sheets[0]
-    if related_sheet.index is None:
-      continue
-    related_detail_url = flask.url_for(
-      'web.notes_detail',
-      slug=_cache_sheet_slug(entry_category_id, related_sheet.index),
-    )
-    related_card = _build_notes_sheet_card(
-      category_id=entry_category_id,
-      title=f"{entry_category.display_name} Pack",
-      aria_label=f"{entry_category.display_name} joke notes",
-      image_alt=f"{entry_category.display_name} joke notes sheet",
-      image_gcs_uri=related_sheet.image_gcs_uri,
-      detail_url=related_detail_url,
-      analytics_params={
-        "category_id": entry_category_id,
-        "category_label": entry_category.display_name,
-        "access": "available",
-      },
-    )
-    if related_card:
-      related_candidates.append(related_card)
-
-  related_cards = random.sample(
-    related_candidates,
-    k=min(3, len(related_candidates)),
+  related_cards = _build_related_cards(
+    cache_entries=cache_entries,
+    exclude_category_id=category_id,
   )
 
   category_cards: list[dict[str, object]] = []
@@ -371,13 +269,9 @@ def notes_detail(slug: str):
   notes_continue_url = urls.canonical_url(flask.url_for('web.notes'))
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   total_sheet_count = _total_sheet_count(cache_entries)
-  html = flask.render_template(
-    'notes_detail.html',
+  return _render_notes_detail(
     canonical_url=canonical_url,
-    site_name='Snickerdoodle',
     now_year=now_year,
-    prev_url=None,
-    next_url=None,
     category_id=category_id,
     category_label=category_label,
     sheet_index=index,
@@ -387,10 +281,7 @@ def notes_detail(slug: str):
     page_title=page_title,
     image_url=image_url,
     pdf_url=pdf_url,
-    notes_detail_image_width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
-    notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
-    notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
-    notes_image_height=_NOTES_IMAGE_HEIGHT,
+    books_redirect_url=None,
     fan_stack=fan_stack,
     email_link_url=notes_continue_url,
     notes_hook_text=f"Want More {category_label} Joke Packs?",
@@ -403,7 +294,66 @@ def notes_detail(slug: str):
     total_sheet_count=total_sheet_count,
     firebase_config=config.FIREBASE_WEB_CONFIG,
   )
-  return html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+
+def _render_custom_sheet(sheet: models.JokeSheet) -> flask.Response:
+  """Render a custom-slug joke sheet detail page without category context."""
+  if not sheet.sheet_slug:
+    return flask.redirect(flask.url_for('web.notes'))
+
+  asset_urls = _build_notes_detail_asset_urls(
+    sheet_id=sheet.key,
+    pdf_gcs_uri=sheet.pdf_gcs_uri,
+    image_gcs_uri=sheet.image_gcs_uri,
+    error_event="notes_detail_custom_sheet_url_failed",
+    extra_json_fields={
+      "sheet_slug": sheet.sheet_slug,
+    },
+  )
+  if not asset_urls:
+    return flask.redirect(flask.url_for('web.notes'))
+  pdf_url, image_url = asset_urls
+
+  cache_entries = _get_joke_sheets_cache()
+
+  related_cards = _build_related_cards(cache_entries=cache_entries)
+
+  promo_cards = _build_promo_cards_from_cache(cache_entries=cache_entries)
+
+  fan_stack = _prepare_fan_stack(promo_cards)
+  total_sheet_count = _total_sheet_count(cache_entries)
+
+  display_title = "Lunchbox Joke Notes"
+  page_title = f"{display_title} (Free PDF)"
+  canonical_url = urls.canonical_url(
+    flask.url_for('web.notes_detail', slug=sheet.sheet_slug))
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+
+  return _render_notes_detail(
+    canonical_url=canonical_url,
+    now_year=now_year,
+    category_id=None,
+    category_label=None,
+    sheet_index=None,
+    sheet_display_index=None,
+    sheet_slug=sheet.sheet_slug,
+    display_title=display_title,
+    page_title=page_title,
+    image_url=image_url,
+    pdf_url=pdf_url,
+    books_redirect_url=flask.url_for('web.books', ref='notes_download'),
+    fan_stack=fan_stack,
+    email_link_url=canonical_url,
+    notes_hook_text="Want More Joke Packs?",
+    email_value='',
+    error_message=None,
+    is_signed_in=False,
+    related_cards=related_cards,
+    category_cards=[],
+    category_sheet_count=0,
+    total_sheet_count=total_sheet_count,
+    firebase_config=config.FIREBASE_WEB_CONFIG,
+  )
 
 
 @web_bp.route('/printables/notes/all')
@@ -530,3 +480,244 @@ def _total_sheet_count(
 ) -> int:
   total_sheet_count = sum(len(sheets) for _, sheets in cache_entries)
   return (total_sheet_count // 10) * 10
+
+
+def _canonical_redirect(target_url: str) -> flask.Response:
+  if flask.request.query_string:
+    query = flask.request.query_string.decode('utf-8', errors='ignore')
+    target_url = f"{target_url}?{query}"
+  return flask.redirect(target_url, code=301)
+
+
+def _calculate_promo_params(count: int) -> tuple[int, int]:
+  """Calculate width and quality based on card count."""
+  if count <= 1:
+    return _PROMO_MAX_WIDTH, _PROMO_MAX_QUALITY
+
+  # Interpolation factor (0.0 to 1.0)
+  # Max cards -> t=1.0 -> Min Width/Quality
+  limit = _PROMO_CARD_LIMIT
+  t = min(1.0, (count - 1) / (limit - 1))
+
+  # Linear interpolation
+  raw_width = _PROMO_MAX_WIDTH - t * (_PROMO_MAX_WIDTH - _PROMO_MIN_WIDTH)
+  raw_quality = _PROMO_MAX_QUALITY - t * (_PROMO_MAX_QUALITY -
+                                          _PROMO_MIN_QUALITY)
+
+  # Round to steps
+  width = int(round(raw_width / _PROMO_WIDTH_STEP) * _PROMO_WIDTH_STEP)
+  quality = int(round(raw_quality / _PROMO_QUALITY_STEP) * _PROMO_QUALITY_STEP)
+
+  return width, quality
+
+
+def _prepare_fan_stack(cards: list[dict[str, object]]) -> dict[str, object]:
+  """Prepare a list of cards for rendering in the fan stack component.
+  
+  This function limits the card count, reverses the list for top-stacking,
+  and calculates all necessary metadata for rendering.
+
+  Args:
+    cards: The list of card objects to prepare.
+
+  Returns:
+    A dictionary containing the prepared data for the fan stack.
+  """
+  display_cards = cards[:_PROMO_CARD_LIMIT]
+  count = len(display_cards)
+  if not count:
+    return {"has_fan": False}
+
+  cdn_width, cdn_quality = _calculate_promo_params(count)
+
+  # Reverse list so the first items from Python are rendered last in the DOM,
+  # giving them the highest z-index and placing them on top of the stack.
+  display_cards.reverse()
+
+  return {
+    "has_fan": True,
+    "cards": display_cards,
+    "count": count,
+    "center_index": (count - 1) / 2,
+    "cdn_width": cdn_width,
+    "cdn_quality": cdn_quality,
+  }
+
+
+def _build_related_cards(
+  *,
+  cache_entries: list[tuple[models.JokeCategory, list[models.JokeSheet]]],
+  exclude_category_id: str | None = None,
+) -> list[dict[str, object]]:
+  """Return up to 3 related sheet cards from other categories."""
+  exclude_category_id = (exclude_category_id or "").strip() or None
+
+  related_candidates: list[dict[str, object]] = []
+  for entry_category, entry_sheets in cache_entries:
+    entry_category_id = entry_category.id
+    if not entry_category_id:
+      continue
+    if exclude_category_id and entry_category_id == exclude_category_id:
+      continue
+    if not entry_sheets:
+      continue
+    related_sheet = entry_sheets[0]
+    if related_sheet.index is None:
+      continue
+    related_detail_url = flask.url_for(
+      'web.notes_detail',
+      slug=_cache_sheet_slug(entry_category_id, related_sheet.index),
+    )
+    related_card = _build_notes_sheet_card(
+      category_id=entry_category_id,
+      title=f"{entry_category.display_name} Pack",
+      aria_label=f"{entry_category.display_name} joke notes",
+      image_alt=f"{entry_category.display_name} joke notes sheet",
+      image_gcs_uri=related_sheet.image_gcs_uri,
+      detail_url=related_detail_url,
+      analytics_params={
+        "category_id": entry_category_id,
+        "category_label": entry_category.display_name,
+        "access": "available",
+      },
+    )
+    if related_card:
+      related_candidates.append(related_card)
+
+  return random.sample(
+    related_candidates,
+    k=min(3, len(related_candidates)),
+  )
+
+
+def _build_promo_cards_from_cache(
+  *,
+  cache_entries: list[tuple[models.JokeCategory, list[models.JokeSheet]]],
+) -> list[dict[str, object]]:
+  """Build a cross-category set of promo cards for the fan stack."""
+  promo_cards: list[dict[str, object]] = []
+  for category, sheets in cache_entries:
+    if len(promo_cards) >= _PROMO_CARD_LIMIT:
+      break
+    if not (category.id or "").strip():
+      continue
+    if not sheets:
+      continue
+
+    target_sheet = sheets[1] if len(sheets) > 1 else sheets[0]
+    dummy_index = target_sheet.index if target_sheet.index is not None else 0
+    detail_url = flask.url_for(
+      'web.notes_detail',
+      slug=_cache_sheet_slug(category.id, dummy_index),
+    )
+
+    card = _build_notes_sheet_card(
+      category_id=category.id,
+      title=category.display_name,
+      aria_label=f"{category.display_name} joke notes",
+      image_alt=f"{category.display_name} joke notes sheet",
+      image_gcs_uri=target_sheet.image_gcs_uri,
+      detail_url=detail_url,
+      analytics_params={
+        "category_id": category.id,
+        "access": "promo",
+      },
+    )
+    if card:
+      promo_cards.append(card)
+
+  return promo_cards
+
+
+def _build_notes_detail_asset_urls(
+  *,
+  sheet_id: str | None,
+  pdf_gcs_uri: str | None,
+  image_gcs_uri: str | None,
+  error_event: str,
+  extra_json_fields: dict[str, object],
+) -> tuple[str, str] | None:
+  """Return (pdf_url, image_url) for the notes detail view."""
+  try:
+    pdf_url = cloud_storage.get_public_cdn_url(pdf_gcs_uri or "")
+    image_url = cloud_storage.get_public_image_cdn_url(
+      image_gcs_uri or "",
+      width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
+    )
+  except ValueError as exc:
+    logger.error(
+      f"Failed to build sheet URLs: {exc}",
+      extra={
+        "json_fields": {
+          "event": error_event,
+          "sheet_id": sheet_id,
+          **extra_json_fields,
+        }
+      },
+    )
+    return None
+
+  return pdf_url, image_url
+
+
+def _render_notes_detail(
+  *,
+  canonical_url: str,
+  now_year: int,
+  category_id: str | None,
+  category_label: str | None,
+  sheet_index: int | None,
+  sheet_display_index: int | None,
+  sheet_slug: str,
+  display_title: str,
+  page_title: str,
+  image_url: str,
+  pdf_url: str,
+  books_redirect_url: str | None,
+  fan_stack: dict[str, object],
+  email_link_url: str,
+  notes_hook_text: str,
+  email_value: str,
+  error_message: str | None,
+  is_signed_in: bool,
+  related_cards: list[dict[str, object]],
+  category_cards: list[dict[str, object]],
+  category_sheet_count: int,
+  total_sheet_count: int,
+  firebase_config: dict[str, object],
+) -> flask.Response:
+  """Render notes_detail.html with a shared payload shape."""
+  html = flask.render_template(
+    'notes_detail.html',
+    canonical_url=canonical_url,
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+    category_id=category_id,
+    category_label=category_label,
+    sheet_index=sheet_index,
+    sheet_display_index=sheet_display_index,
+    sheet_slug=sheet_slug,
+    display_title=display_title,
+    page_title=page_title,
+    image_url=image_url,
+    pdf_url=pdf_url,
+    books_redirect_url=books_redirect_url,
+    notes_detail_image_width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
+    notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
+    notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
+    notes_image_height=_NOTES_IMAGE_HEIGHT,
+    fan_stack=fan_stack,
+    email_link_url=email_link_url,
+    notes_hook_text=notes_hook_text,
+    email_value=email_value,
+    error_message=error_message,
+    is_signed_in=is_signed_in,
+    related_cards=related_cards,
+    category_cards=category_cards,
+    category_sheet_count=category_sheet_count,
+    total_sheet_count=total_sheet_count,
+    firebase_config=firebase_config,
+  )
+  return html_response(html, cache_seconds=300, cdn_seconds=1200)

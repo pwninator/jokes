@@ -145,9 +145,9 @@ def test_books_page_ref_notes_download_overrides_hero_copy():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'Your Lunchbox Notes are on their way to your inbox' in html
+  assert 'Your Lunchbox Notes opened in a new tab' in html
   # Note: Jinja may HTML-escape apostrophes.
-  assert 'Love the notes?' in html
+  assert 'Like the notes?' in html
   assert 'whole lot more where those came from' in html
   assert 'hand-picked favorites from our paperback book' in html
   assert 'full collection of 36 illustrated jokes today' in html

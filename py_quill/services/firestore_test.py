@@ -854,6 +854,7 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
     "joke_ids": ["a", "b"],
     "category_id": None,
     "index": None,
+    "sheet_slug": None,
     "image_gcs_uri": None,
     "pdf_gcs_uri": None,
     "avg_saved_users_fraction": 0.0,
@@ -906,6 +907,7 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
     "joke_ids": ["a", "b"],
     "category_id": None,
     "index": None,
+    "sheet_slug": None,
     "image_gcs_uri": None,
     "pdf_gcs_uri": None,
     "avg_saved_users_fraction": 0.0,
@@ -939,6 +941,7 @@ def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
         "joke_ids": ["a", "b"],
         "category_id": None,
         "index": None,
+        "sheet_slug": None,
         "image_gcs_uri": None,
         "pdf_gcs_uri": None,
         "avg_saved_users_fraction": 0.0,
@@ -1045,6 +1048,7 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
     "joke_ids": ["a", "b"],
     "category_id": "cats",
     "index": None,
+    "sheet_slug": None,
     "image_gcs_uri": "gs://tmp/joke_notes_sheets/abc.png",
     "pdf_gcs_uri": "gs://tmp/joke_notes_sheets/abc.pdf",
     "avg_saved_users_fraction": 0.0,
@@ -1098,6 +1102,74 @@ def test_get_joke_sheets_by_category_filters_index(monkeypatch):
   assert getattr(captured_filters[1], "field_path", None) == "index"
   assert getattr(captured_filters[1], "op_string", None) == "=="
   assert getattr(captured_filters[1], "value", None) == 2
+
+
+def test_get_joke_sheet_by_slug_filters_sheet_slug(monkeypatch):
+  from services import firestore as fs
+
+  captured_filters: list = []
+
+  class DummyDoc:
+
+    def __init__(self, doc_id: str):
+      self.id = doc_id
+
+    @property
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {
+        "joke_str": "a,b",
+        "joke_ids": ["a", "b"],
+        "category_id": None,
+        "index": None,
+        "sheet_slug": "my-custom-pack",
+        "image_gcs_uri": "gs://img",
+        "pdf_gcs_uri": "gs://pdf",
+        "avg_saved_users_fraction": 0.0,
+      }
+
+  class DummyQuery:
+
+    def __init__(self, filters):
+      self._filters = filters
+
+    def limit(self, _n: int):
+      return self
+
+    def stream(self):
+      return [DummyDoc("sheet-123")]
+
+  class DummyCol:
+
+    def __init__(self, filters):
+      self._filters = filters
+
+    def where(self, filter):  # pylint: disable=redefined-builtin
+      self._filters.append(filter)
+      return DummyQuery(self._filters)
+
+  class DummyDB:
+
+    def __init__(self, filters):
+      self._filters = filters
+
+    def collection(self, name):
+      assert name == "joke_sheets"
+      return DummyCol(self._filters)
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB(captured_filters))
+
+  sheet = fs.get_joke_sheet_by_slug("my-custom-pack")
+
+  assert sheet is not None
+  assert sheet.key == "sheet-123"
+  assert sheet.sheet_slug == "my-custom-pack"
+  assert len(captured_filters) == 1
+  assert getattr(captured_filters[0], "field_path", None) == "sheet_slug"
+  assert getattr(captured_filters[0], "op_string", None) == "=="
+  assert getattr(captured_filters[0], "value", None) == "my-custom-pack"
 
 
 def test_update_joke_sheets_cache_writes_payload(monkeypatch):

@@ -405,6 +405,28 @@ def get_joke_sheets_by_category(
   ]
 
 
+def get_joke_sheet_by_slug(slug: str) -> models.JokeSheet | None:
+  """Fetch a joke sheet by its custom sheet_slug field."""
+  slug = (slug or "").strip()
+  if not slug:
+    return None
+
+  query = db().collection("joke_sheets").where(
+    filter=FieldFilter("sheet_slug", "==", slug)).limit(1)
+  docs = list(query.stream())
+  if not docs:
+    return None
+
+  doc = docs[0]
+  if not doc.exists:
+    return None
+  data = doc.to_dict()
+  if data is None:
+    return None
+
+  return models.JokeSheet.from_firestore_dict(data, key=doc.id)
+
+
 def delete_joke_sheet(sheet_id: str) -> bool:
   """Delete a joke sheet by Firestore document id."""
   sheet_id = (sheet_id or "").strip()

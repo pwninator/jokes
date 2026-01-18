@@ -304,12 +304,55 @@ def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
   assert "sendSignInLinkToEmail" not in html
 
 
-def test_notes_detail_redirects_on_invalid_slug():
+def test_notes_detail_redirects_on_invalid_slug(monkeypatch):
+  # Ensure we don't hit real Firestore when checking custom slugs.
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheet_by_slug",
+                      lambda _slug: None)
   with app.test_client() as client:
     resp = client.get('/printables/notes/not-a-slug')
 
   assert resp.status_code == 302
   assert resp.headers["Location"].endswith('/printables/notes')
+
+
+def test_notes_detail_custom_slug_renders_generic_sheet(monkeypatch):
+  slug = "my-custom-pack"
+  sheet = models.JokeSheet(
+    key="custom-sheet",
+    sheet_slug=slug,
+    category_id=None,
+    index=None,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/custom.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/custom.pdf",
+  )
+
+  animals = models.JokeCategory(display_name="Animals",
+                                id="animals",
+                                state="APPROVED")
+  animals_sheet = models.JokeSheet(
+    key="animals-low",
+    category_id="animals",
+    index=0,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
+  )
+
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheet_by_slug",
+                      lambda _slug: sheet)
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: [(animals, [animals_sheet])])
+  monkeypatch.setattr(notes_routes.random, "sample",
+                      lambda population, k: population[:k])
+
+  with app.test_client() as client:
+    resp = client.get(f"/printables/notes/{slug}")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Lunchbox Joke Notes" in html
+  assert "Want More Joke Packs?" in html
+  assert 'data-books-redirect-url="/books?ref=notes_download"' in html
+  assert "notes-category-title" not in html
 
 
 def test_notes_redirects_authenticated_user(monkeypatch):

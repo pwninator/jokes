@@ -486,8 +486,8 @@ def sync_joke_to_search_collection(
   if search_data.get("popularity_score") != joke.popularity_score:
     update_payload["popularity_score"] = joke.popularity_score
 
-  # 8. Sync book_id
-  if search_data.get("book_id") != joke.book_id:
+  # 8. Sync book_id (explicitly write nulls when missing)
+  if "book_id" not in search_data or search_data.get("book_id") != joke.book_id:
     update_payload["book_id"] = joke.book_id
 
   if update_payload:

@@ -260,15 +260,17 @@ def _update_joke_attributes(
     if payload:
       batch.update(joke_doc.reference, payload)
       writes_in_batch += 1
+    else:
+      jokes_skipped += 1
+
+    if joke.state != models.JokeState.DRAFT:
       try:
         joke_operations.sync_joke_to_search_collection(joke=joke,
                                                        new_embedding=None)
       except Exception as sync_error:
         logger.warn(
-          f"Failed to sync updated joke {joke_doc.id} to search collection: {sync_error}"
+          f"Failed to sync joke {joke_doc.id} to search collection: {sync_error}"
         )
-    else:
-      jokes_skipped += 1
 
     # Add to public feed if the joke is public in its final state.
     if joke.is_public:

@@ -187,8 +187,8 @@ class TestDecayRecentJokeStats:
       "last_recent_stats_update_time"] is firestore.SERVER_TIMESTAMP
     mock_sync.assert_called_once()
 
-  def test_skips_when_recently_updated_and_does_not_sync(self, monkeypatch):
-    """Test that a recently updated joke is skipped for both writes and search sync."""
+  def test_skips_when_recently_updated_and_still_syncs(self, monkeypatch):
+    """Test that a recently updated joke is skipped for writes but still syncs search."""
     now_utc = _create_test_datetime()
     overrides = {
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
@@ -214,7 +214,7 @@ class TestDecayRecentJokeStats:
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
 
     mock_batch.update.assert_not_called()
-    mock_sync.assert_not_called()
+    mock_sync.assert_called_once()
 
   def test_missing_recent_fields_are_skipped(self, monkeypatch):
     """Test that if recent fields are None, only the timestamp is updated."""
@@ -671,11 +671,6 @@ class TestDecayRecentJokeStats:
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
-    # Verify sync was called or not, based on the update type
-    if update_type == "no_updates":
-      mock_sync.assert_not_called()
-      return  # End test here for no_updates case
-
     mock_sync.assert_called_once()
     call_args = mock_sync.call_args
     joke = call_args.kwargs['joke']
@@ -691,7 +686,7 @@ class TestDecayRecentJokeStats:
       assert joke.num_saved_users_fraction == pytest.approx(expected_fraction)
 
   def test_syncs_multiple_jokes_with_different_updates(self, monkeypatch):
-    """Test that only updated jokes are synced."""
+    """Test that jokes are synced even when only some are updated."""
     now_utc = _create_test_datetime()
 
     # Joke 1: Has updates (decay)
@@ -748,13 +743,10 @@ class TestDecayRecentJokeStats:
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
 
-    # Verify sync was called once (only for the updated joke)
-    mock_sync.assert_called_once()
-
-    # Verify the synced joke is joke1
-    call1 = mock_sync.call_args_list[0]
-    joke1 = call1.kwargs['joke']
-    assert joke1.key == "joke1"
+    # Verify sync was called for both jokes
+    assert mock_sync.call_count == 2
+    synced_ids = {call.kwargs['joke'].key for call in mock_sync.call_args_list}
+    assert synced_ids == {"joke1", "joke2"}
 
   def test_sync_handles_errors_gracefully(self, monkeypatch):
     """Test that sync errors don't crash the maintenance job."""
@@ -801,7 +793,7 @@ class TestDecayRecentJokeStats:
     mock_logger = joke_auto_fns.logger
     mock_logger.warn.assert_called()
     warn_call = str(mock_logger.warn.call_args)
-    assert "Failed to sync updated joke joke1" in warn_call
+    assert "Failed to sync joke joke1" in warn_call
     assert "Sync failed" in warn_call
 
 

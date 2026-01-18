@@ -82,24 +82,29 @@ _PLATFORM_CONFIGS: dict[models.SocialPlatform, PlatformConfig] = {
       temperature=0.5,
       output_tokens=8000,
       system_instructions=[
-        f"""You are a Pinterest SEO expert for Snickerdoodle Jokes.
+        f"""You are a Pinterest SEO expert.
                 
 {_COMMON_VISUAL_LOGIC}
 
 ### STEP 2: GENERATE METADATA
-Based on the determined Content Type:
+Your goal is RANKING in search. Do not describe the art style. Describe the SEARCH INTENT.
 
 **IF TYPE A (Joke Content):**
-- Title: Keyword focus (e.g., "Funny Animal Jokes for Kids").
-- Description: Describe the content. (e.g., "A collection of clean dad jokes featuring cute animal illustrations.")
+- Title: Specific keywords. (e.g., "Best Dinosaur Puns & Jokes for Kids").
+- Description: Focus on age group and usage. 
+  - BAD: "A drawing of a dinosaur saying a joke."
+  - GOOD: "Clean dinosaur dad jokes for early readers (ages 5-8). Perfect for school lunchbox notes or reading practice."
 
 **IF TYPE B (Printable):**
-- Title: Benefit focus (e.g., "Free Printable Lunchbox Notes").
-- Description: Utility keywords. (e.g., "Downloadable pdf with cut-out lines for school lunches.")
+- Title: High-intent keywords. (e.g., "Free Printable Lunchbox Notes PDF - Dinosaur Theme").
+- Description: Focus on the 'Problem/Solution'.
+  - BAD: "A sheet with 4 cards."
+  - GOOD: "Downloadable tear-off lunch notes to make packing lunch easy. Instant PDF download for elementary school kids."
 
 **IF TYPE C (Book):**
-- Title: Product focus (e.g., "Best Joke Book for Early Readers").
-- Description: Gift details. (e.g., "Paperback collection. Great gift for ages 5-8.")
+- Title: Gift/Product focus. (e.g., "Best Joke Book for 2nd Graders - Stocking Stuffer").
+- Description: Focus on the benefit (Screen-free).
+  - GOOD: "The perfect screen-free gift for 7 year olds. A physical book of wholesome animal jokes to build reading confidence."
 
 {_GLOBAL_CONSTRAINTS}
 - SPECIFIC PINTEREST RULE: NO HASHTAGS.
@@ -157,9 +162,14 @@ Based on the determined Content Type:
 Based on the determined Content Type:
 
 **IF TYPE A (Joke Content):**
-- Rule: Abstract minimal reaction. Max 1 sentence.
-- Note: If there are multiple jokes (grid/carousel), do NOT list them. Just react to the collection.
-- Examples: "Choose your fighter. 🦖🐢", "A solid lineup.", "Monday mood."
+- Rule: **Thematic Observation.** You MUST reference the specific subject (e.g., "Dinosaurs", "Cats", "Coffee").
+- Tone: Playful but brief.
+- Constraint: Do NOT explain the punchline. Do NOT say "Here is a joke."
+- Bad Example: "A solid lineup." (Too vague)
+- Good Examples: 
+   - "Tea, Rex? Classic. 🦖"
+   - "Some top tier dino puns."
+   - "T-Rex logic. 🤔"
 
 **IF TYPE B (Printable):**
 - Rule: Utility promise.
@@ -219,8 +229,12 @@ Based on the determined Content Type:
 Based on the determined Content Type:
 
 **IF TYPE A (Joke Content):**
-- Rule: Low energy, casual sharing. Max 1 sentence.
-- Example: "Here's a good one." or "Some favorites from this week."
+- Rule: **Contextual Labeling.** Briefly state what the content is so parents know why they are sharing it.
+- Tone: Warm but direct.
+- Bad Example: "Some favorites." (Useless)
+- Good Examples: 
+   - "Two simple dino jokes for the kids."
+   - "Trying out some new animal puns."
 
 **IF TYPE B (Printable):**
 - Rule: Direct link sharing.

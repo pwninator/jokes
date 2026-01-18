@@ -846,6 +846,7 @@ class TestSyncJokeToSearchCollection:
       "num_saved_users_fraction": 0.5,
       "num_shared_users_fraction": 0.3,
       "popularity_score": 64.0,
+      "book_id": None,
     }
 
     joke = models.PunnyJoke(
@@ -858,6 +859,7 @@ class TestSyncJokeToSearchCollection:
       num_saved_users_fraction=0.5,
       num_shared_users_fraction=0.3,
       popularity_score=64.0,
+      book_id=None,
     )
 
     mock_search_doc_ref, _ = mock_search_collection
@@ -865,6 +867,32 @@ class TestSyncJokeToSearchCollection:
 
     # Verify set was not called since nothing changed
     mock_search_doc_ref.set.assert_not_called()
+
+  def test_writes_book_id_when_missing_from_search_doc(self,
+                                                       mock_search_collection,
+                                                       mock_firestore):
+    """Test that a missing book_id field is explicitly written as null."""
+    _, search_doc_state = mock_search_collection
+
+    search_doc_state["doc"] = {
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": True,
+    }
+
+    joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Test setup",
+      punchline_text="Test punchline",
+      state=models.JokeState.PUBLISHED,
+      is_public=True,
+      book_id=None,
+    )
+
+    joke_operations.sync_joke_to_search_collection(joke, None)
+
+    synced = search_doc_state["doc"]
+    assert "book_id" in synced
+    assert synced["book_id"] is None
 
   def test_uses_new_embedding_when_provided(self, mock_search_collection,
                                             mock_firestore):

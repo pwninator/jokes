@@ -1314,7 +1314,8 @@
           });
           const postData = data?.post_data || {};
           const postId = data?.post_id || '';
-          const pinUrl = postData?.pinterest_image_url;
+          const pinUrls = postData?.pinterest_image_urls || [];
+          const pinUrl = pinUrls[0];
 
           if (!pinUrl) {
             throw new Error('Pinterest image URL missing from response');

@@ -50,7 +50,7 @@ _PINTEREST_PANEL_SIZE_PX = 500
 _PINTEREST_DIVIDER_SAMPLE_COUNT = 5
 _PINTEREST_DIVIDER_TARGET_CONTRAST = 3.0
 
-_SOCIAL_BACKGROUND_4X5_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5.png"
+_SOCIAL_BACKGROUND_4X5_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5_2.png"
 _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 

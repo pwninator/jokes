@@ -131,6 +131,13 @@
   </section>
 
   <section class="admin-grid" aria-label="Admin utilities">
+    <a class="admin-card" href="{{ url_for('web.admin_image_prompt_tuner') }}">
+      <div class="admin-card-title text-body">
+        <span>Image Prompt Tuner</span>
+        <span class="muted text-button">’'+</span>
+      </div>
+      <p class="admin-card-desc muted">Iterate on setup and punchline image prompts with reference controls.</p>
+    </a>
     <a class="admin-card" href="{{ url_for('web.admin_redirect_tester') }}">
       <div class="admin-card-title text-body">
         <span>Amazon redirect tester</span>

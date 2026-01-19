@@ -9,7 +9,6 @@ from services import firestore
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=20,
-  # min_instances=1,
 )
 def get_random_prompt(req: https_fn.Request) -> https_fn.Response:
   """Returns a random story prompt to help inspire story creation.

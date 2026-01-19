@@ -231,3 +231,16 @@ def test_admin_dashboard_includes_sticky_header_script(monkeypatch):
   assert 'site-header--visible' in html.lower()
   # Verify 1000px scroll threshold logic
   assert '1000' in html or 'float_scroll_threshold' in html.lower()
+
+
+def test_admin_dashboard_includes_image_prompt_tuner_link(monkeypatch):
+  """Admin dashboard includes the image prompt tuner tile."""
+  _mock_admin_session(monkeypatch)
+
+  with app.test_client() as client:
+    resp = client.get('/admin')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '/admin/image-prompt-tuner' in html
+  assert 'Image Prompt Tuner' in html

@@ -98,17 +98,16 @@ _IMAGE_GENERATION_PROMPT_PREAMBLE = """\
 A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies).
 """
 
-_STYLE_REFERENCE_GUIDANCE = (
-  "You are given {num_style_refs} style reference images to help you visualize the desired art style described above. Use them to match the artistic style, color palette, background texture, and overall aesthetic."
-)
+_STYLE_REFERENCE_GUIDANCE = """\
+You are given {num_style_refs} style reference images to help you visualize the desired art style described above. Use them to match the artistic style, color palette, background texture, and overall aesthetic.
+"""
 
-_PRIOR_PANEL_GUIDANCE = (
-  "You are given 1 prior panel image (the setup panel). Create the punchline panel to complete the two-panel joke. "
-  "Use the exact same art style as the setup panel. Keep characters, props, fonts, colors, proportions, outfits, camera angle, and environment consistent with the setup panel. "
-  "Do not alter or obscure any text already present in the setup panel. Generate the new punchline content while preserving all visual continuity."
-)
+_PRIOR_PANEL_GUIDANCE = """\
+You are given 1 prior panel image (the setup panel). Create the punchline panel to complete the two-panel joke. Use the exact same art style as the setup panel. Keep characters, props, fonts, colors, proportions, outfits, camera angle, and environment consistent with the setup panel. Generate the new punchline content while preserving all visual continuity.
+"""
 
-_IMAGE_MODIFICATION_PROMPT_POSTAMBLE = "Make sure to the exact same artistic style, color palette, background texture, and overall aesthetic as the original image. Make sure the characters, objects, fonts, color palette, etc. are consistent."
+_IMAGE_MODIFICATION_PROMPT_POSTAMBLE = """\
+Make sure to the exact same artistic style, color palette, background texture, and overall aesthetic as the original image. Make sure the characters, objects, fonts, color palette, etc. are consistent."""
 
 
 def generate_pun_images(

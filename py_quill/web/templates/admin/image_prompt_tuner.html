@@ -1,0 +1,189 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Image Prompt Tuner - {{ site_name }} Admin{% endblock %}
+
+{% macro render_reference_picker(name, image_urls, selected_urls) %}
+<div class="reference-grid">
+  {% for url in image_urls %}
+  <label class="reference-item">
+    <img src="{{ url }}" width="100" loading="lazy">
+    <input type="checkbox" name="{{ name }}" value="{{ url }}" {% if url in selected_urls %}checked{% endif %}>
+  </label>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<style>
+  .prompt-tuner {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .prompt-header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .prompt-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .prompt-result-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .prompt-result-card img {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    display: block;
+  }
+
+  .prompt-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .prompt-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .prompt-textarea {
+    flex: 1 1 520px;
+    min-width: 280px;
+    min-height: 320px;
+  }
+
+  .prompt-side {
+    flex: 0 0 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .reference-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .reference-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .reference-item img {
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-accent-surface);
+    display: block;
+  }
+
+  .reference-item input {
+    margin: 0;
+  }
+
+  .setup-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .quality-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .error-banner {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 226, 226, 0.6);
+    border: 1px solid rgba(200, 60, 60, 0.3);
+    color: #7b1d1d;
+  }
+</style>
+
+<div class="prompt-tuner">
+  <div class="prompt-header">
+    <h2>Image Prompt Tuner</h2>
+    <p class="muted">
+      Build raw prompts for setup and punchline images, then choose which reference images to include.
+    </p>
+  </div>
+
+  {% if error_message %}
+  <div class="error-banner">{{ error_message }}</div>
+  {% endif %}
+
+  {% if setup_image_url or punchline_image_url %}
+  <section class="prompt-results" aria-label="Generated images">
+    {% if setup_image_url %}
+    <div class="prompt-result-card">
+      <h3>Setup</h3>
+      <img src="{{ setup_image_url }}" alt="Setup image">
+    </div>
+    {% endif %}
+    {% if punchline_image_url %}
+    <div class="prompt-result-card">
+      <h3>Punchline</h3>
+      <img src="{{ punchline_image_url }}" alt="Punchline image">
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <form class="prompt-form" method="POST">
+    <section class="card">
+      <label for="setup-image-prompt" class="text-button">Setup image prompt</label>
+      <div class="prompt-row">
+        <textarea id="setup-image-prompt" name="setup_image_prompt" class="input prompt-textarea" required>{{ setup_prompt }}</textarea>
+        <div class="prompt-side">
+          <p class="muted small">Reference images for setup</p>
+          {{ render_reference_picker('setup_reference_images', reference_images, selected_setup_reference_images) }}
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <label for="punchline-image-prompt" class="text-button">Punchline image prompt</label>
+      <div class="prompt-row">
+        <textarea id="punchline-image-prompt" name="punchline_image_prompt" class="input prompt-textarea" required>{{ punchline_prompt }}</textarea>
+        <div class="prompt-side">
+          <p class="muted small">Reference images for punchline</p>
+          {{ render_reference_picker('punchline_reference_images', reference_images, selected_punchline_reference_images) }}
+          <label class="setup-toggle text-button">
+            <input type="checkbox" name="include_setup_image" value="true" {% if include_setup_image_reference %}checked{% endif %}>
+            Setup image
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="card quality-row">
+      <label for="image-quality" class="text-button">Quality</label>
+      <select id="image-quality" name="image_quality" class="input">
+        {% for option in quality_options %}
+        <option value="{{ option.value }}" {{ option.selected }}>{{ option.value }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="text-button">Generate</button>
+    </section>
+  </form>
+</div>
+{% endblock %}

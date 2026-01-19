@@ -113,12 +113,18 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   assert post_data["pinterest_title"] == "Title"
   assert post_data["pinterest_description"] == "Description"
   assert post_data["pinterest_alt_text"] == "Alt text"
-  assert post_data["pinterest_image_urls"] == ["https://cdn.example.com/pin.png"]
+  assert post_data["pinterest_image_urls"] == [
+    "https://cdn.example.com/pin.png"
+  ]
   assert post_data["instagram_caption"] == "IG caption"
   assert post_data["instagram_alt_text"] == "IG alt"
-  assert post_data["instagram_image_urls"] == ["https://cdn.example.com/pin.png"]
+  assert post_data["instagram_image_urls"] == [
+    "https://cdn.example.com/pin.png"
+  ]
   assert post_data["facebook_message"] == "FB message"
-  assert post_data["facebook_image_urls"] == ["https://cdn.example.com/pin.png"]
+  assert post_data["facebook_image_urls"] == [
+    "https://cdn.example.com/pin.png"
+  ]
   assert post_data["type"] == "JOKE_GRID_TEASER"
   assert post_data["link_url"] == expected_link_url
 
@@ -150,8 +156,12 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
     "Punch 1",
     "Punch 2",
   ]
-  assert created_arg.pinterest_image_urls == ["https://cdn.example.com/pin.png"]
-  assert created_arg.instagram_image_urls == ["https://cdn.example.com/pin.png"]
+  assert created_arg.pinterest_image_urls == [
+    "https://cdn.example.com/pin.png"
+  ]
+  assert created_arg.instagram_image_urls == [
+    "https://cdn.example.com/pin.png"
+  ]
   assert created_arg.facebook_image_urls == ["https://cdn.example.com/pin.png"]
   assert created_arg.link_url == expected_link_url
 
@@ -305,7 +315,9 @@ def test_social_post_creation_process_regenerates_text(
   assert post_data["pinterest_title"] == "New"
   assert post_data["pinterest_description"] == "Desc"
   assert post_data["pinterest_alt_text"] == "Alt"
-  assert post_data["pinterest_image_urls"] == ["https://cdn.example.com/pin.png"]
+  assert post_data["pinterest_image_urls"] == [
+    "https://cdn.example.com/pin.png"
+  ]
   update_mock.assert_called_once()
 
 
@@ -362,7 +374,9 @@ def test_social_post_creation_process_regenerates_text_and_image(
   payload = _json_payload(resp)
   assert payload["data"]["post_id"] == "post1"
   post_data = payload["data"]["post_data"]
-  assert post_data["pinterest_image_urls"] == ["https://cdn.example.com/new.png"]
+  assert post_data["pinterest_image_urls"] == [
+    "https://cdn.example.com/new.png"
+  ]
   update_mock.assert_called_once()
   assert captured["joke_ids"] == ["j1", "j2"]
   assert captured["post_type"] == models.JokeSocialPostType.JOKE_GRID_TEASER

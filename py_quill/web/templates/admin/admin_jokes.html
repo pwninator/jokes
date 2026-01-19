@@ -627,6 +627,15 @@
     }
   }
 
+  function getRevealButtonLabel(button) {
+    if (!button) {
+      return 'Reveal Punchline';
+    }
+    const expanded = button.getAttribute('aria-expanded') === 'true';
+    const labelAttribute = expanded ? 'data-label-hide' : 'data-label-show';
+    return button.getAttribute(labelAttribute) || 'Reveal Punchline';
+  }
+
   function setCardGenerating(card) {
     if (!card) {
       return;
@@ -638,6 +647,19 @@
     revealButton.classList.add('joke-reveal--generating');
     revealButton.disabled = true;
     revealButton.textContent = 'Generating...';
+  }
+
+  function setCardIdle(card) {
+    if (!card) {
+      return;
+    }
+    const revealButton = card.querySelector('button[data-role="reveal"]');
+    if (!revealButton) {
+      return;
+    }
+    revealButton.classList.remove('joke-reveal--generating');
+    revealButton.disabled = false;
+    revealButton.textContent = getRevealButtonLabel(revealButton);
   }
 
   function handleEditCancel() {
@@ -867,7 +889,7 @@
   }
 
   if (regenerateForm) {
-    regenerateForm.addEventListener('submit', (event) => {
+    regenerateForm.addEventListener('submit', async (event) => {
       event.preventDefault();
 
       if (!regenerateJokeIdInput || !regenerateQualityInput) {
@@ -876,6 +898,7 @@
 
       const jokeId = regenerateJokeIdInput.value;
       const quality = regenerateQualityInput.value;
+      const card = document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
 
       const payload = {
         data: {
@@ -885,8 +908,14 @@
         },
       };
 
+      closeRegenerateModal();
+
+      if (card) {
+        setCardGenerating(card);
+      }
+
       try {
-        fetch(jokeCreationUrl, {
+        const response = await fetch(jokeCreationUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -894,19 +923,16 @@
           },
           credentials: 'same-origin',
           body: JSON.stringify(payload),
-        }).catch((err) => {
-          console.warn('regenerate images request failed', err); // eslint-disable-line no-console
         });
+        if (!response.ok) {
+          console.warn('regenerate images request failed', response.status); // eslint-disable-line no-console
+        }
       } catch (err) {
-        // Ignore.
-      }
-
-      closeRegenerateModal();
-
-      // Find the card and set it to generating
-      const card = document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
-      if (card) {
-        setCardGenerating(card);
+        console.warn('regenerate images request failed', err); // eslint-disable-line no-console
+      } finally {
+        if (card) {
+          setCardIdle(card);
+        }
       }
     });
   }
@@ -1047,7 +1073,7 @@
     }
   }
 
-  function sendEditRequest(populateImages) {
+  async function sendEditRequest(populateImages) {
     if (!editJokeIdInput || !editSetupInput || !editPunchlineInput) {
       return;
     }
@@ -1083,9 +1109,17 @@
       },
     };
 
-    // Fire-and-forget, mirror new joke submission behavior.
+    const jokeId = editJokeIdInput.value;
+    const card = activeEditCard || document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
+    closeEditModal();
+    if (card) {
+      setCardGenerating(card);
+    }
+    activeEditCard = null;
+    activeEditPayload = null;
+
     try {
-      fetch(jokeCreationUrl, {
+      const response = await fetch(jokeCreationUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1093,17 +1127,17 @@
         },
         credentials: 'same-origin',
         body: JSON.stringify(payload),
-      }).catch((err) => {
-        console.warn('joke_creation_process request failed', err); // eslint-disable-line no-console
       });
+      if (!response.ok) {
+        console.warn('joke_creation_process request failed', response.status); // eslint-disable-line no-console
+      }
     } catch (err) {
-      // Ignore.
+      console.warn('joke_creation_process request failed', err); // eslint-disable-line no-console
+    } finally {
+      if (card) {
+        setCardIdle(card);
+      }
     }
-
-    closeEditModal();
-    setCardGenerating(activeEditCard);
-    activeEditCard = null;
-    activeEditPayload = null;
   }
 
   if (editForm) {

@@ -121,8 +121,10 @@ def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
 """Tests for joke_creation_fns."""
 
 import pytest
+from agents import constants
 from common import models
 from functions import joke_creation_fns
+from unittest.mock import MagicMock
 
 
 class DummyReq:
@@ -643,6 +645,71 @@ def test_joke_creation_process_rejects_unknown_op():
   data = resp.get_json()["data"]
   assert "error" in data
   assert "Unsupported op" in data["error"]
+
+
+def test_joke_creation_process_handles_joke_image_op(monkeypatch):
+  """JOKE_IMAGE should generate setup and punchline images."""
+  monkeypatch.setattr(joke_creation_fns,
+                      'get_user_id',
+                      lambda req, allow_unauthenticated=False,
+                      require_admin=False: "admin-user")
+
+  mock_client = MagicMock()
+  mock_setup_image = MagicMock()
+  mock_setup_image.url = "http://example.com/setup.png"
+  mock_setup_image.gcs_uri = "gs://bucket/setup.png"
+  mock_setup_image.custom_temp_data = {
+    "image_generation_call_id": "call-123"
+  }
+
+  mock_punchline_image = MagicMock()
+  mock_punchline_image.url = "http://example.com/punchline.png"
+  mock_punchline_image.custom_temp_data = {}
+
+  mock_client.generate_image.side_effect = [
+    mock_setup_image,
+    mock_punchline_image,
+  ]
+  monkeypatch.setattr(joke_creation_fns, "_select_image_client",
+                      lambda quality: mock_client)
+
+  data = {
+    "op": joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value,
+    "setup_image_prompt": "Setup prompt",
+    "punchline_image_prompt": "Punch prompt",
+    "setup_reference_images": [
+      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0],
+      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1],
+    ],
+    "punchline_reference_images": [
+      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[2],
+    ],
+    "include_setup_image": True,
+    "image_quality": "low",
+  }
+
+  resp = joke_creation_fns.joke_creation_process(DummyReq(data=data))
+
+  payload = resp.get_json()["data"]
+  assert payload["setup_image_url"] == "http://example.com/setup.png"
+  assert payload["punchline_image_url"] == "http://example.com/punchline.png"
+
+  mock_client.generate_image.assert_called()
+  first_call = mock_client.generate_image.call_args_list[0]
+  assert first_call.args[0] == "Setup prompt"
+  assert first_call.args[1] == [
+    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0],
+    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1],
+  ]
+  assert first_call.kwargs["save_to_firestore"] is False
+
+  second_call = mock_client.generate_image.call_args_list[1]
+  assert second_call.args[0] == "Punch prompt"
+  assert second_call.args[1] == [
+    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[2],
+    "call-123",
+  ]
+  assert second_call.kwargs["save_to_firestore"] is False
 
 
 @pytest.fixture(autouse=True)

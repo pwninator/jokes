@@ -5,17 +5,33 @@ from __future__ import annotations
 import traceback
 from enum import Enum
 
-from common import image_generation, joke_operations
+from agents import constants
+from common import image_generation, joke_operations, utils
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import (AuthError, error_response,
-                                      get_bool_param, get_param, get_user_id,
-                                      success_response)
+                                      get_bool_param, get_list_param,
+                                      get_param, get_user_id, success_response)
 from services import firestore
 
 
 class JokeCreationOp(str, Enum):
   """Supported joke creation operations."""
   PROC = "proc"
+  JOKE_IMAGE = "joke_image"
+
+
+def _select_image_client(image_quality: str):
+  if utils.is_emulator():
+    return image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY["low"]
+  if image_quality in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
+    return image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY[image_quality]
+  raise ValueError(f"Invalid image quality: {image_quality}")
+
+
+def _filter_reference_images(selected_urls: list[str],
+                             allowed_urls: list[str]) -> list[str]:
+  allowed = set(allowed_urls)
+  return [url for url in selected_urls if url in allowed]
 
 
 @https_fn.on_request(
@@ -40,7 +56,9 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
                             error_type='unsupported_operation',
                             status=400)
     if op == JokeCreationOp.PROC:
-      return _handle_joke_creation_proc(req)
+      return _run_joke_creation_proc(req)
+    if op == JokeCreationOp.JOKE_IMAGE:
+      return _handle_joke_image_tuner(req)
 
     return error_response(f'Unsupported op: {op_value}',
                           error_type='unsupported_operation',
@@ -57,7 +75,86 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     return error_response(error_string, error_type='internal_error')
 
 
-def _handle_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
+def _handle_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
+  """Generate setup/punchline images for prompt tuning."""
+  try:
+    get_user_id(req, allow_unauthenticated=False, require_admin=True)
+  except AuthError:
+    return error_response('Unauthorized', status=403, req=req)
+
+  setup_prompt = (get_param(req, 'setup_image_prompt') or "").strip()
+  punchline_prompt = (get_param(req, 'punchline_image_prompt') or "").strip()
+  if not setup_prompt or not punchline_prompt:
+    return error_response(
+      'setup_image_prompt and punchline_image_prompt are required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  image_quality = get_param(req, 'image_quality', 'medium_mini')
+  selected_setup_reference_images = _filter_reference_images(
+    get_list_param(req, 'setup_reference_images'),
+    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
+  )
+  selected_punchline_reference_images = _filter_reference_images(
+    get_list_param(req, 'punchline_reference_images'),
+    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
+  )
+  include_setup_image_reference = get_bool_param(req, 'include_setup_image',
+                                                 False)
+
+  try:
+    client = _select_image_client(image_quality)
+    setup_image = client.generate_image(
+      setup_prompt,
+      selected_setup_reference_images or None,
+      save_to_firestore=False,
+    )
+    if not setup_image or not getattr(setup_image, "url", None):
+      raise ValueError(f"Generated setup image has no URL: {setup_image}")
+
+    previous_image_reference = None
+    custom_temp_data = getattr(setup_image, "custom_temp_data", None)
+    if custom_temp_data and custom_temp_data.get("image_generation_call_id"):
+      previous_image_reference = custom_temp_data["image_generation_call_id"]
+    elif getattr(setup_image, "gcs_uri", None):
+      previous_image_reference = setup_image.gcs_uri
+
+    punchline_reference_images = selected_punchline_reference_images[:]
+    if include_setup_image_reference and previous_image_reference:
+      punchline_reference_images.append(previous_image_reference)
+
+    punchline_image = client.generate_image(
+      punchline_prompt,
+      punchline_reference_images or None,
+      save_to_firestore=False,
+    )
+    if not punchline_image or not getattr(punchline_image, "url", None):
+      raise ValueError(
+        f"Generated punchline image has no URL: {punchline_image}")
+
+    return success_response(
+      {
+        "setup_image_url": setup_image.url,
+        "punchline_image_url": punchline_image.url,
+      },
+      req=req,
+    )
+  except ValueError as exc:
+    return error_response(str(exc),
+                          error_type='invalid_request',
+                          status=400,
+                          req=req)
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error handling joke image tuning: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string, error_type='internal_error', req=req)
+
+
+def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
+  """Handle joke creation process."""
   try:
     user_id = get_user_id(req, allow_unauthenticated=False)
   except AuthError:

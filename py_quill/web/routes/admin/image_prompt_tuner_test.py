@@ -7,9 +7,8 @@ from unittest.mock import MagicMock
 from werkzeug.datastructures import MultiDict
 
 from agents import constants
-from functions import auth_helpers
+from functions import auth_helpers, function_utils, joke_creation_fns
 from web.app import app
-from web.routes.admin import image_prompt_tuner as prompt_routes
 
 
 def _mock_admin_session(monkeypatch):
@@ -35,6 +34,8 @@ def test_admin_image_prompt_tuner_page_loads(monkeypatch):
   assert 'name="setup_reference_images"' in html
   assert 'name="punchline_reference_images"' in html
   assert 'name="include_setup_image"' in html
+  assert 'name="op"' in html
+  assert f'value="{joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value}"' in html
   assert constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0] in html
 
 
@@ -42,25 +43,12 @@ def test_admin_image_prompt_tuner_generates_images(monkeypatch):
   """POSTing prompts triggers setup and punchline image generation."""
   _mock_admin_session(monkeypatch)
 
-  mock_client = MagicMock()
-  mock_select_client = MagicMock(return_value=mock_client)
-  monkeypatch.setattr(prompt_routes, "_select_image_client", mock_select_client)
-
-  mock_setup_image = MagicMock()
-  mock_setup_image.url = "http://example.com/setup.png"
-  mock_setup_image.gcs_uri = "gs://bucket/setup.png"
-  mock_setup_image.custom_temp_data = {
-    "image_generation_call_id": "call-123"
-  }
-
-  mock_punchline_image = MagicMock()
-  mock_punchline_image.url = "http://example.com/punchline.png"
-  mock_punchline_image.custom_temp_data = {}
-
-  mock_client.generate_image.side_effect = [
-    mock_setup_image,
-    mock_punchline_image,
-  ]
+  mock_process = MagicMock(
+    return_value=function_utils.success_response({
+      "setup_image_url": "http://example.com/setup.png",
+      "punchline_image_url": "http://example.com/punchline.png",
+    }))
+  monkeypatch.setattr(joke_creation_fns, "joke_creation_process", mock_process)
 
   data = MultiDict([
     ('setup_image_prompt', 'Setup prompt'),
@@ -71,6 +59,7 @@ def test_admin_image_prompt_tuner_generates_images(monkeypatch):
      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[2]),
     ('include_setup_image', 'true'),
     ('image_quality', 'low'),
+    ('op', joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value),
   ])
 
   with app.test_client() as client:
@@ -81,21 +70,4 @@ def test_admin_image_prompt_tuner_generates_images(monkeypatch):
   assert 'http://example.com/setup.png' in html
   assert 'http://example.com/punchline.png' in html
 
-  mock_select_client.assert_called_once_with('low')
-  assert mock_client.generate_image.call_count == 2
-
-  first_call = mock_client.generate_image.call_args_list[0]
-  assert first_call.args[0] == 'Setup prompt'
-  assert first_call.args[1] == [
-    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0],
-    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1],
-  ]
-  assert first_call.kwargs['save_to_firestore'] is False
-
-  second_call = mock_client.generate_image.call_args_list[1]
-  assert second_call.args[0] == 'Punch prompt'
-  assert second_call.args[1] == [
-    constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[2],
-    'call-123',
-  ]
-  assert second_call.kwargs['save_to_firestore'] is False
+  mock_process.assert_called_once()

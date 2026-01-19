@@ -149,6 +149,7 @@
   {% endif %}
 
   <form class="prompt-form" method="POST">
+    <input type="hidden" name="op" value="{{ joke_image_op }}">
     <section class="card">
       <label for="setup-image-prompt" class="text-button">Setup image prompt</label>
       <div class="prompt-row">

@@ -17,15 +17,34 @@ class FakeArgs:
     return key in self._data
 
 
+class FakeForm:
+
+  def __init__(self, data: dict[str, object] | None = None) -> None:
+    self._data = data or {}
+
+  def get(self, key: str, default=None):  # pragma: no cover - simple helper
+    return self._data.get(key, default)
+
+  def getlist(self, key: str) -> list[object]:  # pragma: no cover - helper
+    value = self._data.get(key, [])
+    if isinstance(value, list):
+      return value
+    if value is None:
+      return []
+    return [value]
+
+
 class FakeRequest:
 
   def __init__(self,
                *,
                json_data: dict | None = None,
                args: dict[str, object] | None = None,
+               form: dict[str, object] | None = None,
                headers: dict[str, str] | None = None) -> None:
     self._json_data = json_data
     self.args = FakeArgs(args)
+    self.form = FakeForm(form) if form is not None else None
     self.is_json = json_data is not None
     self.headers = headers or {}
 
@@ -39,6 +58,34 @@ def _json_request(data: dict | None = None) -> FakeRequest:
 
 def _query_request(args: dict[str, object] | None = None) -> FakeRequest:
   return FakeRequest(args=args)
+
+
+def _form_request(form: dict[str, object] | None = None) -> FakeRequest:
+  return FakeRequest(form=form)
+
+
+def test_get_list_param_returns_list_from_json():
+  req = _json_request({'items': ['a', 'b']})
+
+  assert function_utils.get_list_param(req, 'items') == ['a', 'b']
+
+
+def test_get_list_param_wraps_single_json_value():
+  req = _json_request({'items': 'solo'})
+
+  assert function_utils.get_list_param(req, 'items') == ['solo']
+
+
+def test_get_list_param_reads_form_getlist():
+  req = _form_request({'items': ['a', 'b']})
+
+  assert function_utils.get_list_param(req, 'items') == ['a', 'b']
+
+
+def test_get_list_param_reads_query_arg():
+  req = _query_request({'items': 'solo'})
+
+  assert function_utils.get_list_param(req, 'items') == ['solo']
 
 
 def test_get_param_returns_value_from_json_request():

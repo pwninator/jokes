@@ -234,6 +234,37 @@ def get_param(
   return val
 
 
+def get_list_param(req: https_fn.Request, param_name: str) -> list[str]:
+  """Get a list parameter from JSON, form, or query args."""
+  if req.is_json:
+    json_data = req.get_json()
+    data = json_data.get('data', {}) if isinstance(json_data, dict) else {}
+    value = data.get(param_name, [])
+    if isinstance(value, list):
+      return [str(item) for item in value if str(item)]
+    if value:
+      return [str(value)]
+    return []
+
+  if hasattr(req, "form"):
+    form = req.form
+    getlist = getattr(form, "getlist", None)
+    if callable(getlist):
+      return [str(item) for item in getlist(param_name) if str(item)]
+    if isinstance(form, dict):
+      value = form.get(param_name, [])
+      if isinstance(value, list):
+        return [str(item) for item in value if str(item)]
+      if value:
+        return [str(value)]
+
+  if hasattr(req, "args"):
+    value = req.args.get(param_name)
+    if value:
+      return [str(value)]
+  return []
+
+
 def get_bool_param(
   req: https_fn.Request,
   param_name: str,

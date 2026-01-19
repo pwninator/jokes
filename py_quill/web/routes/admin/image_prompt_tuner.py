@@ -5,8 +5,8 @@ from __future__ import annotations
 import flask
 
 from agents import constants
-from common import image_generation, utils
-from functions import auth_helpers
+from common import image_generation
+from functions import auth_helpers, joke_creation_fns
 from functions.function_utils import get_param
 from web.routes import web_bp
 
@@ -25,14 +25,6 @@ def _build_prompt_templates() -> tuple[str, str]:
     f"{image_generation._PRIOR_PANEL_GUIDANCE}\n\n"
     "PUNCHLINE_IMAGE_DESCRIPTION_HERE")
   return setup_prompt, punchline_prompt
-
-
-def _select_image_client(image_quality: str):
-  if utils.is_emulator():
-    return image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY["low"]
-  if image_quality in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
-    return image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY[image_quality]
-  raise ValueError(f"Invalid image quality: {image_quality}")
 
 
 def _get_list_param(req: flask.Request, param_name: str) -> list[str]:
@@ -132,44 +124,24 @@ def admin_image_prompt_tuner():
     punchline_prompt_clean = punchline_prompt.strip()
 
     if setup_prompt_clean and punchline_prompt_clean:
+      response = joke_creation_fns.joke_creation_process(flask.request)
+      payload = None
       try:
-        client = _select_image_client(selected_quality)
-        setup_image = client.generate_image(
-          setup_prompt_clean,
-          selected_setup_reference_images or None,
-          save_to_firestore=False,
-        )
-        if not setup_image or not setup_image.url:
-          raise ValueError(f"Generated setup image has no URL: {setup_image}")
+        payload = response.get_json()
+      except Exception:  # pylint: disable=broad-except
+        payload = None
 
-        previous_image_reference = None
-        if setup_image.custom_temp_data.get("image_generation_call_id"):
-          previous_image_reference = setup_image.custom_temp_data[
-            "image_generation_call_id"]
-        elif setup_image.gcs_uri:
-          previous_image_reference = setup_image.gcs_uri
-
-        punchline_reference_images = selected_punchline_reference_images[:]
-        if include_setup_image_reference and previous_image_reference:
-          punchline_reference_images.append(previous_image_reference)
-
-        punchline_image = client.generate_image(
-          punchline_prompt_clean,
-          punchline_reference_images or None,
-          save_to_firestore=False,
-        )
-        if not punchline_image or not punchline_image.url:
-          raise ValueError(
-            f"Generated punchline image has no URL: {punchline_image}")
-
-        setup_image_url = setup_image.url
-        punchline_image_url = punchline_image.url
-      except Exception as exc:
-        error_message = str(exc)
+      data = payload.get("data", {}) if isinstance(payload, dict) else {}
+      if response.status_code == 200:
+        setup_image_url = data.get("setup_image_url")
+        punchline_image_url = data.get("punchline_image_url")
+      else:
+        error_message = data.get("error") or "Image generation failed"
 
   return flask.render_template(
     'admin/image_prompt_tuner.html',
     site_name='Snickerdoodle',
+    joke_image_op=joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value,
     setup_prompt=setup_prompt,
     punchline_prompt=punchline_prompt,
     setup_image_url=setup_image_url,

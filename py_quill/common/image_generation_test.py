@@ -44,6 +44,8 @@ class ModifyImageTest(unittest.TestCase):
     self.assertEqual(new_image.url, 'http://new-image.com/test.png')
     self.assertEqual(new_image.original_prompt, instruction)
     self.assertEqual(new_image.final_prompt, instruction)
+
+
 """Remove obsolete _strip_prompt_preamble tests; prompt assembly no longer strips."""
 
 
@@ -51,7 +53,8 @@ class GeneratePunImagesTest(unittest.TestCase):
   """Tests for pun setup/punchline image generation."""
 
   @patch('common.image_generation.generate_pun_image')
-  def test_punchline_includes_style_reference_images(self, mock_generate_pun_image):
+  def test_punchline_includes_style_reference_images(self,
+                                                     mock_generate_pun_image):
     """Punchline generation should include the same style refs as setup."""
     # Arrange: return valid images (URLs required by generate_pun_images)
     mock_generate_pun_image.side_effect = [

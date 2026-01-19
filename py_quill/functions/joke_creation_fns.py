@@ -40,7 +40,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
                             error_type='unsupported_operation',
                             status=400)
     if op == JokeCreationOp.PROC:
-      return _run_joke_creation_proc(req)
+      return _handle_joke_creation_proc(req)
 
     return error_response(f'Unsupported op: {op_value}',
                           error_type='unsupported_operation',
@@ -57,7 +57,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     return error_response(error_string, error_type='internal_error')
 
 
-def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
+def _handle_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
   try:
     user_id = get_user_id(req, allow_unauthenticated=False)
   except AuthError:

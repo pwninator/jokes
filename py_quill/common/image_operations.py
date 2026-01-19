@@ -1034,45 +1034,66 @@ def _get_social_background_4x5() -> Image.Image:
 
 
 def create_single_joke_images_4by5(
-  joke: models.PunnyJoke, ) -> tuple[Image.Image, Image.Image]:
+  jokes: list[models.PunnyJoke], ) -> list[Image.Image]:
   """Create 4:5 setup/punchline images by adding header/footer padding.
 
-  Downloads the joke's square setup/punchline images, resizes each to
+  Downloads each joke's square setup/punchline images, resizes each to
   1024x1024, and pastes them centered onto a 4:5 background canvas resized to
-  1024x1280.
+  1024x1280. Returns alternating setup and punchline images.
+
+  Args:
+    jokes: List of jokes to process.
+
+  Returns:
+    List of PIL Images in sequence: [joke1_setup, joke1_punchline,
+    joke2_setup, joke2_punchline, ...]. Each image is 1024x1280 (4:5 ratio).
+
+  Raises:
+    ValueError: If any joke is missing setup or punchline image URL.
   """
-  if not joke.setup_image_url or not joke.punchline_image_url:
-    raise ValueError("Joke is missing setup or punchline image URL")
+  if not jokes:
+    raise ValueError("jokes must be a non-empty list")
 
-  setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
-  punchline_img = cloud_storage.download_image_from_gcs(
-    joke.punchline_image_url)
+  result_images = []
 
-  if setup_img.mode != 'RGB':
-    setup_img = setup_img.convert('RGB')
-  if punchline_img.mode != 'RGB':
-    punchline_img = punchline_img.convert('RGB')
+  for joke in jokes:
+    if not joke.setup_image_url or not joke.punchline_image_url:
+      raise ValueError(
+        f"Joke {joke.key or 'unknown'} is missing setup or punchline image URL"
+      )
 
-  setup_img = setup_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
-                               Image.Resampling.LANCZOS)
-  punchline_img = punchline_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
-                                       Image.Resampling.LANCZOS)
+    setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
+    punchline_img = cloud_storage.download_image_from_gcs(
+      joke.punchline_image_url)
 
-  canvas = _get_social_background_4x5().resize(
-    _SOCIAL_4X5_CANVAS_SIZE_PX,
-    Image.Resampling.LANCZOS,
-  )
+    if setup_img.mode != 'RGB':
+      setup_img = setup_img.convert('RGB')
+    if punchline_img.mode != 'RGB':
+      punchline_img = punchline_img.convert('RGB')
 
-  paste_x = (canvas.width - setup_img.width) // 2
-  paste_y = (canvas.height - setup_img.height) // 2
+    setup_img = setup_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
+                                 Image.Resampling.LANCZOS)
+    punchline_img = punchline_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
+                                         Image.Resampling.LANCZOS)
 
-  setup_out = canvas.copy()
-  setup_out.paste(setup_img, (paste_x, paste_y))
+    canvas = _get_social_background_4x5().resize(
+      _SOCIAL_4X5_CANVAS_SIZE_PX,
+      Image.Resampling.LANCZOS,
+    )
 
-  punchline_out = canvas.copy()
-  punchline_out.paste(punchline_img, (paste_x, paste_y))
+    paste_x = (canvas.width - setup_img.width) // 2
+    paste_y = (canvas.height - setup_img.height) // 2
 
-  return setup_out, punchline_out
+    setup_out = canvas.copy()
+    setup_out.paste(setup_img, (paste_x, paste_y))
+
+    punchline_out = canvas.copy()
+    punchline_out.paste(punchline_img, (paste_x, paste_y))
+
+    result_images.append(setup_out)
+    result_images.append(punchline_out)
+
+  return result_images
 
 
 def create_joke_grid_image_3x2(

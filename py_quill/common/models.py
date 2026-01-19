@@ -66,6 +66,7 @@ class JokeSocialPostType(Enum):
   """Social post layout type for joke grids."""
   JOKE_GRID = "JOKE_GRID"
   JOKE_GRID_TEASER = "JOKE_GRID_TEASER"
+  JOKE_CAROUSEL = "JOKE_CAROUSEL"
 
   @property
   def description(self) -> str:
@@ -75,6 +76,8 @@ class JokeSocialPostType(Enum):
     if self == JokeSocialPostType.JOKE_GRID_TEASER:
       return ("A grid of joke setup and punchline images with the last "
               "punchline covered as a teaser.")
+    if self == JokeSocialPostType.JOKE_CAROUSEL:
+      return "A carousel of 4:5 setup and punchline images."
     return self.value
 
 
@@ -756,20 +759,20 @@ class JokeSocialPost:
   key: str | None = None
   link_url: str | None = None
 
-  pinterest_image_url: str | None = None
+  pinterest_image_urls: list[str] = field(default_factory=list)
   pinterest_post_id: str | None = None
   pinterest_post_time: datetime.datetime | None = None
   pinterest_title: str | None = None
   pinterest_description: str | None = None
   pinterest_alt_text: str | None = None
 
-  instagram_image_url: str | None = None
+  instagram_image_urls: list[str] = field(default_factory=list)
   instagram_post_id: str | None = None
   instagram_post_time: datetime.datetime | None = None
   instagram_caption: str | None = None
   instagram_alt_text: str | None = None
 
-  facebook_image_url: str | None = None
+  facebook_image_urls: list[str] = field(default_factory=list)
   facebook_post_id: str | None = None
   facebook_post_time: datetime.datetime | None = None
   facebook_message: str | None = None

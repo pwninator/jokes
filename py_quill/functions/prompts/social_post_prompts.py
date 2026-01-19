@@ -35,6 +35,10 @@ _COMMON_VISUAL_LOGIC = """
 ### STEP 1: VISUAL ANALYSIS
 Analyze the input image(s) to determine the Content Type. 
 
+If multiple images are provided, treat them as a carousel and analyze ALL
+images in sequence. Summarize the overall theme and count the jokes if
+possible.
+
 **TYPE A: Joke Entertainment (Single, Grid, or Carousel)**
 *Visual Cues:* One or more cartoon illustrations with jokes/text. Could be a single image, a 4-panel grid, or a carousel.
 *Critical Distinction:* Does NOT have "cut here" lines or scissors icons.
@@ -74,6 +78,12 @@ _PLATFORM_CONFIGS: dict[models.SocialPlatform, PlatformConfig] = {
         goal="SEO. Describe the content for search.",
         cta="",
         audience="Parents.",
+      ),
+      models.JokeSocialPostType.JOKE_CAROUSEL:
+      SocialPostStrategy(
+        goal="SEO + COMPLETENESS. Multiple jokes shown in sequence.",
+        cta="",
+        audience="Parents browsing for kid content.",
       ),
     },
     client=llm_client.get_client(
@@ -147,6 +157,12 @@ Your goal is RANKING in search. Do not describe the art style. Describe the SEAR
         cta="",
         audience="Followers.",
       ),
+      models.JokeSocialPostType.JOKE_CAROUSEL:
+      SocialPostStrategy(
+        goal="ENGAGEMENT. Swipeable binge-worthy content.",
+        cta="Swipe for all jokes",
+        audience="Scrollers seeking quick entertainment.",
+      ),
     },
     client=llm_client.get_client(
       label="Instagram Social Post Text",
@@ -214,6 +230,12 @@ Based on the determined Content Type:
         cta="",
         audience="Parents.",
       ),
+      models.JokeSocialPostType.JOKE_CAROUSEL:
+      SocialPostStrategy(
+        goal="COMPLETENESS. Multiple jokes for sharing.",
+        cta="See all jokes in carousel",
+        audience="Parents looking to share clean content.",
+      ),
     },
     client=llm_client.get_client(
       label="Facebook Social Post Text",
@@ -271,11 +293,13 @@ def _get_platform_config(platform: models.SocialPlatform) -> PlatformConfig:
 
 
 def generate_pinterest_post_text(
-  image_bytes: bytes,
+  image_bytes_list: list[bytes],
   *,
   post_type: models.JokeSocialPostType,
 ) -> tuple[str, str, str, models.GenerationMetadata]:
-  """Generate Pinterest text fields based on the provided image."""
+  """Generate Pinterest text fields based on the provided image(s)."""
+  if not image_bytes_list:
+    raise ValueError("image_bytes_list must contain at least one image")
   config = _get_platform_config(models.SocialPlatform.PINTEREST)
   strategy = config.strategies.get(post_type)
   if not strategy:
@@ -290,10 +314,9 @@ def generate_pinterest_post_text(
 * Goal: {strategy.goal}
 """
 
-  response = config.client.generate([
-    prompt,
-    ("image/png", image_bytes),
-  ])
+  response = config.client.generate([prompt] +
+                                    [("image/png", image_bytes)
+                                     for image_bytes in image_bytes_list])
 
   try:
     result = json.loads(response.text)
@@ -312,11 +335,13 @@ def generate_pinterest_post_text(
 
 
 def generate_instagram_post_text(
-  image_bytes: bytes,
+  image_bytes_list: list[bytes],
   *,
   post_type: models.JokeSocialPostType,
 ) -> tuple[str, str, models.GenerationMetadata]:
-  """Generate Instagram text fields based on the provided image."""
+  """Generate Instagram text fields based on the provided image(s)."""
+  if not image_bytes_list:
+    raise ValueError("image_bytes_list must contain at least one image")
   config = _get_platform_config(models.SocialPlatform.INSTAGRAM)
   strategy = config.strategies.get(post_type)
   if not strategy:
@@ -331,10 +356,9 @@ def generate_instagram_post_text(
 * Goal: {strategy.goal}
 """
 
-  response = config.client.generate([
-    prompt,
-    ("image/png", image_bytes),
-  ])
+  response = config.client.generate([prompt] +
+                                    [("image/png", image_bytes)
+                                     for image_bytes in image_bytes_list])
 
   try:
     result = json.loads(response.text)
@@ -352,12 +376,14 @@ def generate_instagram_post_text(
 
 
 def generate_facebook_post_text(
-  image_bytes: bytes,
+  image_bytes_list: list[bytes],
   *,
   post_type: models.JokeSocialPostType,
   link_url: str,
 ) -> tuple[str, models.GenerationMetadata]:
-  """Generate Facebook text fields based on the provided image."""
+  """Generate Facebook text fields based on the provided image(s)."""
+  if not image_bytes_list:
+    raise ValueError("image_bytes_list must contain at least one image")
   if not isinstance(link_url, str) or not link_url.strip():
     raise ValueError("link_url is required for Facebook post text generation")
   normalized_link_url = link_url.strip()
@@ -376,10 +402,9 @@ def generate_facebook_post_text(
 * Link URL to include: {normalized_link_url}
 """
 
-  response = config.client.generate([
-    prompt,
-    ("image/png", image_bytes),
-  ])
+  response = config.client.generate([prompt] +
+                                    [("image/png", image_bytes)
+                                     for image_bytes in image_bytes_list])
 
   try:
     result = json.loads(response.text)

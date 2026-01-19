@@ -168,8 +168,8 @@ def test_admin_social_renders_social_posts(monkeypatch):
     pinterest_description="Description",
     instagram_caption="Insta caption",
     facebook_message="FB message",
+    pinterest_image_urls=["https://example.com/pin.png"],
   )
-  post.pinterest_image_url = "https://example.com/pin.png"
   created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
                                  tzinfo=datetime.timezone.utc)
 

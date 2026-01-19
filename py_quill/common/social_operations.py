@@ -161,7 +161,8 @@ def _build_social_post_link_url(
   if post_type == models.JokeSocialPostType.JOKE_GRID_TEASER:
     last_joke = jokes[-1]
     slug = last_joke.human_readable_setup_text_slug
-  elif post_type == models.JokeSocialPostType.JOKE_GRID:
+  elif post_type in (models.JokeSocialPostType.JOKE_GRID,
+                     models.JokeSocialPostType.JOKE_CAROUSEL):
     tag = _select_joke_grid_tag(jokes)
     slug = utils.get_text_slug(tag, human_readable=True)
   else:
@@ -213,27 +214,29 @@ def _select_joke_grid_tag(jokes: list[models.PunnyJoke]) -> str:
 
 def generate_social_post_images(
   post: models.JokeSocialPost,
-) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, bytes], bool]:
+) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, list[bytes]],
+           bool]:
   """Generate image assets for each unposted platform.
 
-  Instagram and Facebook share the same square image asset. We generate at most
-  one square image and apply its URL to both platforms (without modifying a
-  platform already marked as posted).
+  For single-image posts (JOKE_GRID, JOKE_GRID_TEASER): Instagram and Facebook
+  share the same square image asset. For carousel posts (JOKE_CAROUSEL): each
+  platform gets the same set of images.
   """
-  image_bytes_by_platform: dict[models.SocialPlatform, bytes] = {}
+  image_bytes_by_platform: dict[models.SocialPlatform, list[bytes]] = {}
   updated = False
 
-  # Pinterest: always its own asset (3x2).
+  # Pinterest: always its own asset (3x2 for grids, 4:5 carousel for carousels).
   if not post.is_platform_posted(models.SocialPlatform.PINTEREST):
-    image_url, image_bytes = _create_social_post_image(
+    image_urls, image_bytes_list = _create_social_post_image(
       post,
       models.SocialPlatform.PINTEREST,
     )
-    image_bytes_by_platform[models.SocialPlatform.PINTEREST] = image_bytes
-    post.pinterest_image_url = image_url
+    image_bytes_by_platform[models.SocialPlatform.PINTEREST] = image_bytes_list
+    post.pinterest_image_urls = image_urls
     updated = True
 
-  # Instagram + Facebook: shared square asset.
+  # Instagram + Facebook: shared square asset for single-image posts, or
+  # shared carousel for JOKE_CAROUSEL.
   square_platforms = (models.SocialPlatform.INSTAGRAM,
                       models.SocialPlatform.FACEBOOK)
   unposted_square_platforms = [
@@ -241,25 +244,26 @@ def generate_social_post_images(
     if not post.is_platform_posted(platform)
   ]
   if unposted_square_platforms:
-    existing_square_url = post.instagram_image_url or post.facebook_image_url
-    if existing_square_url:
+    # Check if either platform already has images we can reuse
+    existing_square_urls = post.instagram_image_urls or post.facebook_image_urls
+    if existing_square_urls:
       for platform in unposted_square_platforms:
         if platform == models.SocialPlatform.INSTAGRAM:
-          post.instagram_image_url = existing_square_url
+          post.instagram_image_urls = existing_square_urls
         elif platform == models.SocialPlatform.FACEBOOK:
-          post.facebook_image_url = existing_square_url
+          post.facebook_image_urls = existing_square_urls
       updated = True
     else:
-      image_url, image_bytes = _create_social_post_image(
+      image_urls, image_bytes_list = _create_social_post_image(
         post,
         models.SocialPlatform.INSTAGRAM,
       )
       for platform in unposted_square_platforms:
-        image_bytes_by_platform[platform] = image_bytes
+        image_bytes_by_platform[platform] = image_bytes_list
         if platform == models.SocialPlatform.INSTAGRAM:
-          post.instagram_image_url = image_url
+          post.instagram_image_urls = image_urls
         elif platform == models.SocialPlatform.FACEBOOK:
-          post.facebook_image_url = image_url
+          post.facebook_image_urls = image_urls
       updated = True
 
   return post, image_bytes_by_platform, updated
@@ -268,7 +272,8 @@ def generate_social_post_images(
 def generate_social_post_text(
   post: models.JokeSocialPost,
   *,
-  image_bytes_by_platform: dict[models.SocialPlatform, bytes] | None = None,
+  image_bytes_by_platform: dict[models.SocialPlatform, list[bytes]]
+  | None = None,
 ) -> tuple[models.JokeSocialPost, bool]:
   """Generate text content for each unposted platform."""
   updated = False
@@ -280,17 +285,17 @@ def generate_social_post_text(
       platform_image_bytes = image_bytes_by_platform.get(platform)
 
     if platform == models.SocialPlatform.PINTEREST:
-      if not platform_image_bytes and not post.pinterest_image_url:
+      if not platform_image_bytes and not post.pinterest_image_urls:
         continue
       post = _generate_pinterest_post_text(post, platform_image_bytes)
       updated = True
     elif platform == models.SocialPlatform.INSTAGRAM:
-      if not platform_image_bytes and not post.instagram_image_url:
+      if not platform_image_bytes and not post.instagram_image_urls:
         continue
       post = _generate_instagram_post_text(post, platform_image_bytes)
       updated = True
     elif platform == models.SocialPlatform.FACEBOOK:
-      if not platform_image_bytes and not post.facebook_image_url:
+      if not platform_image_bytes and not post.facebook_image_urls:
         continue
       post = _generate_facebook_post_text(post, platform_image_bytes)
       updated = True
@@ -301,15 +306,16 @@ def generate_social_post_text(
 
 def _generate_pinterest_post_text(
   post: models.JokeSocialPost,
-  pin_image_bytes: bytes | None = None,
+  pin_image_bytes: list[bytes] | None = None,
 ) -> models.JokeSocialPost:
-  """Generate Pinterest text fields based on the composed image."""
+  """Generate Pinterest text fields based on the composed images."""
   if not pin_image_bytes:
-    if not post.pinterest_image_url:
+    if not post.pinterest_image_urls:
       return post
-    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      post.pinterest_image_url)
-    pin_image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+    pin_image_bytes = []
+    for image_url in post.pinterest_image_urls:
+      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(image_url)
+      pin_image_bytes.append(cloud_storage.download_bytes_from_gcs(gcs_uri))
 
   title, description, alt_text, _metadata = (
     social_post_prompts.generate_pinterest_post_text(
@@ -324,15 +330,17 @@ def _generate_pinterest_post_text(
 
 def _generate_instagram_post_text(
   post: models.JokeSocialPost,
-  instagram_image_bytes: bytes | None = None,
+  instagram_image_bytes: list[bytes] | None = None,
 ) -> models.JokeSocialPost:
-  """Generate Instagram text fields based on the composed image."""
+  """Generate Instagram text fields based on the composed images."""
   if not instagram_image_bytes:
-    if not post.instagram_image_url:
+    if not post.instagram_image_urls:
       return post
-    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      post.instagram_image_url)
-    instagram_image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+    instagram_image_bytes = []
+    for image_url in post.instagram_image_urls:
+      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(image_url)
+      instagram_image_bytes.append(
+        cloud_storage.download_bytes_from_gcs(gcs_uri))
 
   caption, alt_text, _metadata = (
     social_post_prompts.generate_instagram_post_text(
@@ -346,15 +354,17 @@ def _generate_instagram_post_text(
 
 def _generate_facebook_post_text(
   post: models.JokeSocialPost,
-  facebook_image_bytes: bytes | None = None,
+  facebook_image_bytes: list[bytes] | None = None,
 ) -> models.JokeSocialPost:
-  """Generate Facebook text fields based on the composed image."""
+  """Generate Facebook text fields based on the composed images."""
   if not facebook_image_bytes:
-    if not post.facebook_image_url:
+    if not post.facebook_image_urls:
       return post
-    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      post.facebook_image_url)
-    facebook_image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+    facebook_image_bytes = []
+    for image_url in post.facebook_image_urls:
+      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(image_url)
+      facebook_image_bytes.append(
+        cloud_storage.download_bytes_from_gcs(gcs_uri))
 
   message, _metadata = social_post_prompts.generate_facebook_post_text(
     facebook_image_bytes,
@@ -367,25 +377,48 @@ def _generate_facebook_post_text(
 
 def _create_social_post_image(
     post: models.JokeSocialPost,
-    platform: models.SocialPlatform) -> tuple[str, bytes]:
-  """Create Pinterest pin assets for a social post."""
-  if platform == models.SocialPlatform.PINTEREST:
-    post_image = image_operations.create_joke_grid_image_3x2(
-      jokes=post.jokes,
-      block_last_panel=post.type == models.JokeSocialPostType.JOKE_GRID_TEASER,
-    )
-  elif platform == models.SocialPlatform.INSTAGRAM or platform == models.SocialPlatform.FACEBOOK:
-    post_image = image_operations.create_joke_grid_image_square(
-      jokes=post.jokes,
-      block_last_panel=post.type == models.JokeSocialPostType.JOKE_GRID_TEASER,
-    )
-  else:
-    raise SocialPostRequestError(f"Unsupported platform: {platform}")
+    platform: models.SocialPlatform) -> tuple[list[str], list[bytes]]:
+  """Create social post image assets for a platform.
 
-  uploaded_gcs_uri, image_bytes = cloud_storage.upload_image_to_gcs(
-    post_image,
-    'social_post',
-    'png',
-  )
-  image_url = cloud_storage.get_public_cdn_url(uploaded_gcs_uri)
-  return image_url, image_bytes
+  Returns:
+    Tuple of (image_urls, image_bytes_list). For single-image posts, lists
+    contain one element. For carousel posts, lists contain multiple elements.
+  """
+  if post.type == models.JokeSocialPostType.JOKE_CAROUSEL:
+    post_images = image_operations.create_single_joke_images_4by5(
+      jokes=post.jokes, )
+  elif (post.type == models.JokeSocialPostType.JOKE_GRID
+        or post.type == models.JokeSocialPostType.JOKE_GRID_TEASER):
+    if platform == models.SocialPlatform.PINTEREST:
+      post_images = [
+        image_operations.create_joke_grid_image_3x2(
+          jokes=post.jokes,
+          block_last_panel=post.type ==
+          models.JokeSocialPostType.JOKE_GRID_TEASER,
+        )
+      ]
+    elif platform in (models.SocialPlatform.INSTAGRAM,
+                      models.SocialPlatform.FACEBOOK):
+      post_images = [
+        image_operations.create_joke_grid_image_square(
+          jokes=post.jokes,
+          block_last_panel=post.type ==
+          models.JokeSocialPostType.JOKE_GRID_TEASER,
+        )
+      ]
+    else:
+      raise SocialPostRequestError(f"Unsupported platform: {platform}")
+  else:
+    raise SocialPostRequestError(f"Unsupported post type: {post.type}")
+
+  image_urls = []
+  image_bytes_list = []
+  for img in post_images:
+    uploaded_gcs_uri, img_bytes = cloud_storage.upload_image_to_gcs(
+      img,
+      'social_post',
+      'png',
+    )
+    image_urls.append(cloud_storage.get_public_cdn_url(uploaded_gcs_uri))
+    image_bytes_list.append(img_bytes)
+  return image_urls, image_bytes_list

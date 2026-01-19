@@ -214,6 +214,24 @@
     display: block;
   }
 
+  .social-posts-thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .social-posts-thumb-grid img {
+    width: 100%;
+    max-width: 100px;
+    max-height: 100px;
+    height: auto;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--color-border);
+    display: block;
+  }
+
   .social-posts-image {
     display: flex;
     align-items: flex-start;
@@ -417,16 +435,16 @@
         data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}"
         data-pinterest-post-id="{{ (post.pinterest_post_id or '') | e }}"
         data-pinterest-post-time="{{ post.pinterest_post_time.isoformat() if post.pinterest_post_time else '' }}"
-        data-pinterest-image-url="{{ (post.pinterest_image_url or '') | e }}"
+        data-pinterest-image-urls="{{ post.pinterest_image_urls | tojson | e }}"
         data-instagram-caption="{{ (post.instagram_caption or '') | e }}"
         data-instagram-alt-text="{{ (post.instagram_alt_text or '') | e }}"
         data-instagram-post-id="{{ (post.instagram_post_id or '') | e }}"
         data-instagram-post-time="{{ post.instagram_post_time.isoformat() if post.instagram_post_time else '' }}"
-        data-instagram-image-url="{{ (post.instagram_image_url or '') | e }}"
+        data-instagram-image-urls="{{ post.instagram_image_urls | tojson | e }}"
         data-facebook-message="{{ (post.facebook_message or '') | e }}"
         data-facebook-post-id="{{ (post.facebook_post_id or '') | e }}"
         data-facebook-post-time="{{ post.facebook_post_time.isoformat() if post.facebook_post_time else '' }}"
-        data-facebook-image-url="{{ (post.facebook_image_url or '') | e }}">
+        data-facebook-image-urls="{{ post.facebook_image_urls | tojson | e }}">
         <header class="social-post-card__header">
           <span class="social-post-card__timestamp js-social-created">
             {% if creation_time %}
@@ -456,12 +474,22 @@
                   alt="" loading="lazy" decoding="async">
               </div>
               <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="pinterest">
-                {% if post.pinterest_image_url %}
-                <a href="{{ post.pinterest_image_url }}" target="_blank" rel="noopener">
-                  <img class="social-posts-thumb" src="{{ post.pinterest_image_url }}" alt="Pinterest image">
-                </a>
+                {% if post.pinterest_image_urls %}
+                  {% if post.pinterest_image_urls | length == 1 %}
+                    <a href="{{ post.pinterest_image_urls[0] }}" target="_blank" rel="noopener">
+                      <img class="social-posts-thumb" src="{{ post.pinterest_image_urls[0] }}" alt="Pinterest image">
+                    </a>
+                  {% else %}
+                    <div class="social-posts-thumb-grid">
+                      {% for url in post.pinterest_image_urls %}
+                      <a href="{{ url }}" target="_blank" rel="noopener">
+                        <img src="{{ url }}" alt="Pinterest image {{ loop.index }}">
+                      </a>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                 {% else %}
-                <span class="muted js-social-no-image">No image</span>
+                  <span class="muted js-social-no-image">No image</span>
                 {% endif %}
               </div>
             </div>
@@ -512,12 +540,22 @@
                   alt="" loading="lazy" decoding="async">
               </div>
               <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="instagram">
-                {% if post.instagram_image_url %}
-                <a href="{{ post.instagram_image_url }}" target="_blank" rel="noopener">
-                  <img class="social-posts-thumb" src="{{ post.instagram_image_url }}" alt="Instagram image">
-                </a>
+                {% if post.instagram_image_urls %}
+                  {% if post.instagram_image_urls | length == 1 %}
+                    <a href="{{ post.instagram_image_urls[0] }}" target="_blank" rel="noopener">
+                      <img class="social-posts-thumb" src="{{ post.instagram_image_urls[0] }}" alt="Instagram image">
+                    </a>
+                  {% else %}
+                    <div class="social-posts-thumb-grid">
+                      {% for url in post.instagram_image_urls %}
+                      <a href="{{ url }}" target="_blank" rel="noopener">
+                        <img src="{{ url }}" alt="Instagram image {{ loop.index }}">
+                      </a>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                 {% else %}
-                <span class="muted js-social-no-image">No image</span>
+                  <span class="muted js-social-no-image">No image</span>
                 {% endif %}
               </div>
             </div>
@@ -559,12 +597,22 @@
                   alt="" loading="lazy" decoding="async">
               </div>
               <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="facebook">
-                {% if post.facebook_image_url %}
-                <a href="{{ post.facebook_image_url }}" target="_blank" rel="noopener">
-                  <img class="social-posts-thumb" src="{{ post.facebook_image_url }}" alt="Facebook image">
-                </a>
+                {% if post.facebook_image_urls %}
+                  {% if post.facebook_image_urls | length == 1 %}
+                    <a href="{{ post.facebook_image_urls[0] }}" target="_blank" rel="noopener">
+                      <img class="social-posts-thumb" src="{{ post.facebook_image_urls[0] }}" alt="Facebook image">
+                    </a>
+                  {% else %}
+                    <div class="social-posts-thumb-grid">
+                      {% for url in post.facebook_image_urls %}
+                      <a href="{{ url }}" target="_blank" rel="noopener">
+                        <img src="{{ url }}" alt="Facebook image {{ loop.index }}">
+                      </a>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                 {% else %}
-                <span class="muted js-social-no-image">No image</span>
+                  <span class="muted js-social-no-image">No image</span>
                 {% endif %}
               </div>
             </div>
@@ -748,45 +796,54 @@
       }
     }
 
-    function updatePlatformImage(row, platform, imageUrl, altText) {
+    function updatePlatformImage(row, platform, imageUrls, altText) {
       const container = row.querySelector(
         `.js-social-platform-image[data-platform="${platform}"]`);
       if (!container) {
         return;
       }
       const slot = container.querySelector('.js-social-platform-image-slot') || container;
-      const existingLink = slot.querySelector('a');
-      const existingImg = slot.querySelector('img.social-posts-thumb');
-      const noImage = slot.querySelector('.js-social-no-image');
+      
+      // Clear existing content
+      slot.innerHTML = '';
 
-      if (imageUrl) {
-        let link = existingLink;
-        if (!link) {
-          link = document.createElement('a');
+      // Handle array of URLs
+      if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+        if (imageUrls.length === 1) {
+          // Single image: 200px max
+          const link = document.createElement('a');
+          link.href = imageUrls[0];
           link.target = '_blank';
           link.rel = 'noopener';
-          slot.innerHTML = '';
-          slot.appendChild(link);
-        }
-        let img = existingImg;
-        if (!img) {
-          img = document.createElement('img');
+          const img = document.createElement('img');
           img.className = 'social-posts-thumb';
+          img.src = imageUrls[0];
+          img.alt = altText || `${platform} image`;
           link.appendChild(img);
+          slot.appendChild(link);
+        } else {
+          // Multiple images: grid with 100px each
+          const grid = document.createElement('div');
+          grid.className = 'social-posts-thumb-grid';
+          imageUrls.forEach((url, index) => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = `${altText || platform} image ${index + 1}`;
+            link.appendChild(img);
+            grid.appendChild(link);
+          });
+          slot.appendChild(grid);
         }
-        link.href = imageUrl;
-        img.alt = altText;
-        img.src = imageUrl;
       } else {
-        if (existingLink) {
-          existingLink.remove();
-        }
-        if (!noImage) {
-          const empty = document.createElement('span');
-          empty.className = 'muted js-social-no-image';
-          empty.textContent = 'No image';
-          slot.appendChild(empty);
-        }
+        // No images
+        const empty = document.createElement('span');
+        empty.className = 'muted js-social-no-image';
+        empty.textContent = 'No image';
+        slot.appendChild(empty);
       }
     }
 
@@ -944,16 +1001,16 @@
       card.dataset.pinterestAltText = postData.pinterest_alt_text || '';
       card.dataset.pinterestPostId = postData.pinterest_post_id || '';
       card.dataset.pinterestPostTime = postData.pinterest_post_time || '';
-      card.dataset.pinterestImageUrl = postData.pinterest_image_url || '';
+      card.dataset.pinterestImageUrls = JSON.stringify(postData.pinterest_image_urls || []);
       card.dataset.instagramCaption = postData.instagram_caption || '';
       card.dataset.instagramAltText = postData.instagram_alt_text || '';
       card.dataset.instagramPostId = postData.instagram_post_id || '';
       card.dataset.instagramPostTime = postData.instagram_post_time || '';
-      card.dataset.instagramImageUrl = postData.instagram_image_url || '';
+      card.dataset.instagramImageUrls = JSON.stringify(postData.instagram_image_urls || []);
       card.dataset.facebookMessage = postData.facebook_message || '';
       card.dataset.facebookPostId = postData.facebook_post_id || '';
       card.dataset.facebookPostTime = postData.facebook_post_time || '';
-      card.dataset.facebookImageUrl = postData.facebook_image_url || '';
+      card.dataset.facebookImageUrls = JSON.stringify(postData.facebook_image_urls || []);
 
       if (postData.type) {
         const typeCell = card.querySelector('.js-social-type');
@@ -1006,11 +1063,11 @@
         postData.facebook_post_time,
       );
 
-      updatePlatformImage(card, 'pinterest', postData.pinterest_image_url,
+      updatePlatformImage(card, 'pinterest', postData.pinterest_image_urls || [],
         'Pinterest image');
-      updatePlatformImage(card, 'instagram', postData.instagram_image_url,
+      updatePlatformImage(card, 'instagram', postData.instagram_image_urls || [],
         'Instagram image');
-      updatePlatformImage(card, 'facebook', postData.facebook_image_url,
+      updatePlatformImage(card, 'facebook', postData.facebook_image_urls || [],
         'Facebook image');
 
       populateEditInputs(card);

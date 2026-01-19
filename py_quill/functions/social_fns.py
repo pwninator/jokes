@@ -104,7 +104,7 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
     if manual_updates_applied:
       operation = "UPDATE_TEXT"
 
-    image_bytes_by_platform: dict[models.SocialPlatform, bytes] = {}
+    image_bytes_by_platform: dict[models.SocialPlatform, list[bytes]] = {}
     # Generate images when creating or explicitly requested.
     if is_new or regenerate_image:
       post, image_bytes_by_platform, did_generate_images = (

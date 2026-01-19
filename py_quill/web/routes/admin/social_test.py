@@ -205,3 +205,47 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "Edit" in html
   assert "Regenerate text" in html
   assert "Post" in html
+
+
+def test_admin_social_renders_carousel_grid(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_CAROUSEL,
+    link_url="https://snickerdoodlejokes.com/jokes/carousel",
+    pinterest_image_urls=[
+      "https://example.com/carousel-1.png",
+      "https://example.com/carousel-2.png",
+    ],
+  )
+  created_at = datetime.datetime(2024, 2, 3, 4, 5, 6,
+                                 tzinfo=datetime.timezone.utc)
+
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_social_posts",
+    Mock(return_value=[(post, created_at)]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_all_joke_categories",
+    Mock(return_value=[]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_by_state",
+    Mock(return_value=([], None)),
+  )
+
+  with app.test_client() as client:
+    resp = client.get("/admin/social")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'data-post-type="JOKE_CAROUSEL"' in html
+  assert 'class="social-posts-carousel js-social-carousel"' in html
+  assert 'href="https://example.com/carousel-1.png"' in html
+  assert 'href="https://example.com/carousel-2.png"' in html
+  assert 'alt="Carousel image 1"' in html
+  assert 'alt="Carousel image 2"' in html

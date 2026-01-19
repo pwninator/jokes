@@ -232,6 +232,20 @@
     display: block;
   }
 
+  .social-posts-carousel {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .social-post-card[data-post-type="JOKE_CAROUSEL"] .social-posts-carousel {
+    display: flex;
+  }
+
+  .social-post-card[data-post-type="JOKE_CAROUSEL"] .social-posts-image {
+    display: none;
+  }
+
   .social-posts-image {
     display: flex;
     align-items: flex-start;
@@ -430,6 +444,7 @@
       {% set facebook_locked = post.facebook_post_time or post.facebook_post_id %}
       {% set all_locked = pinterest_locked and instagram_locked and facebook_locked %}
       <article class="social-post-card" data-post-id="{{ post.key or '' }}"
+        data-post-type="{{ post.type.value if post.type else '' }}"
         data-link-url="{{ (post.link_url or '') | e }}" data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
         data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
         data-pinterest-alt-text="{{ (post.pinterest_alt_text or '') | e }}"
@@ -445,6 +460,7 @@
         data-facebook-post-id="{{ (post.facebook_post_id or '') | e }}"
         data-facebook-post-time="{{ post.facebook_post_time.isoformat() if post.facebook_post_time else '' }}"
         data-facebook-image-urls="{{ post.facebook_image_urls | tojson | e }}">
+        {% set carousel_image_urls = post.pinterest_image_urls or post.instagram_image_urls or post.facebook_image_urls or [] %}
         <header class="social-post-card__header">
           <span class="social-post-card__timestamp js-social-created">
             {% if creation_time %}
@@ -465,6 +481,21 @@
           </span>
           <span class="social-post-card__type js-social-type">({{ post.type.value }})</span>
         </header>
+        <div class="social-posts-carousel js-social-carousel">
+          <div class="js-social-carousel-slot">
+            {% if carousel_image_urls %}
+              <div class="social-posts-thumb-grid">
+                {% for url in carousel_image_urls %}
+                <a href="{{ url }}" target="_blank" rel="noopener">
+                  <img src="{{ url }}" alt="Carousel image {{ loop.index }}">
+                </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <span class="muted js-social-no-image">No image</span>
+            {% endif %}
+          </div>
+        </div>
         <div class="social-post-card__columns">
           <div class="social-platform{% if pinterest_locked %} social-platform--locked{% endif %}"
             data-platform="pinterest">
@@ -796,33 +827,27 @@
       }
     }
 
-    function updatePlatformImage(row, platform, imageUrls, altText) {
-      const container = row.querySelector(
-        `.js-social-platform-image[data-platform="${platform}"]`);
-      if (!container) {
+    function renderImageList(slot, imageUrls, altText, singleClass) {
+      if (!slot) {
         return;
       }
-      const slot = container.querySelector('.js-social-platform-image-slot') || container;
-      
-      // Clear existing content
       slot.innerHTML = '';
 
-      // Handle array of URLs
       if (Array.isArray(imageUrls) && imageUrls.length > 0) {
         if (imageUrls.length === 1) {
-          // Single image: 200px max
           const link = document.createElement('a');
           link.href = imageUrls[0];
           link.target = '_blank';
           link.rel = 'noopener';
           const img = document.createElement('img');
-          img.className = 'social-posts-thumb';
+          if (singleClass) {
+            img.className = singleClass;
+          }
           img.src = imageUrls[0];
-          img.alt = altText || `${platform} image`;
+          img.alt = altText || 'Image';
           link.appendChild(img);
           slot.appendChild(link);
         } else {
-          // Multiple images: grid with 100px each
           const grid = document.createElement('div');
           grid.className = 'social-posts-thumb-grid';
           imageUrls.forEach((url, index) => {
@@ -832,19 +857,53 @@
             link.rel = 'noopener';
             const img = document.createElement('img');
             img.src = url;
-            img.alt = `${altText || platform} image ${index + 1}`;
+            img.alt = `${altText || 'Image'} ${index + 1}`;
             link.appendChild(img);
             grid.appendChild(link);
           });
           slot.appendChild(grid);
         }
       } else {
-        // No images
         const empty = document.createElement('span');
         empty.className = 'muted js-social-no-image';
         empty.textContent = 'No image';
         slot.appendChild(empty);
       }
+    }
+
+    function updatePlatformImage(row, platform, imageUrls, altText) {
+      const container = row.querySelector(
+        `.js-social-platform-image[data-platform="${platform}"]`);
+      if (!container) {
+        return;
+      }
+      const slot = container.querySelector('.js-social-platform-image-slot') || container;
+      renderImageList(slot, imageUrls, altText || `${platform} image`, 'social-posts-thumb');
+    }
+
+    function updateCarouselImages(card, imageUrls) {
+      const container = card.querySelector('.js-social-carousel');
+      if (!container) {
+        return;
+      }
+      const slot = container.querySelector('.js-social-carousel-slot') || container;
+      renderImageList(slot, imageUrls, 'Carousel image', 'social-posts-thumb');
+    }
+
+    function getSharedCarouselImages(postData) {
+      if (Array.isArray(postData.pinterest_image_urls)
+        && postData.pinterest_image_urls.length) {
+        return postData.pinterest_image_urls;
+      }
+      if (Array.isArray(postData.instagram_image_urls)
+        && postData.instagram_image_urls.length) {
+        return postData.instagram_image_urls;
+      }
+      if (Array.isArray(postData.facebook_image_urls)
+        && postData.facebook_image_urls.length) {
+        return postData.facebook_image_urls;
+      }
+      return [];
     }
 
     function renderSelectionRow() {
@@ -995,6 +1054,7 @@
 
     function updatePostCard(card, postId, postData) {
       card.dataset.postId = postId || '';
+      card.dataset.postType = postData.type || '';
       card.dataset.linkUrl = postData.link_url || '';
       card.dataset.pinterestTitle = postData.pinterest_title || '';
       card.dataset.pinterestDescription = postData.pinterest_description || '';
@@ -1063,6 +1123,12 @@
         postData.facebook_post_time,
       );
 
+      const isCarousel = postData.type === 'JOKE_CAROUSEL';
+      updateCarouselImages(
+        card,
+        isCarousel ? getSharedCarouselImages(postData) : [],
+      );
+
       updatePlatformImage(card, 'pinterest', postData.pinterest_image_urls || [],
         'Pinterest image');
       updatePlatformImage(card, 'instagram', postData.instagram_image_urls || [],
@@ -1105,6 +1171,11 @@
           </span>
           <span class="social-post-card__type js-social-type"></span>
         </header>
+        <div class="social-posts-carousel js-social-carousel">
+          <div class="js-social-carousel-slot">
+            <span class="muted js-social-no-image">No image</span>
+          </div>
+        </div>
         <div class="social-post-card__columns">
           <div class="social-platform" data-platform="pinterest">
             <div class="social-posts-image js-social-platform-image" data-platform="pinterest">

@@ -22,6 +22,7 @@ _SOCIAL_STATES: list[models.JokeState] = [
 def _filter_public_entries(
   joke_entries: list[tuple[models.PunnyJoke, str]],
 ) -> list[tuple[models.PunnyJoke, str]]:
+  """Filter joke entries to only include public and in public state."""
   return [(joke, cursor) for joke, cursor in joke_entries
           if joke.is_public_and_in_public_state]
 

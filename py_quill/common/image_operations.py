@@ -1033,6 +1033,27 @@ def _get_social_background_4x5() -> Image.Image:
   return cloud_storage.download_image_from_gcs(_SOCIAL_BACKGROUND_4X5_URL)
 
 
+def _place_square_image_on_4x5_canvas(
+  square_image: Image.Image, ) -> Image.Image:
+  """Place a square image onto a 4:5 canvas with padding."""
+  if square_image.mode != 'RGB':
+    square_image = square_image.convert('RGB')
+  square_image = square_image.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
+                                     Image.Resampling.LANCZOS)
+
+  canvas = _get_social_background_4x5().resize(
+    _SOCIAL_4X5_CANVAS_SIZE_PX,
+    Image.Resampling.LANCZOS,
+  )
+
+  paste_x = (canvas.width - square_image.width) // 2
+  paste_y = (canvas.height - square_image.height) // 2
+
+  output = canvas.copy()
+  output.paste(square_image, (paste_x, paste_y))
+  return output
+
+
 def create_single_joke_images_4by5(
   jokes: list[models.PunnyJoke], ) -> list[Image.Image]:
   """Create 4:5 setup/punchline images by adding header/footer padding.
@@ -1066,29 +1087,8 @@ def create_single_joke_images_4by5(
     punchline_img = cloud_storage.download_image_from_gcs(
       joke.punchline_image_url)
 
-    if setup_img.mode != 'RGB':
-      setup_img = setup_img.convert('RGB')
-    if punchline_img.mode != 'RGB':
-      punchline_img = punchline_img.convert('RGB')
-
-    setup_img = setup_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
-                                 Image.Resampling.LANCZOS)
-    punchline_img = punchline_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
-                                         Image.Resampling.LANCZOS)
-
-    canvas = _get_social_background_4x5().resize(
-      _SOCIAL_4X5_CANVAS_SIZE_PX,
-      Image.Resampling.LANCZOS,
-    )
-
-    paste_x = (canvas.width - setup_img.width) // 2
-    paste_y = (canvas.height - setup_img.height) // 2
-
-    setup_out = canvas.copy()
-    setup_out.paste(setup_img, (paste_x, paste_y))
-
-    punchline_out = canvas.copy()
-    punchline_out.paste(punchline_img, (paste_x, paste_y))
+    setup_out = _place_square_image_on_4x5_canvas(setup_img)
+    punchline_out = _place_square_image_on_4x5_canvas(punchline_img)
 
     result_images.append(setup_out)
     result_images.append(punchline_out)
@@ -1109,6 +1109,21 @@ def create_joke_grid_image_3x2(
     jokes=jokes[-num_jokes:] if jokes else None,
     block_last_panel=block_last_panel,
   )
+
+
+def create_joke_grid_image_4by5(
+  *,
+  joke_ids: list[str] | None = None,
+  jokes: list[models.PunnyJoke] | None = None,
+  block_last_panel: bool = True,
+) -> Image.Image:
+  """Create a 4:5 image for a joke grid social post."""
+  square_image = create_joke_grid_image_square(
+    joke_ids=joke_ids,
+    jokes=jokes,
+    block_last_panel=block_last_panel,
+  )
+  return _place_square_image_on_4x5_canvas(square_image)
 
 
 def create_joke_grid_image_square(

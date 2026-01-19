@@ -72,7 +72,7 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
 
   create_image_mock = Mock(
     return_value=Image.new('RGB', (1000, 500), color='white'))
-  create_square_image_mock = Mock(
+  create_4by5_image_mock = Mock(
     return_value=Image.new('RGB', (1000, 1000), color='white'))
   monkeypatch.setattr(
     social_fns.social_operations.image_operations,
@@ -81,8 +81,8 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   )
   monkeypatch.setattr(
     social_fns.social_operations.image_operations,
-    "create_joke_grid_image_square",
-    create_square_image_mock,
+    "create_joke_grid_image_4by5",
+    create_4by5_image_mock,
   )
 
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
@@ -126,8 +126,8 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
     jokes=jokes,
     block_last_panel=True,
   )
-  assert create_square_image_mock.call_count == 1
-  create_square_image_mock.assert_called_with(
+  assert create_4by5_image_mock.call_count == 1
+  create_4by5_image_mock.assert_called_with(
     jokes=jokes,
     block_last_panel=True,
   )

@@ -2122,18 +2122,13 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
 
     # Background at native 2048x2560, solid grey.
     bg = Image.new('RGB', (2048, 2560), color=(20, 20, 20))
-    buffer = BytesIO()
-    bg.save(buffer, format='PNG')
-    mock_response = Mock()
-    mock_response.content = buffer.getvalue()
-    mock_response.raise_for_status = Mock()
-    mock_requests_get.return_value = mock_response
 
     setup_img = Image.new('RGB', (900, 900), color=(200, 0, 0))
     punchline_img = Image.new('RGB', (1100, 1100), color=(0, 0, 200))
     mock_cloud_storage.download_image_from_gcs.side_effect = [
       setup_img,
       punchline_img,
+      bg,
     ]
 
     joke = models.PunnyJoke(
@@ -2143,8 +2138,8 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
       punchline_image_url="punchline-url",
     )
 
-    setup_out, punchline_out = image_operations.create_single_joke_images_4by5(
-      joke)
+    images = image_operations.create_single_joke_images_4by5([joke])
+    setup_out, punchline_out = images
 
     self.assertEqual(setup_out.size, (1024, 1280))
     self.assertEqual(punchline_out.size, (1024, 1280))
@@ -2160,15 +2155,12 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
 
     self.assertEqual(punchline_out.getpixel((512, 640)), (0, 0, 200))
 
-    mock_requests_get.assert_called_once_with(
-      image_operations._SOCIAL_BACKGROUND_4X5_URL,
-      timeout=10,
-    )
     self.assertEqual(
       mock_cloud_storage.download_image_from_gcs.call_args_list,
       [
         call("setup-url"),
         call("punchline-url"),
+        call(image_operations._SOCIAL_BACKGROUND_4X5_URL),
       ],
     )
 
@@ -2181,4 +2173,4 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
     )
     with self.assertRaisesRegex(ValueError,
                                 "missing setup or punchline image URL"):
-      image_operations.create_single_joke_images_4by5(joke)
+      image_operations.create_single_joke_images_4by5([joke])

@@ -400,7 +400,7 @@ def _create_social_post_image(
     elif platform in (models.SocialPlatform.INSTAGRAM,
                       models.SocialPlatform.FACEBOOK):
       post_images = [
-        image_operations.create_joke_grid_image_square(
+        image_operations.create_joke_grid_image_4by5(
           jokes=post.jokes,
           block_last_panel=post.type ==
           models.JokeSocialPostType.JOKE_GRID_TEASER,

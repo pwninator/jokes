@@ -211,9 +211,11 @@ class CreateAdAssetsTest(unittest.TestCase):
     self.assertEqual(mock_storage.upload_image_to_gcs.call_count, 4)
     upload_calls = mock_storage.upload_image_to_gcs.call_args_list
     self.assertEqual(upload_calls[0].kwargs["gcs_uri"], landscape_gcs_uri)
-    self.assertEqual(upload_calls[1].kwargs["gcs_uri"], portrait_drawing_gcs_uri)
+    self.assertEqual(upload_calls[1].kwargs["gcs_uri"],
+                     portrait_drawing_gcs_uri)
     self.assertEqual(upload_calls[2].kwargs["gcs_uri"], portrait_desk_gcs_uri)
-    self.assertEqual(upload_calls[3].kwargs["gcs_uri"], portrait_corkboard_gcs_uri)
+    self.assertEqual(upload_calls[3].kwargs["gcs_uri"],
+                     portrait_corkboard_gcs_uri)
     for call in upload_calls:
       self.assertIsInstance(call.args[0], Image.Image)
       self.assertEqual(call.args[2], "png")
@@ -459,9 +461,11 @@ class ComposePortraitDrawingTest(unittest.TestCase):
     self.assertEqual(mock_storage.upload_image_to_gcs.call_count, 4)
     upload_calls = mock_storage.upload_image_to_gcs.call_args_list
     self.assertEqual(upload_calls[0].kwargs["gcs_uri"], landscape_gcs_uri)
-    self.assertEqual(upload_calls[1].kwargs["gcs_uri"], portrait_drawing_gcs_uri)
+    self.assertEqual(upload_calls[1].kwargs["gcs_uri"],
+                     portrait_drawing_gcs_uri)
     self.assertEqual(upload_calls[2].kwargs["gcs_uri"], portrait_desk_gcs_uri)
-    self.assertEqual(upload_calls[3].kwargs["gcs_uri"], portrait_corkboard_gcs_uri)
+    self.assertEqual(upload_calls[3].kwargs["gcs_uri"],
+                     portrait_corkboard_gcs_uri)
 
     # Metadata updated with new URLs
     mock_storage.get_final_image_url.assert_any_call(
@@ -1937,7 +1941,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
-  @patch('common.image_operations._compute_pinterest_pin_divider_color')
+  @patch('common.image_operations._compute_joke_grid_divider_color')
   def test_create_pinterest_pin_image_draws_dividers(
     self,
     mock_compute_divider_color,
@@ -1976,9 +1980,8 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
-  def test_create_joke_grid_3x2_uses_last_three_jokes(
-    self, mock_cloud_storage, mock_firestore
-  ):
+  def test_create_joke_grid_3x2_uses_last_three_jokes(self, mock_cloud_storage,
+                                                      mock_firestore):
     """create_joke_grid_image_3x2 should use only the last 3 jokes when more are provided."""
     # Create 5 mock jokes
     joke_ids = ["joke1", "joke2", "joke3", "joke4", "joke5"]
@@ -2007,8 +2010,9 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     result = image_operations.create_joke_grid_image_3x2(joke_ids=joke_ids)
 
     # Verify that only the last 3 jokes were fetched
-    mock_firestore.get_punny_jokes.assert_called_once_with(["joke3", "joke4", "joke5"])
-    
+    mock_firestore.get_punny_jokes.assert_called_once_with(
+      ["joke3", "joke4", "joke5"])
+
     # Verify the result dimensions (3 jokes = 1000x1500)
     self.assertEqual(result.size, (1000, 1500))
     self.assertEqual(result.mode, 'RGB')
@@ -2042,7 +2046,7 @@ class PinterestDividerColorTest(unittest.TestCase):
 
   def test_compute_pinterest_pin_divider_color_lightens_dark_source(self):
     canvas = Image.new('RGB', (1000, 1000), (10, 10, 10))
-    divider_color = image_operations._compute_pinterest_pin_divider_color(
+    divider_color = image_operations._compute_joke_grid_divider_color(
       canvas,
       2,
     )
@@ -2060,7 +2064,7 @@ class PinterestDividerColorTest(unittest.TestCase):
 
   def test_compute_pinterest_pin_divider_color_darkens_light_source(self):
     canvas = Image.new('RGB', (1000, 1000), (240, 240, 240))
-    divider_color = image_operations._compute_pinterest_pin_divider_color(
+    divider_color = image_operations._compute_joke_grid_divider_color(
       canvas,
       2,
     )
@@ -2089,7 +2093,7 @@ class PinterestDividerColorTest(unittest.TestCase):
       canvas.putpixel((x, top_bottom_y), (0, 0, 100))
       canvas.putpixel((x, bottom_top_y), (100, 100, 0))
 
-    divider_color = image_operations._compute_pinterest_pin_divider_color(
+    divider_color = image_operations._compute_joke_grid_divider_color(
       canvas,
       2,
     )
@@ -2102,3 +2106,79 @@ class PinterestDividerColorTest(unittest.TestCase):
       3.0,
       delta=0.2,
     )
+
+
+class CreateSingleJokeImages4By5Test(unittest.TestCase):
+  """Tests for create_single_joke_images_4by5."""
+
+  @patch('common.image_operations.requests.get')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_single_joke_images_4by5_centers_square(
+    self,
+    mock_cloud_storage,
+    mock_requests_get,
+  ):
+    image_operations._get_social_background_4x5.cache_clear()
+
+    # Background at native 2048x2560, solid grey.
+    bg = Image.new('RGB', (2048, 2560), color=(20, 20, 20))
+    buffer = BytesIO()
+    bg.save(buffer, format='PNG')
+    mock_response = Mock()
+    mock_response.content = buffer.getvalue()
+    mock_response.raise_for_status = Mock()
+    mock_requests_get.return_value = mock_response
+
+    setup_img = Image.new('RGB', (900, 900), color=(200, 0, 0))
+    punchline_img = Image.new('RGB', (1100, 1100), color=(0, 0, 200))
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      setup_img,
+      punchline_img,
+    ]
+
+    joke = models.PunnyJoke(
+      setup_text="Setup",
+      punchline_text="Punchline",
+      setup_image_url="setup-url",
+      punchline_image_url="punchline-url",
+    )
+
+    setup_out, punchline_out = image_operations.create_single_joke_images_4by5(
+      joke)
+
+    self.assertEqual(setup_out.size, (1024, 1280))
+    self.assertEqual(punchline_out.size, (1024, 1280))
+
+    # Expect centered paste: square starts at y=128 and ends at y=1151.
+    self.assertEqual(setup_out.getpixel((512, 10)), (20, 20, 20))  # header
+    self.assertEqual(setup_out.getpixel((512, 127)), (20, 20, 20))
+    self.assertEqual(setup_out.getpixel((512, 128)), (200, 0, 0))
+    self.assertEqual(setup_out.getpixel((512, 640)), (200, 0, 0))  # center
+    self.assertEqual(setup_out.getpixel((512, 1151)), (200, 0, 0))
+    self.assertEqual(setup_out.getpixel((512, 1152)), (20, 20, 20))
+    self.assertEqual(setup_out.getpixel((512, 1270)), (20, 20, 20))  # footer
+
+    self.assertEqual(punchline_out.getpixel((512, 640)), (0, 0, 200))
+
+    mock_requests_get.assert_called_once_with(
+      image_operations._SOCIAL_BACKGROUND_4X5_URL,
+      timeout=10,
+    )
+    self.assertEqual(
+      mock_cloud_storage.download_image_from_gcs.call_args_list,
+      [
+        call("setup-url"),
+        call("punchline-url"),
+      ],
+    )
+
+  def test_create_single_joke_images_4by5_missing_urls_raises(self):
+    joke = models.PunnyJoke(
+      setup_text="Setup",
+      punchline_text="Punchline",
+      setup_image_url=None,
+      punchline_image_url="punchline-url",
+    )
+    with self.assertRaisesRegex(ValueError,
+                                "missing setup or punchline image URL"):
+      image_operations.create_single_joke_images_4by5(joke)

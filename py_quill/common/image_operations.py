@@ -50,6 +50,10 @@ _PINTEREST_PANEL_SIZE_PX = 500
 _PINTEREST_DIVIDER_SAMPLE_COUNT = 5
 _PINTEREST_DIVIDER_TARGET_CONTRAST = 3.0
 
+_SOCIAL_BACKGROUND_4X5_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5.png"
+_SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
+_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
+
 
 def create_blank_book_cover(*, color_mode: str) -> bytes:
   """Create a blank JPEG cover image matching book page dimensions.
@@ -959,7 +963,7 @@ def _pick_target_luminance(
   return min(candidates, key=lambda value: abs(value - base_luminance))
 
 
-def _get_pinterest_divider_sample_offsets(panel_size: int) -> list[int]:
+def _get_joke_grid_divider_sample_offsets(panel_size: int) -> list[int]:
   if _PINTEREST_DIVIDER_SAMPLE_COUNT <= 1:
     return [panel_size // 2]
   return [
@@ -969,7 +973,7 @@ def _get_pinterest_divider_sample_offsets(panel_size: int) -> list[int]:
   ]
 
 
-def _compute_pinterest_pin_divider_color(
+def _compute_joke_grid_divider_color(
   canvas: Image.Image,
   num_jokes: int,
 ) -> tuple[int, int, int] | None:
@@ -982,7 +986,7 @@ def _compute_pinterest_pin_divider_color(
   if panel_size <= 0:
     return None
 
-  x_offsets = _get_pinterest_divider_sample_offsets(panel_size)
+  x_offsets = _get_joke_grid_divider_sample_offsets(panel_size)
   samples: list[tuple[int, int, int]] = []
 
   for row_index in range(1, num_jokes):
@@ -1018,6 +1022,57 @@ def _compute_pinterest_pin_divider_color(
     _PINTEREST_DIVIDER_TARGET_CONTRAST,
   )
   return _adjust_color_to_target_luminance(average, target_luminance)
+
+
+@lru_cache(maxsize=1)
+def _get_social_background_4x5() -> Image.Image:
+  """Fetch the 4:5 social background canvas image.
+
+  Returns a PIL image at the background's native resolution.
+  """
+  return cloud_storage.download_image_from_gcs(_SOCIAL_BACKGROUND_4X5_URL)
+
+
+def create_single_joke_images_4by5(
+  joke: models.PunnyJoke, ) -> tuple[Image.Image, Image.Image]:
+  """Create 4:5 setup/punchline images by adding header/footer padding.
+
+  Downloads the joke's square setup/punchline images, resizes each to
+  1024x1024, and pastes them centered onto a 4:5 background canvas resized to
+  1024x1280.
+  """
+  if not joke.setup_image_url or not joke.punchline_image_url:
+    raise ValueError("Joke is missing setup or punchline image URL")
+
+  setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
+  punchline_img = cloud_storage.download_image_from_gcs(
+    joke.punchline_image_url)
+
+  if setup_img.mode != 'RGB':
+    setup_img = setup_img.convert('RGB')
+  if punchline_img.mode != 'RGB':
+    punchline_img = punchline_img.convert('RGB')
+
+  setup_img = setup_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
+                               Image.Resampling.LANCZOS)
+  punchline_img = punchline_img.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
+                                       Image.Resampling.LANCZOS)
+
+  canvas = _get_social_background_4x5().resize(
+    _SOCIAL_4X5_CANVAS_SIZE_PX,
+    Image.Resampling.LANCZOS,
+  )
+
+  paste_x = (canvas.width - setup_img.width) // 2
+  paste_y = (canvas.height - setup_img.height) // 2
+
+  setup_out = canvas.copy()
+  setup_out.paste(setup_img, (paste_x, paste_y))
+
+  punchline_out = canvas.copy()
+  punchline_out.paste(punchline_img, (paste_x, paste_y))
+
+  return setup_out, punchline_out
 
 
 def create_joke_grid_image_3x2(
@@ -1122,7 +1177,7 @@ def _create_joke_grid_image(
     canvas.paste(setup_img, (0, y_offset))
     canvas.paste(punchline_img, (_PINTEREST_PANEL_SIZE_PX, y_offset))
 
-  divider_color = _compute_pinterest_pin_divider_color(canvas, num_jokes)
+  divider_color = _compute_joke_grid_divider_color(canvas, num_jokes)
   if divider_color and num_jokes > 1:
     draw = ImageDraw.Draw(canvas)
     for row_index in range(1, num_jokes):

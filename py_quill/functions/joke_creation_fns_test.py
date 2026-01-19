@@ -623,6 +623,28 @@ def test_joke_creation_process_requires_valid_params(monkeypatch):
   data = resp.get_json()["data"]
   assert "error" in data
 
+
+def test_joke_creation_process_defaults_op_to_proc(monkeypatch):
+  """Missing op should default to the proc handler."""
+  sentinel = object()
+  monkeypatch.setattr(joke_creation_fns, "_run_joke_creation_proc",
+                      lambda _req: sentinel)
+
+  resp = joke_creation_fns.joke_creation_process(DummyReq())
+
+  assert resp is sentinel
+
+
+def test_joke_creation_process_rejects_unknown_op():
+  """Unknown ops should return a validation error."""
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(data={"op": "unknown"}))
+
+  data = resp.get_json()["data"]
+  assert "error" in data
+  assert "Unsupported op" in data["error"]
+
+
 @pytest.fixture(autouse=True)
 def stub_metadata_generation(monkeypatch):
   """Prevent real prompt calls by stubbing metadata generation."""

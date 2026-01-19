@@ -95,7 +95,7 @@ _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
 #   "Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies), tactile and hand-crafted yet polished for print."
 # )
 _IMAGE_GENERATION_PROMPT_PREAMBLE = """\
-A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies).
+A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. The background should extend to the edges of the image. Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies).
 """
 
 _STYLE_REFERENCE_GUIDANCE = """\

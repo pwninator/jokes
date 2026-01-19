@@ -155,6 +155,7 @@ def generate_pun_images(
     image_description=punchline_image_description,
     image_quality=image_quality,
     previous_image=previous_image_reference,
+    style_reference_images=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
   )
 
   if not punchline_image.url:
@@ -177,8 +178,8 @@ def generate_pun_image(
   Args:
     pun_text: The full text of the pun to display on the image. If None, the image will be generated without the pun text.
     image_description: Detailed description of all aspects of the image. This should include the full text of the pun (again), the style/font/color/position/etc. of the pun text, as well as the image's subject(s), foreground, background, color palette, artistic style, and all other details needed to render an accurate image.
-    previous_image: The setup/prior panel image for continuity. Must not be combined with style_reference_images.
-    style_reference_images: Style reference images to anchor the art style. Must not be combined with previous_image.
+    previous_image: The setup/prior panel image for continuity.
+    style_reference_images: Style reference images to anchor the art style.
     image_quality: The quality of the image to generate.
       - "low": Low quality, fast generation.
       - "medium": Medium quality, medium speed generation.
@@ -188,22 +189,18 @@ def generate_pun_image(
     The generated image.
   """
 
-  if previous_image and style_reference_images:
-    raise ValueError(
-      "previous_image and style_reference_images cannot be used together")
-
   prompt_parts: list[str] = [_IMAGE_GENERATION_PROMPT_PREAMBLE]
   all_reference_images: list[Any] = []
+
+  if previous_image:
+    prompt_parts.append(_PRIOR_PANEL_GUIDANCE)
+    all_reference_images.append(previous_image)
 
   if style_reference_images:
     prompt_parts.append(
       _STYLE_REFERENCE_GUIDANCE.format(
         num_style_refs=len(style_reference_images)))
     all_reference_images.extend(style_reference_images)
-
-  if previous_image:
-    prompt_parts.append(_PRIOR_PANEL_GUIDANCE)
-    all_reference_images.append(previous_image)
 
   image_description = image_description.strip()
   prompt_parts.append(image_description)

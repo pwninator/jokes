@@ -1065,6 +1065,61 @@ def _place_square_image_on_4x5_canvas(
   return output
 
 
+def create_joke_giraffe_image(
+  jokes: list[models.PunnyJoke], ) -> Image.Image:
+  """Create a tall 1024x(2048*num_jokes) image stacked by joke panels.
+
+  Stacks the setup image on top of the punchline image for each joke,
+  then repeats for subsequent jokes.
+
+  Args:
+    jokes: List of jokes to process.
+
+  Returns:
+    A single stacked PIL Image.
+
+  Raises:
+    ValueError: If the joke list is empty or any joke is missing image URLs.
+  """
+  if not jokes:
+    raise ValueError("jokes must be a non-empty list")
+
+  panel_size = _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX[0]
+  canvas_width = panel_size
+  canvas_height = panel_size * 2 * len(jokes)
+  canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
+
+  for index, joke in enumerate(jokes):
+    if not joke.setup_image_url or not joke.punchline_image_url:
+      raise ValueError(
+        f"Joke {joke.key or 'unknown'} is missing setup or punchline image URL"
+      )
+
+    setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
+    punchline_img = cloud_storage.download_image_from_gcs(
+      joke.punchline_image_url)
+
+    if setup_img.mode != 'RGB':
+      setup_img = setup_img.convert('RGB')
+    if punchline_img.mode != 'RGB':
+      punchline_img = punchline_img.convert('RGB')
+
+    setup_img = setup_img.resize(
+      (panel_size, panel_size),
+      Image.Resampling.LANCZOS,
+    )
+    punchline_img = punchline_img.resize(
+      (panel_size, panel_size),
+      Image.Resampling.LANCZOS,
+    )
+
+    y_offset = index * panel_size * 2
+    canvas.paste(setup_img, (0, y_offset))
+    canvas.paste(punchline_img, (0, y_offset + panel_size))
+
+  return canvas
+
+
 def create_single_joke_images_4by5(
   jokes: list[models.PunnyJoke], ) -> list[Image.Image]:
   """Create 4:5 setup/punchline images by adding header/footer padding.

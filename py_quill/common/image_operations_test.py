@@ -2108,6 +2108,69 @@ class PinterestDividerColorTest(unittest.TestCase):
     )
 
 
+class CreateJokeGiraffeImageTest(unittest.TestCase):
+  """Tests for create_joke_giraffe_image."""
+
+  @patch('common.image_operations.cloud_storage')
+  def test_create_joke_giraffe_image_stacks_panels(
+    self,
+    mock_cloud_storage,
+  ):
+    jokes = [
+      models.PunnyJoke(
+        setup_text="Setup 1",
+        punchline_text="Punchline 1",
+        setup_image_url="setup-1",
+        punchline_image_url="punch-1",
+      ),
+      models.PunnyJoke(
+        setup_text="Setup 2",
+        punchline_text="Punchline 2",
+        setup_image_url="setup-2",
+        punchline_image_url="punch-2",
+      ),
+    ]
+
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      Image.new('RGB', (1024, 1024), color=(255, 0, 0)),
+      Image.new('RGB', (1024, 1024), color=(0, 255, 0)),
+      Image.new('RGB', (1024, 1024), color=(0, 0, 255)),
+      Image.new('RGB', (1024, 1024), color=(255, 255, 0)),
+    ]
+
+    result = image_operations.create_joke_giraffe_image(jokes)
+
+    self.assertEqual(result.size, (1024, 4096))
+    self.assertEqual(result.getpixel((512, 512)), (255, 0, 0))
+    self.assertEqual(result.getpixel((512, 1536)), (0, 255, 0))
+    self.assertEqual(result.getpixel((512, 2560)), (0, 0, 255))
+    self.assertEqual(result.getpixel((512, 3584)), (255, 255, 0))
+    self.assertEqual(
+      mock_cloud_storage.download_image_from_gcs.call_args_list,
+      [
+        call("setup-1"),
+        call("punch-1"),
+        call("setup-2"),
+        call("punch-2"),
+      ],
+    )
+
+  def test_create_joke_giraffe_image_empty_list_raises(self):
+    with self.assertRaisesRegex(ValueError, "jokes must be a non-empty list"):
+      image_operations.create_joke_giraffe_image([])
+
+  def test_create_joke_giraffe_image_missing_urls_raises(self):
+    joke = models.PunnyJoke(
+      setup_text="Setup",
+      punchline_text="Punchline",
+      setup_image_url="setup-url",
+      punchline_image_url=None,
+    )
+    with self.assertRaisesRegex(ValueError,
+                                "missing setup or punchline image URL"):
+      image_operations.create_joke_giraffe_image([joke])
+
+
 class CreateSingleJokeImages4By5Test(unittest.TestCase):
   """Tests for create_single_joke_images_4by5."""
 

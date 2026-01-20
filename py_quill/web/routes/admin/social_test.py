@@ -196,6 +196,7 @@ def test_admin_social_renders_social_posts(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  html_dom = html.split("<script>", 1)[0]
   assert "Social Posts" in html
   assert "Title" in html
   assert "Description" in html
@@ -204,9 +205,48 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "JOKE_GRID" in html
   assert "https://snickerdoodlejokes.com/jokes/social" in html
   assert "pin.png" in html
+  assert 'class="icon-button icon-button--danger js-social-delete"' in html_dom
   assert "Edit" in html
   assert "Regenerate text" in html
   assert "Post" in html
+
+
+def test_admin_social_hides_delete_when_posted(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/social",
+    pinterest_post_id="pin-123",
+  )
+  created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
+                                 tzinfo=datetime.timezone.utc)
+
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_social_posts",
+    Mock(return_value=[(post, created_at)]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_all_joke_categories",
+    Mock(return_value=[]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_by_state",
+    Mock(return_value=([], None)),
+  )
+
+  with app.test_client() as client:
+    resp = client.get("/admin/social")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  html_dom = html.split("<script>", 1)[0]
+  assert "pin-123" in html
+  assert 'class="icon-button icon-button--danger js-social-delete"' not in html_dom
 
 
 def test_admin_social_renders_carousel_grid(monkeypatch):

@@ -20,6 +20,30 @@ class SocialPostRequestError(Exception):
     self.status = status
 
 
+def delete_social_post(*, post_id: str) -> bool:
+  """Delete a social post if it has not been posted anywhere."""
+  post_id = (post_id or "").strip()
+  if not post_id:
+    raise SocialPostRequestError("post_id is required")
+
+  post = firestore.get_joke_social_post(post_id)
+  if not post:
+    raise SocialPostRequestError(f"Social post not found: {post_id}",
+                                 status=404)
+
+  posted_anywhere = any(
+    post.is_platform_posted(platform) for platform in models.SocialPlatform)
+  if posted_anywhere:
+    raise SocialPostRequestError(
+      "Cannot delete a social post that has been posted on a platform")
+
+  deleted = firestore.delete_joke_social_post(post_id)
+  if not deleted:
+    raise SocialPostRequestError(f"Social post not found: {post_id}",
+                                 status=404)
+  return True
+
+
 def initialize_social_post(
   *,
   post_id: str | None,

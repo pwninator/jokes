@@ -249,6 +249,31 @@ def get_joke_social_post(post_id: str, ) -> models.JokeSocialPost | None:
     return None
 
 
+def delete_joke_social_post(post_id: str) -> bool:
+  """Delete a social post by Firestore document id.
+
+  Note: Firestore does not automatically delete subcollections. We explicitly
+  delete the known metadata doc used by the admin operations log.
+  """
+  post_id = (post_id or "").strip()
+  if not post_id:
+    return False
+
+  post_ref = db().collection("joke_social_posts").document(post_id)
+  snapshot = post_ref.get()
+  if not getattr(snapshot, "exists", False):
+    return False
+
+  # Best-effort cleanup of known metadata doc.
+  try:
+    post_ref.collection("metadata").document("operations").delete()
+  except Exception:  # pylint: disable=broad-except
+    pass
+
+  post_ref.delete()
+  return True
+
+
 def update_social_post(
   post_id: str,
   update_data: dict[str, Any],

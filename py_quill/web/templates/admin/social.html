@@ -178,6 +178,36 @@
     justify-content: flex-end;
   }
 
+  .icon-button {
+    border: none;
+    background: transparent;
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-button:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .icon-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .icon-button--danger {
+    color: #c62828;
+  }
+
+  .icon-button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+  }
+
   .social-post-card.is-editing .social-platform:not(.social-platform--locked) .social-platform-field .social-platform-value {
     display: none;
   }
@@ -443,6 +473,7 @@
       {% set instagram_locked = post.instagram_post_time or post.instagram_post_id %}
       {% set facebook_locked = post.facebook_post_time or post.facebook_post_id %}
       {% set all_locked = pinterest_locked and instagram_locked and facebook_locked %}
+      {% set any_posted = pinterest_locked or instagram_locked or facebook_locked %}
       <article class="social-post-card" data-post-id="{{ post.key or '' }}"
         data-post-type="{{ post.type.value if post.type else '' }}"
         data-link-url="{{ (post.link_url or '') | e }}" data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
@@ -673,6 +704,15 @@
         </div>
         {% if not all_locked %}
         <div class="social-post-card__actions">
+          {% if not any_posted %}
+          <button type="button" class="icon-button icon-button--danger js-social-delete"
+            aria-label="Delete social post" title="Delete social post">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor"
+                d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9zm-1 13h12a2 2 0 0 0 2-2V9H4v11a2 2 0 0 0 2 2z" />
+            </svg>
+          </button>
+          {% endif %}
           <button type="button" class="text-button js-social-edit-toggle">
             Edit
           </button>
@@ -965,6 +1005,11 @@
         card.dataset.instagramPostTime || card.dataset.instagramPostId);
       const facebookLocked = Boolean(
         card.dataset.facebookPostTime || card.dataset.facebookPostId);
+      const anyPosted = pinterestLocked || instagramLocked || facebookLocked;
+      const deleteButton = card.querySelector('.js-social-delete');
+      if (deleteButton) {
+        deleteButton.hidden = anyPosted;
+      }
       actions.hidden = pinterestLocked && instagramLocked && facebookLocked;
       if (actions.hidden) {
         card.classList.remove('is-editing');
@@ -1273,6 +1318,13 @@
           </div>
         </div>
         <div class="social-post-card__actions">
+          <button type="button" class="icon-button icon-button--danger js-social-delete"
+            aria-label="Delete social post" title="Delete social post">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor"
+                d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9zm-1 13h12a2 2 0 0 0 2-2V9H4v11a2 2 0 0 0 2 2z" />
+            </svg>
+          </button>
           <button type="button" class="text-button js-social-edit-toggle">Edit</button>
           <button type="button" class="text-button js-social-regenerate" data-regenerate-image="false">
             Regenerate text
@@ -1420,11 +1472,34 @@
         const editButton = event.target.closest('.js-social-edit-toggle');
         const regenButton = event.target.closest('.js-social-regenerate');
         const postButton = event.target.closest('.js-social-post-button');
+        const deleteButton = event.target.closest('.js-social-delete');
         const actionButton = editButton || regenButton || postButton;
 
-        const card = actionButton ? actionButton.closest('.social-post-card')
+        const card = (actionButton || deleteButton) ? (actionButton || deleteButton).closest('.social-post-card')
           : event.target.closest('.social-post-card');
         if (!card || !card.dataset.postId) {
+          return;
+        }
+
+        if (deleteButton) {
+          const ok = window.confirm('Delete this social post? This cannot be undone.');
+          if (!ok) {
+            return;
+          }
+          deleteButton.disabled = true;
+          try {
+            await sendSocialRequest({
+              post_id: card.dataset.postId,
+              delete: true,
+            });
+            card.remove();
+            updatePostsCount();
+          } catch (error) {
+            console.error('Failed to delete social post:', error);
+            alert('Failed to delete social post: ' + error.message);
+          } finally {
+            deleteButton.disabled = false;
+          }
           return;
         }
 

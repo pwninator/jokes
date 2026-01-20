@@ -540,3 +540,66 @@ def test_social_post_creation_process_skips_pinterest_updates_when_posted(
   post_data = payload["data"]["post_data"]
   assert post_data["pinterest_title"] == "Existing"
   update_mock.assert_not_called()
+
+
+def test_social_post_creation_process_deletes_post(monkeypatch: pytest.MonkeyPatch):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/post",
+  )
+  post.key = "post1"
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_joke_social_post", lambda _post_id: post)
+
+  delete_mock = Mock(return_value=True)
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "delete_joke_social_post", delete_mock)
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "post_id": "post1",
+    "delete": True,
+    # Should be ignored.
+    "regenerate_text": True,
+    "type": "JOKE_GRID",
+    "joke_ids": ["j1"],
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 200
+  payload = _json_payload(resp)
+  assert payload["data"]["post_id"] == "post1"
+  assert payload["data"]["deleted"] is True
+  delete_mock.assert_called_once_with("post1")
+
+
+def test_social_post_creation_process_delete_rejects_posted(
+  monkeypatch: pytest.MonkeyPatch, ):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/post",
+    instagram_post_id="ig-123",
+  )
+  post.key = "post1"
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_joke_social_post", lambda _post_id: post)
+
+  delete_mock = Mock(return_value=True)
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "delete_joke_social_post", delete_mock)
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "post_id": "post1",
+    "delete": True,
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 400
+  payload = _json_payload(resp)
+  assert "Cannot delete" in payload["data"]["error"]
+  delete_mock.assert_not_called()

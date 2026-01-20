@@ -36,6 +36,21 @@ def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
 
   try:
     post_id = get_param(req, 'post_id')
+    delete = get_bool_param(req, 'delete', False)
+
+    if delete:
+      if not post_id:
+        raise social_operations.SocialPostRequestError(
+          'post_id is required to delete a social post')
+      social_operations.delete_social_post(post_id=post_id)
+      return success_response(
+        {
+          "post_id": post_id,
+          "deleted": True,
+        },
+        req=req,
+      )
+
     joke_ids = get_param(req, 'joke_ids')
     type_raw = get_param(req, 'type')
 

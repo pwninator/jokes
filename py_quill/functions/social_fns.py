@@ -7,7 +7,7 @@ import traceback
 from typing import Any
 
 from common import models, social_operations, utils
-from firebase_functions import https_fn, logger, options
+from firebase_functions import https_fn, logger
 from functions.function_utils import (AuthError, error_response,
                                       get_bool_param, get_param, get_user_id,
                                       handle_cors_preflight,
@@ -15,10 +15,6 @@ from functions.function_utils import (AuthError, error_response,
 from services import firestore
 
 
-@https_fn.on_request(
-  memory=options.MemoryOption.GB_2,
-  timeout_sec=600,
-)
 def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
   """Handle social post creation and updates."""
   if response := handle_cors_preflight(req):

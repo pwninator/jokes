@@ -85,14 +85,6 @@
         }
       },
       {
-        "source": "/social_post_creation_process",
-        "function": {
-          "functionId": "social_post_creation_process",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
         "source": "**",
         "function": {
           "functionId": "web",

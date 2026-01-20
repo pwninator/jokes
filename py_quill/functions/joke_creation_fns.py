@@ -8,9 +8,12 @@ from enum import Enum
 from agents import constants
 from common import image_generation, joke_operations, utils
 from firebase_functions import https_fn, logger, options
+from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
                                       get_bool_param, get_list_param,
-                                      get_param, get_user_id, success_response)
+                                      get_param, get_user_id,
+                                      handle_cors_preflight,
+                                      handle_health_check, success_response)
 from services import firestore
 
 
@@ -18,6 +21,7 @@ class JokeCreationOp(str, Enum):
   """Supported joke creation operations."""
   PROC = "proc"
   JOKE_IMAGE = "joke_image"
+  SOCIAL = "social"
 
 
 def _select_image_client(image_quality: str):
@@ -42,8 +46,11 @@ def _filter_reference_images(selected_urls: list[str],
 def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
   """Handle joke creation scenarios for text entry, suggestions, and images."""
   try:
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+    if response := handle_cors_preflight(req):
+      return response
+
+    if response := handle_health_check(req):
+      return response
 
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
@@ -59,6 +66,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       return _run_joke_creation_proc(req)
     if op == JokeCreationOp.JOKE_IMAGE:
       return _handle_joke_image_tuner(req)
+    if op == JokeCreationOp.SOCIAL:
+      return social_fns.social_post_creation_process(req)
 
     return error_response(f'Unsupported op: {op_value}',
                           error_type='unsupported_operation',
@@ -67,7 +76,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
   except joke_operations.SafetyCheckError as exc:
     error_string = f"Safety check failed: {str(exc)}"
     logger.error(error_string)
-    return error_response(error_string, error_type='safety_failed')
+    return error_response(error_string, error_type='safety_failed', req=req)
   except Exception as exc:  # pylint: disable=broad-except
     error_string = (f"Error handling joke_creation_process: {str(exc)}\n"
                     f"{traceback.format_exc()}")

@@ -8,7 +8,7 @@ from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
                        joke_book_fns, joke_creation_fns, joke_fns,
                        joke_image_fns, joke_notification_fns, joke_trigger_fns,
-                       social_fns, stats_fns, user_fns, util_fns, web_fns)
+                       stats_fns, user_fns, util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -81,9 +81,6 @@ run_firestore_migration = util_fns.run_firestore_migration
 
 # Export the web functions
 web = web_fns.web
-
-# Export social functions
-social_post_creation_process = social_fns.social_post_creation_process
 
 # Export analytics functions
 usage = analytics_fns.usage

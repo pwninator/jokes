@@ -762,13 +762,13 @@
     let activePostCard = null;
     let activePostPlatform = '';
     // Use same-origin rewrite so the admin session cookie is included.
-    const createPostEndpoint = '/social_post_creation_process';
+    const createPostEndpoint = '/joke_creation_process';
 
     async function sendSocialRequest(payload) {
       const resp = await fetch(createPostEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: payload }),
+        body: JSON.stringify({ data: { op: 'social', ...payload } }),
       });
 
       if (!resp.ok) {

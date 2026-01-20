@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import datetime
-import json
 from unittest.mock import Mock
 
 import pytest
 from common import models
+from functions import joke_creation_fns
 from functions import social_fns
 from PIL import Image
 
@@ -31,7 +31,7 @@ class DummyReq:
 
 
 def _json_payload(resp) -> dict:
-  return json.loads(resp.get_data(as_text=True))
+  return resp.get_json()
 
 
 def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
@@ -102,8 +102,13 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   create_mock = Mock(side_effect=_fake_upsert)
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", create_mock)
 
-  req = DummyReq(data={"joke_ids": joke_ids, "type": "JOKE_GRID_TEASER"})
-  resp = social_fns.social_post_creation_process(req)
+  req = DummyReq(
+    data={
+      "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+      "joke_ids": joke_ids,
+      "type": "JOKE_GRID_TEASER",
+    })
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -228,8 +233,13 @@ def test_social_post_creation_process_invalid_type(
     monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
 
-  req = DummyReq(data={"joke_ids": ["j1"], "type": "BAD"})
-  resp = social_fns.social_post_creation_process(req)
+  req = DummyReq(
+    data={
+      "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+      "joke_ids": ["j1"],
+      "type": "BAD",
+    })
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 400
   payload = _json_payload(resp)
@@ -259,11 +269,12 @@ def test_social_post_creation_process_updates_text_manual(
   )
 
   req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
     "post_id": "post1",
     "pinterest_title": "New title",
     "pinterest_description": "",
   }, )
-  resp = social_fns.social_post_creation_process(req)
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -305,8 +316,13 @@ def test_social_post_creation_process_regenerates_text(
   update_mock = Mock(side_effect=lambda post, **_kwargs: post)
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
-  req = DummyReq(data={"post_id": "post1", "regenerate_text": True})
-  resp = social_fns.social_post_creation_process(req)
+  req = DummyReq(
+    data={
+      "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+      "post_id": "post1",
+      "regenerate_text": True,
+    })
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -364,11 +380,12 @@ def test_social_post_creation_process_regenerates_text_and_image(
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
   req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
     "post_id": "post1",
     "regenerate_text": True,
     "regenerate_image": True,
   }, )
-  resp = social_fns.social_post_creation_process(req)
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -413,11 +430,12 @@ def test_social_post_creation_process_regenerate_overrides_manual(monkeypatch):
                       "generate_pinterest_post_text", _fake_prompt)
 
   req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
     "post_id": "post1",
     "pinterest_title": "Manual",
     "regenerate_text": True,
   }, )
-  resp = social_fns.social_post_creation_process(req)
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -443,11 +461,12 @@ def test_social_post_creation_process_updates_instagram_fields(
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
   req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
     "post_id": "post1",
     "instagram_caption": "New caption",
     "instagram_alt_text": "New alt",
   }, )
-  resp = social_fns.social_post_creation_process(req)
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -472,11 +491,12 @@ def test_social_post_creation_process_marks_platform_posted(
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
   req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
     "post_id": "post1",
     "mark_posted_platform": "instagram",
     "platform_post_id": "ig-123",
   }, )
-  resp = social_fns.social_post_creation_process(req)
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)
@@ -509,10 +529,11 @@ def test_social_post_creation_process_skips_pinterest_updates_when_posted(
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
 
   req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
     "post_id": "post1",
     "pinterest_title": "New",
   }, )
-  resp = social_fns.social_post_creation_process(req)
+  resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200
   payload = _json_payload(resp)

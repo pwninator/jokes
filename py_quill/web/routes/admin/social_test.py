@@ -257,6 +257,9 @@ def test_admin_social_renders_carousel_grid(monkeypatch):
     type=models.JokeSocialPostType.JOKE_CAROUSEL,
     link_url="https://snickerdoodlejokes.com/jokes/carousel",
     pinterest_image_urls=[
+      "https://example.com/pin-giraffe.png",
+    ],
+    instagram_image_urls=[
       "https://example.com/carousel-1.png",
       "https://example.com/carousel-2.png",
     ],
@@ -287,6 +290,9 @@ def test_admin_social_renders_carousel_grid(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'data-post-type="JOKE_CAROUSEL"' in html
   assert 'class="social-posts-carousel js-social-carousel"' in html
+  assert 'class="social-posts-carousel-pin"' in html
+  assert 'alt="Pinterest giraffe image"' in html
+  assert 'href="https://example.com/pin-giraffe.png"' in html
   assert 'href="https://example.com/carousel-1.png"' in html
   assert 'href="https://example.com/carousel-2.png"' in html
   assert 'alt="Carousel image 1"' in html

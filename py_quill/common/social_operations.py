@@ -249,7 +249,7 @@ def generate_social_post_images(
   image_bytes_by_platform: dict[models.SocialPlatform, list[bytes]] = {}
   updated = False
 
-  # Pinterest: always its own asset (3x2 for grids, 4:5 carousel for carousels).
+  # Pinterest: always its own asset
   if not post.is_platform_posted(models.SocialPlatform.PINTEREST):
     image_urls, image_bytes_list = _create_social_post_image(
       post,
@@ -261,17 +261,17 @@ def generate_social_post_images(
 
   # Instagram + Facebook: shared square asset for single-image posts, or
   # shared carousel for JOKE_CAROUSEL.
-  square_platforms = (models.SocialPlatform.INSTAGRAM,
+  shared_platforms = (models.SocialPlatform.INSTAGRAM,
                       models.SocialPlatform.FACEBOOK)
-  unposted_square_platforms = [
-    platform for platform in square_platforms
+  unposted_shared_platforms = [
+    platform for platform in shared_platforms
     if not post.is_platform_posted(platform)
   ]
-  if unposted_square_platforms:
+  if unposted_shared_platforms:
     # Check if either platform already has images we can reuse
     existing_square_urls = post.instagram_image_urls or post.facebook_image_urls
     if existing_square_urls:
-      for platform in unposted_square_platforms:
+      for platform in unposted_shared_platforms:
         if platform == models.SocialPlatform.INSTAGRAM:
           post.instagram_image_urls = existing_square_urls
         elif platform == models.SocialPlatform.FACEBOOK:
@@ -282,7 +282,7 @@ def generate_social_post_images(
         post,
         models.SocialPlatform.INSTAGRAM,
       )
-      for platform in unposted_square_platforms:
+      for platform in unposted_shared_platforms:
         image_bytes_by_platform[platform] = image_bytes_list
         if platform == models.SocialPlatform.INSTAGRAM:
           post.instagram_image_urls = image_urls
@@ -406,11 +406,20 @@ def _create_social_post_image(
 
   Returns:
     Tuple of (image_urls, image_bytes_list). For single-image posts, lists
-    contain one element. For carousel posts, lists contain multiple elements.
+    contain one element. For carousel posts, lists contain multiple elements,
+    except Pinterest which uses a single stacked image.
   """
   if post.type == models.JokeSocialPostType.JOKE_CAROUSEL:
-    post_images = image_operations.create_single_joke_images_4by5(
-      jokes=post.jokes, )
+    if platform == models.SocialPlatform.PINTEREST:
+      post_images = [
+        image_operations.create_joke_giraffe_image(jokes=post.jokes, )
+      ]
+    elif platform in (models.SocialPlatform.INSTAGRAM,
+                      models.SocialPlatform.FACEBOOK):
+      post_images = image_operations.create_single_joke_images_4by5(
+        jokes=post.jokes, )
+    else:
+      raise SocialPostRequestError(f"Unsupported platform: {platform}")
   elif (post.type == models.JokeSocialPostType.JOKE_GRID
         or post.type == models.JokeSocialPostType.JOKE_GRID_TEASER):
     if platform == models.SocialPlatform.PINTEREST:

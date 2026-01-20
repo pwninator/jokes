@@ -50,7 +50,15 @@ _PINTEREST_PANEL_SIZE_PX = 500
 _PINTEREST_DIVIDER_SAMPLE_COUNT = 5
 _PINTEREST_DIVIDER_TARGET_CONTRAST = 3.0
 
-_SOCIAL_BACKGROUND_4X5_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5_2.png"
+_SOCIAL_BACKGROUND_4X5_SWIPE_REVEAL_URL = (
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5_swipe_reveal.png"
+)
+_SOCIAL_BACKGROUND_4X5_SWIPE_MORE_URL = (
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5_swipe_more.png"
+)
+_SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL = (
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/social/background_4x5_website_more.png"
+)
 _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
@@ -1024,24 +1032,27 @@ def _compute_joke_grid_divider_color(
   return _adjust_color_to_target_luminance(average, target_luminance)
 
 
-@lru_cache(maxsize=1)
-def _get_social_background_4x5() -> Image.Image:
-  """Fetch the 4:5 social background canvas image.
+@lru_cache(maxsize=3)
+def _get_social_background_4x5(background_url: str) -> Image.Image:
+  """Fetch a 4:5 social background canvas image.
 
   Returns a PIL image at the background's native resolution.
   """
-  return cloud_storage.download_image_from_gcs(_SOCIAL_BACKGROUND_4X5_URL)
+  return cloud_storage.download_image_from_gcs(background_url)
 
 
 def _place_square_image_on_4x5_canvas(
-  square_image: Image.Image, ) -> Image.Image:
+  square_image: Image.Image,
+  *,
+  background_url: str,
+) -> Image.Image:
   """Place a square image onto a 4:5 canvas with padding."""
   if square_image.mode != 'RGB':
     square_image = square_image.convert('RGB')
   square_image = square_image.resize(_SOCIAL_4X5_JOKE_IMAGE_SIZE_PX,
                                      Image.Resampling.LANCZOS)
 
-  canvas = _get_social_background_4x5().resize(
+  canvas = _get_social_background_4x5(background_url).resize(
     _SOCIAL_4X5_CANVAS_SIZE_PX,
     Image.Resampling.LANCZOS,
   )
@@ -1077,7 +1088,8 @@ def create_single_joke_images_4by5(
 
   result_images = []
 
-  for joke in jokes:
+  last_index = len(jokes) - 1
+  for index, joke in enumerate(jokes):
     if not joke.setup_image_url or not joke.punchline_image_url:
       raise ValueError(
         f"Joke {joke.key or 'unknown'} is missing setup or punchline image URL"
@@ -1087,11 +1099,20 @@ def create_single_joke_images_4by5(
     punchline_img = cloud_storage.download_image_from_gcs(
       joke.punchline_image_url)
 
-    setup_out = _place_square_image_on_4x5_canvas(setup_img)
-    punchline_out = _place_square_image_on_4x5_canvas(punchline_img)
+    setup_result = _place_square_image_on_4x5_canvas(
+      setup_img,
+      background_url=_SOCIAL_BACKGROUND_4X5_SWIPE_REVEAL_URL,
+    )
+    punchline_background_url = _SOCIAL_BACKGROUND_4X5_SWIPE_MORE_URL
+    if index == last_index:
+      punchline_background_url = _SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL
+    punchline_result = _place_square_image_on_4x5_canvas(
+      punchline_img,
+      background_url=punchline_background_url,
+    )
 
-    result_images.append(setup_out)
-    result_images.append(punchline_out)
+    result_images.append(setup_result)
+    result_images.append(punchline_result)
 
   return result_images
 
@@ -1123,7 +1144,10 @@ def create_joke_grid_image_4by5(
     jokes=jokes,
     block_last_panel=block_last_panel,
   )
-  return _place_square_image_on_4x5_canvas(square_image)
+  return _place_square_image_on_4x5_canvas(
+    square_image,
+    background_url=_SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL,
+  )
 
 
 def create_joke_grid_image_square(

@@ -2120,16 +2120,26 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
   ):
     image_operations._get_social_background_4x5.cache_clear()
 
-    # Background at native 2048x2560, solid grey.
-    bg = Image.new('RGB', (2048, 2560), color=(20, 20, 20))
+    # Backgrounds at native 2048x2560, distinct colors.
+    setup_bg = Image.new('RGB', (2048, 2560), color=(20, 20, 20))
+    punchline_bg = Image.new('RGB', (2048, 2560), color=(30, 30, 30))
 
     setup_img = Image.new('RGB', (900, 900), color=(200, 0, 0))
     punchline_img = Image.new('RGB', (1100, 1100), color=(0, 0, 200))
-    mock_cloud_storage.download_image_from_gcs.side_effect = [
-      setup_img,
-      punchline_img,
-      bg,
-    ]
+
+    def _download_image_side_effect(gcs_uri: str):
+      if gcs_uri == "setup-url":
+        return setup_img
+      if gcs_uri == "punchline-url":
+        return punchline_img
+      if gcs_uri == image_operations._SOCIAL_BACKGROUND_4X5_SWIPE_REVEAL_URL:
+        return setup_bg
+      if gcs_uri == image_operations._SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL:
+        return punchline_bg
+      raise AssertionError(f"Unexpected download uri: {gcs_uri}")
+
+    mock_cloud_storage.download_image_from_gcs.side_effect = (
+      _download_image_side_effect)
 
     joke = models.PunnyJoke(
       setup_text="Setup",
@@ -2153,6 +2163,7 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
     self.assertEqual(setup_out.getpixel((512, 1152)), (20, 20, 20))
     self.assertEqual(setup_out.getpixel((512, 1270)), (20, 20, 20))  # footer
 
+    self.assertEqual(punchline_out.getpixel((512, 10)), (30, 30, 30))
     self.assertEqual(punchline_out.getpixel((512, 640)), (0, 0, 200))
 
     self.assertEqual(
@@ -2160,7 +2171,8 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
       [
         call("setup-url"),
         call("punchline-url"),
-        call(image_operations._SOCIAL_BACKGROUND_4X5_URL),
+        call(image_operations._SOCIAL_BACKGROUND_4X5_SWIPE_REVEAL_URL),
+        call(image_operations._SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL),
       ],
     )
 
@@ -2174,3 +2186,25 @@ class CreateSingleJokeImages4By5Test(unittest.TestCase):
     with self.assertRaisesRegex(ValueError,
                                 "missing setup or punchline image URL"):
       image_operations.create_single_joke_images_4by5([joke])
+
+  @patch('common.image_operations.create_joke_grid_image_square')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_joke_grid_image_4by5_uses_grid_background(
+    self,
+    mock_cloud_storage,
+    mock_square_builder,
+  ):
+    image_operations._get_social_background_4x5.cache_clear()
+
+    mock_square_builder.return_value = Image.new('RGB', (1000, 1000), 'red')
+    mock_cloud_storage.download_image_from_gcs.return_value = Image.new(
+      'RGB',
+      (2048, 2560),
+      'white',
+    )
+
+    result = image_operations.create_joke_grid_image_4by5(jokes=[Mock()])
+
+    self.assertEqual(result.size, (1024, 1280))
+    mock_cloud_storage.download_image_from_gcs.assert_called_once_with(
+      image_operations._SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL)

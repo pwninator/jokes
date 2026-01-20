@@ -100,6 +100,7 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   assert 'joke_creation_process' in html
   assert "createPostEndpoint = '/joke_creation_process'" in html
   assert "op: 'social'" in html
+  assert "postModalInput.focus()" in html
   assert 'data-selectable="true"' in html
   assert 'joke-admin-stats' in html
   assert 'joke-edit-button' not in html

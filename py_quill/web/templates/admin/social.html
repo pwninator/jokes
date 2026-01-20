@@ -1444,6 +1444,11 @@
             postModal.classList.add('admin-modal--open');
             postModal.setAttribute('aria-hidden', 'false');
           }
+          if (postModalInput) {
+            requestAnimationFrame(() => {
+              postModalInput.focus();
+            });
+          }
           return;
         }
 

@@ -298,14 +298,18 @@
   }
 
   .social-posts-carousel-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 100px));
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: start;
   }
 
   .social-posts-carousel-grid a {
     display: inline-flex;
+    width: 100px;
+    max-width: 100px;
   }
 
   .social-posts-carousel-grid img {
@@ -356,6 +360,16 @@
     height: 50px;
     object-fit: contain;
     display: block;
+  }
+
+  @media (max-width: 900px) {
+    .social-posts-image {
+      flex-wrap: wrap;
+    }
+
+    .social-posts-image-slot {
+      flex: 1 1 100%;
+    }
   }
 
   .social-platform {

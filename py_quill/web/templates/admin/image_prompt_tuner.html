@@ -117,6 +117,10 @@
     border: 1px solid rgba(200, 60, 60, 0.3);
     color: #7b1d1d;
   }
+
+  .is-hidden {
+    display: none;
+  }
 </style>
 
 <div class="prompt-tuner">
@@ -127,28 +131,22 @@
     </p>
   </div>
 
-  {% if error_message %}
-  <div class="error-banner">{{ error_message }}</div>
-  {% endif %}
+  <div id="error-banner" class="error-banner {% if not error_message %}is-hidden{% endif %}">
+    <span id="error-banner-text">{% if error_message %}{{ error_message }}{% endif %}</span>
+  </div>
 
-  {% if setup_image_url or punchline_image_url %}
-  <section class="prompt-results" aria-label="Generated images">
-    {% if setup_image_url %}
-    <div class="prompt-result-card">
+  <section id="prompt-results" class="prompt-results is-hidden" aria-label="Generated images">
+    <div id="setup-result-card" class="prompt-result-card is-hidden">
       <h3>Setup</h3>
-      <img src="{{ setup_image_url }}" alt="Setup image">
+      <img id="setup-result-image" alt="Setup image">
     </div>
-    {% endif %}
-    {% if punchline_image_url %}
-    <div class="prompt-result-card">
+    <div id="punchline-result-card" class="prompt-result-card is-hidden">
       <h3>Punchline</h3>
-      <img src="{{ punchline_image_url }}" alt="Punchline image">
+      <img id="punchline-result-image" alt="Punchline image">
     </div>
-    {% endif %}
   </section>
-  {% endif %}
 
-  <form class="prompt-form" method="POST">
+  <form id="prompt-tuner-form" class="prompt-form" method="GET">
     <input type="hidden" name="op" value="{{ joke_image_op }}">
     <section class="card">
       <label for="setup-image-prompt" class="text-button">Setup image prompt</label>
@@ -183,8 +181,119 @@
         <option value="{{ option.value }}" {{ option.selected }}>{{ option.value }}</option>
         {% endfor %}
       </select>
-      <button type="submit" class="text-button">Generate</button>
+      <button id="generate-button" type="submit" class="text-button">Generate</button>
     </section>
   </form>
 </div>
+
+<script>
+  (function () {
+    const form = document.getElementById('prompt-tuner-form');
+    const generateButton = document.getElementById('generate-button');
+    const errorBanner = document.getElementById('error-banner');
+    const errorBannerText = document.getElementById('error-banner-text');
+    const results = document.getElementById('prompt-results');
+    const setupCard = document.getElementById('setup-result-card');
+    const setupImg = document.getElementById('setup-result-image');
+    const punchlineCard = document.getElementById('punchline-result-card');
+    const punchlineImg = document.getElementById('punchline-result-image');
+
+    function showError(message) {
+      if (errorBannerText) {
+        errorBannerText.textContent = message || 'Image generation failed';
+      }
+      if (errorBanner) {
+        errorBanner.classList.remove('is-hidden');
+      }
+    }
+
+    function clearError() {
+      if (errorBannerText) {
+        errorBannerText.textContent = '';
+      }
+      if (errorBanner) {
+        errorBanner.classList.add('is-hidden');
+      }
+    }
+
+    function hideResults() {
+      results.classList.add('is-hidden');
+      setupCard.classList.add('is-hidden');
+      punchlineCard.classList.add('is-hidden');
+      setupImg.removeAttribute('src');
+      punchlineImg.removeAttribute('src');
+    }
+
+    function setLoading(isLoading) {
+      if (!generateButton) return;
+      generateButton.disabled = Boolean(isLoading);
+      generateButton.textContent = isLoading ? 'Generating…' : 'Generate';
+    }
+
+    function getCheckedValues(name) {
+      const nodes = form.querySelectorAll(`input[type="checkbox"][name="${name}"]:checked`);
+      return Array.from(nodes).map((n) => n.value).filter(Boolean);
+    }
+
+    if (!form) return;
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      clearError();
+      hideResults();
+      setLoading(true);
+
+      const payload = {
+        op: (form.querySelector('input[name="op"]') || {}).value,
+        setup_image_prompt: (form.querySelector('textarea[name="setup_image_prompt"]') || {}).value,
+        punchline_image_prompt: (form.querySelector('textarea[name="punchline_image_prompt"]') || {}).value,
+        image_quality: (form.querySelector('select[name="image_quality"]') || {}).value,
+        setup_reference_images: getCheckedValues('setup_reference_images'),
+        punchline_reference_images: getCheckedValues('punchline_reference_images'),
+        include_setup_image: Boolean((form.querySelector('input[name="include_setup_image"]') || {}).checked),
+      };
+
+      try {
+        const resp = await fetch('/joke_creation_process', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ data: payload }),
+        });
+
+        let json = null;
+        try {
+          json = await resp.json();
+        } catch (e) {
+          json = null;
+        }
+
+        const data = json && json.data ? json.data : {};
+        if (!resp.ok) {
+          showError(data.error || `Request failed (${resp.status})`);
+          return;
+        }
+
+        const setupUrl = data.setup_image_url;
+        const punchlineUrl = data.punchline_image_url;
+        if (!setupUrl || !punchlineUrl) {
+          showError('Image generation succeeded but returned no URLs');
+          return;
+        }
+
+        setupImg.src = setupUrl;
+        punchlineImg.src = punchlineUrl;
+        setupCard.classList.remove('is-hidden');
+        punchlineCard.classList.remove('is-hidden');
+        results.classList.remove('is-hidden');
+      } catch (err) {
+        showError(String(err || 'Unexpected error'));
+      } finally {
+        setLoading(false);
+      }
+    });
+  })();
+</script>
 {% endblock %}

@@ -240,6 +240,7 @@ def generate_pinterest_post_text(
 
   prompt = f"""STRATEGIC CONTEXT
 * Post format: {post_type.description}
+* Guidelines: {strategy.guidelines}
 * Audience: {strategy.audience}
 * CTA: {strategy.cta}
 * Goal: {strategy.goal}
@@ -282,6 +283,7 @@ def generate_instagram_post_text(
 
   prompt = f"""STRATEGIC CONTEXT
 * Post format: {post_type.description}
+* Guidelines: {strategy.guidelines}
 * Audience: {strategy.audience}
 * CTA: {strategy.cta}
 * Goal: {strategy.goal}
@@ -327,6 +329,7 @@ def generate_facebook_post_text(
 
   prompt = f"""STRATEGIC CONTEXT
 * Post format: {post_type.description}
+* Guidelines: {strategy.guidelines}
 * Audience: {strategy.audience}
 * CTA: {strategy.cta}
 * Goal: {strategy.goal}

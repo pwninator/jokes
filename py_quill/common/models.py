@@ -80,7 +80,7 @@ A grid of joke setup and punchline images with the last punchline covered as a t
   JOKE_CAROUSEL = (
     "JOKE_CAROUSEL",
     """\
-A sequence of setup and punchline images to be shown in a swipeable carousel. The goal is to keep the viewer engaged and entertained by enticing them to swipe through the entire sequence.
+A sequence of setup and punchline images to be shown in a swipeable carousel. The goal purely entertainment to make the viewer laugh in order to drive follows and shares.
 """,
   )
 

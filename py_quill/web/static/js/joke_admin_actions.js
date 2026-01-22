@@ -205,6 +205,36 @@
         .filter(Boolean);
     }
 
+    function parseEditPayload(rawValue) {
+      const raw = rawValue || '{}';
+      let payload = {};
+      try {
+        payload = JSON.parse(raw);
+      } catch (e) {
+        try {
+          const decoder = document.createElement('textarea');
+          decoder.innerHTML = raw;
+          const decoded = decoder.value || '{}';
+          payload = JSON.parse(decoded);
+        } catch (_inner) {
+          console.warn('Failed to parse edit payload', { raw }); // eslint-disable-line no-console
+          payload = {};
+        }
+      }
+      return payload;
+    }
+
+    function getEditPayloadFromCard(card) {
+      if (!card) {
+        return {};
+      }
+      const editButton = card.querySelector('.joke-edit-button');
+      if (!editButton) {
+        return {};
+      }
+      return parseEditPayload(editButton.getAttribute('data-joke-data'));
+    }
+
     function renderImageGrid(container, images, selectedUrl, onSelect) {
       if (!container) {
         return;
@@ -287,12 +317,171 @@
       return `${prefix}${newParamsStr}/${objectPath}`;
     }
 
+    function getCardImageSize(card) {
+      if (!card) {
+        return 600;
+      }
+      const img = card.querySelector('.joke-slide img');
+      if (img) {
+        const widthValue = parseInt(img.getAttribute('width'), 10);
+        if (!Number.isNaN(widthValue) && widthValue > 0) {
+          return widthValue;
+        }
+      }
+      const cssValue = card.style.getPropertyValue('--joke-card-max-width');
+      if (cssValue) {
+        const parsed = parseInt(cssValue, 10);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+      return 600;
+    }
+
+    function formatCardImageUrl(url, card) {
+      if (!url) {
+        return url;
+      }
+      return formatThumbUrl(url, getCardImageSize(card));
+    }
+
+    function extractImageUrls(images) {
+      return (images || []).map((image) => image && image.url).filter(Boolean);
+    }
+
     function buildImagesForGrid(primaryUrl, allUrls) {
       const urls = dedupeKeepOrder([primaryUrl, ...(allUrls || [])]);
       return urls.map((url) => ({
         url,
         thumb_url: formatThumbUrl(url, 180),
       }));
+    }
+
+    function updateEditButtonPayload(card, payload) {
+      if (!card || !payload) {
+        return;
+      }
+      const editButton = card.querySelector('.joke-edit-button');
+      if (!editButton) {
+        return;
+      }
+      editButton.setAttribute('data-joke-data', JSON.stringify(payload));
+    }
+
+    function setSlideMedia(slide, imageUrl, altText, placeholderText, size) {
+      if (!slide) {
+        return;
+      }
+      const media = slide.querySelector('.joke-slide-media');
+      if (!media) {
+        return;
+      }
+      media.innerHTML = '';
+      if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = altText || '';
+        img.width = size;
+        img.height = size;
+        img.loading = 'lazy';
+        media.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'joke-slide-placeholder text-button';
+        placeholder.textContent = placeholderText;
+        media.appendChild(placeholder);
+      }
+    }
+
+    function updateCardFromPayload(card, payload) {
+      if (!card || !payload) {
+        return;
+      }
+      const size = getCardImageSize(card);
+      const setupSlide = card.querySelector('.joke-slide');
+      const punchlineSlide = card.querySelector('.joke-slide[id$="-punchline"]')
+        || (card.querySelectorAll('.joke-slide')[1] || null);
+      const setupUrl = formatCardImageUrl(payload.setup_image_url, card);
+      const punchlineUrl = formatCardImageUrl(payload.punchline_image_url, card);
+
+      setSlideMedia(setupSlide, setupUrl, payload.setup_text, 'Illustration baking...', size);
+      setSlideMedia(punchlineSlide, punchlineUrl, payload.punchline_text, 'Punchline ready to read!', size);
+
+      if (card.dataset.selectable === 'true') {
+        if (setupUrl) {
+          card.dataset.setupUrl = setupUrl;
+        } else {
+          card.removeAttribute('data-setup-url');
+        }
+      }
+
+      updateEditButtonPayload(card, payload);
+    }
+
+    function buildOptimisticPayload(basePayload, values) {
+      const payload = { ...(basePayload || {}) };
+      payload.joke_id = values.jokeId || payload.joke_id || payload.jokeId || '';
+      payload.setup_text = values.setupText;
+      payload.punchline_text = values.punchlineText;
+      payload.seasonal = values.seasonal;
+      payload.tags = values.tags;
+      payload.setup_image_description = values.setupImageDescription;
+      payload.punchline_image_description = values.punchlineImageDescription;
+      payload.setup_image_url = values.setupImageUrl;
+      payload.punchline_image_url = values.punchlineImageUrl;
+
+      const setupUrls = extractImageUrls(payload.setup_images);
+      const punchlineUrls = extractImageUrls(payload.punchline_images);
+      payload.setup_images = buildImagesForGrid(payload.setup_image_url, setupUrls);
+      payload.punchline_images = buildImagesForGrid(payload.punchline_image_url, punchlineUrls);
+      return payload;
+    }
+
+    function applyJokeDataToPayload(basePayload, jokeData) {
+      if (!jokeData) {
+        return basePayload;
+      }
+      const payload = { ...(basePayload || {}) };
+      payload.joke_id = jokeData.key || jokeData.joke_id || payload.joke_id || '';
+
+      if (jokeData.setup_text !== undefined) {
+        payload.setup_text = jokeData.setup_text;
+      }
+      if (jokeData.punchline_text !== undefined) {
+        payload.punchline_text = jokeData.punchline_text;
+      }
+      if (jokeData.seasonal !== undefined) {
+        payload.seasonal = jokeData.seasonal;
+      }
+      if (Object.prototype.hasOwnProperty.call(jokeData, 'tags')) {
+        payload.tags = Array.isArray(jokeData.tags) ? jokeData.tags : [];
+      }
+      if (jokeData.setup_scene_idea !== undefined) {
+        payload.setup_scene_idea = jokeData.setup_scene_idea;
+      }
+      if (jokeData.punchline_scene_idea !== undefined) {
+        payload.punchline_scene_idea = jokeData.punchline_scene_idea;
+      }
+      if (jokeData.setup_image_description !== undefined) {
+        payload.setup_image_description = jokeData.setup_image_description;
+      }
+      if (jokeData.punchline_image_description !== undefined) {
+        payload.punchline_image_description = jokeData.punchline_image_description;
+      }
+
+      const setupUrl = jokeData.setup_image_url || payload.setup_image_url || '';
+      const punchlineUrl = jokeData.punchline_image_url || payload.punchline_image_url || '';
+      const setupUrls = Array.isArray(jokeData.all_setup_image_urls)
+        ? jokeData.all_setup_image_urls
+        : extractImageUrls(payload.setup_images);
+      const punchlineUrls = Array.isArray(jokeData.all_punchline_image_urls)
+        ? jokeData.all_punchline_image_urls
+        : extractImageUrls(payload.punchline_images);
+      payload.setup_image_url = setupUrl;
+      payload.punchline_image_url = punchlineUrl;
+      payload.setup_images = buildImagesForGrid(setupUrl, setupUrls);
+      payload.punchline_images = buildImagesForGrid(punchlineUrl, punchlineUrls);
+      return payload;
     }
 
     function selectSetupImage(url) {
@@ -436,21 +625,7 @@
       }
 
       const card = editButton.closest('.joke-card');
-      const raw = editButton.getAttribute('data-joke-data') || '{}';
-      let payload = {};
-      try {
-        payload = JSON.parse(raw);
-      } catch (e) {
-        try {
-          const decoder = document.createElement('textarea');
-          decoder.innerHTML = raw;
-          const decoded = decoder.value || '{}';
-          payload = JSON.parse(decoded);
-        } catch (_inner) {
-          console.warn('Failed to parse edit payload', { raw }); // eslint-disable-line no-console
-          payload = {};
-        }
-      }
+      const payload = parseEditPayload(editButton.getAttribute('data-joke-data'));
 
       activeEditCard = card;
       activeEditPayload = payload;
@@ -593,6 +768,26 @@
 
       const jokeId = editJokeIdInput.value;
       const card = activeEditCard || document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
+      const basePayload = activeEditPayload || getEditPayloadFromCard(card);
+      const optimisticPayload = buildOptimisticPayload(basePayload, {
+        jokeId,
+        setupText,
+        punchlineText,
+        seasonal: editSeasonalInput ? editSeasonalInput.value.trim() : '',
+        tags: editTagsInput ? parseTagsInput(editTagsInput.value) : [],
+        setupImageDescription: (editSetupImageDescriptionInput && editSetupImageDescriptionInput.value)
+          ? editSetupImageDescriptionInput.value.trim()
+          : '',
+        punchlineImageDescription: (editPunchlineImageDescriptionInput && editPunchlineImageDescriptionInput.value)
+          ? editPunchlineImageDescriptionInput.value.trim()
+          : '',
+        setupImageUrl: selectedSetupImageUrl,
+        punchlineImageUrl: selectedPunchlineImageUrl,
+      });
+      if (card) {
+        updateCardFromPayload(card, optimisticPayload);
+      }
+
       closeEditModal();
       if (card) {
         setCardGenerating(card);
@@ -610,6 +805,32 @@
           credentials: 'same-origin',
           body: JSON.stringify(payload),
         });
+        if (populateImages) {
+          let json = null;
+          try {
+            json = await response.json();
+          } catch (_e) {
+            json = null;
+          }
+
+          const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+          if (response.ok && jokeData) {
+            const refreshedPayload = applyJokeDataToPayload(optimisticPayload, jokeData);
+            if (card) {
+              updateCardFromPayload(card, refreshedPayload);
+            }
+            if (isEditModalOpen() && activeEditCard
+                && activeEditCard.getAttribute('data-joke-id') === jokeId) {
+              activeEditPayload = refreshedPayload;
+              selectedSetupImageUrl = refreshedPayload.setup_image_url || null;
+              selectedPunchlineImageUrl = refreshedPayload.punchline_image_url || null;
+              renderImageGrid(editSetupImagesGrid, refreshedPayload.setup_images,
+                selectedSetupImageUrl, selectSetupImage);
+              renderImageGrid(editPunchlineImagesGrid, refreshedPayload.punchline_images,
+                selectedPunchlineImageUrl, selectPunchlineImage);
+            }
+          }
+        }
         if (!response.ok) {
           console.warn('joke_creation_process request failed', response.status); // eslint-disable-line no-console
         }

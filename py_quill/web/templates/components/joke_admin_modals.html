@@ -1,0 +1,117 @@
+<div id="admin-edit-joke-modal" class="admin-modal" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-admin-edit-joke-backdrop></div>
+  <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-edit-joke-title">
+    <h3 id="admin-edit-joke-title" class="admin-modal__title text-section-heading">Edit joke</h3>
+    <div class="admin-modal__content">
+      <form id="admin-edit-joke-form">
+        <input type="hidden" id="admin-edit-joke-id" name="joke_id" value="">
+
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-edit-joke-setup">Setup</label>
+          <input class="admin-modal__input" id="admin-edit-joke-setup" name="setup_text" type="text" required>
+        </div>
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-edit-joke-punchline">Punchline</label>
+          <input class="admin-modal__input" id="admin-edit-joke-punchline" name="punchline_text" type="text" required>
+        </div>
+        <div class="admin-modal__field-row">
+          <div class="admin-modal__field admin-modal__field--seasonal">
+            <label class="admin-modal__label" for="admin-edit-joke-seasonal">Seasonal</label>
+            <input class="admin-modal__input" id="admin-edit-joke-seasonal" name="seasonal" type="text">
+          </div>
+          <div class="admin-modal__field admin-modal__field--tags">
+            <label class="admin-modal__label" for="admin-edit-joke-tags">Tags</label>
+            <input class="admin-modal__input" id="admin-edit-joke-tags" name="tags" type="text">
+          </div>
+        </div>
+        <div class="admin-modal__field">
+          <div class="admin-modal__label-row">
+            <label class="admin-modal__label" for="admin-edit-joke-setup-image-description">Setup image
+              description</label>
+            <button type="button" class="button-primary text-button admin-scene-ideas-cta"
+              id="admin-edit-joke-scene-ideas-button" aria-label="Edit scene ideas and regenerate image descriptions"
+              title="Edit scene ideas">
+              &#x2728;
+            </button>
+          </div>
+          <textarea class="admin-modal__textarea" id="admin-edit-joke-setup-image-description"
+            name="setup_image_description"></textarea>
+        </div>
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-edit-joke-punchline-image-description">Punchline image
+            description</label>
+          <textarea class="admin-modal__textarea" id="admin-edit-joke-punchline-image-description"
+            name="punchline_image_description"></textarea>
+        </div>
+
+        <div class="admin-modal__field">
+          <div class="admin-modal__label">Setup images</div>
+          <div id="admin-edit-joke-setup-images" class="admin-modal__image-grid" aria-label="Setup images"></div>
+        </div>
+        <div class="admin-modal__field">
+          <div class="admin-modal__label">Punchline images</div>
+          <div id="admin-edit-joke-punchline-images" class="admin-modal__image-grid" aria-label="Punchline images">
+          </div>
+        </div>
+
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button"
+            id="admin-edit-joke-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button" id="admin-edit-joke-save-button">Save</button>
+          <button type="button" class="button-primary text-button"
+            id="admin-edit-joke-regenerate-button">Regenerate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="admin-regenerate-modal" class="admin-modal" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-admin-regenerate-backdrop></div>
+  <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-regenerate-title">
+    <h3 id="admin-regenerate-title" class="admin-modal__title text-section-heading">Regenerate Images</h3>
+    <div class="admin-modal__content">
+      <form id="admin-regenerate-form">
+        <input type="hidden" id="admin-regenerate-joke-id" name="joke_id" value="">
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-regenerate-quality">Image Quality</label>
+          <select class="admin-modal__input" id="admin-regenerate-quality" name="image_quality">
+            {% for q in image_qualities | default([]) %}
+            <option value="{{ q }}"{% if q == 'medium_mini' %} selected{% endif %}>{{ q }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button" id="admin-regenerate-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button" id="admin-regenerate-submit-button">Regenerate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="admin-scene-ideas-modal" class="admin-modal admin-modal--overlay" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-admin-scene-ideas-backdrop></div>
+  <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-scene-ideas-title">
+    <h3 id="admin-scene-ideas-title" class="admin-modal__title text-section-heading">Scene ideas</h3>
+    <div class="admin-modal__content">
+      <form id="admin-scene-ideas-form">
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-scene-ideas-setup">Setup scene idea</label>
+          <textarea class="admin-modal__textarea" id="admin-scene-ideas-setup" name="setup_scene_idea"></textarea>
+        </div>
+        <div class="admin-modal__field">
+          <label class="admin-modal__label" for="admin-scene-ideas-punchline">Punchline scene idea</label>
+          <textarea class="admin-modal__textarea" id="admin-scene-ideas-punchline"
+            name="punchline_scene_idea"></textarea>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button"
+            id="admin-scene-ideas-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button" id="admin-scene-ideas-generate-button">Generate
+            Image Descriptions</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

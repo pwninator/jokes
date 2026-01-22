@@ -118,20 +118,27 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
         [punchline_url, "https://cdn/punch2.png"],
       }))
   joke_one = _FakeDocumentRef(
-    _FakeSnapshot("joke-1", {"generation_metadata": {
-      "total_cost": 0.1234,
-    }}), {"metadata": _FakeCollection({"metadata": metadata_doc_one})})
+    _FakeSnapshot(
+      "joke-1", {
+        "setup_text": "Setup one",
+        "punchline_text": "Punch one",
+        "generation_metadata": {
+          "total_cost": 0.1234,
+        },
+      }), {"metadata": _FakeCollection({"metadata": metadata_doc_one})})
 
   metadata_doc_two = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
   joke_two = _FakeDocumentRef(
     _FakeSnapshot(
       "joke-2", {
+        "setup_text": "Setup two",
+        "punchline_text": "Punch two",
         "generation_metadata": {
           "generations": [{
             "model_name": "gpt",
             "cost": 0.05
           }]
-        }
+        },
       }), {"metadata": _FakeCollection({"metadata": metadata_doc_two})})
 
   books = {
@@ -167,6 +174,9 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "$0.1234" in html
   assert "$0.0500" in html
   assert "$0.1734" in html
+  assert 'joke-edit-button' in html
+  assert 'data-joke-data=' in html
+  assert '--joke-card-max-width: 200px;' in html
   assert 'class="variant-tile"' in html
   assert "book_page_setup_image_url" in html
   assert "book_page_punchline_image_url" in html
@@ -220,9 +230,14 @@ def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):
   }
   metadata_doc = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
   joke = _FakeDocumentRef(
-    _FakeSnapshot("joke-123", {"generation_metadata": {
-      "total_cost": 1.0
-    }}), {"metadata": _FakeCollection({"metadata": metadata_doc})})
+    _FakeSnapshot(
+      "joke-123", {
+        "setup_text": "Setup local",
+        "punchline_text": "Punch local",
+        "generation_metadata": {
+          "total_cost": 1.0
+        },
+      }), {"metadata": _FakeCollection({"metadata": metadata_doc})})
   fake_db = _FakeFirestore(books=books, jokes={"joke-123": joke})
   monkeypatch.setattr(firestore_service, "db", lambda: fake_db)
 

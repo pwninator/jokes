@@ -107,8 +107,8 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'setup' in html
   assert 'punchline_text' in html
   assert 'punch' in html
-  assert 'function setCardIdle' in html
-  assert 'setCardIdle(card);' in html
+  assert 'joke_admin_actions.js' in html
+  assert 'initJokeAdminActions' in html
 
   # New joke modal: tabbing from Punchline should focus Submit before Cancel.
   submit_index = html.find('id="admin-new-joke-submit-button"')

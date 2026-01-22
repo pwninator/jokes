@@ -9,10 +9,11 @@ import flask
 from firebase_functions import logger
 from google.cloud.firestore import ArrayUnion
 
-from common import config, joke_book_operations, models, utils
+from common import config, image_generation, joke_book_operations, models, utils
 from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
+from web.routes.admin import joke_feed_utils
 
 
 def _format_book_page_image(image_url: str | None) -> str | None:
@@ -143,6 +144,13 @@ def admin_joke_book_detail(book_id: str):
       punchline_variants = metadata.get(
         'all_book_page_punchline_image_urls') or []
 
+    joke_data_for_card = dict(joke_data)
+    joke_data_for_card.setdefault('setup_text', '')
+    joke_data_for_card.setdefault('punchline_text', '')
+    joke_model = models.PunnyJoke.from_firestore_dict(joke_data_for_card,
+                                                      joke_id)
+    edit_payload = joke_feed_utils.build_edit_payload(joke_model)
+
     joke_cost = _extract_total_cost(joke_data)
     if isinstance(joke_cost, (int, float)):
       total_book_cost += float(joke_cost)
@@ -181,6 +189,10 @@ def admin_joke_book_detail(book_id: str):
       [_format_book_page_thumb(url) for url in setup_variants if url],
       'punchline_variants':
       [_format_book_page_thumb(url) for url in punchline_variants if url],
+      'card_joke':
+      joke_model,
+      'edit_payload':
+      edit_payload,
       'num_views':
       num_views,
       'num_saves':
@@ -206,6 +218,8 @@ def admin_joke_book_detail(book_id: str):
     update_book_page_url=flask.url_for('web.admin_update_joke_book_page'),
     set_main_image_url=flask.url_for(
       'web.admin_set_main_joke_image_from_book_page'),
+    joke_creation_url='/joke_creation_process',
+    image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
     book_total_cost=total_book_cost if joke_rows else None,
     site_name='Snickerdoodle',
   )

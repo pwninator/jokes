@@ -1,8 +1,11 @@
 {% extends "admin/admin_base.html" %}
+{% from "components/joke_card.html" import joke_card %}
 
 {% block title %}{{ book.book_name }} · Joke Book · {{ site_name }} Admin{% endblock %}
 
 {% block head_extra %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/joke_admin_modals.css') }}">
 <style>
   .search-section {
     background: var(--color-surface);
@@ -235,6 +238,11 @@
     margin-left: auto;
   }
 
+  .joke-book-detail-preview {
+    max-width: 200px;
+    margin-bottom: 16px;
+  }
+
   .cta-btn {
     background: var(--color-primary);
     border: none;
@@ -407,6 +415,18 @@
   }
 </style>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/joke_admin_actions.js') }}"></script>
+<script>
+  if (window.initJokeAdminActions) {
+    window.initJokeAdminActions({
+      jokeCreationUrl: {{ joke_creation_url | tojson if joke_creation_url else '"/joke_creation_process"' }},
+    });
+  }
+</script>
+{% endblock %}
 {% macro render_variants(variants, label, target_field, joke_id, book_id, original_image=None, original_preview=None) -%}
   <div class="variant-group">
     <div class="variant-label text-button">{{ label }}</div>
@@ -476,6 +496,8 @@
 </h2>
 <p class="muted"><code>{{ book.id }}</code></p>
 
+{% include "components/joke_admin_modals.html" %}
+
 <section class="search-section">
   <div class="search-controls">
     <input type="text" class="search-input" placeholder="Search for jokes to add..." id="joke-search-input">
@@ -497,6 +519,16 @@
 <div class="joke-book-detail-grid">
   {% for joke in jokes %}
   <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}">
+    <div class="joke-book-detail-preview">
+      {{ joke_card(
+        joke.card_joke,
+        width=200,
+        joke_id=joke.id,
+        admin_stats_enabled=false,
+        admin_edit_enabled=true,
+        edit_payload=joke.edit_payload
+      ) }}
+    </div>
     <form method="post"
       class="regenerate-form"
       data-joke-id="{{ joke.id }}"

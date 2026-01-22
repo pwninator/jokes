@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import json
 
 import pytest
@@ -39,12 +38,10 @@ def test_generate_pinterest_post_text_parses_fields(monkeypatch):
     "A two-row grid of joke panels.",
   })
   fake_client = _FakeClient(fake_text)
-  config = social_post_prompts._PLATFORM_CONFIGS[
-    models.SocialPlatform.PINTEREST]
   monkeypatch.setitem(
-    social_post_prompts._PLATFORM_CONFIGS,
+    social_post_prompts._LLM_CLIENTS,
     models.SocialPlatform.PINTEREST,
-    dataclasses.replace(config, client=fake_client),
+    fake_client,
   )
 
   image_bytes = b"\x89PNGfake"
@@ -67,12 +64,10 @@ def test_generate_pinterest_post_text_requires_output(monkeypatch):
     "pinterest_alt_text": "Alt text",
   })
   fake_client = _FakeClient(fake_text)
-  config = social_post_prompts._PLATFORM_CONFIGS[
-    models.SocialPlatform.PINTEREST]
   monkeypatch.setitem(
-    social_post_prompts._PLATFORM_CONFIGS,
+    social_post_prompts._LLM_CLIENTS,
     models.SocialPlatform.PINTEREST,
-    dataclasses.replace(config, client=fake_client),
+    fake_client,
   )
 
   with pytest.raises(ValueError):

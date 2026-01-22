@@ -64,21 +64,36 @@ class JokeAdminRating(Enum):
 
 class JokeSocialPostType(Enum):
   """Social post layout type for joke grids."""
-  JOKE_GRID = "JOKE_GRID"
-  JOKE_GRID_TEASER = "JOKE_GRID_TEASER"
-  JOKE_CAROUSEL = "JOKE_CAROUSEL"
+
+  JOKE_GRID = (
+    "JOKE_GRID",
+    """\
+A grid of joke setup and punchline images. The goal purely entertainment to make the viewer laugh in order to drive follows and shares.
+""",
+  )
+  JOKE_GRID_TEASER = (
+    "JOKE_GRID_TEASER",
+    """\
+A grid of joke setup and punchline images with the last punchline covered as a teaser. The goal is to hook the viewer with the first few jokes and tease them with the last one to drive clickthroughs to the website.
+""",
+  )
+  JOKE_CAROUSEL = (
+    "JOKE_CAROUSEL",
+    """\
+A sequence of setup and punchline images to be shown in a swipeable carousel. The goal is to keep the viewer engaged and entertained by enticing them to swipe through the entire sequence.
+""",
+  )
+
+  def __new__(cls, value: str, description: str):
+    obj = object.__new__(cls)
+    obj._value_ = value
+    obj._description = description
+    return obj
 
   @property
   def description(self) -> str:
     """Human-friendly description of the post layout."""
-    if self == JokeSocialPostType.JOKE_GRID:
-      return "A grid of joke setup and punchline images."
-    if self == JokeSocialPostType.JOKE_GRID_TEASER:
-      return ("A grid of joke setup and punchline images with the last "
-              "punchline covered as a teaser.")
-    if self == JokeSocialPostType.JOKE_CAROUSEL:
-      return "A carousel of 4:5 setup and punchline images."
-    return self.value
+    return self._description
 
 
 class SocialPlatform(Enum):
@@ -814,8 +829,8 @@ class JokeSocialPost:
     if not isinstance(type_value, str) or not type_value:
       raise ValueError("JokeSocialPost requires a type")
     try:
-      data['type'] = JokeSocialPostType(type_value)
-    except ValueError as exc:
+      data['type'] = JokeSocialPostType[type_value]
+    except KeyError as exc:
       raise ValueError(f"Invalid JokeSocialPost type: {type_value}") from exc
 
     link_url = data.get('link_url')

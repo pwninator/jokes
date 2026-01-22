@@ -389,7 +389,7 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
             req=req,
             status=400)
 
-      match_mode = get_param(req, 'match_mode', "TIGHT")
+      match_mode = get_param(req, 'match_mode', "TIGHT").strip().upper()
       if match_mode == "TIGHT":
         distance_threshold = config.JOKE_SEARCH_TIGHT_THRESHOLD
       elif match_mode == "LOOSE":

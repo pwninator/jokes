@@ -77,13 +77,13 @@
     flex-wrap: wrap;
   }
 
-  .joke-grid {
+  .joke-book-detail-grid {
     display: flex;
     flex-direction: column;
     gap: 20px;
   }
 
-  .joke-card {
+  .joke-book-detail-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 20px;
@@ -91,7 +91,7 @@
     box-shadow: 0 12px 30px rgba(196, 171, 140, 0.18);
   }
 
-  .joke-header {
+  .joke-book-detail-header {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -99,7 +99,7 @@
     justify-content: space-between;
   }
 
-  .joke-meta {
+  .joke-book-detail-meta {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -132,7 +132,7 @@
     border-color: #ef5350;
   }
 
-  .joke-metrics {
+  .joke-book-detail-metrics {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -160,7 +160,7 @@
     font-weight: 600;
   }
 
-  .joke-images {
+  .joke-book-detail-images {
     display: grid;
     grid-template-columns: repeat(2, minmax(400px, 1fr));
     gap: 24px;
@@ -179,7 +179,7 @@
   }
 
   .image-frame img,
-  .image-frame .placeholder {
+  .image-frame .joke-book-detail-placeholder {
     width: 100%;
     max-width: 800px;
     height: auto;
@@ -206,7 +206,7 @@
     text-decoration: underline;
   }
 
-  .placeholder {
+  .joke-book-detail-placeholder {
     background: repeating-linear-gradient(
       45deg,
       rgba(212, 160, 23, 0.08),
@@ -228,7 +228,7 @@
     text-decoration: underline;
   }
 
-  .joke-actions {
+  .joke-book-detail-actions {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -260,7 +260,7 @@
     padding: 6px 12px;
   }
 
-  .hidden {
+  .joke-book-detail-hidden {
     display: none !important;
   }
 
@@ -364,7 +364,7 @@
   }
 
   @media (max-width: 1100px) {
-    .joke-images {
+    .joke-book-detail-images {
       grid-template-columns: 1fr;
     }
 
@@ -494,9 +494,9 @@
 {% if not jokes %}
 <p class="muted">No jokes found for this book.</p>
 {% else %}
-<div class="joke-grid">
+<div class="joke-book-detail-grid">
   {% for joke in jokes %}
-  <article class="joke-card" data-joke-id="{{ joke.id }}">
+  <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}">
     <form method="post"
       class="regenerate-form"
       data-joke-id="{{ joke.id }}"
@@ -504,8 +504,8 @@
       action="{{ generate_book_page_url }}"
       target="_blank">
       <input type="hidden" name="joke_id" value="{{ joke.id }}">
-      <div class="joke-header text-body">
-        <div class="joke-meta text-body">
+      <div class="joke-book-detail-header text-body">
+        <div class="joke-book-detail-meta text-body">
           <select class="position-select" data-joke-id="{{ joke.id }}" aria-label="Joke position">
             {% for i in range(1, jokes|length + 1) %}
             <option value="{{ i }}" {% if i == joke.sequence %}selected{% endif %}>{{ i }}</option>
@@ -522,7 +522,7 @@
         </div>
         <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
       </div>
-      <div class="joke-metrics text-button">
+      <div class="joke-book-detail-metrics text-button">
         <div class="metric-pill">
           <span class="metric-label">Views</span>
           <span class="metric-value" data-metric="num_views">{{ joke.num_views }}</span>
@@ -544,7 +544,7 @@
           <span class="metric-value" data-metric="num_saved_users_fraction">{{ '%.2f'|format(joke.num_saved_users_fraction or 0) }}</span>
         </div>
       </div>
-      <div class="instructions instructions-row hidden">
+      <div class="instructions instructions-row joke-book-detail-hidden">
         <div class="text-body source-toggle">
           <div class="text-button">Regenerate from</div>
           <label class="text-body">
@@ -574,14 +574,14 @@
         </div>
       </div>
       <div class="regenerate-footer">
-        <div class="status-row hidden">
+        <div class="status-row joke-book-detail-hidden">
           <span class="timer-chip timer-display text-button">0:00</span>
           <span class="inline-error form-error text-button"></span>
         </div>
-        <button class="cta-btn nav-cta text-button submit-btn hidden" type="submit">Submit</button>
+        <button class="cta-btn nav-cta text-button submit-btn joke-book-detail-hidden" type="submit">Submit</button>
       </div>
     </form>
-    <div class="joke-images">
+    <div class="joke-book-detail-images">
       <div class="image-column">
         {{ render_variants(
             joke.setup_variants,
@@ -592,12 +592,12 @@
             original_image=joke.setup_original_image,
             original_preview=joke.setup_preview) }}
         <div class="image-frame">
-          <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
+          <img class="joke-book-detail-image setup-img {% if not joke.setup_image %}joke-book-detail-hidden{% endif %}"
             src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
-          <div class="placeholder text-body text-button setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
+          <div class="joke-book-detail-placeholder text-body text-button setup-placeholder {% if joke.setup_image %}joke-book-detail-hidden{% endif %}" role="img"
             aria-label="Setup image missing">No setup image</div>
         </div>
-        <div class="image-actions setup-download {% if not joke.setup_image_download %}hidden{% endif %}">
+        <div class="image-actions setup-download {% if not joke.setup_image_download %}joke-book-detail-hidden{% endif %}">
           <a class="download-link text-button"
             href="{{ joke.setup_image_download or '' }}"
             target="_blank"
@@ -622,13 +622,13 @@
             original_image=joke.punchline_original_image,
             original_preview=joke.punchline_preview) }}
         <div class="image-frame">
-          <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
+          <img class="joke-book-detail-image punchline-img {% if not joke.punchline_image %}joke-book-detail-hidden{% endif %}"
             src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
             loading="lazy">
-          <div class="placeholder text-body text-button punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
+          <div class="joke-book-detail-placeholder text-body text-button punchline-placeholder {% if joke.punchline_image %}joke-book-detail-hidden{% endif %}" role="img"
             aria-label="No punchline image">No punchline image</div>
         </div>
-        <div class="image-actions punchline-download {% if not joke.punchline_image_download %}hidden{% endif %}">
+        <div class="image-actions punchline-download {% if not joke.punchline_image_download %}joke-book-detail-hidden{% endif %}">
           <a class="download-link text-button"
             href="{{ joke.punchline_image_download or '' }}"
             target="_blank"
@@ -689,10 +689,10 @@
       if (!container || !link) return;
       if (url) {
         link.href = url;
-        container.classList.remove('hidden');
+        container.classList.remove('joke-book-detail-hidden');
       } else {
         link.removeAttribute('href');
-        container.classList.add('hidden');
+        container.classList.add('joke-book-detail-hidden');
       }
     };
 
@@ -758,7 +758,7 @@
     };
 
     const startTimer = (statusRow, timerDisplay) => {
-      statusRow.classList.remove('hidden');
+      statusRow.classList.remove('joke-book-detail-hidden');
       const start = Date.now();
       const renderTime = () => {
         const elapsed = Math.floor((Date.now() - start) / 1000);
@@ -795,7 +795,7 @@
         if (link.dataset.loading === 'true') return;
         const jokeId = link.dataset.jokeId;
         const target = link.dataset.target;
-        const card = link.closest('.joke-card');
+        const card = link.closest('.joke-book-detail-card');
         const statusRow = card?.querySelector('.status-row');
         const timerDisplay = card?.querySelector('.timer-display');
         const errorBox = card?.querySelector('.inline-error');
@@ -842,7 +842,7 @@
         const jokeId = tile.dataset.jokeId;
         const targetField = tile.dataset.targetField;
         const imageUrl = tile.dataset.imageUrl;
-        const card = tile.closest('.joke-card');
+        const card = tile.closest('.joke-book-detail-card');
         const statusRow = card?.querySelector('.status-row');
         const timerDisplay = card?.querySelector('.timer-display');
         const errorBox = card?.querySelector('.inline-error');
@@ -1001,23 +1001,23 @@
           const costPill = card.querySelector('.cost-pill-value');
 
           if (data.setup_image) {
-            setupImg.classList.remove('hidden');
+            setupImg.classList.remove('joke-book-detail-hidden');
             setupImg.src = bustCache(data.setup_image);
-            setupPh.classList.add('hidden');
+            setupPh.classList.add('joke-book-detail-hidden');
           } else {
-            setupImg.classList.add('hidden');
+            setupImg.classList.add('joke-book-detail-hidden');
             setupImg.removeAttribute('src');
-            setupPh.classList.remove('hidden');
+            setupPh.classList.remove('joke-book-detail-hidden');
           }
 
           if (data.punchline_image) {
-            punchImg.classList.remove('hidden');
+            punchImg.classList.remove('joke-book-detail-hidden');
             punchImg.src = bustCache(data.punchline_image);
-            punchPh.classList.add('hidden');
+            punchPh.classList.add('joke-book-detail-hidden');
           } else {
-            punchImg.classList.add('hidden');
+            punchImg.classList.add('joke-book-detail-hidden');
             punchImg.removeAttribute('src');
-            punchPh.classList.remove('hidden');
+            punchPh.classList.remove('joke-book-detail-hidden');
           }
 
           updateDownloadLink(card, '.setup-download', data.setup_image_download);
@@ -1103,9 +1103,9 @@
       let timerStopper = null;
 
       revealBtn.addEventListener('click', () => {
-      instructions.classList.remove('hidden');
-      submitBtn.classList.remove('hidden');
-      revealBtn.classList.add('hidden');
+      instructions.classList.remove('joke-book-detail-hidden');
+      submitBtn.classList.remove('joke-book-detail-hidden');
+      revealBtn.classList.add('joke-book-detail-hidden');
       const firstField = instructions.querySelector('textarea');
       if (firstField) firstField.focus();
     });
@@ -1185,7 +1185,7 @@
       .forEach((input) => input.addEventListener('change', handleUpload));
 
     // Initial highlight on load
-    document.querySelectorAll('.joke-card').forEach((card) => {
+    document.querySelectorAll('.joke-book-detail-card').forEach((card) => {
       const tiles = card.querySelectorAll('.variant-tile');
       const setupImg = card.querySelector('.setup-img')?.getAttribute('src') || '';
       const punchImg = card.querySelector('.punchline-img')?.getAttribute('src') || '';
@@ -1348,14 +1348,14 @@
     }
 
     function reindexJokes() {
-      const cards = document.querySelectorAll('.joke-card');
+      const cards = document.querySelectorAll('.joke-book-detail-card');
       const total = cards.length;
 
       cards.forEach((card, index) => {
         const sequence = index + 1;
 
         // Update header label
-        const headerStrong = card.querySelector('.joke-header strong');
+        const headerStrong = card.querySelector('.joke-book-detail-header strong');
         if (headerStrong) headerStrong.textContent = `Joke ${sequence}`;
 
         // Update dropdown
@@ -1380,7 +1380,7 @@
 
         const jokeId = btn.dataset.jokeId;
         const originalText = btn.textContent;
-        const card = btn.closest('.joke-card');
+        const card = btn.closest('.joke-book-detail-card');
 
         btn.textContent = '...';
         btn.disabled = true;
@@ -1412,8 +1412,8 @@
       select.addEventListener('change', async (e) => {
         const jokeId = select.dataset.jokeId;
         const newPosition = parseInt(select.value);
-        const card = select.closest('.joke-card');
-        const container = document.querySelector('.joke-grid');
+        const card = select.closest('.joke-book-detail-card');
+        const container = document.querySelector('.joke-book-detail-grid');
 
         select.disabled = true;
 
@@ -1457,7 +1457,7 @@
 
                 // Simpler: get list of other cards. Insert into that list. Re-append all.
                 // Or:
-                const otherCards = Array.from(container.querySelectorAll('.joke-card')).filter(c => c !== card);
+                const otherCards = Array.from(container.querySelectorAll('.joke-book-detail-card')).filter(c => c !== card);
                 // Insert card into otherCards at proper index
                 // Clamp index
                 const safeIndex = Math.max(0, Math.min(targetIndex, otherCards.length));

@@ -208,11 +208,10 @@ def generate_and_populate_book_pages(
   inner edge (towards the binding) does NOT have bleed.
 
   Setup images render on the right page and punchline images on the left page.
-  To preserve the full joke artwork we first outpaint each source image by
-  adding 5% margin on every side and, on edges that require bleed, enough extra
-  canvas so that the final trimmed image still has 38 pixels of bleed. The
-  outpainted result is then upscaled by 2x before being scaled back down to the
-  exact 1838x1876 print dimensions.
+  When the base image source is the original joke image, we first outpaint each
+  source image by adding margin so the final trimmed image retains the required
+  bleed. When the base image source is an existing book page, we skip this
+  margin step to avoid compounding print margins.
 
   Args:
       joke_id: Firestore joke document ID
@@ -247,11 +246,16 @@ def generate_and_populate_book_pages(
 
   base_setup_url = joke.setup_image_url
   base_punchline_url = joke.punchline_image_url
+  # Add print margins by default to base images
+  add_print_margins = True
   if base_image_source == 'book_page':
     meta_setup = metadata_data.get('book_page_setup_image_url')
     meta_punchline = metadata_data.get('book_page_punchline_image_url')
-    base_setup_url = meta_setup or base_setup_url
-    base_punchline_url = meta_punchline or base_punchline_url
+    if meta_setup and meta_punchline:
+      base_setup_url = meta_setup
+      base_punchline_url = meta_punchline
+      # Don't add print margins to book page images because they already have them
+      add_print_margins = False
 
   if not base_setup_url or not base_punchline_url:
     raise ValueError(
@@ -286,6 +290,7 @@ def generate_and_populate_book_pages(
       additional_setup_instructions=additional_setup_instructions,
       additional_punchline_instructions=additional_punchline_instructions,
       include_image_description=include_image_description,
+      add_print_margins=add_print_margins,
     )
   else:
     style_reference_images = [
@@ -304,6 +309,7 @@ def generate_and_populate_book_pages(
       output_file_name_base=f'{joke_id}_book_page',
       additional_setup_instructions=additional_setup_instructions,
       additional_punchline_instructions=additional_punchline_instructions,
+      add_print_margins=add_print_margins,
     )
 
   metadata_book_page_updates = models.PunnyJoke.prepare_book_page_metadata_updates(
@@ -564,6 +570,7 @@ def generate_book_pages_with_nano_banana_pro(
   additional_setup_instructions: str,
   additional_punchline_instructions: str,
   include_image_description: bool = True,
+  add_print_margins: bool = True,
 ) -> _BookPageGenerationResult:
   """Generate a book page image using Gemini Nano Banana Pro.
 
@@ -588,6 +595,7 @@ def generate_book_pages_with_nano_banana_pro(
   simple_setup_image = _get_simple_book_page(
     setup_image,
     f"{output_file_name_base}_setup",
+    add_print_margins=add_print_margins,
   )
   setup_prompt = _BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
     image_description_block=_format_description(setup_image_description),
@@ -602,6 +610,7 @@ def generate_book_pages_with_nano_banana_pro(
   simple_punchline_image = _get_simple_book_page(
     punchline_image,
     f"{output_file_name_base}_punchline",
+    add_print_margins=add_print_margins,
   )
   punchline_prompt = _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
     image_description_block=_format_description(punchline_image_description),
@@ -700,6 +709,7 @@ def generate_book_pages_style_update(
   additional_setup_instructions: str,
   additional_punchline_instructions: str,
   include_image_description: bool = True,
+  add_print_margins: bool = True,
 ) -> _BookPageGenerationResult:
   """Generate book pages using simplified style-update flow."""
   del include_image_description
@@ -714,10 +724,12 @@ def generate_book_pages_style_update(
   simple_setup_image = _get_simple_book_page(
     setup_image,
     f"{output_file_name_base}_setup",
+    add_print_margins=add_print_margins,
   )
   simple_punchline_image = _get_simple_book_page(
     punchline_image,
     f"{output_file_name_base}_punchline",
+    add_print_margins=add_print_margins,
   )
 
   setup_prompt = _build_style_update_prompt(
@@ -764,35 +776,65 @@ def generate_book_pages_style_update(
 def _get_simple_book_page(
   image_model: models.Image,
   output_file_name_base: str,
+  add_print_margins: bool = True,
 ) -> models.Image:
-  """Generates a naively upscaled book page image with black margins."""
+  """Generate a 2048x2048 book page reference image.
+
+  When add_print_margins is True, black margins are added for bleed. When it is
+  False, the image is still rescaled to the target size without margins.
+  """
   if not image_model.gcs_uri:
     raise ValueError(f"Image model {image_model} must have a GCS URI")
 
   image = cloud_storage.download_image_from_gcs(image_model.gcs_uri)
 
-  outpaint_client = image_client.get_client(
-    label='book_page_generation',
-    model=image_client.ImageModel.DUMMY_OUTPAINTER,
-    file_name_base=output_file_name_base,
-  )
-  margin_pixels = math.ceil(image.width * 0.1)
-  target_size = 2048 - margin_pixels
-  upscaled_image = image.resize(
-    (target_size, target_size),
-    resample=Image.Resampling.LANCZOS,
-  )
-  simple_page_image = outpaint_client.outpaint_image(
-    top=margin_pixels,
-    bottom=margin_pixels,
-    left=margin_pixels,
-    right=margin_pixels,
-    gcs_uri=cloud_storage.get_image_gcs_uri(output_file_name_base, "png"),
-    pil_image=upscaled_image,
-    save_to_firestore=False,
-  )
-
-  return simple_page_image
+  target_size = 2048
+  if add_print_margins:
+    # Scale image to size without margins and add black margins around it
+    outpaint_client = image_client.get_client(
+      label='book_page_generation',
+      model=image_client.ImageModel.DUMMY_OUTPAINTER,
+      file_name_base=output_file_name_base,
+    )
+    margin_pixels = math.ceil(image.width * 0.1)
+    max_margin = max(1, (target_size // 2) - 1)
+    margin_pixels = min(margin_pixels, max_margin)
+    inner_size = max(1, target_size - (margin_pixels * 2))
+    upscaled_image = image.resize(
+      (inner_size, inner_size),
+      resample=Image.Resampling.LANCZOS,
+    )
+    simple_page_image = outpaint_client.outpaint_image(
+      top=margin_pixels,
+      bottom=margin_pixels,
+      left=margin_pixels,
+      right=margin_pixels,
+      gcs_uri=cloud_storage.get_image_gcs_uri(output_file_name_base, "png"),
+      pil_image=upscaled_image,
+      save_to_firestore=False,
+    )
+    return simple_page_image
+  elif image.size == (target_size, target_size):
+    # Image is already the target size, so return it as is
+    return image_model
+  else:
+    # Scale image directly to target size, if needed
+    resized_image = image.resize(
+      (target_size, target_size),
+      resample=Image.Resampling.LANCZOS,
+    )
+    gcs_uri = cloud_storage.get_image_gcs_uri(output_file_name_base, "png")
+    uploaded_gcs_uri, _ = cloud_storage.upload_image_to_gcs(
+      resized_image,
+      output_file_name_base,
+      "png",
+      gcs_uri=gcs_uri,
+    )
+    return models.Image(
+      gcs_uri=uploaded_gcs_uri,
+      url=cloud_storage.get_final_image_url(uploaded_gcs_uri,
+                                            width=target_size),
+    )
 
 
 def _convert_for_print_kdp(
@@ -1065,8 +1107,7 @@ def _place_square_image_on_4x5_canvas(
   return output
 
 
-def create_joke_giraffe_image(
-  jokes: list[models.PunnyJoke], ) -> Image.Image:
+def create_joke_giraffe_image(jokes: list[models.PunnyJoke], ) -> Image.Image:
   """Create a tall 1024x(2048*num_jokes) image stacked by joke panels.
 
   Stacks the setup image on top of the punchline image for each joke,

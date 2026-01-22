@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as std_datetime
 import hashlib
+import math
 import unittest
 import zipfile
 from io import BytesIO
@@ -744,6 +745,7 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertEqual(kwargs['output_file_name_base'], 'jokeXYZ_book_page')
       self.assertIsInstance(kwargs['setup_image'], models.Image)
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
+      self.assertTrue(kwargs['add_print_margins'])
 
       style_refs = kwargs['style_reference_images']
       self.assertEqual(len(style_refs),
@@ -889,6 +891,7 @@ class CreateBookPagesTest(unittest.TestCase):
     self.assertIn('punchline_text', kwargs)
     self.assertEqual(kwargs['setup_text'], 'Why did the burger run')
     self.assertEqual(kwargs['punchline_text'], 'Because it saw the fryer')
+    self.assertTrue(kwargs['add_print_margins'])
 
     self.assertIsInstance(kwargs['setup_image'], models.Image)
     self.assertEqual(kwargs['setup_image'].url,
@@ -1046,6 +1049,7 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
       self.assertEqual(kwargs['punchline_image'].url,
                        'https://cdn.example.com/book_punch.jpg')
+      self.assertFalse(kwargs['add_print_margins'])
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -1167,6 +1171,7 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
       self.assertEqual(kwargs['punchline_image'].url,
                        'https://cdn.example.com/original_punch.png')
+      self.assertTrue(kwargs['add_print_margins'])
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -1207,6 +1212,114 @@ class CreateBookPagesTest(unittest.TestCase):
       'https://cdn.example.com/original_setup.png')
     mock_storage.extract_gcs_uri_from_image_url.assert_any_call(
       'https://cdn.example.com/original_punch.png')
+
+
+class GetSimpleBookPageTest(unittest.TestCase):
+  """Tests for _get_simple_book_page."""
+
+  @patch('common.image_operations.image_client.get_client')
+  @patch('common.image_operations.cloud_storage')
+  def test_get_simple_book_page_without_margins_returns_existing(
+      self, mock_storage, mock_get_client):
+    image_model = models.Image(
+      gcs_uri='gs://bucket/source.png',
+      url='https://cdn.example.com/source.png',
+    )
+    mock_storage.download_image_from_gcs.return_value = Image.new(
+      'RGB',
+      (2048, 2048),
+      color='red',
+    )
+
+    result = image_operations._get_simple_book_page(
+      image_model,
+      'simple',
+      add_print_margins=False,
+    )
+
+    self.assertIs(result, image_model)
+    mock_storage.upload_image_to_gcs.assert_not_called()
+    mock_storage.get_image_gcs_uri.assert_not_called()
+    mock_get_client.assert_not_called()
+
+  @patch('common.image_operations.image_client.get_client')
+  @patch('common.image_operations.cloud_storage')
+  def test_get_simple_book_page_without_margins_resizes(
+      self, mock_storage, mock_get_client):
+    mock_storage.download_image_from_gcs.return_value = Image.new(
+      'RGB',
+      (512, 512),
+      color='red',
+    )
+    mock_storage.get_image_gcs_uri.return_value = 'gs://bucket/simple.png'
+    mock_storage.get_final_image_url.return_value = (
+      'https://cdn.example.com/simple.png')
+
+    def _upload_image(image, file_name_base, extension, *, gcs_uri=None):
+      self.assertEqual(image.size, (2048, 2048))
+      self.assertEqual(file_name_base, 'simple')
+      self.assertEqual(extension, 'png')
+      self.assertEqual(gcs_uri, 'gs://bucket/simple.png')
+      return gcs_uri, b'bytes'
+
+    mock_storage.upload_image_to_gcs.side_effect = _upload_image
+
+    result = image_operations._get_simple_book_page(
+      models.Image(
+        gcs_uri='gs://bucket/source.png',
+        url='https://cdn.example.com/source.png',
+      ),
+      'simple',
+      add_print_margins=False,
+    )
+
+    self.assertEqual(result.gcs_uri, 'gs://bucket/simple.png')
+    self.assertEqual(result.url, 'https://cdn.example.com/simple.png')
+    mock_get_client.assert_not_called()
+
+  @patch('common.image_operations.image_client.get_client')
+  @patch('common.image_operations.cloud_storage')
+  def test_get_simple_book_page_with_margins_uses_outpaint(
+      self, mock_storage, mock_get_client):
+    input_image = Image.new('RGB', (1024, 1024), color='blue')
+    mock_storage.download_image_from_gcs.return_value = input_image
+    mock_storage.get_image_gcs_uri.return_value = 'gs://bucket/simple.png'
+
+    recorded = {}
+
+    class FakeClient:
+
+      def outpaint_image(self, **kwargs):
+        recorded.update(kwargs)
+        return models.Image(
+          gcs_uri='gs://bucket/outpaint.png',
+          url='https://cdn.example.com/outpaint.png',
+        )
+
+    mock_get_client.return_value = FakeClient()
+
+    result = image_operations._get_simple_book_page(
+      models.Image(
+        gcs_uri='gs://bucket/source.png',
+        url='https://cdn.example.com/source.png',
+      ),
+      'simple',
+      add_print_margins=True,
+    )
+
+    margin_pixels = math.ceil(input_image.width * 0.1)
+    max_margin = max(1, (2048 // 2) - 1)
+    margin_pixels = min(margin_pixels, max_margin)
+    inner_size = max(1, 2048 - (margin_pixels * 2))
+
+    self.assertEqual(recorded['gcs_uri'], 'gs://bucket/simple.png')
+    self.assertEqual(recorded['top'], margin_pixels)
+    self.assertEqual(recorded['bottom'], margin_pixels)
+    self.assertEqual(recorded['left'], margin_pixels)
+    self.assertEqual(recorded['right'], margin_pixels)
+    self.assertEqual(recorded['pil_image'].size, (inner_size, inner_size))
+    self.assertEqual(result.gcs_uri, 'gs://bucket/outpaint.png')
+    self.assertEqual(result.url, 'https://cdn.example.com/outpaint.png')
 
 
 class AddPageNumberToImageTest(unittest.TestCase):

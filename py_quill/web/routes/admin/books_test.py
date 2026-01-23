@@ -6,6 +6,7 @@ from io import BytesIO
 from unittest.mock import Mock
 
 from google.cloud.firestore import ArrayUnion
+from PIL import Image
 
 from functions import auth_helpers
 from services import firestore as firestore_service
@@ -19,6 +20,13 @@ def _mock_admin_session(monkeypatch):
                       ("uid123", {
                         "role": "admin"
                       }))
+
+
+def _make_image_bytes(format_name: str) -> bytes:
+  image = Image.new('RGB', (2, 2), (255, 0, 0))
+  buffer = BytesIO()
+  image.save(buffer, format=format_name)
+  return buffer.getvalue()
 
 
 class _FakeSnapshot:
@@ -293,11 +301,12 @@ def test_admin_joke_book_upload_image_book_page(monkeypatch):
   mock_db.collection.return_value.document.return_value = mock_joke_ref
   monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
 
+  image_bytes = _make_image_bytes('JPEG')
   data = {
     'joke_id': 'joke-123',
     'joke_book_id': 'book-456',
     'target_field': 'book_page_setup_image_url',
-    'file': (BytesIO(b"fake image content"), 'test.png'),
+    'file': (BytesIO(image_bytes), 'test.jpg'),
   }
 
   with app.test_client() as client:
@@ -311,9 +320,11 @@ def test_admin_joke_book_upload_image_book_page(monkeypatch):
   # Verify Upload
   mock_upload.assert_called_once()
   args = mock_upload.call_args[0]
-  assert args[0] == b"fake image content"
+  uploaded_image = Image.open(BytesIO(args[0]))
+  assert uploaded_image.format == 'PNG'
   assert "joke_books/book-456/joke-123/custom_setup_" in args[1]
   assert args[1].endswith(".png")
+  assert args[2] == "image/png"
 
   # Verify Firestore Update
   mock_metadata_ref.update.assert_called_once()
@@ -330,7 +341,7 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   monkeypatch.setattr(books_routes.cloud_storage, "upload_bytes_to_gcs",
                       mock_upload)
 
-  mock_get_cdn = Mock(return_value="https://cdn/main-image.jpg")
+  mock_get_cdn = Mock(return_value="https://cdn/main-image.png")
   monkeypatch.setattr(books_routes.cloud_storage, "get_public_image_cdn_url",
                       mock_get_cdn)
 
@@ -343,7 +354,7 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   data = {
     'joke_id': 'joke-999',
     'target_field': 'punchline_image_url',
-    'file': (BytesIO(b"content"), 'punch.jpg'),
+    'file': (BytesIO(_make_image_bytes('GIF')), 'punch.gif'),
   }
 
   with app.test_client() as client:
@@ -356,11 +367,15 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   # Verify Upload
   mock_upload.assert_called_once()
   args = mock_upload.call_args[0]
+  uploaded_image = Image.open(BytesIO(args[0]))
+  assert uploaded_image.format == 'PNG'
   assert "jokes/joke-999/custom_punchline_" in args[1]
+  assert args[1].endswith(".png")
+  assert args[2] == "image/png"
 
   # Verify Firestore Update on Main Doc
   mock_joke_ref.update.assert_called_once_with(
-    {'punchline_image_url': "https://cdn/main-image.jpg"})
+    {'punchline_image_url': "https://cdn/main-image.png"})
 
 
 def test_admin_joke_book_upload_invalid_input(monkeypatch):
@@ -388,6 +403,17 @@ def test_admin_joke_book_upload_invalid_input(monkeypatch):
                        content_type='multipart/form-data')
     assert resp.status_code == 400
     assert b"Invalid target field" in resp.data
+
+    # Invalid image file
+    resp = client.post('/admin/joke-books/upload-image',
+                       data={
+                         'joke_id': '1',
+                         'target_field': 'setup_image_url',
+                         'file': (BytesIO(b"not an image"), 'test.txt')
+                       },
+                       content_type='multipart/form-data')
+    assert resp.status_code == 400
+    assert b"Invalid image file" in resp.data
 
 
 def test_admin_update_joke_book_page_updates_metadata(monkeypatch):

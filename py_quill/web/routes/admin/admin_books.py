@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import datetime
-import os
+from io import BytesIO
 
 import flask
 from firebase_functions import logger
 from google.cloud.firestore import ArrayUnion
+from PIL import Image, UnidentifiedImageError
 
 from common import config, image_generation, joke_book_operations, models, utils
 from functions import auth_helpers
@@ -91,6 +92,25 @@ def _extract_total_cost(joke_data: dict[str, object]) -> float | None:
     return models.GenerationMetadata.from_dict(generation_metadata).total_cost
   except Exception:
     return None
+
+
+def _convert_to_png_bytes(raw_bytes: bytes) -> bytes:
+  """Validate raw image bytes and return PNG-encoded bytes."""
+  try:
+    image = Image.open(BytesIO(raw_bytes))
+    image.load()
+  except (UnidentifiedImageError, OSError, ValueError) as exc:
+    raise ValueError('Invalid image file') from exc
+
+  if image.mode in ('RGBA', 'LA') or (
+      image.mode == 'P' and 'transparency' in image.info):
+    image = image.convert('RGBA')
+  elif image.mode != 'RGB':
+    image = image.convert('RGB')
+
+  buffer = BytesIO()
+  image.save(buffer, format='PNG')
+  return buffer.getvalue()
 
 
 @web_bp.route('/admin/joke-books')
@@ -482,12 +502,15 @@ def admin_joke_book_upload_image():
   if not file.filename:
     return flask.Response('No filename', 400)
 
-  ext = os.path.splitext(file.filename)[1].lower()
-  if ext not in ['.png', '.jpg', '.jpeg', '.webp']:
-    return flask.Response('Invalid file type', 400)
+  try:
+    png_bytes = _convert_to_png_bytes(file.read())
+  except ValueError as exc:
+    logger.warn(f'Invalid image upload: {exc}')
+    return flask.Response('Invalid image file', 400)
 
   timestamp = datetime.datetime.now(
     datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
+  ext = '.png'
 
   if target_field.startswith('book_page'):
     type_prefix = 'setup' if 'setup' in target_field else 'punchline'
@@ -499,9 +522,8 @@ def admin_joke_book_upload_image():
   gcs_uri = f"gs://{config.IMAGE_BUCKET_NAME}/{gcs_path}"
 
   try:
-    content = file.read()
     cloud_storage.upload_bytes_to_gcs(
-      content, gcs_uri, file.content_type or 'application/octet-stream')
+      png_bytes, gcs_uri, 'image/png')
   except Exception as exc:
     logger.error('Failed to upload image', exc_info=exc)
     return flask.Response('Upload failed', 500)

@@ -585,6 +585,21 @@
             credentials: 'include',
             body: JSON.stringify(payload),
           });
+
+          let json = null;
+          try {
+            json = await response.json();
+          } catch (_e) {
+            json = null;
+          }
+
+          // If the backend returns the updated joke payload, refresh the card in-place.
+          const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+          if (response.ok && jokeData && card) {
+            const basePayload = getEditPayloadFromCard(card);
+            const refreshedPayload = applyJokeDataToPayload(basePayload, jokeData);
+            updateCardFromPayload(card, refreshedPayload);
+          }
           if (!response.ok) {
             console.warn('regenerate images request failed', response.status); // eslint-disable-line no-console
           }

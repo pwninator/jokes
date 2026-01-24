@@ -200,7 +200,7 @@
 
     function parseTagsInput(value) {
       return (value || '')
-        .split(/[,\\n]/)
+        .split(/[,\n]/)
         .map((tag) => tag.trim())
         .filter(Boolean);
     }

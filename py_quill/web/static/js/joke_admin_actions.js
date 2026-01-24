@@ -5,7 +5,10 @@
     }
 
     const config = options || {};
-    const jokeCreationUrl = config.jokeCreationUrl || '/joke_creation_process';
+    if (!config.jokeCreationUrl) {
+      throw new Error('jokeCreationUrl is required for initJokeAdminActions');
+    }
+    const jokeCreationUrl = config.jokeCreationUrl;
 
     const editModal = document.getElementById('admin-edit-joke-modal');
     const editModalBackdrop = document.querySelector('[data-admin-edit-joke-backdrop]');
@@ -579,7 +582,7 @@
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(payload),
           });
           if (!response.ok) {
@@ -670,7 +673,7 @@
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-          credentials: 'same-origin',
+          credentials: 'include',
           body: JSON.stringify(requestPayload),
         });
 
@@ -789,7 +792,7 @@
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-          credentials: 'same-origin',
+          credentials: 'include',
           body: JSON.stringify(payload),
         });
         if (populateImages) {

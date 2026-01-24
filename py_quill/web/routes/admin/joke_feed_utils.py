@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 
-from common import models, utils
+from common import config, models, utils
 
 _DEFAULT_THUMB_SIZE = 180
 
@@ -21,6 +21,13 @@ class JokeFeedEntry:
 def parse_category_filter(value: str | None) -> str | None:
   category_id = (value or "").strip()
   return category_id or None
+
+
+def joke_creation_url() -> str:
+  """Return the base URL for joke creation requests."""
+  if utils.is_emulator():
+    return "/joke_creation_process"
+  return f"https://{config.JOKE_CREATION_API_HOST}"
 
 
 def _dedupe_keep_order(values: list[str]) -> list[str]:

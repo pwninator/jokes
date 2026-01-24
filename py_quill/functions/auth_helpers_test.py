@@ -61,6 +61,31 @@ def test_clear_session_cookie_expires_cookie():
   assert 'Path=/' in header
 
 
+def test_set_session_cookie_parent_domain_also_sets_host_cookie():
+  response = flask.Response('ok')
+
+  auth_helpers.set_session_cookie(response,
+                                  'cookie-value',
+                                  domain='.snickerdoodlejokes.com')
+
+  headers = response.headers.getlist('Set-Cookie')
+  assert len(headers) == 2
+  # Werkzeug normalizes away the leading dot on cookie domains.
+  assert any('Domain=snickerdoodlejokes.com' in h for h in headers)
+  assert any('Domain=' not in h for h in headers)
+
+
+def test_clear_session_cookie_parent_domain_also_clears_host_cookie():
+  response = flask.Response('ok')
+
+  auth_helpers.clear_session_cookie(response, domain='.snickerdoodlejokes.com')
+
+  headers = response.headers.getlist('Set-Cookie')
+  assert len(headers) == 2
+  assert any('Domain=snickerdoodlejokes.com' in h for h in headers)
+  assert any('Domain=' not in h for h in headers)
+
+
 def test_verify_session_returns_none_without_cookie(flask_app):
   with flask_app.test_request_context('/admin'):
     assert auth_helpers.verify_session(flask.request) is None
@@ -159,19 +184,19 @@ def test_require_admin_allows_admin(monkeypatch, flask_app):
 def test_cookie_domain_for_request_uses_host(monkeypatch, flask_app):
   with flask_app.test_request_context('/'):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == config.ADMIN_HOST
+  assert domain == f".{config.ADMIN_HOST}"
 
 
 def test_cookie_domain_for_request_ignores_localhost(monkeypatch, flask_app):
   with flask_app.test_request_context('/', headers={'Host': 'localhost:5000'}):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == config.ADMIN_HOST
+  assert domain == f".{config.ADMIN_HOST}"
 
 
 def test_cookie_domain_for_request_env_override(monkeypatch, flask_app):
   with flask_app.test_request_context('/', headers={'Host': 'ignored.com'}):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == config.ADMIN_HOST
+  assert domain == f".{config.ADMIN_HOST}"
 
 
 def test_cookie_domain_for_request_emulator(monkeypatch, flask_app):
@@ -190,7 +215,7 @@ def test_cookie_domain_prefers_forwarded_host(flask_app):
   }
   with flask_app.test_request_context('/', headers=headers):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == 'snickerdoodlejokes.com'
+  assert domain == '.snickerdoodlejokes.com'
 
 
 def test_resolve_admin_redirect_relative_path(flask_app):

@@ -53,7 +53,9 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}')
+      return error_response(f'Method not allowed: {req.method}',
+                            req=req,
+                            status=405)
 
     op_value = get_param(req, "op", JokeCreationOp.PROC.value)
     try:
@@ -61,6 +63,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     except ValueError:
       return error_response(f'Unsupported op: {op_value}',
                             error_type='unsupported_operation',
+                            req=req,
                             status=400)
     if op == JokeCreationOp.PROC:
       return _run_joke_creation_proc(req)
@@ -71,6 +74,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
 
     return error_response(f'Unsupported op: {op_value}',
                           error_type='unsupported_operation',
+                          req=req,
                           status=400)
 
   except joke_operations.SafetyCheckError as exc:
@@ -81,7 +85,10 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     error_string = (f"Error handling joke_creation_process: {str(exc)}\n"
                     f"{traceback.format_exc()}")
     logger.error(error_string)
-    return error_response(error_string, error_type='internal_error')
+    return error_response(error_string,
+                          error_type='internal_error',
+                          req=req,
+                          status=500)
 
 
 def _handle_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
@@ -167,7 +174,7 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
   try:
     user_id = get_user_id(req, allow_unauthenticated=False)
   except AuthError:
-    return error_response('User not authenticated', status=401)
+    return error_response('User not authenticated', status=401, req=req)
 
   # Joke input data
   joke_id = get_param(req, 'joke_id')
@@ -196,7 +203,9 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
   if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
     return error_response(
       f'Invalid image_quality: {image_quality}. Must be one of: '
-      f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}')
+      f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}',
+      req=req,
+      status=400)
 
   seasonal_provided = raw_seasonal is not None
   seasonal_value = None
@@ -241,11 +250,13 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
       init_kwargs["tags"] = tags
     joke = joke_operations.initialize_joke(**init_kwargs)
   except joke_operations.JokeNotFoundError as exc:
-    return error_response(str(exc))
+    return error_response(str(exc), req=req, status=404)
   except ValueError:
     return error_response(
       'Unsupported parameter combination for joke creation',
-      error_type='unsupported_parameters')
+      error_type='unsupported_parameters',
+      req=req,
+      status=400)
 
   operation = None
   has_suggestions = bool(setup_suggestion or punchline_suggestion)
@@ -289,6 +300,8 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
 
   if saved_joke := firestore.upsert_punny_joke(joke, operation=operation):
     return success_response(
-      {"joke_data": joke_operations.to_response_joke(saved_joke)})
+      {"joke_data": joke_operations.to_response_joke(saved_joke)},
+      req=req,
+    )
   else:
-    return error_response('Failed to save joke')
+    return error_response('Failed to save joke', req=req, status=500)

@@ -38,6 +38,21 @@ def set_session_cookie(response: flask.Response,
     path='/',
   )
 
+  # If we scoped the cookie to the parent domain (".snickerdoodlejokes.com"),
+  # also set a host-only cookie for the same host. This overwrites any legacy
+  # host-only value so we don't end up with two different __session cookies
+  # being sent to snickerdoodlejokes.com.
+  if domain and domain.startswith('.') and not utils.is_emulator():
+    response.set_cookie(
+      config.SESSION_COOKIE_NAME,
+      session_cookie,
+      max_age=config.SESSION_MAX_AGE_SECONDS,
+      httponly=True,
+      secure=True,
+      samesite='Lax',
+      path='/',
+    )
+
 
 def clear_session_cookie(response: flask.Response,
                          *,
@@ -53,6 +68,18 @@ def clear_session_cookie(response: flask.Response,
     domain=domain,
     path='/',
   )
+
+  # See set_session_cookie() for why we clear a host-only cookie too.
+  if domain and domain.startswith('.') and not utils.is_emulator():
+    response.set_cookie(
+      config.SESSION_COOKIE_NAME,
+      '',
+      expires=0,
+      httponly=True,
+      secure=True,
+      samesite='Lax',
+      path='/',
+    )
 
 
 def external_host_for_request(request: flask.Request) -> str | None:
@@ -76,7 +103,13 @@ def cookie_domain_for_request(request: flask.Request) -> str | None:
   if not host:
     return None
 
-  return host
+  if utils.is_emulator():
+    return host
+
+  # In production we want the admin session cookie to be shared across
+  # snickerdoodlejokes.com and api.snickerdoodlejokes.com.
+  parent = config.ADMIN_HOST.lstrip(".").lower()
+  return f".{parent}"
 
 
 def resolve_admin_redirect(request: flask.Request, target: str | None,

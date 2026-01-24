@@ -238,7 +238,7 @@ def admin_joke_book_detail(book_id: str):
     update_book_page_url=flask.url_for('web.admin_update_joke_book_page'),
     set_main_image_url=flask.url_for(
       'web.admin_set_main_joke_image_from_book_page'),
-    joke_creation_url='/joke_creation_process',
+    joke_creation_url=joke_feed_utils.joke_creation_url(),
     image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
     book_total_cost=total_book_cost if joke_rows else None,
     site_name='Snickerdoodle',

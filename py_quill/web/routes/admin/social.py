@@ -58,6 +58,7 @@ def admin_social():
   return flask.render_template(
     'admin/social.html',
     site_name='Snickerdoodle',
+    joke_creation_url=joke_feed_utils.joke_creation_url(),
     categories=all_categories,
     selected_category_id=selected_category_id,
     jokes=jokes_list,

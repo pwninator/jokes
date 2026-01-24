@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from unittest.mock import Mock
 
-from common import models
+from common import config, models
 from functions import auth_helpers
 from web.app import app
 from web.routes.admin import social as social_routes
@@ -97,8 +97,9 @@ def test_admin_social_filters_public_jokes(monkeypatch):
   assert '/jokes/feed/load-more-admin-social' in html
   assert 'admin-social-create-button' in html
   assert 'admin-social-post-type' in html
-  assert 'joke_creation_process' in html
-  assert "createPostEndpoint = '/joke_creation_process'" in html
+  assert f"https://{config.JOKE_CREATION_API_HOST}" in html
+  assert (f'createPostEndpoint = "https://{config.JOKE_CREATION_API_HOST}"'
+          ) in html
   assert "op: 'social'" in html
   assert "postModalInput.focus()" in html
   assert 'data-selectable="true"' in html

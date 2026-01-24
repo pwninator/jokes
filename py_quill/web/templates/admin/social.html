@@ -888,13 +888,13 @@
     const postModalCancel = document.getElementById('admin-social-post-cancel');
     let activePostCard = null;
     let activePostPlatform = '';
-    // Use same-origin rewrite so the admin session cookie is included.
-    const createPostEndpoint = '/joke_creation_process';
+    const createPostEndpoint = {{ joke_creation_url | tojson }};
 
     async function sendSocialRequest(payload) {
       const resp = await fetch(createPostEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ data: { op: 'social', ...payload } }),
       });
 

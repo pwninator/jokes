@@ -12,6 +12,7 @@ IMAGE_BUCKET_NAME = "images.quillsstorybook.com"
 PUBLIC_FILE_BUCKET_NAME = "files.snickerdoodlejokes.com"
 TEMP_FILE_BUCKET_NAME = "temp.snickerdoodlejokes.com"
 ADMIN_HOST = "snickerdoodlejokes.com"
+JOKE_CREATION_API_HOST = "api.snickerdoodlejokes.com"
 JOKE_BUNDLE_SECRET_ID = "JOKE_BUNDLE_SECRET"
 
 # Admin session

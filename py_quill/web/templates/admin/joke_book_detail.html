@@ -447,7 +447,7 @@
 <script>
   if (window.initJokeAdminActions) {
     window.initJokeAdminActions({
-      jokeCreationUrl: {{ joke_creation_url | tojson if joke_creation_url else '"/joke_creation_process"' }},
+      jokeCreationUrl: {{ joke_creation_url | tojson }},
     });
   }
 </script>

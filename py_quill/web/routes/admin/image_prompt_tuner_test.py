@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agents import constants
+from common import config
 from functions import auth_helpers, joke_creation_fns
 from web.app import app
 
@@ -33,7 +34,7 @@ def test_admin_image_prompt_tuner_page_loads(monkeypatch):
   assert 'name="op"' in html
   assert f'value="{joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value}"' in html
   assert constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0] in html
-  assert "/joke_creation_process" in html
+  assert f"https://{config.JOKE_CREATION_API_HOST}" in html
   assert 'method="GET"' in html
 
 

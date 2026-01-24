@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from unittest.mock import Mock
 
-from common import models
+from common import config, models
 from functions import auth_helpers
 from web.app import app
 from web.routes.admin import admin_jokes as admin_jokes_routes
@@ -96,7 +96,7 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'id="admin-edit-joke-scene-ideas-button"' in html
   assert 'id="admin-scene-ideas-modal"' in html
   assert 'id="admin-scene-ideas-generate-button"' in html
-  assert "/joke_creation_process" in html
+  assert f"https://{config.JOKE_CREATION_API_HOST}" in html
   assert 'data-joke-id="joke-1"' in html
   assert 'joke-edit-button' in html
   assert 'data-joke-data=' in html

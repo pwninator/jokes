@@ -53,7 +53,7 @@
 <script src="{{ url_for('static', filename='js/joke_admin_actions.js') }}"></script>
 <script>
   (function () {
-    const jokeCreationUrl = {{ joke_creation_url | tojson if joke_creation_url else '"/joke_creation_process"' }};
+    const jokeCreationUrl = {{ joke_creation_url | tojson }};
     if (window.initJokeAdminActions) {
       window.initJokeAdminActions({
         jokeCreationUrl,
@@ -177,7 +177,7 @@
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             body: JSON.stringify(payload),
           })
             .catch((err) => {

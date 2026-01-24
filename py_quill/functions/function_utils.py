@@ -18,6 +18,7 @@ _CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers":
   "Content-Type, Authorization, X-Bundle-Secret",
+  "Access-Control-Allow-Credentials": "true",
 }
 
 
@@ -44,7 +45,11 @@ def get_cors_headers(req: https_fn.Request | None) -> dict[str, str]:
 
   origin = req.headers.get("Origin")
   if origin and origin.rstrip("/") in _allowed_origins():
-    return {**_CORS_HEADERS, "Access-Control-Allow-Origin": origin}
+    return {
+      **_CORS_HEADERS,
+      "Access-Control-Allow-Origin": origin,
+      "Vary": "Origin",
+    }
 
   # If origin is not in allowed origins, we might still want to allow specific cases
   # or just return empty. For now, strict checking as per previous implementation.

@@ -197,6 +197,7 @@
     const setupImg = document.getElementById('setup-result-image');
     const punchlineCard = document.getElementById('punchline-result-card');
     const punchlineImg = document.getElementById('punchline-result-image');
+    const jokeCreationUrl = {{ joke_creation_url | tojson }};
 
     function showError(message) {
       if (errorBannerText) {
@@ -254,7 +255,7 @@
       };
 
       try {
-        const resp = await fetch('/joke_creation_process', {
+        const resp = await fetch(jokeCreationUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

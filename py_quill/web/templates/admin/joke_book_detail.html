@@ -238,9 +238,25 @@
     margin-left: auto;
   }
 
+  .joke-book-detail-form-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .joke-book-detail-form-body {
+    flex: 1 1 320px;
+    min-width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .joke-book-detail-preview {
     max-width: 200px;
-    margin-bottom: 16px;
+    margin-bottom: 0;
+    flex: 0 0 200px;
   }
 
   .cta-btn {
@@ -383,6 +399,15 @@
     .instructions-row {
       grid-template-columns: 1fr;
     }
+
+    .joke-book-detail-form-row {
+      flex-direction: column;
+    }
+
+    .joke-book-detail-preview {
+      max-width: 100%;
+      flex: 1 1 auto;
+    }
   }
 
   .upload-btn {
@@ -519,16 +544,6 @@
 <div class="joke-book-detail-grid">
   {% for joke in jokes %}
   <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}">
-    <div class="joke-book-detail-preview">
-      {{ joke_card(
-        joke.card_joke,
-        width=200,
-        joke_id=joke.id,
-        admin_stats_enabled=false,
-        admin_edit_enabled=true,
-        edit_payload=joke.edit_payload
-      ) }}
-    </div>
     <form method="post"
       class="regenerate-form"
       data-joke-id="{{ joke.id }}"
@@ -536,44 +551,58 @@
       action="{{ generate_book_page_url }}"
       target="_blank">
       <input type="hidden" name="joke_id" value="{{ joke.id }}">
-      <div class="joke-book-detail-header text-body">
-        <div class="joke-book-detail-meta text-body">
-          <select class="position-select" data-joke-id="{{ joke.id }}" aria-label="Joke position">
-            {% for i in range(1, jokes|length + 1) %}
-            <option value="{{ i }}" {% if i == joke.sequence %}selected{% endif %}>{{ i }}</option>
-            {% endfor %}
-          </select>
-          <strong>Joke {{ joke.sequence }}</strong>
-          <code>{{ joke.id }}</code>
-          {% if joke.total_cost is not none %}
-          <span class="cost-pill cost-pill-value text-button">${{ '%.4f'|format(joke.total_cost) }}</span>
-          {% else %}
-          <span class="cost-pill cost-pill-value text-button muted">Cost unavailable</span>
-          {% endif %}
-          <button class="remove-joke-btn text-button" type="button" data-joke-id="{{ joke.id }}">Remove</button>
+      <div class="joke-book-detail-form-row">
+        <div class="joke-book-detail-preview">
+          {{ joke_card(
+            joke.card_joke,
+            width=200,
+            joke_id=joke.id,
+            admin_stats_enabled=false,
+            admin_edit_enabled=true,
+            edit_payload=joke.edit_payload
+          ) }}
         </div>
-        <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
-      </div>
-      <div class="joke-book-detail-metrics text-button">
-        <div class="metric-pill">
-          <span class="metric-label">Views</span>
-          <span class="metric-value" data-metric="num_views">{{ joke.num_views }}</span>
-        </div>
-        <div class="metric-pill">
-          <span class="metric-label">Saves</span>
-          <span class="metric-value" data-metric="num_saves">{{ joke.num_saves }}</span>
-        </div>
-        <div class="metric-pill">
-          <span class="metric-label">Shares</span>
-          <span class="metric-value" data-metric="num_shares">{{ joke.num_shares }}</span>
-        </div>
-        <div class="metric-pill">
-          <span class="metric-label">Popularity</span>
-          <span class="metric-value" data-metric="popularity_score">{{ '%.3f'|format(joke.popularity_score or 0) }}</span>
-        </div>
-        <div class="metric-pill">
-          <span class="metric-label">Save %</span>
-          <span class="metric-value" data-metric="num_saved_users_fraction">{{ '%.2f'|format(joke.num_saved_users_fraction or 0) }}</span>
+        <div class="joke-book-detail-form-body">
+          <div class="joke-book-detail-header text-body">
+            <div class="joke-book-detail-meta text-body">
+              <select class="position-select" data-joke-id="{{ joke.id }}" aria-label="Joke position">
+                {% for i in range(1, jokes|length + 1) %}
+                <option value="{{ i }}" {% if i == joke.sequence %}selected{% endif %}>{{ i }}</option>
+                {% endfor %}
+              </select>
+              <strong>Joke {{ joke.sequence }}</strong>
+              <code>{{ joke.id }}</code>
+              {% if joke.total_cost is not none %}
+              <span class="cost-pill cost-pill-value text-button">${{ '%.4f'|format(joke.total_cost) }}</span>
+              {% else %}
+              <span class="cost-pill cost-pill-value text-button muted">Cost unavailable</span>
+              {% endif %}
+              <button class="remove-joke-btn text-button" type="button" data-joke-id="{{ joke.id }}">Remove</button>
+            </div>
+            <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
+          </div>
+          <div class="joke-book-detail-metrics text-button">
+            <div class="metric-pill">
+              <span class="metric-label">Views</span>
+              <span class="metric-value" data-metric="num_views">{{ joke.num_views }}</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-label">Saves</span>
+              <span class="metric-value" data-metric="num_saves">{{ joke.num_saves }}</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-label">Shares</span>
+              <span class="metric-value" data-metric="num_shares">{{ joke.num_shares }}</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-label">Popularity</span>
+              <span class="metric-value" data-metric="popularity_score">{{ '%.3f'|format(joke.popularity_score or 0) }}</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-label">Save %</span>
+              <span class="metric-value" data-metric="num_saved_users_fraction">{{ '%.2f'|format(joke.num_saved_users_fraction or 0) }}</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="instructions instructions-row joke-book-detail-hidden">

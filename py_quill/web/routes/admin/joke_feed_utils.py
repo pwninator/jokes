@@ -75,7 +75,8 @@ def build_edit_payload(joke: models.PunnyJoke,
     "seasonal":
     joke.seasonal,
     "tags":
-    list(joke.tags or []),
+    ", ".join(
+      [str(tag).strip() for tag in (joke.tags or []) if str(tag).strip()]),
     "setup_scene_idea":
     joke.setup_scene_idea,
     "punchline_scene_idea":

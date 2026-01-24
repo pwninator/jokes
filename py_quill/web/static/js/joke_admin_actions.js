@@ -188,23 +188,6 @@
       input.value = (value === null || value === undefined) ? '' : String(value);
     }
 
-    function formatTags(tags) {
-      if (!tags) {
-        return '';
-      }
-      if (Array.isArray(tags)) {
-        return tags.filter(Boolean).join(', ');
-      }
-      return String(tags);
-    }
-
-    function parseTagsInput(value) {
-      return (value || '')
-        .split(/[,\\n]/)
-        .map((tag) => tag.trim())
-        .filter(Boolean);
-    }
-
     function parseEditPayload(rawValue) {
       const raw = rawValue || '{}';
       let payload = {};
@@ -454,7 +437,11 @@
         payload.seasonal = jokeData.seasonal;
       }
       if (Object.prototype.hasOwnProperty.call(jokeData, 'tags')) {
-        payload.tags = Array.isArray(jokeData.tags) ? jokeData.tags : [];
+        if (Array.isArray(jokeData.tags)) {
+          payload.tags = jokeData.tags.filter(Boolean).join(', ');
+        } else {
+          payload.tags = jokeData.tags ? String(jokeData.tags) : '';
+        }
       }
       if (jokeData.setup_scene_idea !== undefined) {
         payload.setup_scene_idea = jokeData.setup_scene_idea;
@@ -634,7 +621,7 @@
       setValue(editSetupInput, payload.setup_text);
       setValue(editPunchlineInput, payload.punchline_text);
       setValue(editSeasonalInput, payload.seasonal);
-      setValue(editTagsInput, formatTags(payload.tags));
+      setValue(editTagsInput, payload.tags);
       setValue(editSetupImageDescriptionInput, payload.setup_image_description);
       setValue(editPunchlineImageDescriptionInput, payload.punchline_image_description);
 
@@ -757,7 +744,7 @@
           setup_text: setupText,
           punchline_text: punchlineText,
           seasonal: editSeasonalInput ? editSeasonalInput.value.trim() : '',
-          tags: editTagsInput ? parseTagsInput(editTagsInput.value) : [],
+          tags: editTagsInput ? editTagsInput.value.trim() : '',
           setup_image_description: (editSetupImageDescriptionInput && editSetupImageDescriptionInput.value) ? editSetupImageDescriptionInput.value.trim() : '',
           punchline_image_description: (editPunchlineImageDescriptionInput && editPunchlineImageDescriptionInput.value) ? editPunchlineImageDescriptionInput.value.trim() : '',
           setup_image_url: selectedSetupImageUrl,
@@ -774,7 +761,7 @@
         setupText,
         punchlineText,
         seasonal: editSeasonalInput ? editSeasonalInput.value.trim() : '',
-        tags: editTagsInput ? parseTagsInput(editTagsInput.value) : [],
+        tags: editTagsInput ? editTagsInput.value.trim() : '',
         setupImageDescription: (editSetupImageDescriptionInput && editSetupImageDescriptionInput.value)
           ? editSetupImageDescriptionInput.value.trim()
           : '',

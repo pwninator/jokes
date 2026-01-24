@@ -42,7 +42,7 @@ def test_build_edit_payload_dedupes_and_sets_thumbs():
 
   assert payload["joke_id"] == "joke-1"
   assert payload["seasonal"] == "Fall"
-  assert payload["tags"] == ["cozy", "pumpkin"]
+  assert payload["tags"] == "cozy, pumpkin"
   assert payload["setup_images"][0]["url"] == joke.setup_image_url
   assert "width=123" in payload["setup_images"][0]["thumb_url"]
   assert len(payload["setup_images"]) == 1

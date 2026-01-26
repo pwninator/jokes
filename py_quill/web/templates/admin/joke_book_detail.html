@@ -82,6 +82,13 @@
     justify-content: flex-end;
   }
 
+  .text-section-heading .book-id {
+    margin-left: 10px;
+    font-size: 0.85em;
+    font-weight: 400;
+    color: var(--color-muted);
+  }
+
   .zip-action-group {
     display: flex;
     align-items: center;
@@ -551,11 +558,11 @@
 
 <h2 class="text-section-heading">
   {{ book.book_name }}
+  <code class="book-id">{{ book.id }}</code>
   {% if book_total_cost is not none %}
   <span class="cost-pill text-button">${{ '%.4f'|format(book_total_cost) }}</span>
   {% endif %}
 </h2>
-<p class="muted"><code>{{ book.id }}</code></p>
 
 {% include "components/joke_admin_modals.html" %}
 
@@ -794,18 +801,25 @@
         const shouldHide = showNotReadyOnly && isCardReady(card);
         card.classList.toggle('book-page-ready-filter-hidden', shouldHide);
       });
+      updateReadyFilterLabel();
+    };
+
+    const getShownCount = () => {
+      return document.querySelectorAll(
+        '.joke-book-detail-card:not(.book-page-ready-filter-hidden)').length;
     };
 
     const updateReadyFilterLabel = () => {
       if (!readyFilterToggle) return;
-      readyFilterToggle.textContent = showNotReadyOnly ? 'Not ready pages' : 'All pages';
+      const count = getShownCount();
+      const label = showNotReadyOnly ? 'Not ready pages' : 'All pages';
+      readyFilterToggle.textContent = `${label} (${count})`;
     };
 
     if (readyFilterToggle) {
       updateReadyFilterLabel();
       readyFilterToggle.addEventListener('click', () => {
         showNotReadyOnly = !showNotReadyOnly;
-        updateReadyFilterLabel();
         applyReadyFilter();
       });
     }

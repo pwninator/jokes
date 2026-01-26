@@ -1002,6 +1002,8 @@ def get_daily_joke(
 def upsert_punny_joke(
   punny_joke: models.PunnyJoke,
   operation: str | None = None,
+  *,
+  update_metadata: dict[str, Any] | None = None,
 ) -> models.PunnyJoke | None:
   """Create or update a punny joke."""
 
@@ -1014,6 +1016,7 @@ def upsert_punny_joke(
     updated_fields = update_punny_joke(
       punny_joke.key,
       punny_joke.to_dict(include_key=False),
+      update_metadata=update_metadata,
     )
     saved_joke = punny_joke
   else:
@@ -1034,6 +1037,10 @@ def upsert_punny_joke(
     joke_data['last_modification_time'] = SERVER_TIMESTAMP
 
     joke_ref.set(joke_data)
+
+    if update_metadata:
+      metadata_ref = joke_ref.collection('metadata').document('metadata')
+      metadata_ref.set(update_metadata, merge=True)
 
     punny_joke.key = custom_id
     saved_joke = punny_joke

@@ -120,6 +120,8 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
         setup_url,
         "book_page_punchline_image_url":
         punchline_url,
+        "book_page_ready":
+        True,
         "all_book_page_setup_image_urls":
         [setup_url, "https://cdn/setup2.png"],
         "all_book_page_punchline_image_urls":
@@ -188,6 +190,11 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert 'class="variant-tile"' in html
   assert "book_page_setup_image_url" in html
   assert "book_page_punchline_image_url" in html
+  assert 'book-page-filter-toggle' in html
+  assert 'data-book-page-ready="true"' in html
+  assert 'data-book-page-ready="false"' in html
+  assert 'aria-pressed="true"' in html
+  assert 'aria-pressed="false"' in html
   assert "/admin/joke-books/update-page" in html
   assert "/admin/joke-books/set-main-image" in html
 

@@ -615,6 +615,8 @@ class CreateBookPagesTest(unittest.TestCase):
         'all_book_page_punchline_image_urls': [
           'https://cdn.example.com/book_page_punchline.jpg',
         ],
+        'book_page_ready':
+        False,
       })
 
     # Verify we didn't download images
@@ -816,6 +818,8 @@ class CreateBookPagesTest(unittest.TestCase):
           'https://cdn.example.com/existing_punchline.jpg',
           'https://cdn.example.com/new_punchline.jpg',
         ],
+        'book_page_ready':
+        False,
       })
     mock_storage.download_image_from_gcs.assert_not_called()
 

@@ -318,6 +318,7 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
   assert set(updates['all_book_page_punchline_image_urls']) == {
     punch_b, punch_a_thumb.replace(thumb_prefix, prefix)
   }
+  assert updates['book_page_ready'] is False
   assert updates['book_page_setup_image_prompt'] == "setup-final-prompt"
   assert updates['book_page_punchline_image_prompt'] == "punch-final-prompt"
 

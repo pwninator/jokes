@@ -200,6 +200,10 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
   generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
   populate_images = get_bool_param(req, 'populate_images', False)
 
+  book_page_ready: bool | None = get_param(req, 'book_page_ready')
+  if book_page_ready is not None:
+    book_page_ready = get_bool_param(req, 'book_page_ready')
+
   if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
     return error_response(
       f'Invalid image_quality: {image_quality}. Must be one of: '
@@ -298,7 +302,11 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
     operation = "GENERATE_IMAGES"
     joke = joke_operations.generate_joke_images(joke, image_quality)
 
-  if saved_joke := firestore.upsert_punny_joke(joke, operation=operation):
+  update_metadata = None
+  if book_page_ready is not None:
+    update_metadata = {'book_page_ready': book_page_ready}
+  if saved_joke := firestore.upsert_punny_joke(
+      joke, operation=operation, update_metadata=update_metadata):
     return success_response(
       {"joke_data": joke_operations.to_response_joke(saved_joke)},
       req=req,

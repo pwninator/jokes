@@ -49,7 +49,9 @@ def test_joke_creation_process_overrides_seasonal_tags(monkeypatch):
     joke.tags = ["auto"]
     return joke
 
-  def fake_upsert(joke, operation=None):  # pylint: disable=unused-argument
+  def fake_upsert(joke,
+                  operation=None,
+                  update_metadata=None):  # pylint: disable=unused-argument
     saved["joke"] = joke
     return joke
 
@@ -95,7 +97,9 @@ def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
     captured_init.update(kwargs)
     return created_joke
 
-  def fake_upsert(joke, operation=None):  # pylint: disable=unused-argument
+  def fake_upsert(joke,
+                  operation=None,
+                  update_metadata=None):  # pylint: disable=unused-argument
     saved["joke"] = joke
     return joke
 
@@ -196,7 +200,7 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
 
   upsert_calls = {}
 
-  def fake_upsert(joke, *, operation=None):
+  def fake_upsert(joke, *, operation=None, update_metadata=None):
     upsert_calls["operation"] = operation
     joke.key = "j-1"
     return joke
@@ -264,7 +268,7 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
 
   upsert_calls = {}
 
-  def fake_upsert(joke_to_save, *, operation=None):
+  def fake_upsert(joke_to_save, *, operation=None, update_metadata=None):
     upsert_calls["operation"] = operation
     return joke_to_save
 
@@ -710,6 +714,43 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
     "call-123",
   ]
   assert second_call.kwargs["save_to_firestore"] is False
+
+
+def test_joke_creation_process_updates_book_page_ready(monkeypatch):
+  """When book_page_ready is provided, it is saved to metadata on upsert."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "user-1")
+
+  joke = models.PunnyJoke(
+    key="j-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.joke_operations, "initialize_joke",
+                      lambda **_kwargs: joke)
+
+  captured: dict = {}
+
+  def fake_upsert(joke_to_save, *, operation=None, update_metadata=None):
+    captured["operation"] = operation
+    captured["update_metadata"] = update_metadata
+    return joke_to_save
+
+  monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
+                      fake_upsert)
+  monkeypatch.setattr(joke_creation_fns.joke_operations, "to_response_joke",
+                      lambda saved: {"key": saved.key})
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(data={
+      "joke_id": "j-1",
+      "book_page_ready": True,
+    }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert payload["joke_data"]["key"] == "j-1"
+  assert captured["update_metadata"] == {"book_page_ready": True}
 
 
 @pytest.fixture(autouse=True)

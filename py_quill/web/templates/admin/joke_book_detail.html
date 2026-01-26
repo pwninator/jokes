@@ -73,11 +73,44 @@
     margin-bottom: 16px;
   }
 
+  .page-actions-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .zip-action-group {
     display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
+  }
+
+  .book-page-ready-filter-hidden {
+    display: none !important;
+  }
+
+  .book-page-ready-toggle {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .book-page-ready-toggle.is-ready {
+    color: #2e7d32;
+    border-color: #2e7d32;
+    background: rgba(46, 125, 50, 0.08);
+  }
+
+  .book-page-ready-toggle:hover {
+    border-color: #2e7d32;
   }
 
   .joke-book-detail-grid {
@@ -498,18 +531,21 @@
 {% block content %}
 <div class="page-actions">
   <a class="back-link site-footer__link text-button" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
-  <div class="zip-action-group">
-    {% if book.zip_url %}
-    <a class="back-link site-footer__link text-button download-zip-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
-    {% else %}
-    <span class="muted download-zip-missing">ZIP not generated</span>
-    {% endif %}
-    <button
-      class="cta-btn nav-cta text-button book-zip-regenerate"
-      type="button"
-      data-book-id="{{ book.id }}">
-      {% if book.zip_url %}Regenerate ZIP{% else %}Generate ZIP{% endif %}
-    </button>
+  <div class="page-actions-right">
+    <div class="zip-action-group">
+      {% if book.zip_url %}
+      <a class="back-link site-footer__link text-button download-zip-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
+      {% else %}
+      <span class="muted download-zip-missing">ZIP not generated</span>
+      {% endif %}
+      <button
+        class="cta-btn nav-cta text-button book-zip-regenerate"
+        type="button"
+        data-book-id="{{ book.id }}">
+        {% if book.zip_url %}Regenerate ZIP{% else %}Generate ZIP{% endif %}
+      </button>
+    </div>
+    <button class="cta-btn nav-cta text-button book-page-filter-toggle" type="button">All pages</button>
   </div>
 </div>
 
@@ -540,10 +576,10 @@
 
 {% if not jokes %}
 <p class="muted">No jokes found for this book.</p>
-{% else %}
-<div class="joke-book-detail-grid">
+  {% else %}
+  <div class="joke-book-detail-grid">
   {% for joke in jokes %}
-  <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}">
+  <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}" data-book-page-ready="{{ 'true' if joke.book_page_ready else 'false' }}">
     <form method="post"
       class="regenerate-form"
       data-joke-id="{{ joke.id }}"
@@ -572,11 +608,18 @@
               </select>
               <strong>Joke {{ joke.sequence }}</strong>
               <code>{{ joke.id }}</code>
-              {% if joke.total_cost is not none %}
-              <span class="cost-pill cost-pill-value text-button">${{ '%.4f'|format(joke.total_cost) }}</span>
-              {% else %}
-              <span class="cost-pill cost-pill-value text-button muted">Cost unavailable</span>
-              {% endif %}
+               {% if joke.total_cost is not none %}
+               <span class="cost-pill cost-pill-value text-button">${{ '%.4f'|format(joke.total_cost) }}</span>
+               {% else %}
+               <span class="cost-pill cost-pill-value text-button muted">Cost unavailable</span>
+               {% endif %}
+              <button
+                class="book-page-ready-toggle text-button {% if joke.book_page_ready %}is-ready{% endif %}"
+                type="button"
+                data-joke-id="{{ joke.id }}"
+                aria-pressed="{{ 'true' if joke.book_page_ready else 'false' }}">
+                {% if joke.book_page_ready %}Ready{% else %}Not ready{% endif %}
+              </button>
               <button class="remove-joke-btn text-button" type="button" data-joke-id="{{ joke.id }}">Remove</button>
             </div>
             <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
@@ -716,6 +759,7 @@
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
     const updateBookPageUrl = "{{ update_book_page_url }}";
     const setMainImageUrl = {{ set_main_image_url | tojson }};
+    const jokeCreationUrl = {{ joke_creation_url | tojson }};
     const functionsOrigin = {{ functions_origin | tojson }};
     const regenerateZipEndpoint = functionsOrigin
       ? `${functionsOrigin}/update_joke_book_zip`
@@ -728,6 +772,94 @@
       .trim() || '#ffffff';
     const activeVariantBorder = `3px solid ${activeColor}`;
     const inactiveVariantBorder = `3px solid ${inactiveColor}`;
+    const readyFilterToggle = document.querySelector('.book-page-filter-toggle');
+    let showNotReadyOnly = false;
+
+    const isCardReady = (card) => {
+      return (card?.dataset?.bookPageReady || '').toLowerCase() === 'true';
+    };
+
+    const setCardReadyState = (card, isReady) => {
+      if (!card) return;
+      card.dataset.bookPageReady = isReady ? 'true' : 'false';
+      const btn = card.querySelector('.book-page-ready-toggle');
+      if (!btn) return;
+      btn.textContent = isReady ? 'Ready' : 'Not ready';
+      btn.classList.toggle('is-ready', isReady);
+      btn.setAttribute('aria-pressed', isReady ? 'true' : 'false');
+    };
+
+    const applyReadyFilter = () => {
+      document.querySelectorAll('.joke-book-detail-card').forEach((card) => {
+        const shouldHide = showNotReadyOnly && isCardReady(card);
+        card.classList.toggle('book-page-ready-filter-hidden', shouldHide);
+      });
+    };
+
+    const updateReadyFilterLabel = () => {
+      if (!readyFilterToggle) return;
+      readyFilterToggle.textContent = showNotReadyOnly ? 'Not ready pages' : 'All pages';
+    };
+
+    if (readyFilterToggle) {
+      updateReadyFilterLabel();
+      readyFilterToggle.addEventListener('click', () => {
+        showNotReadyOnly = !showNotReadyOnly;
+        updateReadyFilterLabel();
+        applyReadyFilter();
+      });
+    }
+
+    document.querySelectorAll('.book-page-ready-toggle').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const jokeId = btn.dataset.jokeId;
+        const card = btn.closest('.joke-book-detail-card');
+        const errorBox = card?.querySelector('.inline-error');
+        if (!jokeId || !card) return;
+
+        if (errorBox) errorBox.textContent = '';
+
+        const originalReady = isCardReady(card);
+        const nextReady = !originalReady;
+        setCardReadyState(card, nextReady);
+        applyReadyFilter();
+
+        btn.disabled = true;
+        try {
+          const resp = await fetch(jokeCreationUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              data: {
+                joke_id: jokeId,
+                book_page_ready: nextReady,
+              },
+            }),
+          });
+          if (!resp.ok) {
+            let text = '';
+            try {
+              text = await resp.text();
+            } catch (_e) {
+              text = '';
+            }
+            throw new Error(text || `Request failed (${resp.status})`);
+          }
+        } catch (err) {
+          setCardReadyState(card, originalReady);
+          applyReadyFilter();
+          if (errorBox) {
+            errorBox.textContent = err?.message || 'Failed to update page readiness.';
+          }
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
     const bustCache = (url) => {
       if (!url) return '';
       const sep = url.includes('?') ? '&' : '?';

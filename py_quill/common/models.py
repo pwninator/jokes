@@ -1101,6 +1101,12 @@ class PunnyJoke:
   ) -> dict[str, Any]:
     """Prepare metadata updates for book page URLs with history tracking."""
     metadata = existing_metadata or {}
+    existing_ready = metadata.get('book_page_ready')
+    book_page_ready = False
+    if isinstance(existing_ready, bool):
+      book_page_ready = existing_ready
+    elif isinstance(existing_ready, str):
+      book_page_ready = existing_ready.lower() == 'true'
 
     def _normalize_book_page_url(url: str | None) -> str | None:
       """Normalize CDN params to the canonical book page format."""
@@ -1160,6 +1166,7 @@ class PunnyJoke:
       'book_page_punchline_image_url': normalized_new_punchline,
       'all_book_page_setup_image_urls': normalized_setup_history,
       'all_book_page_punchline_image_urls': normalized_punchline_history,
+      'book_page_ready': book_page_ready,
     }
     if setup_prompt:
       updates['book_page_setup_image_prompt'] = setup_prompt

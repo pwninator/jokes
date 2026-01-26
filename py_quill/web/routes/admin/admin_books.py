@@ -6,12 +6,12 @@ import datetime
 from io import BytesIO
 
 import flask
+from common import (config, image_generation, joke_book_operations, models,
+                    utils)
 from firebase_functions import logger
+from functions import auth_helpers
 from google.cloud.firestore import ArrayUnion
 from PIL import Image, UnidentifiedImageError
-
-from common import config, image_generation, joke_book_operations, models, utils
-from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
 from web.routes.admin import joke_feed_utils
@@ -102,8 +102,8 @@ def _convert_to_png_bytes(raw_bytes: bytes) -> bytes:
   except (UnidentifiedImageError, OSError, ValueError) as exc:
     raise ValueError('Invalid image file') from exc
 
-  if image.mode in ('RGBA', 'LA') or (
-      image.mode == 'P' and 'transparency' in image.info):
+  if image.mode in ('RGBA', 'LA') or (image.mode == 'P'
+                                      and 'transparency' in image.info):
     image = image.convert('RGBA')
   elif image.mode != 'RGB':
     image = image.convert('RGB')
@@ -156,6 +156,7 @@ def admin_joke_book_detail(book_id: str):
     punchline_url = None
     setup_variants: list[str] = []
     punchline_variants: list[str] = []
+    book_page_ready = False
     if getattr(metadata_doc, 'exists', False):
       metadata = metadata_doc.to_dict() or {}
       setup_url = metadata.get('book_page_setup_image_url')
@@ -163,6 +164,7 @@ def admin_joke_book_detail(book_id: str):
       setup_variants = metadata.get('all_book_page_setup_image_urls') or []
       punchline_variants = metadata.get(
         'all_book_page_punchline_image_urls') or []
+      book_page_ready = metadata.get('book_page_ready', False)
 
     joke_data_for_card = dict(joke_data)
     joke_data_for_card.setdefault('setup_text', '')
@@ -223,6 +225,8 @@ def admin_joke_book_detail(book_id: str):
       popularity_score,
       'num_saved_users_fraction':
       num_saved_users_fraction,
+      'book_page_ready':
+      book_page_ready,
     })
 
   if utils.is_emulator():
@@ -522,8 +526,7 @@ def admin_joke_book_upload_image():
   gcs_uri = f"gs://{config.IMAGE_BUCKET_NAME}/{gcs_path}"
 
   try:
-    cloud_storage.upload_bytes_to_gcs(
-      png_bytes, gcs_uri, 'image/png')
+    cloud_storage.upload_bytes_to_gcs(png_bytes, gcs_uri, 'image/png')
   except Exception as exc:
     logger.error('Failed to upload image', exc_info=exc)
     return flask.Response('Upload failed', 500)

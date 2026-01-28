@@ -1,0 +1,14 @@
+{% macro joke_picker(picker_id='joke-picker', end_message='No more jokes match these filters.') -%}
+<section class="joke-picker" id="{{ picker_id }}" aria-label="Joke picker">
+  <div class="joke-picker__selection-row" data-role="selection-row"></div>
+  <div class="filter-chips joke-picker__categories" data-role="categories"
+    aria-label="Joke category filters"></div>
+  <div class="joke-picker__grid" data-role="grid" aria-label="Jokes grid"></div>
+  <div class="loading-indicator" data-role="loading" aria-live="polite">
+    Loading more...
+  </div>
+  <div class="end-of-feed" data-role="end-message" aria-live="polite">
+    {{ end_message }}
+  </div>
+</section>
+{%- endmacro %}

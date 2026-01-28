@@ -1,5 +1,5 @@
 {% extends "admin/admin_base.html" %}
-{% from "components/infinite_scroll_feed.html" import infinite_scroll_feed %}
+{% from "components/joke_picker.html" import joke_picker %}
 
 {% block title %}Social | {{ site_name }} Admin{% endblock %}
 
@@ -27,34 +27,6 @@
     align-items: flex-start;
     gap: 12px;
     flex-wrap: wrap;
-  }
-
-  .pin-selection-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 52px;
-  }
-
-  .pin-selection-item {
-    width: 52px;
-    height: 52px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--color-border);
-    background: var(--color-accent-surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-  }
-
-  .pin-selection-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
   }
 
   .pin-controls {
@@ -97,16 +69,6 @@
     width: 100%;
     height: auto;
     display: block;
-  }
-
-  .joke-card--selectable .joke-slide-media,
-  .joke-card--selectable .joke-slide-placeholder {
-    cursor: pointer;
-  }
-
-  .joke-card--selectable.joke-card--selected {
-    border-color: var(--color-primary, #c56f3a);
-    box-shadow: 0 0 0 2px var(--color-primary, #c56f3a);
   }
 
   .social-posts {
@@ -512,7 +474,6 @@
       <p class="muted">Public jokes in Daily or Published state.</p>
     </div>
     <div class="social-actions">
-      <div class="pin-selection-row" id="admin-social-pin-selection"></div>
       <div class="pin-controls">
         <label class="post-type-select-label" for="admin-social-post-type">Post type</label>
         <select class="post-type-select" id="admin-social-post-type">
@@ -817,35 +778,7 @@
     {% endif %}
   </section>
 
-  <section class="filter-chips" aria-label="Joke category filters">
-    {% set all_selected = selected_category_id is none %}
-    <button type="button" class="filter-chip text-button{% if all_selected %} filter-chip--selected{% endif %}"
-      data-category="" aria-pressed="{{ 'true' if all_selected else 'false' }}">
-      All
-    </button>
-    {% for category in categories %}
-    {% set category_id = category.id %}
-    {% set is_selected = category_id and (category_id == selected_category_id) %}
-    <button type="button" class="filter-chip text-button{% if is_selected %} filter-chip--selected{% endif %}"
-      data-category="{{ category_id }}" aria-pressed="{{ 'true' if is_selected else 'false' }}">
-      {{ category.display_name }} ({{ category.public_joke_count or 0 }})
-    </button>
-    {% endfor %}
-  </section>
-
-  {{ infinite_scroll_feed(
-  slug='admin-social',
-  initial_jokes=jokes,
-  initial_cursor=next_cursor,
-  initial_has_more=has_more,
-  width=image_size,
-  feed_id='admin-social-feed',
-  end_of_feed_message="No more jokes match these filters.",
-  extra_query_params={'category': selected_category_id},
-  admin_stats_enabled=true,
-  grid_enabled=true,
-  selectable_cards=true,
-  ) }}
+  {{ joke_picker('admin-social-picker') }}
 </div>
 
 <div class="admin-modal" id="admin-social-post-modal" aria-hidden="true">
@@ -871,17 +804,13 @@
   </div>
 </div>
 
+<script src="/static/js/joke_picker.js"></script>
 <script>
   (function () {
-    const maxSelection = 5;
-    const feedContainer = document.getElementById('admin-social-feed');
     const createPostBtn = document.getElementById('admin-social-create-button');
     const postTypeSelect = document.getElementById('admin-social-post-type');
     const pinPreview = document.getElementById('admin-social-pin-preview');
-    const selectionRow = document.getElementById('admin-social-pin-selection');
     const socialPostsList = document.querySelector('.social-posts-list');
-    const selectedJokes = [];
-    const categoryChips = Array.from(document.querySelectorAll('.filter-chip[data-category]'));
     const postModal = document.getElementById('admin-social-post-modal');
     const postModalInput = document.getElementById('admin-social-post-id-input');
     const postModalSubmit = document.getElementById('admin-social-post-submit');
@@ -889,6 +818,21 @@
     let activePostCard = null;
     let activePostPlatform = '';
     const createPostEndpoint = {{ joke_creation_url | tojson }};
+    const picker = new window.JokePicker({
+      container: '#admin-social-picker',
+      states: ['DAILY', 'PUBLISHED'],
+      publicOnly: true,
+      maxSelection: 5,
+      onSelectionChange: (selection) => {
+        if (createPostBtn) {
+          createPostBtn.disabled = selection.length === 0;
+        }
+        if (selection.length === 0 && pinPreview) {
+          pinPreview.style.display = 'none';
+          pinPreview.innerHTML = '';
+        }
+      },
+    });
 
     async function sendSocialRequest(payload) {
       const resp = await fetch(createPostEndpoint, {
@@ -1097,27 +1041,6 @@
         gridUrls = pinterestUrls;
       }
       return { pinterestUrls, gridUrls };
-    }
-
-    function renderSelectionRow() {
-      if (!selectionRow) {
-        return;
-      }
-      selectionRow.innerHTML = '';
-      selectedJokes.forEach((joke) => {
-        const thumb = document.createElement('div');
-        thumb.className = 'pin-selection-item';
-        if (joke.setupUrl) {
-          const img = document.createElement('img');
-          img.src = joke.setupUrl;
-          img.alt = 'Selected setup image';
-          img.loading = 'lazy';
-          thumb.appendChild(img);
-        } else {
-          thumb.textContent = 'No setup';
-        }
-        selectionRow.appendChild(thumb);
-      });
     }
 
     function escapeSelector(value) {
@@ -1511,85 +1434,16 @@
       createPostCard(postId, postData);
     }
 
-    function clearSelection() {
-      selectedJokes.length = 0;
-      if (feedContainer) {
-        feedContainer.querySelectorAll('.joke-card--selected').forEach((card) => {
-          card.classList.remove('joke-card--selected');
-          card.setAttribute('aria-selected', 'false');
-        });
-      }
-      if (createPostBtn) {
-        createPostBtn.disabled = true;
-      }
-      if (pinPreview) {
-        pinPreview.style.display = 'none';
-        pinPreview.innerHTML = '';
-      }
-      renderSelectionRow();
-    }
-
-    function setSelected(chip, isSelected) {
-      chip.classList.toggle('filter-chip--selected', isSelected);
-      chip.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
-    }
-
-    function navigateWithCategory(categoryId) {
-      const url = new URL(window.location.href);
-      url.pathname = '/admin/social';
-      if (categoryId) {
-        url.searchParams.set('category', categoryId);
-      } else {
-        url.searchParams.delete('category');
-      }
-      url.searchParams.delete('cursor');
-      window.location.assign(url.toString());
-    }
-
-    if (feedContainer && createPostBtn) {
-      feedContainer.addEventListener('click', (event) => {
-        const mediaTarget = event.target.closest('.joke-slide-media, .joke-slide-placeholder');
-        if (!mediaTarget) {
-          return;
-        }
-        const card = event.target.closest('.joke-card[data-selectable="true"]');
-        if (!card) {
-          return;
-        }
-        const jokeId = card.dataset.jokeId;
-        if (!jokeId) {
-          return;
-        }
-        const existingIndex = selectedJokes.findIndex((item) => item.id === jokeId);
-        if (existingIndex >= 0) {
-          selectedJokes.splice(existingIndex, 1);
-          card.classList.remove('joke-card--selected');
-          card.setAttribute('aria-selected', 'false');
-        } else {
-          if (selectedJokes.length >= maxSelection) {
-            alert('You can select up to 5 jokes.');
-            return;
-          }
-          selectedJokes.push({
-            id: jokeId,
-            setupUrl: card.dataset.setupUrl || '',
-          });
-          card.classList.add('joke-card--selected');
-          card.setAttribute('aria-selected', 'true');
-        }
-
-        createPostBtn.disabled = selectedJokes.length === 0;
-        renderSelectionRow();
-      });
-
+    if (createPostBtn) {
       createPostBtn.addEventListener('click', async () => {
-        if (selectedJokes.length === 0) {
+        const selection = picker ? picker.getSelectedJokes() : [];
+        if (selection.length === 0) {
           return;
         }
 
         await runWithButtonState(createPostBtn, 'Creating...', async () => {
           const data = await sendSocialRequest({
-            joke_ids: selectedJokes.map((joke) => joke.id),
+            joke_ids: selection.map((joke) => joke.id),
             type: postTypeSelect?.value || '',
           });
           const postData = data?.post_data || {};
@@ -1611,17 +1465,14 @@
           }
           img.src = pinUrl;
           upsertPostCard(postId, postData);
-          clearSelection();
+          if (picker) {
+            picker.clearSelection();
+          }
         }).catch((error) => {
           console.error('Failed to create social post:', error);
           alert('Failed to create social post: ' + error.message);
         });
-
-        createPostBtn.disabled = selectedJokes.length === 0;
       });
-
-      createPostBtn.disabled = true;
-      renderSelectionRow();
     }
 
     if (socialPostsList) {
@@ -1816,20 +1667,6 @@
       });
     }
 
-    if (categoryChips.length) {
-      categoryChips.forEach((chip) => {
-        chip.addEventListener('click', () => {
-          const categoryId = chip.getAttribute('data-category') || '';
-          const isSelected = chip.classList.contains('filter-chip--selected');
-          if (isSelected) {
-            return;
-          }
-          clearSelection();
-          categoryChips.forEach((c) => setSelected(c, c === chip));
-          navigateWithCategory(categoryId || null);
-        });
-      });
-    }
   })();
 </script>
 {% endblock %}

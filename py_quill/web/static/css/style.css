@@ -1232,6 +1232,87 @@ img {
   margin-right: 8px;
 }
 
+.joke-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.joke-picker__selection-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+}
+
+.pin-selection-item {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-accent-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.pin-selection-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.joke-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 0.5rem;
+  margin: 0 auto;
+  justify-items: center;
+}
+
+.joke-picker__grid .joke-card {
+  width: 100%;
+}
+
+.joke-picker__grid .joke-slide-media img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.joke-card--selectable .joke-slide-media,
+.joke-card--selectable .joke-slide-placeholder {
+  cursor: pointer;
+}
+
+.joke-card--selectable.joke-card--selected {
+  border-color: var(--color-primary, #c56f3a);
+  box-shadow: 0 0 0 2px var(--color-primary, #c56f3a);
+}
+
+.joke-picker__sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.joke-picker .loading-indicator,
+.joke-picker .end-of-feed {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  display: none;
+}
+
+.joke-picker .loading-indicator.active,
+.joke-picker .end-of-feed.active {
+  display: block;
+}
+
 /* Remove duplicate styling when joke-card is inside hero-card */
 .hero-card .joke-card {
   border: none;

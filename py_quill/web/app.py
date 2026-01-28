@@ -15,6 +15,7 @@ import web.routes.admin.admin_jokes as _admin_jokes  # noqa: E402,F401
 import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
 import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401
 import web.routes.admin.image_prompt_tuner as _admin_image_prompt_tuner  # noqa: E402,F401
+import web.routes.admin.joke_picker_api as _admin_joke_picker_api  # noqa: E402,F401
 import web.routes.admin.printable_notes as _admin_printable_notes  # noqa: E402,F401
 import web.routes.admin.social as _admin_social  # noqa: E402,F401
 import web.routes.auth as _auth  # noqa: E402,F401

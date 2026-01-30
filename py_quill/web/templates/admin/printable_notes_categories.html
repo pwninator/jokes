@@ -1,0 +1,364 @@
+{% extends "admin/admin_base.html" %}
+{% from "components/printable_notes_sheet_list.html" import printable_notes_sheet_list %}
+
+{% block content %}
+<style>
+  .printable-notes-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .category-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    padding: 18px;
+  }
+
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .category-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+    background: var(--color-accent-surface);
+    flex: 0 0 auto;
+  }
+
+  .category-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .category-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .sheets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .sheet-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px;
+    background: var(--color-accent-surface);
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+  }
+
+  .sheet-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+
+  .pin-selection-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 52px;
+  }
+
+  .pin-selection-item {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: var(--color-accent-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+  }
+
+  .pin-selection-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .get-pin-btn {
+    background: var(--color-primary);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: opacity 0.2s;
+  }
+
+  .get-pin-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .get-pin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .pin-image-container {
+    max-width: 400px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: white;
+  }
+
+  .pin-image-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .sheet-image-container {
+    flex: 0 0 auto;
+    width: 200px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: white;
+  }
+
+  .sheet-image-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .jokes-container {
+    flex: 1 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .joke-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 150px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .joke-pair.selected {
+    border: 3px solid var(--color-primary-dark, #4a3b32);
+  }
+
+  .joke-image {
+    width: 150px;
+    height: 150px;
+    border: none;
+    overflow: hidden;
+    background: white;
+    flex: 0 0 auto;
+  }
+
+  .joke-image:not(:last-child) {
+    border-bottom: none;
+  }
+
+  .joke-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--color-text-muted);
+  }
+</style>
+
+<div class="printable-notes-page">
+  <div>
+    <h2>Printable Notes (Categories)</h2>
+    <p class="muted">Auto-generated note sheets organized by category.</p>
+  </div>
+
+  {% if categories %}
+    {% for category_data in categories %}
+      <section class="category-section">
+        <div class="category-header">
+          {% if category_data.category_image_url %}
+            <div class="category-image">
+              <img src="{{ category_data.category_image_url }}" 
+                   alt="{{ category_data.category.display_name }} category image"
+                   loading="lazy">
+            </div>
+          {% else %}
+            <div class="category-image" style="display: flex; align-items: center; justify-content: center; color: var(--color-text-muted);">
+              No image
+            </div>
+          {% endif %}
+          <h3 class="category-title">{{ category_data.category.display_name }}</h3>
+        </div>
+
+        {{ printable_notes_sheet_list(category_data.sheets) }}
+      </section>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <p>No printable note sheets found.</p>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  (function() {
+    const maxSelection = 5;
+    const activeColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-primary-dark')
+      .trim() || '#4a3b32';
+    const activeVariantBorder = `3px solid ${activeColor}`;
+    
+    // Initialize selection state for each sheet row
+    const sheetRows = document.querySelectorAll('.sheet-row');
+    sheetRows.forEach((row) => {
+      const selectedJokes = [];
+      const jokePairs = row.querySelectorAll('.joke-pair');
+      const getPinBtn = row.querySelector('.get-pin-btn');
+      const pinImageContainer = row.querySelector('.pin-image-container');
+      const selectionRow = row.querySelector('.pin-selection-row');
+
+      function renderSelectionRow() {
+        if (!selectionRow) {
+          return;
+        }
+        selectionRow.innerHTML = '';
+        selectedJokes.forEach((joke) => {
+          const thumb = document.createElement('div');
+          thumb.className = 'pin-selection-item';
+          if (joke.setupUrl) {
+            const img = document.createElement('img');
+            img.src = joke.setupUrl;
+            img.alt = 'Selected setup image';
+            img.loading = 'lazy';
+            thumb.appendChild(img);
+          } else {
+            thumb.textContent = 'No setup';
+          }
+          selectionRow.appendChild(thumb);
+        });
+      }
+      
+      // Toggle selection on click
+      jokePairs.forEach((pair) => {
+        pair.addEventListener('click', () => {
+          const jokeId = pair.dataset.jokeId;
+          if (!jokeId) return;
+          
+          const existingIndex = selectedJokes.findIndex(
+            (item) => item.id === jokeId,
+          );
+          if (existingIndex >= 0) {
+            selectedJokes.splice(existingIndex, 1);
+            pair.classList.remove('selected');
+            pair.style.border = '';
+          } else {
+            if (selectedJokes.length >= maxSelection) {
+              alert('You can select up to 5 jokes.');
+              return;
+            }
+            selectedJokes.push({
+              id: jokeId,
+              setupUrl: pair.dataset.setupUrl || '',
+            });
+            pair.classList.add('selected');
+            pair.style.border = activeVariantBorder;
+          }
+          
+          // Update button state
+          getPinBtn.disabled = selectedJokes.length === 0;
+          renderSelectionRow();
+        });
+      });
+      
+      // Handle Get Pin button click
+      getPinBtn.addEventListener('click', async () => {
+        if (selectedJokes.length === 0) return;
+        
+        const originalText = getPinBtn.textContent;
+        getPinBtn.disabled = true;
+        getPinBtn.textContent = 'Generating...';
+        
+        try {
+          const resp = await fetch('/admin/create-pin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              joke_ids: selectedJokes.map((joke) => joke.id),
+            }),
+          });
+          
+          if (!resp.ok) {
+            const data = await resp.json();
+            throw new Error(data.error || 'Failed to create pin image');
+          }
+          
+          const data = await resp.json();
+          const pinUrl = data.pin_url;
+          
+          if (!pinUrl) {
+            throw new Error('Pin URL missing from response');
+          }
+          
+          // Display the image
+          pinImageContainer.style.display = 'block';
+          let img = pinImageContainer.querySelector('img');
+          if (!img) {
+            img = document.createElement('img');
+            img.alt = 'Pinterest pin image';
+            img.loading = 'lazy';
+            pinImageContainer.appendChild(img);
+          }
+          img.src = pinUrl;
+          
+        } catch (error) {
+          console.error('Failed to create pin image:', error);
+          alert('Failed to create pin image: ' + error.message);
+        } finally {
+          getPinBtn.disabled = selectedJokes.length === 0;
+          getPinBtn.textContent = originalText;
+        }
+      });
+      
+      // Initialize button state
+      getPinBtn.disabled = true;
+      renderSelectionRow();
+    });
+  })();
+</script>
+{% endblock %}

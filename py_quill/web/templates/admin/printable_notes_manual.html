@@ -1,6 +1,5 @@
 {% extends "admin/admin_base.html" %}
-
-{% block title %}Printable Notes · {{ site_name }} Admin{% endblock %}
+{% from "components/printable_notes_sheet_list.html" import printable_notes_sheet_list %}
 
 {% block content %}
 <style>
@@ -8,45 +7,6 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-  }
-
-  .category-section {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 18px;
-    padding: 18px;
-  }
-
-  .category-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 18px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .category-image {
-    width: 120px;
-    height: 120px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border);
-    overflow: hidden;
-    background: var(--color-accent-surface);
-    flex: 0 0 auto;
-  }
-
-  .category-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .category-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin: 0;
   }
 
   .sheets-list {
@@ -205,92 +165,15 @@
 
 <div class="printable-notes-page">
   <div>
-    <h2>Printable Notes</h2>
-    <p class="muted">All joke note sheets organized by category.</p>
+    <h2>Printable Notes (Manual)</h2>
+    <p class="muted">Manually created note sheets ordered by creation time.</p>
   </div>
 
-  {% if categories %}
-    {% for category_data in categories %}
-      <section class="category-section">
-        <div class="category-header">
-          {% if category_data.category_image_url %}
-            <div class="category-image">
-              <img src="{{ category_data.category_image_url }}" 
-                   alt="{{ category_data.category.display_name }} category image"
-                   loading="lazy">
-            </div>
-          {% else %}
-            <div class="category-image" style="display: flex; align-items: center; justify-content: center; color: var(--color-text-muted);">
-              No image
-            </div>
-          {% endif %}
-          <h3 class="category-title">{{ category_data.category.display_name }}</h3>
-        </div>
-
-        <div class="sheets-list">
-          {% for sheet_data in category_data.sheets %}
-            <div class="sheet-row">
-              <div class="sheet-image-container">
-                {% if sheet_data.sheet_image_url %}
-                  <img src="{{ sheet_data.sheet_image_url }}" 
-                       alt="Sheet {{ sheet_data.display_index }}"
-                       loading="lazy">
-                {% else %}
-                  <div style="padding: 20px; text-align: center; color: var(--color-text-muted);">
-                    No image
-                  </div>
-                {% endif %}
-              </div>
-              <div class="jokes-container">
-                {% for joke_image in sheet_data.joke_images %}
-                  <div class="joke-pair" data-joke-id="{{ joke_image.joke_id }}"{% if joke_image.setup_url %} data-setup-url="{{ joke_image.setup_url }}"{% endif %}>
-                    {% if joke_image.setup_url %}
-                      <div class="joke-image">
-                        <img src="{{ joke_image.setup_url }}" 
-                             alt="Setup"
-                             loading="lazy">
-                      </div>
-                    {% else %}
-                      <div class="joke-image" style="display: flex; align-items: center; justify-content: center; color: var(--color-text-muted); font-size: 0.75rem;">
-                        No setup
-                      </div>
-                    {% endif %}
-                    {% if joke_image.punchline_url %}
-                      <div class="joke-image">
-                        <img src="{{ joke_image.punchline_url }}" 
-                             alt="Punchline"
-                             loading="lazy">
-                      </div>
-                    {% else %}
-                      <div class="joke-image" style="display: flex; align-items: center; justify-content: center; color: var(--color-text-muted); font-size: 0.75rem;">
-                        No punchline
-                      </div>
-                    {% endif %}
-                  </div>
-                {% endfor %}
-                {% if sheet_data.joke_images|length == 0 %}
-                  <div style="padding: 20px; color: var(--color-text-muted);">
-                    No jokes found for this sheet
-                  </div>
-                {% endif %}
-              </div>
-              <div class="sheet-actions">
-                <div class="pin-selection-row"></div>
-                <button class="get-pin-btn" 
-                        type="button"
-                        data-sheet-row="{{ loop.index0 }}">
-                  Get Pin
-                </button>
-                <div class="pin-image-container" style="display: none;"></div>
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      </section>
-    {% endfor %}
+  {% if sheets %}
+    {{ printable_notes_sheet_list(sheets) }}
   {% else %}
     <div class="empty-state">
-      <p>No printable note sheets found.</p>
+      <p>No manual note sheets found.</p>
     </div>
   {% endif %}
 </div>

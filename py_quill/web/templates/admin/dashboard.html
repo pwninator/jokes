@@ -114,12 +114,19 @@
       </div>
       <p class="admin-card-desc muted">Review categories and their cached jokes.</p>
     </a>
-    <a class="admin-card" href="{{ url_for('web.admin_printable_notes') }}">
+    <a class="admin-card" href="{{ url_for('web.admin_printable_notes_categories') }}">
       <div class="admin-card-title text-body">
-        <span>Printable notes</span>
+        <span>Printable Notes (Categories)</span>
         <span class="muted text-button">ƒ+</span>
       </div>
-      <p class="admin-card-desc muted">View all printable note sheets organized by category.</p>
+      <p class="admin-card-desc muted">Review auto-generated note sheets by category.</p>
+    </a>
+    <a class="admin-card" href="{{ url_for('web.admin_printable_notes_manual') }}">
+      <div class="admin-card-title text-body">
+        <span>Printable Notes (Manual)</span>
+        <span class="muted text-button">Æ’+</span>
+      </div>
+      <p class="admin-card-desc muted">Manage manually created note sheets with custom slugs.</p>
     </a>
     <a class="admin-card" href="{{ url_for('web.admin_joke_books') }}">
       <div class="admin-card-title text-body">

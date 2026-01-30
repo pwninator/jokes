@@ -18,8 +18,15 @@ _MAX_PIN_JOKES = 5
 
 @web_bp.route('/admin/printable-notes')
 @auth_helpers.require_admin
-def admin_printable_notes():
-  """Render admin printable notes page showing all sheets organized by category."""
+def admin_printable_notes_redirect():
+  """Redirect legacy printable notes route."""
+  return flask.redirect(flask.url_for('web.admin_printable_notes_categories'))
+
+
+@web_bp.route('/admin/printable-notes-categories')
+@auth_helpers.require_admin
+def admin_printable_notes_categories():
+  """Render admin printable notes page for category-based sheets."""
   cache_entries = _get_joke_sheets_cache()
 
   categories_data = []
@@ -28,114 +35,16 @@ def admin_printable_notes():
     if not category_id:
       continue
 
-    # Get full category to access image_url
-    full_category = firestore.get_joke_category(category_id)
-    category_image_url = None
-    if full_category and full_category.image_url:
-      # Try to convert GCS URI to CDN URL, or use as-is if already a CDN URL
-      image_url = full_category.image_url
-      if image_url.startswith('gs://'):
-        try:
-          cdn_url = cloud_storage.get_public_image_cdn_url(image_url)
-          category_image_url = utils.format_image_url(cdn_url, width=120)
-        except ValueError:
-          pass
-      else:
-        # Already a CDN URL, format it
-        try:
-          category_image_url = utils.format_image_url(image_url, width=120)
-        except ValueError:
-          category_image_url = image_url
+    category_image_url = _get_category_image_url(category_id)
 
     sheets_data = []
     for sheet in sheets:
-      if not sheet.key:
+      joke_ids = _get_sheet_joke_ids(sheet)
+      if joke_ids is None:
         continue
-
-      # Fetch full sheet document to get joke_ids
-      sheet_doc = firestore.db().collection('joke_sheets').document(
-        sheet.key).get()
-      if not getattr(sheet_doc, 'exists', False):
-        continue
-
-      sheet_dict = sheet_doc.to_dict() or {}
-      joke_ids = sheet_dict.get('joke_ids') or []
-      if not isinstance(joke_ids, list):
-        joke_ids = []
-
-      # Fetch jokes
-      jokes = firestore.get_punny_jokes(joke_ids) if joke_ids else []
-
-      # Get sheet image URL
-      sheet_image_url = None
-      if sheet.image_gcs_uri:
-        try:
-          cdn_url = cloud_storage.get_public_image_cdn_url(sheet.image_gcs_uri)
-          sheet_image_url = utils.format_image_url(cdn_url, width=200)
-        except ValueError:
-          pass
-
-      # Get joke images
-      joke_images = []
-      for joke in jokes[:5]:  # Max 5 jokes per sheet
-        setup_url = None
-        punchline_url = None
-        if joke.setup_image_url:
-          # Convert GCS URI to CDN URL if needed, then format
-          if joke.setup_image_url.startswith('gs://'):
-            try:
-              cdn_url = cloud_storage.get_public_image_cdn_url(
-                joke.setup_image_url)
-              setup_url = utils.format_image_url(cdn_url,
-                                                 width=150,
-                                                 quality=50)
-            except ValueError:
-              pass
-          else:
-            # Already a CDN URL, format it
-            try:
-              setup_url = utils.format_image_url(joke.setup_image_url,
-                                                 width=150,
-                                                 quality=50)
-            except ValueError:
-              setup_url = joke.setup_image_url
-        if joke.punchline_image_url:
-          # Convert GCS URI to CDN URL if needed, then format
-          if joke.punchline_image_url.startswith('gs://'):
-            try:
-              cdn_url = cloud_storage.get_public_image_cdn_url(
-                joke.punchline_image_url)
-              punchline_url = utils.format_image_url(cdn_url,
-                                                     width=150,
-                                                     quality=50)
-            except ValueError:
-              pass
-          else:
-            # Already a CDN URL, format it
-            try:
-              punchline_url = utils.format_image_url(joke.punchline_image_url,
-                                                     width=150,
-                                                     quality=50)
-            except ValueError:
-              punchline_url = joke.punchline_image_url
-
-        joke_images.append({
-          'joke_id': joke.key,
-          'setup_url': setup_url,
-          'punchline_url': punchline_url,
-        })
-
-      sheets_data.append({
-        'sheet':
-        sheet,
-        'sheet_image_url':
-        sheet_image_url,
-        'joke_images':
-        joke_images,
-        'display_index':
-        sheet.display_index
-        or (sheet.index + 1 if sheet.index is not None else 1),
-      })
+      sheet_data = _build_sheet_data(sheet=sheet, joke_ids=joke_ids)
+      if sheet_data:
+        sheets_data.append(sheet_data)
 
     if sheets_data:
       categories_data.append({
@@ -145,9 +54,32 @@ def admin_printable_notes():
       })
 
   return flask.render_template(
-    'admin/printable_notes.html',
+    'admin/printable_notes_categories.html',
     site_name='Snickerdoodle',
     categories=categories_data,
+  )
+
+
+@web_bp.route('/admin/printable-notes-manual')
+@auth_helpers.require_admin
+def admin_printable_notes_manual():
+  """Render admin printable notes page for manually created sheets."""
+  manual_sheets = _get_manual_joke_sheets()
+  sheets_data = []
+  for index, sheet in enumerate(manual_sheets, start=1):
+    joke_ids = sheet.joke_ids if isinstance(sheet.joke_ids, list) else []
+    sheet_data = _build_sheet_data(
+      sheet=sheet,
+      joke_ids=joke_ids,
+      display_index=index,
+    )
+    if sheet_data:
+      sheets_data.append(sheet_data)
+
+  return flask.render_template(
+    'admin/printable_notes_manual.html',
+    site_name='Snickerdoodle',
+    sheets=sheets_data,
   )
 
 
@@ -230,3 +162,145 @@ def _get_joke_sheets_cache(
       },
     )
     return []
+
+
+def _normalize_created_at(value: object) -> datetime.datetime:
+  if isinstance(value, datetime.datetime):
+    if value.tzinfo is None:
+      return value.replace(tzinfo=datetime.timezone.utc)
+    return value
+  return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+
+
+def _get_manual_joke_sheets() -> list[models.JokeSheet]:
+  """Fetch manual joke sheets (non-empty sheet_slug), ordered by creation."""
+  docs = firestore.db().collection('joke_sheets').stream()
+  manual: list[tuple[models.JokeSheet, datetime.datetime]] = []
+  for doc in docs:
+    if not getattr(doc, 'exists', False):
+      continue
+    data = doc.to_dict() or {}
+    sheet_slug = (data.get('sheet_slug') or '').strip()
+    if not sheet_slug:
+      continue
+    sheet = models.JokeSheet.from_firestore_dict(data, key=doc.id)
+    created_at = _normalize_created_at(getattr(doc, 'create_time', None))
+    manual.append((sheet, created_at))
+
+  manual.sort(key=lambda item: item[1])
+  return [sheet for sheet, _ in manual]
+
+
+def _get_category_image_url(category_id: str) -> str | None:
+  """Fetch category image URL formatted for display."""
+  full_category = firestore.get_joke_category(category_id)
+  category_image_url = None
+  if full_category and full_category.image_url:
+    image_url = full_category.image_url
+    if image_url.startswith('gs://'):
+      try:
+        cdn_url = cloud_storage.get_public_image_cdn_url(image_url)
+        category_image_url = utils.format_image_url(cdn_url, width=120)
+      except ValueError:
+        pass
+    else:
+      try:
+        category_image_url = utils.format_image_url(image_url, width=120)
+      except ValueError:
+        category_image_url = image_url
+  return category_image_url
+
+
+def _get_sheet_joke_ids(sheet: models.JokeSheet) -> list[str] | None:
+  """Fetch joke IDs for a sheet from Firestore."""
+  if not sheet.key:
+    return None
+  sheet_doc = firestore.db().collection('joke_sheets').document(
+    sheet.key).get()
+  if not getattr(sheet_doc, 'exists', False):
+    return None
+  sheet_dict = sheet_doc.to_dict() or {}
+  joke_ids = sheet_dict.get('joke_ids') or []
+  if not isinstance(joke_ids, list):
+    return []
+  return joke_ids
+
+
+def _build_sheet_data(
+  *,
+  sheet: models.JokeSheet,
+  joke_ids: list[str],
+  display_index: int | None = None,
+) -> dict[str, object] | None:
+  """Build the display payload for a printable notes sheet."""
+  if not sheet:
+    return None
+
+  # Fetch jokes
+  jokes = firestore.get_punny_jokes(joke_ids) if joke_ids else []
+
+  # Get sheet image URL
+  sheet_image_url = None
+  if sheet.image_gcs_uri:
+    try:
+      cdn_url = cloud_storage.get_public_image_cdn_url(sheet.image_gcs_uri)
+      sheet_image_url = utils.format_image_url(cdn_url, width=200)
+    except ValueError:
+      pass
+
+  # Get joke images
+  joke_images = []
+  for joke in jokes[:5]:  # Max 5 jokes per sheet
+    setup_url = None
+    punchline_url = None
+    if joke.setup_image_url:
+      if joke.setup_image_url.startswith('gs://'):
+        try:
+          cdn_url = cloud_storage.get_public_image_cdn_url(
+            joke.setup_image_url)
+          setup_url = utils.format_image_url(cdn_url, width=150, quality=50)
+        except ValueError:
+          pass
+      else:
+        try:
+          setup_url = utils.format_image_url(joke.setup_image_url,
+                                             width=150,
+                                             quality=50)
+        except ValueError:
+          setup_url = joke.setup_image_url
+    if joke.punchline_image_url:
+      if joke.punchline_image_url.startswith('gs://'):
+        try:
+          cdn_url = cloud_storage.get_public_image_cdn_url(
+            joke.punchline_image_url)
+          punchline_url = utils.format_image_url(cdn_url,
+                                                 width=150,
+                                                 quality=50)
+        except ValueError:
+          pass
+      else:
+        try:
+          punchline_url = utils.format_image_url(joke.punchline_image_url,
+                                                 width=150,
+                                                 quality=50)
+        except ValueError:
+          punchline_url = joke.punchline_image_url
+
+    joke_images.append({
+      'joke_id': joke.key,
+      'setup_url': setup_url,
+      'punchline_url': punchline_url,
+    })
+
+  resolved_display_index = display_index
+  if resolved_display_index is None:
+    resolved_display_index = (sheet.display_index
+                              or (sheet.index + 1 if sheet.index is not None
+                                  else 1))
+
+  return {
+    'sheet': sheet,
+    'sheet_image_url': sheet_image_url,
+    'joke_images': joke_images,
+    'display_index': resolved_display_index,
+  }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from io import BytesIO
 from unittest.mock import Mock, patch
 
@@ -22,8 +23,8 @@ def _mock_admin_session(monkeypatch):
                       }))
 
 
-def test_admin_printable_notes_page_loads(monkeypatch):
-  """Test the printable notes page loads and renders."""
+def test_admin_printable_notes_categories_page_loads(monkeypatch):
+  """Test the printable notes categories page loads and renders."""
   _mock_admin_session(monkeypatch)
 
   # Mock get_joke_sheets_cache
@@ -91,12 +92,81 @@ def test_admin_printable_notes_page_loads(monkeypatch):
   )
 
   with app.test_client() as client:
-    resp = client.get('/admin/printable-notes')
+    resp = client.get('/admin/printable-notes-categories')
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert "Printable Notes" in html
+  assert "Printable Notes (Categories)" in html
   assert "Animals" in html
+
+
+def test_admin_printable_notes_manual_page_loads(monkeypatch):
+  """Test the printable notes manual page loads and renders."""
+  _mock_admin_session(monkeypatch)
+
+  now = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+  later = datetime.datetime(2024, 2, 1, tzinfo=datetime.timezone.utc)
+
+  doc_old = Mock()
+  doc_old.exists = True
+  doc_old.id = "manual-old"
+  doc_old.create_time = now
+  doc_old.to_dict.return_value = {
+    "sheet_slug": "manual-old",
+    "joke_ids": ["joke-old"],
+    "image_gcs_uri": "gs://bucket/manual-old.png",
+    "pdf_gcs_uri": "gs://bucket/manual-old.pdf",
+  }
+
+  doc_new = Mock()
+  doc_new.exists = True
+  doc_new.id = "manual-new"
+  doc_new.create_time = later
+  doc_new.to_dict.return_value = {
+    "sheet_slug": "manual-new",
+    "joke_ids": ["joke-new"],
+    "image_gcs_uri": "gs://bucket/manual-new.png",
+    "pdf_gcs_uri": "gs://bucket/manual-new.pdf",
+  }
+
+  mock_db = Mock()
+  mock_collection = Mock()
+  mock_collection.stream.return_value = [doc_new, doc_old]
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(firestore, "db", lambda: mock_db)
+
+  mock_joke_old = Mock()
+  mock_joke_old.key = "joke-old"
+  mock_joke_old.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke_old_setup.png"
+  mock_joke_old.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke_old_punchline.png"
+
+  mock_joke_new = Mock()
+  mock_joke_new.key = "joke-new"
+  mock_joke_new.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke_new_setup.png"
+  mock_joke_new.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke_new_punchline.png"
+
+  monkeypatch.setattr(
+    firestore,
+    "get_punny_jokes",
+    lambda joke_ids: [mock_joke_old]
+    if "joke-old" in joke_ids else [mock_joke_new],
+  )
+
+  monkeypatch.setattr(
+    cloud_storage,
+    "get_public_image_cdn_url",
+    lambda uri, **kwargs:
+    f"https://images.quillsstorybook.com/cdn-cgi/image/{uri}",
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/printable-notes-manual')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Printable Notes (Manual)" in html
+  assert html.index('data-joke-id="joke-old"') < html.index(
+    'data-joke-id="joke-new"')
 
 
 def test_admin_create_pin_image_success(monkeypatch):

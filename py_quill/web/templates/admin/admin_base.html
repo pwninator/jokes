@@ -9,7 +9,8 @@
 {% set joke_categories_url = url_for('web.admin_joke_categories') %}
 {% set joke_books_url = url_for('web.admin_joke_books') %}
 {% set joke_books_prefix = joke_books_url.rstrip('/') %}
-{% set printable_notes_url = url_for('web.admin_printable_notes') %}
+{% set printable_notes_categories_url = url_for('web.admin_printable_notes_categories') %}
+{% set printable_notes_manual_url = url_for('web.admin_printable_notes_manual') %}
 {% set jokes_url = url_for('web.admin_jokes') %}
 {% set social_url = url_for('web.admin_social') %}
 <div class="site-shell admin-site-shell">
@@ -30,10 +31,28 @@
           href="{{ joke_categories_url }}">
           Categories
         </a>
-        <a class="nav-link text-button{% if current_path == printable_notes_url %} nav-link--active{% endif %}"
-          href="{{ printable_notes_url }}">
-          Printable Notes
-        </a>
+        <div class="user-menu user-menu--visible" data-notes-menu>
+          <button class="user-menu__trigger text-button"
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            data-notes-menu-trigger>
+            <span>Printable Notes</span>
+            <span class="user-menu__chevron" aria-hidden="true">v</span>
+          </button>
+          <div class="user-menu__panel" role="menu" data-notes-menu-panel>
+            <a class="user-menu__item text-button"
+              role="menuitem"
+              href="{{ printable_notes_categories_url }}">
+              Category Notes
+            </a>
+            <a class="user-menu__item text-button"
+              role="menuitem"
+              href="{{ printable_notes_manual_url }}">
+              Manual Notes
+            </a>
+          </div>
+        </div>
         <a class="nav-link text-button{% if current_path.startswith(joke_books_prefix) %} nav-link--active{% endif %}"
           href="{{ joke_books_url }}">
           Joke Books
@@ -63,4 +82,64 @@
 
 {% block scripts %}
 {{ super() }}
+<script>
+  (function () {
+    if (typeof document === 'undefined' || !document.querySelectorAll) {
+      return;
+    }
+    var menus = Array.prototype.slice.call(
+      document.querySelectorAll('[data-notes-menu]')
+    );
+    if (!menus.length) {
+      return;
+    }
+
+    function closeMenu(menu) {
+      if (!menu.classList.contains('user-menu--open')) {
+        return;
+      }
+      menu.classList.remove('user-menu--open');
+      var trigger = menu.querySelector('[data-notes-menu-trigger]');
+      if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    function openMenu(menu) {
+      menu.classList.add('user-menu--open');
+      var trigger = menu.querySelector('[data-notes-menu-trigger]');
+      if (trigger) {
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+    }
+
+    menus.forEach(function (menu) {
+      var trigger = menu.querySelector('[data-notes-menu-trigger]');
+      if (!trigger) {
+        return;
+      }
+
+      trigger.addEventListener('click', function (event) {
+        event.stopPropagation();
+        if (menu.classList.contains('user-menu--open')) {
+          closeMenu(menu);
+        } else {
+          openMenu(menu);
+        }
+      });
+
+      document.addEventListener('click', function (event) {
+        if (!menu.contains(event.target)) {
+          closeMenu(menu);
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          closeMenu(menu);
+        }
+      });
+    });
+  })();
+</script>
 {% endblock %}

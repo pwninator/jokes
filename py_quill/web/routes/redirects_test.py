@@ -8,7 +8,6 @@ from common import amazon_redirect
 
 
 def _patch_book_tags(monkeypatch, tags_by_format):
-  amazon_redirect = amazon_redirect
   base_book = amazon_redirect.BOOKS[amazon_redirect.BookKey.ANIMAL_JOKES]
   variants = {}
   for book_format, variant in base_book.variants.items():

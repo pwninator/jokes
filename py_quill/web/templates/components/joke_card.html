@@ -47,6 +47,9 @@
               <div class="joke-slide-placeholder text-button">Illustration baking…</div>
               {% endif %}
             </div>
+            {% if joke.setup_text %}
+            <div class="text-body">{{ joke.setup_text | e }}</div>
+            {% endif %}
           </div>
           <div class="joke-slide" id="joke-{{ unique_id }}-punchline" aria-hidden="true">
             <div class="joke-slide-media">
@@ -57,6 +60,9 @@
               <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
               {% endif %}
             </div>
+            {% if joke.punchline_text %}
+            <div class="text-body">{{ joke.punchline_text | e }}</div>
+            {% endif %}
           </div>
         </div>
       </div>

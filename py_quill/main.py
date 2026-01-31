@@ -60,8 +60,10 @@ on_joke_category_write = joke_trigger_fns.on_joke_category_write
 create_ad_assets = joke_image_fns.create_ad_assets
 
 # Export the joke auto functions
-joke_daily_maintenance_scheduler = joke_auto_fns.joke_daily_maintenance_scheduler
-joke_daily_maintenance_http = joke_auto_fns.joke_daily_maintenance_http
+joke_hourly_maintenance_scheduler = joke_auto_fns.joke_hourly_maintenance_scheduler
+joke_hourly_maintenance_http = joke_auto_fns.joke_hourly_maintenance_http
+user_daily_maintenance_scheduler = joke_auto_fns.user_daily_maintenance_scheduler
+user_daily_maintenance_http = joke_auto_fns.user_daily_maintenance_http
 
 # Export the joke notification functions
 send_daily_joke_http = joke_notification_fns.send_daily_joke_http

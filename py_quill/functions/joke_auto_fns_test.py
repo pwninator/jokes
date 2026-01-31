@@ -71,8 +71,9 @@ def _setup_decay_test_mocks(monkeypatch,
         "categories_emptied": 0,
         "categories_failed": 0
       }))
-  monkeypatch.setattr('common.joke_category_operations.rebuild_joke_categories_index',
-                      Mock(return_value={}))
+  monkeypatch.setattr(
+    'common.joke_category_operations.rebuild_joke_categories_index',
+    Mock(return_value={}))
 
 
 def _create_mock_joke_doc(joke_id: str,
@@ -175,7 +176,7 @@ class TestDecayRecentJokeStats:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+    joke_auto_fns._joke_maintenance_internal(now_utc)
 
     mock_batch.update.assert_called_once()
     payload = mock_batch.update.call_args.args[1]
@@ -211,7 +212,7 @@ class TestDecayRecentJokeStats:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+    joke_auto_fns._joke_maintenance_internal(now_utc)
 
     mock_batch.update.assert_not_called()
     mock_sync.assert_called_once()
@@ -232,7 +233,7 @@ class TestDecayRecentJokeStats:
     _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
     _setup_decay_test_mocks(monkeypatch)
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     mock_batch.update.assert_called_once()
     payload = mock_batch.update.call_args.args[1]
@@ -270,7 +271,7 @@ class TestDecayRecentJokeStats:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     mock_batch.update.assert_called_once()
     payload = mock_batch.update.call_args.args[1]
@@ -297,7 +298,7 @@ class TestDecayRecentJokeStats:
     _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
     _setup_decay_test_mocks(monkeypatch)
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     mock_batch.update.assert_called_once()
     payload = mock_batch.update.call_args.args[1]
@@ -309,10 +310,10 @@ class TestDecayRecentJokeStats:
     def _capture(run_time):
       captured['run_time'] = run_time
 
-    monkeypatch.setattr(
-      'functions.joke_auto_fns._joke_daily_maintenance_internal', _capture)
+    monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
+                        _capture)
 
-    joke_auto_fns.joke_daily_maintenance_http(Mock())
+    joke_auto_fns.joke_hourly_maintenance_http(Mock())
 
     assert 'run_time' in captured
     assert captured['run_time'].tzinfo == datetime.timezone.utc
@@ -323,8 +324,8 @@ class TestDecayRecentJokeStats:
     def _capture(run_time):
       captured['run_time'] = run_time
 
-    monkeypatch.setattr(
-      'functions.joke_auto_fns._joke_daily_maintenance_internal', _capture)
+    monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
+                        _capture)
 
     event = MagicMock()
     event.schedule_time = datetime.datetime(2024,
@@ -334,7 +335,7 @@ class TestDecayRecentJokeStats:
                                             0,
                                             tzinfo=datetime.timezone.utc)
 
-    joke_auto_fns.joke_daily_maintenance_scheduler.__wrapped__(event)
+    joke_auto_fns.joke_hourly_maintenance_scheduler.__wrapped__(event)
 
     assert 'run_time' in captured
     assert captured['run_time'] == event.schedule_time
@@ -346,13 +347,13 @@ class TestDecayRecentJokeStats:
     def _capture(run_time):
       captured['run_time'] = run_time
 
-    monkeypatch.setattr(
-      'functions.joke_auto_fns._joke_daily_maintenance_internal', _capture)
+    monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
+                        _capture)
 
     event = MagicMock()
     event.schedule_time = None
 
-    joke_auto_fns.joke_daily_maintenance_scheduler.__wrapped__(event)
+    joke_auto_fns.joke_hourly_maintenance_scheduler.__wrapped__(event)
 
     assert 'run_time' in captured
     assert captured['run_time'].tzinfo == datetime.timezone.utc
@@ -368,15 +369,14 @@ class TestDecayRecentJokeStats:
       "categories_emptied": 1,
       "categories_failed": 0
     }
-    monkeypatch.setattr(
-      'functions.joke_auto_fns._joke_daily_maintenance_internal', mock_decay)
+    monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
+                        mock_decay)
 
-    response = joke_auto_fns.joke_daily_maintenance_http(Mock())
+    response = joke_auto_fns.joke_hourly_maintenance_http(Mock())
 
     mock_decay.assert_called_once()
     data = response.get_json()["data"]
-    assert data[
-      "message"] == "Daily maintenance completed successfully"
+    assert data["message"] == "Daily maintenance completed successfully"
     assert "stats" in data
     assert data["stats"]["jokes_decayed"] == 5
 
@@ -385,10 +385,10 @@ class TestDecayRecentJokeStats:
     def _raise(run_time_utc):
       raise RuntimeError("boom")
 
-    monkeypatch.setattr(
-      'functions.joke_auto_fns._joke_daily_maintenance_internal', _raise)
+    monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
+                        _raise)
 
-    response = joke_auto_fns.joke_daily_maintenance_http(Mock())
+    response = joke_auto_fns.joke_hourly_maintenance_http(Mock())
 
     data = response.get_json()["data"]
     assert "boom" in data["error"]
@@ -472,7 +472,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
                         mock_update_joke_feed)
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     if should_be_called:
       mock_update_joke_feed.assert_called_once()
@@ -556,7 +556,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
                         mock_update_joke_feed)
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     # Verify update_joke_feed was called
     mock_update_joke_feed.assert_called_once()
@@ -669,7 +669,7 @@ class TestDecayRecentJokeStats:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     mock_sync.assert_called_once()
     call_args = mock_sync.call_args
@@ -741,7 +741,7 @@ class TestDecayRecentJokeStats:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+    joke_auto_fns._joke_maintenance_internal(now_utc)
 
     # Verify sync was called for both jokes
     assert mock_sync.call_count == 2
@@ -785,7 +785,7 @@ class TestDecayRecentJokeStats:
         }))
 
     # Should not raise exception
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+    joke_auto_fns._joke_maintenance_internal(now_utc)
 
     # Verify sync was called
     mock_sync.assert_called_once()
@@ -808,8 +808,7 @@ class TestBookIdEnsurer:
         "is_public": True,
         "state": models.JokeState.PUBLISHED.value,
         "category_id": "cat-1",
-        "last_recent_stats_update_time":
-        now_utc - datetime.timedelta(hours=4),
+        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
       },
     )
     book_doc = _create_mock_book_doc("book-1", ["joke-1"])
@@ -826,7 +825,7 @@ class TestBookIdEnsurer:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+    joke_auto_fns._joke_maintenance_internal(now_utc)
 
     mock_batch.update.assert_called_once()
     payload = mock_batch.update.call_args.args[1]
@@ -841,8 +840,7 @@ class TestBookIdEnsurer:
         "is_public": True,
         "state": models.JokeState.PUBLISHED.value,
         "category_id": "cat-1",
-        "last_recent_stats_update_time":
-        now_utc - datetime.timedelta(hours=4),
+        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
       },
     )
 
@@ -858,7 +856,7 @@ class TestBookIdEnsurer:
       'common.joke_category_operations.rebuild_joke_categories_index',
       Mock(return_value={}))
 
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)
+    joke_auto_fns._joke_maintenance_internal(now_utc)
 
     mock_batch.update.assert_called_once()
     payload = mock_batch.update.call_args.args[1]

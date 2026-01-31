@@ -1558,6 +1558,7 @@ def _initialize_user_in_transaction(
     'email': email,
     'user_type': 'USER',
     'preferences': {},
+    'mailerlite_subscriber_id': None,
     'created_at': SERVER_TIMESTAMP,
     'last_modified_at': SERVER_TIMESTAMP,
   }
@@ -1595,6 +1596,69 @@ def initialize_user_document(user_id: str, email: str) -> bool:
   transaction = db().transaction()
   created = _initialize_user_in_transaction(transaction, user_id, email=email)
   return created
+
+
+def get_users_missing_mailerlite_subscriber_id(
+    limit: int | None = None):
+  """Return Firestore docs for users missing a MailerLite subscriber id."""
+  query = db().collection('users').where(
+    filter=FieldFilter('mailerlite_subscriber_id', '==', None))
+  if limit and limit > 0:
+    query = query.limit(int(limit))
+  return query.stream()
+
+
+def update_user_mailerlite_subscriber_id(
+  user_id: str,
+  subscriber_id: str,
+) -> None:
+  """Update a user's mailerlite_subscriber_id field."""
+  user_id = (user_id or '').strip()
+  subscriber_id = (subscriber_id or '').strip()
+  if not user_id:
+    raise ValueError("user_id is required")
+  if not subscriber_id:
+    raise ValueError("subscriber_id is required")
+  db().collection('users').document(user_id).update({
+    'mailerlite_subscriber_id': subscriber_id,
+  })
+
+
+def ensure_joke_lead_doc(
+  *,
+  email: str,
+  subscriber_id: str | None,
+  signup_source: str,
+  country_code: str | None = None,
+) -> None:
+  """Upsert a joke_leads document without overwriting existing values."""
+  email_norm = (email or '').strip().lower()
+  if not email_norm:
+    raise ValueError("email is required")
+
+  now = datetime.datetime.now(datetime.timezone.utc)
+  lead_ref = db().collection('joke_leads').document(email_norm)
+  snapshot = lead_ref.get()
+  existing = snapshot.to_dict() if getattr(snapshot, "exists", False) else {}
+  if not isinstance(existing, dict):
+    existing = {}
+
+  payload: dict[str, Any] = {
+    'email': email_norm,
+  }
+  if subscriber_id:
+    payload['mailerlite_subscriber_id'] = subscriber_id
+
+  if not existing.get('timestamp'):
+    payload['timestamp'] = now
+  if not existing.get('signup_date'):
+    payload['signup_date'] = now.date().isoformat()
+  if not existing.get('signup_source'):
+    payload['signup_source'] = signup_source
+  if country_code and not existing.get('country_code'):
+    payload['country_code'] = country_code
+
+  lead_ref.set(payload, merge=True)
 
 
 def _to_utc_naive(dt: datetime.datetime) -> datetime.datetime:

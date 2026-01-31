@@ -5,6 +5,7 @@ Thin wrapper around the `mailerlite` SDK used by this project.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import mailerlite as MailerLite
@@ -14,6 +15,46 @@ from firebase_functions import logger
 
 class Error(Exception):
   """Base exception for MailerLite client errors."""
+
+@dataclass(frozen=True)
+class Subscriber:
+  """Minimal subscriber representation used by the app."""
+  id: str
+  status: str | None = None
+  groups: list[int] | None = None
+
+  @classmethod
+  def from_response(cls, payload: dict[str, Any]) -> "Subscriber":
+    """Parse a subscriber payload from MailerLite API responses."""
+    if not isinstance(payload, dict):
+      raise Error(f"Unexpected MailerLite response type: {type(payload)}")
+    data = payload.get('data') if 'data' in payload else payload
+    if not isinstance(data, dict):
+      raise Error(f"Unexpected MailerLite response data type: {type(data)}")
+
+    raw_id = data.get('id')
+    if not isinstance(raw_id, str) or not raw_id.strip():
+      raise Error("MailerLite subscriber id missing from response")
+
+    status = data.get('status')
+    if not isinstance(status, str):
+      status = None
+
+    groups_raw = data.get('groups')
+    groups: list[int] | None = None
+    if isinstance(groups_raw, list):
+      extracted: list[int] = []
+      for item in groups_raw:
+        if isinstance(item, int):
+          extracted.append(item)
+          continue
+        if isinstance(item, dict):
+          group_id = item.get('id')
+          if isinstance(group_id, int):
+            extracted.append(group_id)
+      groups = extracted or None
+
+    return cls(id=raw_id, status=status, groups=groups)
 
 
 class MailerLiteClient:
@@ -28,13 +69,37 @@ class MailerLiteClient:
     """Return the underlying SDK client (useful for tests)."""
     return self._client
 
+  def get_subscriber_by_email(self, *, email: str) -> Subscriber | None:
+    """Fetch a subscriber by email address.
+
+    Returns:
+      Subscriber if found, or None if not found.
+    """
+    email = (email or '').strip().lower()
+    if not email:
+      raise ValueError("email is required")
+
+    subscribers_api = self._client.subscribers
+    response = subscribers_api.api_client.request(
+      "GET",
+      f"{subscribers_api.base_api_url}/{email}",
+    )
+    status_code = getattr(response, "status_code", None)
+    if status_code == 404:
+      return None
+    if status_code is not None and (status_code < 200 or status_code >= 300):
+      raise Error(f"MailerLite returned status {status_code} for {email}")
+
+    data = response.json()
+    return Subscriber.from_response(data)
+
   def create_subscriber(
     self,
     *,
     email: str,
     country_code: str,
     group_id: str | None = None,
-  ) -> dict[str, Any]:
+  ) -> Subscriber:
     """Create a subscriber with project-specific custom fields."""
     email = (email or '').strip().lower()
     if not email:
@@ -71,30 +136,4 @@ class MailerLiteClient:
                                              groups=groups)
     else:
       resp = self._client.subscribers.create(email, fields=fields)
-    if not isinstance(resp, dict):
-      raise Error(f"Unexpected MailerLite response type: {type(resp)}")
-    return resp
-
-  def add_to_group(self, *, subscriber_id: str,
-                   group_id: str) -> dict[str, Any]:
-    """Add an existing subscriber to a MailerLite group."""
-    subscriber_id = (subscriber_id or '').strip()
-    group_id = (group_id or '').strip()
-    if not subscriber_id:
-      raise ValueError("subscriber_id is required")
-    if not group_id:
-      raise ValueError("group_id is required")
-
-    # The SDK's Groups API doesn't expose an add-subscriber helper; it supports
-    # group assignment via subscriber update using the subscriber email.
-    try:
-      group_id_int = int(group_id)
-    except Exception as exc:
-      raise ValueError("group_id must be an int-like string") from exc
-
-    resp = self._client.subscribers.update(subscriber_id,
-                                           groups=[group_id_int])
-
-    if not isinstance(resp, dict):
-      raise Error(f"Unexpected MailerLite response type: {type(resp)}")
-    return resp
+    return Subscriber.from_response(resp)

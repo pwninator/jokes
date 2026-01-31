@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from collections import deque
 
-from common import joke_category_operations, joke_operations, models
+from common import joke_category_operations, joke_lead_operations, joke_operations, models
 from firebase_functions import https_fn, logger, options, scheduler_fn
 from functions.function_utils import error_response, success_response
 from services import firestore
@@ -22,7 +22,7 @@ _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def joke_daily_maintenance_scheduler(
+def joke_hourly_maintenance_scheduler(
     event: scheduler_fn.ScheduledEvent) -> None:
   """Scheduled function that performs daily maintenance tasks for jokes."""
 
@@ -30,19 +30,19 @@ def joke_daily_maintenance_scheduler(
   if scheduled_time_utc is None:
     scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
 
-  _joke_daily_maintenance_internal(scheduled_time_utc)
+  _joke_maintenance_internal(scheduled_time_utc)
 
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
+def joke_hourly_maintenance_http(req: https_fn.Request) -> https_fn.Response:
   """HTTP endpoint to trigger daily maintenance tasks for jokes."""
   del req
   try:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
-    maintenance_stats = _joke_daily_maintenance_internal(run_time_utc)
+    maintenance_stats = _joke_maintenance_internal(run_time_utc)
     return success_response({
       "message": "Daily maintenance completed successfully",
       "stats": maintenance_stats
@@ -51,9 +51,9 @@ def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
     return error_response(f'Failed to run daily maintenance: {exc}')
 
 
-def _joke_daily_maintenance_internal(
+def _joke_maintenance_internal(
     run_time_utc: datetime.datetime) -> dict[str, int]:
-  """Run daily maintenance tasks for jokes.
+  """Run maintenance tasks for jokes.
   
   Returns:
     Combined dictionary with all maintenance statistics from joke updates and category cache refresh
@@ -74,6 +74,50 @@ def _joke_daily_maintenance_internal(
 
   logger.info(f"Joke maintenance completed with stats: {combined_stats}")
   return combined_stats
+
+
+@scheduler_fn.on_schedule(
+  # Runs daily at 2:30 AM PST
+  schedule="30 2 * * *",
+  timezone="America/Los_Angeles",
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=1800,
+)
+def user_daily_maintenance_scheduler(
+    event: scheduler_fn.ScheduledEvent) -> None:
+  """Scheduled function that performs daily maintenance tasks for users."""
+  scheduled_time_utc = event.schedule_time
+  if scheduled_time_utc is None:
+    scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
+
+  _user_daily_maintenance_internal(scheduled_time_utc)
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=1800,
+)
+def user_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
+  """HTTP endpoint to trigger daily maintenance tasks for users."""
+  del req
+  try:
+    run_time_utc = datetime.datetime.now(datetime.timezone.utc)
+    maintenance_stats = _user_daily_maintenance_internal(run_time_utc)
+    return success_response({
+      "message": "User maintenance completed successfully",
+      "stats": maintenance_stats
+    })
+  except Exception as exc:  # pylint: disable=broad-except
+    return error_response(f'Failed to run user maintenance: {exc}')
+
+
+def _user_daily_maintenance_internal(
+    run_time_utc: datetime.datetime) -> dict[str, int]:
+  """Run daily maintenance tasks for users."""
+  del run_time_utc
+  stats = joke_lead_operations.ensure_users_subscribed()
+  logger.info(f"User maintenance completed with stats: {stats}")
+  return stats
 
 
 def _should_skip_recent_update(

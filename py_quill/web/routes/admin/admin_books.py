@@ -203,14 +203,22 @@ def admin_joke_book_detail(book_id: str):
       _format_book_page_image(joke_data.get('setup_image_url')),
       'punchline_original_image':
       _format_book_page_image(joke_data.get('punchline_image_url')),
+      'setup_original_image_raw':
+      joke_data.get('setup_image_url'),
+      'punchline_original_image_raw':
+      joke_data.get('punchline_image_url'),
       'setup_preview':
       _format_joke_preview(joke_data.get('setup_image_url')),
       'punchline_preview':
       _format_joke_preview(joke_data.get('punchline_image_url')),
-      'setup_variants':
-      [_format_book_page_thumb(url) for url in setup_variants if url],
-      'punchline_variants':
-      [_format_book_page_thumb(url) for url in punchline_variants if url],
+      'setup_variants': [{
+        'image_url': url,
+        'thumb_url': _format_book_page_thumb(url) or url,
+      } for url in setup_variants if url],
+      'punchline_variants': [{
+        'image_url': url,
+        'thumb_url': _format_book_page_thumb(url) or url,
+      } for url in punchline_variants if url],
       'card_joke':
       joke_model,
       'edit_payload':
@@ -258,13 +266,19 @@ def admin_update_joke_book_page():
   new_setup_url = flask.request.form.get('new_book_page_setup_image_url')
   new_punchline_url = flask.request.form.get(
     'new_book_page_punchline_image_url')
+  remove_setup_url = flask.request.form.get('remove_book_page_setup_image_url')
+  remove_punchline_url = flask.request.form.get(
+    'remove_book_page_punchline_image_url')
 
   if not book_id or not joke_id:
     return flask.Response('joke_book_id and joke_id are required', 400)
 
-  if not new_setup_url and not new_punchline_url:
-    return flask.Response(('Provide new_book_page_setup_image_url or '
-                           'new_book_page_punchline_image_url'), 400)
+  if (not new_setup_url and not new_punchline_url and not remove_setup_url
+      and not remove_punchline_url):
+    return flask.Response(('Provide new_book_page_setup_image_url, '
+                           'new_book_page_punchline_image_url, '
+                           'remove_book_page_setup_image_url, or '
+                           'remove_book_page_punchline_image_url'), 400)
 
   client = firestore.db()
   book_ref = client.collection('joke_books').document(book_id)
@@ -286,23 +300,52 @@ def admin_update_joke_book_page():
   current_setup = existing_metadata.get('book_page_setup_image_url')
   current_punchline = existing_metadata.get('book_page_punchline_image_url')
 
-  updates = models.PunnyJoke.prepare_book_page_metadata_updates(
-    existing_metadata,
-    new_setup_url or current_setup,
-    new_punchline_url or current_punchline,
-  )
+  if new_setup_url or new_punchline_url:
+    updates = models.PunnyJoke.prepare_book_page_metadata_updates(
+      existing_metadata,
+      new_setup_url or current_setup,
+      new_punchline_url or current_punchline,
+    )
+  else:
+    updates: dict[str, object] = {}
+
+    if remove_setup_url:
+      setup_history_raw = existing_metadata.get(
+        'all_book_page_setup_image_urls')
+      setup_history = (list(setup_history_raw) if isinstance(
+        setup_history_raw, list) else [])
+      filtered_setup = [
+        url for url in setup_history if url != remove_setup_url
+      ]
+      updates['all_book_page_setup_image_urls'] = filtered_setup
+      if current_setup == remove_setup_url:
+        updates['book_page_setup_image_url'] = (filtered_setup[0]
+                                                if filtered_setup else None)
+
+    if remove_punchline_url:
+      punchline_history_raw = existing_metadata.get(
+        'all_book_page_punchline_image_urls')
+      punchline_history = (list(punchline_history_raw) if isinstance(
+        punchline_history_raw, list) else [])
+      filtered_punchline = [
+        url for url in punchline_history if url != remove_punchline_url
+      ]
+      updates['all_book_page_punchline_image_urls'] = filtered_punchline
+      if current_punchline == remove_punchline_url:
+        updates['book_page_punchline_image_url'] = (
+          filtered_punchline[0] if filtered_punchline else None)
 
   metadata_ref.set(updates, merge=True)
 
+  setup_response = updates.get('book_page_setup_image_url', current_setup)
+  punchline_response = updates.get('book_page_punchline_image_url',
+                                   current_punchline)
+
   return flask.jsonify({
-    'book_id':
-    book_id,
-    'joke_id':
-    joke_id,
-    'book_page_setup_image_url':
-    updates.get('book_page_setup_image_url'),
-    'book_page_punchline_image_url':
-    updates.get('book_page_punchline_image_url'),
+    'book_id': book_id,
+    'joke_id': joke_id,
+    'book_page_setup_image_url': setup_response,
+    'book_page_punchline_image_url': punchline_response,
   })
 
 
@@ -397,6 +440,10 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     _format_book_page_image(joke_data.get('setup_image_url')),
     'punchline_original_image':
     _format_book_page_image(joke_data.get('punchline_image_url')),
+    'setup_original_image_raw':
+    joke_data.get('setup_image_url'),
+    'punchline_original_image_raw':
+    joke_data.get('punchline_image_url'),
     'setup_image_download':
     _format_book_page_download(setup_url),
     'punchline_image_download':
@@ -407,10 +454,14 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     _format_joke_preview(joke_data.get('setup_image_url')),
     'punchline_original_preview':
     _format_joke_preview(joke_data.get('punchline_image_url')),
-    'setup_variants':
-    [_format_book_page_thumb(url) for url in setup_variants if url],
-    'punchline_variants':
-    [_format_book_page_thumb(url) for url in punchline_variants if url],
+    'setup_variants': [{
+      'image_url': url,
+      'thumb_url': _format_book_page_thumb(url) or url,
+    } for url in setup_variants if url],
+    'punchline_variants': [{
+      'image_url': url,
+      'thumb_url': _format_book_page_thumb(url) or url,
+    } for url in punchline_variants if url],
     'num_views':
     int(joke_data.get('num_viewed_users') or 0),
     'num_saves':

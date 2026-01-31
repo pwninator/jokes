@@ -389,6 +389,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
   }
 
   .variant-tile.original-variant {
@@ -401,6 +402,29 @@
     height: 100%;
     object-fit: cover;
     border-radius: 8px;
+  }
+
+  .variant-delete {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(239, 83, 80, 0.95);
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+
+  .variant-delete:hover {
+    background: #d32f2f;
   }
 
   .variant-label {
@@ -500,25 +524,37 @@
         {% set original_url = original_image or original_preview %}
         {% set original_src = original_preview or original_image %}
         {% if original_url and original_src %}
-        <button class="variant-tile original-variant"
-          type="button"
+        <div class="variant-tile original-variant"
+          role="button"
+          tabindex="0"
           data-joke-id="{{ joke_id }}"
           data-book-id="{{ book_id }}"
           data-target-field="{{ target_field }}"
-          data-image-url="{{ original_url }}">
+          data-image-url="{{ original_url }}"
+          data-image-original="{{ original_url }}">
+          <button class="variant-delete" type="button" aria-label="Remove image">
+            &times;
+          </button>
           <img src="{{ original_src }}" alt="Original image option">
-        </button>
+        </div>
         {% endif %}
         {% if variants %}
           {% for variant in variants %}
-          <button class="variant-tile"
-            type="button"
+          {% set variant_url = variant.image_url or variant %}
+          {% set variant_thumb = variant.thumb_url or variant_url %}
+          <div class="variant-tile"
+            role="button"
+            tabindex="0"
             data-joke-id="{{ joke_id }}"
             data-book-id="{{ book_id }}"
             data-target-field="{{ target_field }}"
-            data-image-url="{{ variant }}">
-            <img src="{{ variant }}" alt="{{ label }} option {{ loop.index }}">
-          </button>
+            data-image-url="{{ variant_url }}"
+            data-image-original="{{ variant_url }}">
+            <button class="variant-delete" type="button" aria-label="Remove image">
+              &times;
+            </button>
+            <img src="{{ variant_thumb }}" alt="{{ label }} option {{ loop.index }}">
+          </div>
           {% endfor %}
         {% endif %}
         <label class="upload-btn" title="Upload custom image">
@@ -586,7 +622,7 @@
   {% else %}
   <div class="joke-book-detail-grid">
   {% for joke in jokes %}
-  <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}" data-book-page-ready="{{ 'true' if joke.book_page_ready else 'false' }}">
+  <article class="joke-book-detail-card" data-joke-id="{{ joke.id }}" data-book-page-ready="{{ 'true' if joke.book_page_ready else 'false' }}" data-main-setup-image="{{ joke.setup_original_image_raw or '' }}" data-main-punchline-image="{{ joke.punchline_original_image_raw or '' }}">
     <form method="post"
       class="regenerate-form"
       data-joke-id="{{ joke.id }}"
@@ -700,8 +736,8 @@
             "book_page_setup_image_url",
             joke.id,
             book.id,
-            original_image=joke.setup_original_image,
-            original_preview=joke.setup_preview) }}
+            original_image=joke.setup_original_image_raw or joke.setup_original_image,
+            original_preview=joke.setup_preview or joke.setup_original_image) }}
         <div class="image-frame">
           <img class="joke-book-detail-image setup-img {% if not joke.setup_image %}joke-book-detail-hidden{% endif %}"
             src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
@@ -730,8 +766,8 @@
             "book_page_punchline_image_url",
             joke.id,
             book.id,
-            original_image=joke.punchline_original_image,
-            original_preview=joke.punchline_preview) }}
+            original_image=joke.punchline_original_image_raw or joke.punchline_original_image,
+            original_preview=joke.punchline_preview or joke.punchline_original_image) }}
         <div class="image-frame">
           <img class="joke-book-detail-image punchline-img {% if not joke.punchline_image %}joke-book-detail-hidden{% endif %}"
             src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
@@ -890,6 +926,51 @@
       return remainder.slice(slashIndex + 1);
     };
 
+    const getTileImageUrl = (tile) => {
+      if (!tile) return '';
+      return tile.dataset.imageOriginal || tile.dataset.imageUrl || '';
+    };
+
+    const getCardMainImage = (card, targetField) => {
+      if (!card) return '';
+      if (targetField === 'book_page_setup_image_url') {
+        return card.dataset.mainSetupImage || '';
+      }
+      return card.dataset.mainPunchlineImage || '';
+    };
+
+    const getCardCurrentImage = (card, targetField) => {
+      if (!card) return '';
+      if (targetField === 'book_page_setup_image_url') {
+        return card.querySelector('.setup-img')?.getAttribute('src') || '';
+      }
+      return card.querySelector('.punchline-img')?.getAttribute('src') || '';
+    };
+
+    const isDeleteProtected = (tile, card) => {
+      const targetField = tile?.dataset?.targetField;
+      if (!targetField) return true;
+      const tileUrl = normalizeUrl(getTileImageUrl(tile));
+      if (!tileUrl) return true;
+      const currentUrl = normalizeUrl(getCardCurrentImage(card, targetField));
+      const mainUrl = normalizeUrl(getCardMainImage(card, targetField));
+      return (tileUrl && currentUrl && tileUrl === currentUrl)
+        || (tileUrl && mainUrl && tileUrl === mainUrl);
+    };
+
+    const updateDeleteStateForCard = (card) => {
+      if (!card) return;
+      const tiles = card.querySelectorAll('.variant-tile');
+      tiles.forEach((tile) => {
+        const deleteBtn = tile.querySelector('.variant-delete');
+        if (!deleteBtn) return;
+        const isProtected = isDeleteProtected(tile, card);
+        deleteBtn.style.display = isProtected ? 'none' : '';
+        deleteBtn.disabled = isProtected;
+        deleteBtn.dataset.protected = isProtected ? 'true' : 'false';
+      });
+    };
+
     const updateDownloadLink = (card, selector, url) => {
       const container = card.querySelector(selector);
       const link = container?.querySelector('a');
@@ -1043,6 +1124,68 @@
       });
     }
 
+    function attachDeleteListener(button) {
+      if (!button) return;
+      button.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (button.dataset.protected === 'true' || button.disabled) return;
+        const tile = button.closest('.variant-tile');
+        const bookId = tile?.dataset.bookId;
+        const jokeId = tile?.dataset.jokeId;
+        const targetField = tile?.dataset.targetField;
+        const imageUrl = getTileImageUrl(tile);
+        const card = tile?.closest('.joke-book-detail-card');
+        const statusRow = card?.querySelector('.status-row');
+        const timerDisplay = card?.querySelector('.timer-display');
+        const errorBox = card?.querySelector('.inline-error');
+
+        if (!bookId || !jokeId || !targetField || !imageUrl || !card || !statusRow || !timerDisplay || !errorBox) {
+          return;
+        }
+
+        if (!confirm('Remove this image from the variants list?')) {
+          return;
+        }
+
+        errorBox.textContent = '';
+        const stopper = startTimer(statusRow, timerDisplay);
+        const formData = new FormData();
+        formData.set('joke_book_id', bookId);
+        formData.set('joke_id', jokeId);
+        if (targetField === 'book_page_setup_image_url') {
+          formData.set('remove_book_page_setup_image_url', imageUrl);
+        } else {
+          formData.set('remove_book_page_punchline_image_url', imageUrl);
+        }
+
+        fetch(updateBookPageUrl, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        })
+          .then((resp) => {
+            if (!resp.ok) {
+              return resp.text().then((txt) => {
+                throw new Error(txt || 'Failed to delete image');
+              });
+            }
+            return resp.text();
+          })
+          .then(() => {
+            tile.remove();
+            return updateRow(bookId, jokeId);
+          })
+          .catch((err) => {
+            console.error(err);
+            errorBox.textContent = err?.message || 'Failed to delete image.';
+          })
+          .finally(() => {
+            if (stopper) stopper();
+          });
+      });
+    }
+
     function attachTileListener(tile) {
       tile.addEventListener('click', () => {
         const bookId = tile.dataset.bookId;
@@ -1090,6 +1233,13 @@
             if (stopper) stopper();
           });
       });
+
+      tile.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Enter' || evt.key === ' ') {
+          evt.preventDefault();
+          tile.click();
+        }
+      });
     }
 
     function createUploadButton(bookId, jokeId, targetField) {
@@ -1109,6 +1259,16 @@
       input.addEventListener('change', handleUpload);
       label.appendChild(input);
       return label;
+    }
+
+    function createDeleteButton() {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'variant-delete';
+      button.setAttribute('aria-label', 'Remove image');
+      button.textContent = '×';
+      attachDeleteListener(button);
+      return button;
     }
 
     function handleUpload(evt) {
@@ -1157,32 +1317,44 @@
       if (!container) return;
       container.innerHTML = '';
       if (originalTile && originalTile.imageUrl && originalTile.previewUrl) {
-        const originalButton = document.createElement('button');
+        const originalButton = document.createElement('div');
         originalButton.className = 'variant-tile original-variant';
-        originalButton.type = 'button';
+        originalButton.setAttribute('role', 'button');
+        originalButton.setAttribute('tabindex', '0');
         originalButton.dataset.jokeId = jokeId;
         originalButton.dataset.bookId = bookId;
         originalButton.dataset.targetField = targetField;
         originalButton.dataset.imageUrl = originalTile.imageUrl;
+        originalButton.dataset.imageOriginal = originalTile.imageUrl;
         const img = document.createElement('img');
         img.src = originalTile.previewUrl;
         img.alt = `${labelPrefix} original image`;
+        originalButton.appendChild(createDeleteButton());
         originalButton.appendChild(img);
         attachTileListener(originalButton);
         container.appendChild(originalButton);
       }
-      (variants || []).forEach((imageUrl, index) => {
+      (variants || []).forEach((variant, index) => {
+        const imageUrl = typeof variant === 'string'
+          ? variant
+          : variant?.image_url;
+        const thumbUrl = typeof variant === 'string'
+          ? variant
+          : (variant?.thumb_url || variant?.image_url);
         if (!imageUrl) return;
-        const tile = document.createElement('button');
+        const tile = document.createElement('div');
         tile.className = 'variant-tile';
-        tile.type = 'button';
+        tile.setAttribute('role', 'button');
+        tile.setAttribute('tabindex', '0');
         tile.dataset.jokeId = jokeId;
         tile.dataset.bookId = bookId;
         tile.dataset.targetField = targetField;
         tile.dataset.imageUrl = imageUrl;
+        tile.dataset.imageOriginal = imageUrl;
         const img = document.createElement('img');
-        img.src = imageUrl;
+        img.src = thumbUrl || imageUrl;
         img.alt = `${labelPrefix} option ${index + 1}`;
+        tile.appendChild(createDeleteButton());
         tile.appendChild(img);
         attachTileListener(tile);
         container.appendChild(tile);
@@ -1227,6 +1399,9 @@
             punchPh.classList.remove('joke-book-detail-hidden');
           }
 
+          card.dataset.mainSetupImage = data.setup_original_image_raw || '';
+          card.dataset.mainPunchlineImage = data.punchline_original_image_raw || '';
+
           updateDownloadLink(card, '.setup-download', data.setup_image_download);
           updateDownloadLink(card, '.punchline-download', data.punchline_image_download);
 
@@ -1246,7 +1421,7 @@
             Array.isArray(data.setup_variants) ? data.setup_variants : [],
             'Setup options',
             {
-              imageUrl: data.setup_original_image || '',
+              imageUrl: data.setup_original_image_raw || data.setup_original_image || '',
               previewUrl: data.setup_original_preview || data.setup_original_image || '',
             },
           );
@@ -1258,7 +1433,7 @@
             Array.isArray(data.punchline_variants) ? data.punchline_variants : [],
             'Punchline options',
             {
-              imageUrl: data.punchline_original_image || '',
+              imageUrl: data.punchline_original_image_raw || data.punchline_original_image || '',
               previewUrl: data.punchline_original_preview || data.punchline_original_image || '',
             },
           );
@@ -1273,6 +1448,7 @@
               current && url && normalizeUrl(current) === normalizeUrl(url),
             );
           });
+          updateDeleteStateForCard(card);
 
           const metricDefaults = {
             num_views: 0,
@@ -1385,6 +1561,9 @@
     document.querySelectorAll('.set-main-link')
       .forEach((link) => attachSetMainListener(link));
 
+    document.querySelectorAll('.variant-delete')
+      .forEach((button) => attachDeleteListener(button));
+
     document.querySelectorAll('.variant-tile')
       .forEach((tile) => attachTileListener(tile));
 
@@ -1405,6 +1584,7 @@
           current && url && normalizeUrl(current) === normalizeUrl(url),
         );
       });
+      updateDeleteStateForCard(card);
     });
 
     // --- New Functionality: Search, Add, Remove, Reorder ---

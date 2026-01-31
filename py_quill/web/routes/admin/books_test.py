@@ -177,7 +177,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "width=800" in html  # width parameter in formatted CDN URL
   assert "format=png,quality=100/path/setup.png" in html
   assert "format=png,quality=100/path/punchline.png" in html
-  assert "width=1024" not in html
+  assert "data-image-original" in html
   assert "No punchline image" in html
   assert "Download all pages" in html
   assert "Set as main joke image" in html
@@ -488,6 +488,66 @@ def test_admin_update_joke_book_page_updates_metadata(monkeypatch):
                                        'https://old/punch.png')
   metadata_ref.set.assert_called_once_with(updates, merge=True)
   assert resp.json['book_page_setup_image_url'] == 'https://cdn/new.png'
+
+
+def test_admin_update_joke_book_page_removes_variant(monkeypatch):
+  """Deleting a variant prunes it from metadata history."""
+  _mock_admin_session(monkeypatch)
+
+  setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+               "width=1024,format=auto,quality=75/path/setup.png")
+  alt_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+             "width=1024,format=auto,quality=75/path/setup2.png")
+  existing_meta = {
+    'book_page_setup_image_url': setup_url,
+    'all_book_page_setup_image_urls': [setup_url, alt_url],
+  }
+  metadata_doc = Mock()
+  metadata_doc.exists = True
+  metadata_doc.to_dict.return_value = existing_meta
+  metadata_ref = Mock()
+  metadata_ref.get.return_value = metadata_doc
+
+  joke_ref = Mock()
+  joke_ref.collection.return_value.document.return_value = metadata_ref
+
+  book_doc = Mock()
+  book_doc.exists = True
+  book_doc.to_dict.return_value = {'jokes': ['joke-1']}
+  book_ref = Mock()
+  book_ref.get.return_value = book_doc
+
+  joke_books_collection = Mock()
+  joke_books_collection.document.return_value = book_ref
+  jokes_collection = Mock()
+  jokes_collection.document.return_value = joke_ref
+
+  mock_db = Mock()
+
+  def _collection(name):
+    if name == 'joke_books':
+      return joke_books_collection
+    if name == 'jokes':
+      return jokes_collection
+    return Mock()
+
+  mock_db.collection.side_effect = _collection
+  monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
+
+  remove_url = setup_url
+
+  with app.test_client() as client:
+    resp = client.post('/admin/joke-books/update-page',
+                       data={
+                         'joke_book_id': 'book-1',
+                         'joke_id': 'joke-1',
+                         'remove_book_page_setup_image_url': remove_url,
+                       })
+
+  assert resp.status_code == 200
+  update_args = metadata_ref.set.call_args[0][0]
+  assert update_args['all_book_page_setup_image_urls'] == [alt_url]
+  assert update_args['book_page_setup_image_url'] == alt_url
 
 
 def test_admin_update_joke_book_page_requires_new_url(monkeypatch):

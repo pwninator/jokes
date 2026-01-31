@@ -716,6 +716,57 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
   assert second_call.kwargs["save_to_firestore"] is False
 
 
+def test_joke_creation_process_handles_printable_note_op(monkeypatch):
+  """PRINTABLE_NOTE should create a manual notes sheet."""
+  monkeypatch.setattr(joke_creation_fns,
+                      'get_user_id',
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "admin-user")
+
+  jokes = [
+    models.PunnyJoke(
+      key=f"j-{i}",
+      setup_text=f"setup {i}",
+      punchline_text=f"punch {i}",
+    ) for i in range(5)
+  ]
+
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_jokes",
+                      lambda joke_ids: jokes)
+
+  captured = {}
+
+  def fake_ensure_joke_notes_sheet(jokes_arg, sheet_slug=None, **_kwargs):
+    captured["jokes"] = jokes_arg
+    captured["sheet_slug"] = sheet_slug
+    return models.JokeSheet(
+      key="sheet-1",
+      joke_ids=[j.key for j in jokes_arg],
+      sheet_slug=sheet_slug,
+      image_gcs_uri="gs://bucket/sheet.png",
+      pdf_gcs_uri="gs://bucket/sheet.pdf",
+    )
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_notes_sheet_operations,
+    "ensure_joke_notes_sheet",
+    fake_ensure_joke_notes_sheet,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.PRINTABLE_NOTE.value,
+    "joke_ids": [j.key for j in jokes],
+    "sheet_slug": "manual-notes-pack",
+  }))
+
+  data = resp.get_json()["data"]
+  assert data["sheet_id"] == "sheet-1"
+  assert data["sheet_slug"] == "manual-notes-pack"
+  assert captured["sheet_slug"] == "manual-notes-pack"
+  assert len(captured["jokes"]) == 5
+
+
 def test_joke_creation_process_updates_book_page_ready(monkeypatch):
   """When book_page_ready is provided, it is saved to metadata on upsert."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",

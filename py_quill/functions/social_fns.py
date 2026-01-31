@@ -15,7 +15,8 @@ from functions.function_utils import (AuthError, error_response,
 from services import firestore
 
 
-def social_post_creation_process(req: https_fn.Request) -> https_fn.Response:
+def run_social_post_creation_process(
+    req: https_fn.Request) -> https_fn.Response:
   """Handle social post creation and updates."""
   if response := handle_cors_preflight(req):
     return response

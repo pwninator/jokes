@@ -1,5 +1,6 @@
 {% extends "admin/admin_base.html" %}
 {% from "components/printable_notes_sheet_list.html" import printable_notes_sheet_list %}
+{% from "components/joke_picker.html" import joke_picker %}
 
 {% block content %}
 <style>
@@ -13,6 +14,68 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .printable-notes-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .printable-notes-header h2 {
+    margin: 0;
+  }
+
+  .printable-notes-header p {
+    margin: 6px 0 0;
+  }
+
+  .printable-notes-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .manual-create-panel {
+    display: none;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+    background: var(--color-surface, #fff);
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .manual-create-panel.is-active {
+    display: flex;
+  }
+
+  .manual-create-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .manual-create-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 220px;
+  }
+
+  .manual-create-field label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  .manual-create-field input {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    font-size: 14px;
   }
 
   .sheet-row {
@@ -164,10 +227,30 @@
 </style>
 
 <div class="printable-notes-page">
-  <div>
-    <h2>Printable Notes (Manual)</h2>
-    <p class="muted">Manually created note sheets ordered by creation time.</p>
-  </div>
+  <header class="printable-notes-header">
+    <div>
+      <h2>Printable Notes (Manual)</h2>
+      <p class="muted">Manually created note sheets ordered by creation time.</p>
+    </div>
+    <div class="printable-notes-actions">
+      <button type="button" class="button-primary text-button" id="admin-new-note-sheet">
+        New Note Sheet
+      </button>
+    </div>
+  </header>
+
+  <section class="manual-create-panel" id="manual-notes-create-panel">
+    <div class="manual-create-row">
+      <div class="manual-create-field">
+        <label for="manual-notes-sheet-slug">Slug</label>
+        <input id="manual-notes-sheet-slug" type="text" placeholder="e.g., free-math-jokes-1">
+      </div>
+      <button type="button" class="button-primary text-button" id="manual-notes-save" disabled>
+        Save
+      </button>
+    </div>
+    {{ joke_picker('manual-notes-picker') }}
+  </section>
 
   {% if sheets %}
     {{ printable_notes_sheet_list(sheets) }}
@@ -178,6 +261,7 @@
   {% endif %}
 </div>
 
+<script src="/static/js/joke_picker.js"></script>
 <script>
   (function() {
     const maxSelection = 5;
@@ -185,6 +269,91 @@
       .getPropertyValue('--color-primary-dark')
       .trim() || '#4a3b32';
     const activeVariantBorder = `3px solid ${activeColor}`;
+    const manualButton = document.getElementById('admin-new-note-sheet');
+    const manualPanel = document.getElementById('manual-notes-create-panel');
+    const sheetSlugInput = document.getElementById('manual-notes-sheet-slug');
+    const saveButton = document.getElementById('manual-notes-save');
+    const jokeCreationUrl = {{ joke_creation_url | tojson }};
+    let manualPicker = null;
+
+    function updateSaveState(selectionCount) {
+      if (!saveButton) {
+        return;
+      }
+      saveButton.disabled = selectionCount !== maxSelection;
+    }
+
+    if (manualButton && manualPanel) {
+      manualButton.addEventListener('click', () => {
+        manualPanel.classList.toggle('is-active');
+      });
+    }
+
+    if (manualPanel) {
+      manualPicker = new window.JokePicker({
+        container: '#manual-notes-picker',
+        states: ['DAILY', 'PUBLISHED'],
+        publicOnly: true,
+        maxSelection: maxSelection,
+        onSelectionChange: (selection) => {
+          updateSaveState(selection.length);
+        },
+      });
+    }
+
+    if (saveButton) {
+      saveButton.addEventListener('click', async () => {
+        const selection = manualPicker ? manualPicker.getSelectedJokes() : [];
+        const sheetSlug = sheetSlugInput ? sheetSlugInput.value.trim() : '';
+        if (selection.length !== maxSelection) {
+          return;
+        }
+        if (!sheetSlug) {
+          alert('Please enter a slug before saving.');
+          return;
+        }
+
+        const originalText = saveButton.textContent;
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+
+        try {
+          const resp = await fetch(jokeCreationUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              data: {
+                op: 'printable_note',
+                joke_ids: selection.map((joke) => joke.id),
+                sheet_slug: sheetSlug,
+              },
+            }),
+          });
+
+          if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            const error = data?.data?.error || 'Failed to create note sheet';
+            throw new Error(error);
+          }
+
+          if (manualPicker) {
+            manualPicker.clearSelection();
+          }
+          if (sheetSlugInput) {
+            sheetSlugInput.value = '';
+          }
+          updateSaveState(0);
+          window.location.reload();
+        } catch (error) {
+          console.error('Failed to create note sheet:', error);
+          alert('Failed to create note sheet: ' + error.message);
+        } finally {
+          saveButton.textContent = originalText;
+          updateSaveState(manualPicker ? manualPicker.getSelectedJokes().length : 0);
+        }
+      });
+    }
     
     // Initialize selection state for each sheet row
     const sheetRows = document.querySelectorAll('.sheet-row');

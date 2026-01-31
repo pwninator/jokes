@@ -6,7 +6,7 @@ import traceback
 from enum import Enum
 
 from agents import constants
-from common import image_generation, joke_operations, utils
+from common import image_generation, joke_notes_sheet_operations, joke_operations, utils
 from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
@@ -22,6 +22,7 @@ class JokeCreationOp(str, Enum):
   PROC = "proc"
   JOKE_IMAGE = "joke_image"
   SOCIAL = "social"
+  PRINTABLE_NOTE = "printable_note"
 
 
 def _select_image_client(image_quality: str):
@@ -57,6 +58,13 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
                             req=req,
                             status=405)
 
+    # Only allow admin access
+    try:
+      if not utils.is_emulator():
+        get_user_id(req, allow_unauthenticated=False, require_admin=True)
+    except AuthError:
+      return error_response('Unauthorized', status=403, req=req)
+
     op_value = get_param(req, "op", JokeCreationOp.PROC.value)
     try:
       op = JokeCreationOp(op_value)
@@ -68,9 +76,11 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     if op == JokeCreationOp.PROC:
       return _run_joke_creation_proc(req)
     if op == JokeCreationOp.JOKE_IMAGE:
-      return _handle_joke_image_tuner(req)
+      return _run_joke_image_tuner(req)
     if op == JokeCreationOp.SOCIAL:
-      return social_fns.social_post_creation_process(req)
+      return social_fns.run_social_post_creation_process(req)
+    if op == JokeCreationOp.PRINTABLE_NOTE:
+      return _run_printable_sheet_proc(req)
 
     return error_response(f'Unsupported op: {op_value}',
                           error_type='unsupported_operation',
@@ -91,12 +101,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
                           status=500)
 
 
-def _handle_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
+def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
   """Generate setup/punchline images for prompt tuning."""
-  try:
-    get_user_id(req, allow_unauthenticated=False, require_admin=True)
-  except AuthError:
-    return error_response('Unauthorized', status=403, req=req)
 
   setup_prompt = (get_param(req, 'setup_image_prompt') or "").strip()
   punchline_prompt = (get_param(req, 'punchline_image_prompt') or "").strip()
@@ -313,3 +319,46 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
     )
   else:
     return error_response('Failed to save joke', req=req, status=500)
+
+
+def _run_printable_sheet_proc(req: https_fn.Request) -> https_fn.Response:
+  """Create a manual printable notes sheet from selected jokes."""
+
+  if req.method != 'POST':
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
+  joke_ids = get_list_param(req, 'joke_ids')
+  sheet_slug = (get_param(req, 'sheet_slug') or '').strip()
+  if not sheet_slug:
+    return error_response('sheet_slug is required',
+                          error_type='invalid_request',
+                          status=400,
+                          req=req)
+  if len(joke_ids) != 5:
+    return error_response('joke_ids must contain exactly 5 items',
+                          error_type='invalid_request',
+                          status=400,
+                          req=req)
+
+  jokes = firestore.get_punny_jokes(joke_ids)
+  if len(jokes) != len(joke_ids):
+    return error_response('One or more joke_ids were not found',
+                          error_type='invalid_request',
+                          status=404,
+                          req=req)
+
+  sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
+    jokes,
+    sheet_slug=sheet_slug,
+  )
+  return success_response(
+    {
+      "sheet_id": sheet.key,
+      "sheet_slug": sheet.sheet_slug,
+      "pdf_gcs_uri": sheet.pdf_gcs_uri,
+      "image_gcs_uri": sheet.image_gcs_uri,
+    },
+    req=req,
+  )

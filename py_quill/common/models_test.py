@@ -303,6 +303,15 @@ def test_jokesheet_slug_builds_from_category_and_index():
   assert sheet.slug == "free-reptiles-and-dinosaurs-jokes-3"
 
 
+def test_jokesheet_slug_uses_sheet_slug_when_set():
+  sheet = models.JokeSheet(
+    category_id="cats",
+    index=1,
+    sheet_slug="custom-notes-pack",
+  )
+  assert sheet.slug == "custom-notes-pack"
+
+
 def test_jokesheet_display_index_returns_one_based_value():
   sheet = models.JokeSheet(category_id="cats", index=0)
   assert sheet.display_index == 1

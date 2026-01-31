@@ -25,6 +25,7 @@ def ensure_joke_notes_sheet(
   quality: int = 80,
   category_id: str | None = None,
   index: int | None = None,
+  sheet_slug: str | None = None,
 ) -> models.JokeSheet:
   """Create a joke notes sheet (PNG + PDF), upload to GCS, upsert Firestore, and return the sheet.
 
@@ -65,6 +66,7 @@ def ensure_joke_notes_sheet(
     joke_ids=list(joke_ids),
     category_id=category_id,
     index=index,
+    sheet_slug=sheet_slug,
     image_gcs_uri=image_gcs_uri,
     pdf_gcs_uri=pdf_gcs_uri,
     avg_saved_users_fraction=average_saved_users_fraction(jokes),

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import flask
-from firebase_functions import logger
-
 import datetime
 from io import BytesIO
 
+import flask
 from common import config, image_operations, models, utils
+from firebase_functions import logger
 from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
+from web.routes.admin import joke_feed_utils
 
 _MAX_PIN_JOKES = 5
 
@@ -80,6 +80,7 @@ def admin_printable_notes_manual():
     'admin/printable_notes_manual.html',
     site_name='Snickerdoodle',
     sheets=sheets_data,
+    joke_creation_url=joke_feed_utils.joke_creation_url(),
   )
 
 
@@ -295,8 +296,8 @@ def _build_sheet_data(
   resolved_display_index = display_index
   if resolved_display_index is None:
     resolved_display_index = (sheet.display_index
-                              or (sheet.index + 1 if sheet.index is not None
-                                  else 1))
+                              or (sheet.index +
+                                  1 if sheet.index is not None else 1))
 
   return {
     'sheet': sheet,

@@ -712,6 +712,8 @@ class JokeSheet:
   @property
   def slug(self) -> str | None:
     """Return the URL slug for the joke sheet details page."""
+    if self.sheet_slug:
+      return self.sheet_slug
     category_id = (self.category_id or "").strip()
     display_index = self.display_index
     if not category_id or display_index is None:

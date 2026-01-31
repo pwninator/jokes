@@ -176,7 +176,9 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   """Scenario 1 should initialize, regenerate, and save a new joke."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
 
   init_kwargs = {}
 
@@ -233,7 +235,9 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
   """Scenario 2 should apply suggestions and persist the joke."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-2",
     setup_text="S",
@@ -301,7 +305,9 @@ def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
   """Scenario 2 should work with only setup_suggestion."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
   joke = models.PunnyJoke(key="j-2", setup_text="S", punchline_text="P")
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
                       lambda updated: updated)
@@ -346,7 +352,9 @@ def test_joke_creation_process_generates_images(monkeypatch):
   """Scenario 3 should regenerate images for the joke."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-3",
     setup_text="Setup",
@@ -400,7 +408,9 @@ def test_joke_creation_process_uses_description_overrides(monkeypatch):
   """Image generation should use latest descriptions provided in the request."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-3b",
     setup_text="Setup",
@@ -454,7 +464,9 @@ def test_joke_creation_process_updates_text_no_regen(monkeypatch):
   """Scenario 1.5 should update text without regenerating ideas when flag false."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
 
   joke = models.PunnyJoke(
     key="j-5",
@@ -510,7 +522,9 @@ def test_joke_creation_process_updates_text_with_regen(monkeypatch):
   """Scenario 1.5 should request regeneration when flag true."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
 
   joke = models.PunnyJoke(
     key="j-6",
@@ -564,7 +578,9 @@ def test_joke_creation_process_generates_descriptions(monkeypatch):
   """Scenario 2.5 should generate image descriptions only."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-4",
     setup_text="Setup",
@@ -618,7 +634,9 @@ def test_joke_creation_process_requires_valid_params(monkeypatch):
   """Unsupported parameter combinations should return errors."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
-                      lambda req, allow_unauthenticated=False: "user-42")
+                      lambda req,
+                      allow_unauthenticated=False,
+                      require_admin=False: "user-42")
 
   req = DummyReq(data={"admin_owned": True})
 
@@ -633,6 +651,8 @@ def test_joke_creation_process_requires_valid_params(monkeypatch):
 def test_joke_creation_process_defaults_op_to_proc(monkeypatch):
   """Missing op should default to the proc handler."""
   sentinel = object()
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
   monkeypatch.setattr(joke_creation_fns, "_run_joke_creation_proc",
                       lambda _req: sentinel)
 
@@ -641,8 +661,10 @@ def test_joke_creation_process_defaults_op_to_proc(monkeypatch):
   assert resp is sentinel
 
 
-def test_joke_creation_process_rejects_unknown_op():
+def test_joke_creation_process_rejects_unknown_op(monkeypatch):
   """Unknown ops should return a validation error."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
   resp = joke_creation_fns.joke_creation_process(
     DummyReq(data={"op": "unknown"}))
 

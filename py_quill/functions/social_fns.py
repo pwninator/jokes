@@ -89,8 +89,10 @@ def run_social_post_creation_process(
       if not isinstance(type_raw, str) or not type_raw:
         raise social_operations.SocialPostRequestError('type is required')
       try:
-        post_type = models.JokeSocialPostType(type_raw)
-      except ValueError as exc:
+        # `type_raw` comes from the API and matches the enum member name
+        # (e.g. "JOKE_GRID"), so prefer public name-based lookup.
+        post_type = models.JokeSocialPostType[type_raw]
+      except KeyError as exc:
         allowed = ", ".join(t.value for t in models.JokeSocialPostType)
         raise social_operations.SocialPostRequestError(
           f'type must be one of: {allowed}') from exc

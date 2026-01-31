@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from web.app import app
-from web.routes import redirects as redirect_routes
 from web.utils import analytics as analytics_utils
+from common import amazon_redirect
 
 
 def _patch_book_tags(monkeypatch, tags_by_format):
-  amazon_redirect = redirect_routes.amazon_redirect
+  amazon_redirect = amazon_redirect
   base_book = amazon_redirect.BOOKS[amazon_redirect.BookKey.ANIMAL_JOKES]
   variants = {}
   for book_format, variant in base_book.variants.items():
@@ -44,11 +44,14 @@ def test_amazon_redirect_renders_intermediate_page(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  expected_asin = amazon_redirect.BOOKS[
+    amazon_redirect.BookKey.ANIMAL_JOKES].variant_for(
+      amazon_redirect.BookFormat.PAPERBACK).asin
   assert '<meta name="robots" content="noindex,nofollow">' in html
   assert "amazon_redirect" in html
   assert "location.replace" in html
   assert "www.amazon.de" in html
-  assert "B0G7F82P65" in html
+  assert expected_asin in html
   assert len(calls) == 1
   assert calls[0]["measurement_id"] == "G-D2B7E8PXJJ"
   assert calls[0]["client_id"] == "1111111111.2222222222"
@@ -56,7 +59,8 @@ def test_amazon_redirect_renders_intermediate_page(monkeypatch):
   assert calls[0]["event_params"]["redirect_key"] == "book-animal-jokes"
 
 
-def test_amazon_redirect_falls_back_to_ebook_for_unsupported_country(monkeypatch):
+def test_amazon_redirect_falls_back_to_ebook_for_unsupported_country(
+    monkeypatch):
   """Product redirects should fall back to ebook ASIN for unsupported countries."""
   monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",
                       lambda: "test-secret")
@@ -65,8 +69,11 @@ def test_amazon_redirect_falls_back_to_ebook_for_unsupported_country(monkeypatch
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  expected_asin = amazon_redirect.BOOKS[
+    amazon_redirect.BookKey.ANIMAL_JOKES].variant_for(
+      amazon_redirect.BookFormat.EBOOK).asin
   assert "www.amazon.com.br" in html
-  assert "B0G9765J19" in html
+  assert expected_asin in html
 
 
 def test_amazon_redirect_adds_attribution_tag_for_source(monkeypatch):
@@ -75,8 +82,8 @@ def test_amazon_redirect_adds_attribution_tag_for_source(monkeypatch):
                       lambda: "test-secret")
   _patch_book_tags(
     monkeypatch, {
-      redirect_routes.amazon_redirect.BookFormat.PAPERBACK: {
-        redirect_routes.amazon_redirect.AttributionSource.LUNCHBOX_THANK_YOU:
+      amazon_redirect.BookFormat.PAPERBACK: {
+        amazon_redirect.AttributionSource.LUNCHBOX_THANK_YOU:
         "ref_=aa&tag=tag-20",
       },
     })
@@ -97,9 +104,8 @@ def test_amazon_redirect_defaults_source_to_aa(monkeypatch):
                       lambda: "test-secret")
   _patch_book_tags(
     monkeypatch, {
-      redirect_routes.amazon_redirect.BookFormat.PAPERBACK: {
-        redirect_routes.amazon_redirect.AttributionSource.AA:
-        "ref_=aa&tag=tag-20",
+      amazon_redirect.BookFormat.PAPERBACK: {
+        amazon_redirect.AttributionSource.AA: "ref_=aa&tag=tag-20",
       },
     })
 
@@ -123,7 +129,17 @@ def test_amazon_redirect_adds_web_book_page_tag(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert "maas_adg_67CA692EED615032D6E3E602791A40E5" in html
+  variant = amazon_redirect.BOOKS[
+    amazon_redirect.BookKey.ANIMAL_JOKES].variant_for(
+      amazon_redirect.BookFormat.PAPERBACK)
+  expected_tag = variant.attribution_tags[
+    amazon_redirect.AttributionSource.WEB_BOOK_PAGE]
+  # The URL is HTML-escaped (e.g. '&' becomes '&amp;'), so assert on stable
+  # substrings derived from the configured tag rather than the raw query string.
+  maas_value = expected_tag.split("maas=", 1)[1].split("&", 1)[0]
+  assert maas_value in html
+  assert "ref_=aa_maas" in html
+  assert "tag=maas" in html
 
 
 def test_amazon_redirect_uses_resolved_asin_for_attribution(monkeypatch):
@@ -132,9 +148,8 @@ def test_amazon_redirect_uses_resolved_asin_for_attribution(monkeypatch):
                       lambda: "test-secret")
   _patch_book_tags(
     monkeypatch, {
-      redirect_routes.amazon_redirect.BookFormat.EBOOK: {
-        redirect_routes.amazon_redirect.AttributionSource.AA:
-        "ref_=aa&tag=tag-ebook",
+      amazon_redirect.BookFormat.EBOOK: {
+        amazon_redirect.AttributionSource.AA: "ref_=aa&tag=tag-ebook",
       },
     })
 
@@ -154,9 +169,8 @@ def test_amazon_review_redirect_ignores_attribution_tags(monkeypatch):
                       lambda: "test-secret")
   _patch_book_tags(
     monkeypatch, {
-      redirect_routes.amazon_redirect.BookFormat.PAPERBACK: {
-        redirect_routes.amazon_redirect.AttributionSource.AA:
-        "ref_=aa&tag=tag-20",
+      amazon_redirect.BookFormat.PAPERBACK: {
+        amazon_redirect.AttributionSource.AA: "ref_=aa&tag=tag-20",
       },
     })
 
@@ -179,3 +193,69 @@ def test_amazon_redirect_logs_warning_for_unknown_source(monkeypatch):
   assert resp.status_code == 200
 
 
+def test_valentine_book_redirect_renders_intermediate_page(monkeypatch):
+  """Valentine book redirects should render an intermediate redirect page."""
+  calls: list[dict] = []
+
+  def _mock_submit(**kwargs):
+    calls.append(kwargs)
+
+  monkeypatch.setattr(analytics_utils, "submit_ga4_event_fire_and_forget",
+                      _mock_submit)
+  monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
+
+  with app.test_client() as client:
+    resp = client.get('/book-valentine-jokes?country_override=DE')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  expected_asin = amazon_redirect.BOOKS[
+    amazon_redirect.BookKey.VALENTINE_JOKES].variant_for(
+      amazon_redirect.BookFormat.PAPERBACK).asin
+  assert "amazon_redirect" in html
+  assert "location.replace" in html
+  assert "www.amazon.de" in html
+  assert expected_asin in html
+  assert len(calls) == 1
+  assert calls[0]["event_params"]["redirect_key"] == "book-valentine-jokes"
+
+
+def test_valentine_book_redirect_falls_back_to_ebook_for_unsupported_country(
+    monkeypatch):
+  """Valentine product redirects should fall back to ebook when needed."""
+  monkeypatch.setattr(analytics_utils, "submit_ga4_event_fire_and_forget",
+                      lambda **_: None)
+  monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
+
+  with app.test_client() as client:
+    resp = client.get('/book-valentine-jokes?country_override=BR')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  expected_asin = amazon_redirect.BOOKS[
+    amazon_redirect.BookKey.VALENTINE_JOKES].variant_for(
+      amazon_redirect.BookFormat.EBOOK).asin
+  assert "www.amazon.com.br" in html
+  assert expected_asin in html
+
+
+def test_valentine_review_redirect_ignores_attribution_tags(monkeypatch):
+  """Valentine review redirects should never apply affiliate tags."""
+  monkeypatch.setattr(analytics_utils, "submit_ga4_event_fire_and_forget",
+                      lambda **_: None)
+  monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
+
+  with app.test_client() as client:
+    resp = client.get('/review-valentine-jokes?country_override=US&source=aa')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  expected_asin = amazon_redirect.BOOKS[
+    amazon_redirect.BookKey.VALENTINE_JOKES].variant_for(
+      amazon_redirect.BookFormat.PAPERBACK).asin
+  assert "/review/create-review/" in html
+  assert f"asin={expected_asin}" in html
+  assert "tag=" not in html

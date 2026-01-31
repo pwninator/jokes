@@ -72,6 +72,7 @@ class AttributionSource(enum.Enum):
 class BookKey(enum.Enum):
   """Identifiers for supported books."""
   ANIMAL_JOKES = "animal-jokes"
+  VALENTINE_JOKES = "valentine-jokes"
 
 
 class AmazonRedirectPageType(enum.Enum):
@@ -269,6 +270,53 @@ BOOKS: dict[BookKey, Book] = {
       ),
     },
   ),
+  BookKey.VALENTINE_JOKES:
+  Book(
+    title="Cute & Silly Valentine's Day Jokes",
+    variants={
+      BookFormat.PAPERBACK:
+      BookVariant(
+        # TODO: Add ASIN
+        asin='0000000000',
+        supported_countries=BOOK_PRINT_COUNTRIES,
+        # No tags yet
+        # attribution_tags={
+        #   AttributionSource.AA:
+        #   ("maas=maas_adg_283BD8DDB074184DB7B5EBB2ED3EC3E7_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        #   AttributionSource.LUNCHBOX_THANK_YOU:
+        #   ("maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        #   AttributionSource.WEB_BOOK_PAGE:
+        #   ("maas=maas_adg_67CA692EED615032D6E3E602791A40E5_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        #   AttributionSource.PRINTABLE_QR_CODE:
+        #   ("maas=maas_adg_55BD52E1D36F33FB01C05ECD64C29FD7_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        # },
+      ),
+      BookFormat.EBOOK:
+      BookVariant(
+        # TODO: Add ASIN
+        asin='0000000000',
+        # No tags yet
+        # attribution_tags={
+        #   AttributionSource.AA:
+        #   ("maas=maas_adg_88E95258EF6D9D50F8DBAADDFA5F7DE4_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        #   AttributionSource.LUNCHBOX_THANK_YOU:
+        #   ("maas=maas_adg_74E52113CF106F9D73EF19BC150AC09F_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        #   AttributionSource.WEB_BOOK_PAGE:
+        #   ("maas=maas_adg_491AB0D3F2B3A7CC4ABF08A4C6238A15_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        #   AttributionSource.PRINTABLE_QR_CODE:
+        #   ("maas=maas_adg_C14294AAE6E358275AB7BFB2F5EE6766_afap_abs&ref_=aa_maas&tag=maas"
+        #    ),
+        # },
+      ),
+    },
+  ),
 }
 
 AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
@@ -296,6 +344,33 @@ AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
     format=BookFormat.EBOOK,
     description=
     'Redirects to the customer review page for the animal joke book.',
+  ),
+
+  # Cute & Silly Valentine's Day Jokes - Product Page
+  'book-valentine-jokes':
+  AmazonRedirectConfig(
+    book_key=BookKey.VALENTINE_JOKES,
+    page_type=AmazonRedirectPageType.PRODUCT,
+    description=
+    "Redirects to the product page for the Valentine's Day joke book.",
+  ),
+
+  # Cute & Silly Valentine's Day Jokes - Review Pages
+  'review-valentine-jokes':
+  AmazonRedirectConfig(
+    book_key=BookKey.VALENTINE_JOKES,
+    page_type=AmazonRedirectPageType.REVIEW,
+    format=BookFormat.PAPERBACK,
+    description=
+    "Redirects to the customer review page for the Valentine's Day joke book.",
+  ),
+  'review-valentine-jokes-ebook':
+  AmazonRedirectConfig(
+    book_key=BookKey.VALENTINE_JOKES,
+    page_type=AmazonRedirectPageType.REVIEW,
+    format=BookFormat.EBOOK,
+    description=
+    "Redirects to the customer review page for the Valentine's Day joke book.",
   ),
 }
 

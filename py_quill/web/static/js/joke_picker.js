@@ -2,6 +2,23 @@
 (function () {
   'use strict';
 
+  function isJokeSelected(selectedJokes, jokeId) {
+    if (!jokeId) {
+      return false;
+    }
+    return selectedJokes.some((joke) => joke && joke.id === jokeId);
+  }
+
+  function applySelectionState(card, selectedJokes) {
+    if (!card || !card.dataset || card.dataset.selectable !== 'true') {
+      return;
+    }
+    const jokeId = card.dataset.jokeId;
+    const isSelected = isJokeSelected(selectedJokes, jokeId);
+    card.classList.toggle('joke-card--selected', isSelected);
+    card.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+  }
+
   function JokePicker(options) {
     const config = options || {};
     this.container = document.querySelector(config.container || '');
@@ -141,7 +158,6 @@
         return;
       }
       this.currentCategory = categoryId || null;
-      this._resetSelection();
       this._updateCategoryChipStates(button);
       this._resetAndLoad();
     });
@@ -241,6 +257,7 @@
             if (viewer && typeof window.initJokeViewer === 'function') {
               window.initJokeViewer(viewer);
             }
+            this._applySelectionState(card);
           });
         }
 
@@ -297,14 +314,23 @@
     });
   };
 
+  JokePicker.prototype._applySelectionState = function (card) {
+    applySelectionState(card, this.selectedJokes);
+  };
+
+  JokePicker.prototype._syncSelectionState = function () {
+    if (!this.grid) {
+      return;
+    }
+    const cards = this.grid.querySelectorAll('.joke-card[data-selectable="true"]');
+    cards.forEach((card) => {
+      this._applySelectionState(card);
+    });
+  };
+
   JokePicker.prototype._resetSelection = function () {
     this.selectedJokes = [];
-    if (this.grid) {
-      this.grid.querySelectorAll('.joke-card--selected').forEach((card) => {
-        card.classList.remove('joke-card--selected');
-        card.setAttribute('aria-selected', 'false');
-      });
-    }
+    this._syncSelectionState();
     this._renderSelectionRow();
     this.onSelectionChange(this.getSelectedJokes());
   };
@@ -317,5 +343,13 @@
     this._resetSelection();
   };
 
-  window.JokePicker = JokePicker;
+  if (typeof window !== 'undefined') {
+    window.JokePicker = JokePicker;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      JokePicker: JokePicker,
+      applySelectionState: applySelectionState,
+    };
+  }
 })();

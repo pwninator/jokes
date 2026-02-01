@@ -77,11 +77,12 @@ def test_admin_social_renders_social_posts(monkeypatch):
   )
   created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
                                  tzinfo=datetime.timezone.utc)
+  post.creation_time = created_at
 
   monkeypatch.setattr(
     social_routes.firestore,
     "get_joke_social_posts",
-    Mock(return_value=[(post, created_at)]),
+    Mock(return_value=[post]),
   )
   monkeypatch.setattr(
     social_routes.firestore,
@@ -125,11 +126,12 @@ def test_admin_social_hides_delete_when_posted(monkeypatch):
   )
   created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
                                  tzinfo=datetime.timezone.utc)
+  post.creation_time = created_at
 
   monkeypatch.setattr(
     social_routes.firestore,
     "get_joke_social_posts",
-    Mock(return_value=[(post, created_at)]),
+    Mock(return_value=[post]),
   )
   monkeypatch.setattr(
     social_routes.firestore,
@@ -169,11 +171,12 @@ def test_admin_social_renders_carousel_grid(monkeypatch):
   )
   created_at = datetime.datetime(2024, 2, 3, 4, 5, 6,
                                  tzinfo=datetime.timezone.utc)
+  post.creation_time = created_at
 
   monkeypatch.setattr(
     social_routes.firestore,
     "get_joke_social_posts",
-    Mock(return_value=[(post, created_at)]),
+    Mock(return_value=[post]),
   )
   monkeypatch.setattr(
     social_routes.firestore,

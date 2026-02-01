@@ -111,6 +111,7 @@ def test_upsert_social_post_creates_document(monkeypatch):
   captured = {}
 
   class DummyOperationsDoc:
+
     def __init__(self):
       self.exists = False
       self.data = {}
@@ -128,6 +129,7 @@ def test_upsert_social_post_creates_document(monkeypatch):
     exists = False
 
   class DummyDocRef:
+
     def __init__(self):
       self._operations_doc = DummyOperationsDoc()
 
@@ -141,6 +143,7 @@ def test_upsert_social_post_creates_document(monkeypatch):
       assert name == "metadata"
 
       class DummyMetadataCol:
+
         def __init__(self, operations_doc):
           self._operations_doc = operations_doc
 
@@ -151,11 +154,13 @@ def test_upsert_social_post_creates_document(monkeypatch):
       return DummyMetadataCol(self._operations_doc)
 
   class DummyCol:
+
     def document(self, doc_id):
       captured["doc_id"] = doc_id
       return DummyDocRef()
 
   class DummyDB:
+
     def collection(self, name):
       assert name == "joke_social_posts"
       return DummyCol()
@@ -186,18 +191,22 @@ def test_upsert_social_post_creates_document(monkeypatch):
 
 
 def test_get_joke_social_post_returns_none_when_missing(monkeypatch):
+
   class DummyDoc:
     exists = False
 
   class DummyDocRef:
+
     def get(self):
       return DummyDoc()
 
   class DummyCol:
+
     def document(self, _doc_id):
       return DummyDocRef()
 
   class DummyDB:
+
     def collection(self, name):
       assert name == "joke_social_posts"
       return DummyCol()
@@ -207,6 +216,7 @@ def test_get_joke_social_post_returns_none_when_missing(monkeypatch):
 
 
 def test_get_joke_social_post_parses_post(monkeypatch):
+
   class DummyDoc:
     exists = True
     id = "post1"
@@ -220,14 +230,17 @@ def test_get_joke_social_post_parses_post(monkeypatch):
       }
 
   class DummyDocRef:
+
     def get(self):
       return DummyDoc()
 
   class DummyCol:
+
     def document(self, _doc_id):
       return DummyDocRef()
 
   class DummyDB:
+
     def collection(self, name):
       assert name == "joke_social_posts"
       return DummyCol()
@@ -239,10 +252,143 @@ def test_get_joke_social_post_parses_post(monkeypatch):
   assert post.pinterest_title == "Title"
 
 
+def test_get_joke_social_posts_filters_by_type(monkeypatch):
+  captured = {}
+
+  class DummyFieldFilter:
+
+    def __init__(self, field_path, op_string, value):
+      captured["field_path"] = field_path
+      captured["op_string"] = op_string
+      captured["value"] = value
+
+  class DummyQuery:
+
+    def order_by(self, *_args, **_kwargs):
+      return self
+
+    def where(self, *, filter):
+      captured["filter"] = filter
+      return self
+
+    def limit(self, _limit):
+      return self
+
+    def stream(self):
+      return []
+
+  class DummyCol:
+
+    def order_by(self, *_args, **_kwargs):
+      return DummyQuery()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(firestore, "FieldFilter", DummyFieldFilter)
+
+  firestore.get_joke_social_posts(
+    post_type=models.JokeSocialPostType.JOKE_GRID)
+
+  assert captured["field_path"] == "type"
+  assert captured["op_string"] == "=="
+  assert captured["value"] == "JOKE_GRID"
+
+
+def test_get_joke_social_posts_without_type(monkeypatch):
+
+  class DummyQuery:
+
+    def order_by(self, *_args, **_kwargs):
+      return self
+
+    def where(self, *, filter):  # pragma: no cover - should not be called
+      raise AssertionError(f"Unexpected filter {filter}")
+
+    def limit(self, _limit):
+      return self
+
+    def stream(self):
+      return []
+
+  class DummyCol:
+
+    def order_by(self, *_args, **_kwargs):
+      return DummyQuery()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+
+  firestore.get_joke_social_posts()
+
+
+def test_get_joke_social_posts_sets_creation_time(monkeypatch):
+  created_at = datetime.datetime(2024,
+                                 1,
+                                 2,
+                                 3,
+                                 4,
+                                 5,
+                                 tzinfo=datetime.timezone.utc)
+
+  class DummyDoc:
+    exists = True
+    id = "post1"
+
+    def to_dict(self):
+      return {
+        "type": "JOKE_GRID",
+        "link_url": "https://snickerdoodlejokes.com/jokes/test",
+        "creation_time": created_at,
+      }
+
+  class DummyQuery:
+
+    def order_by(self, *_args, **_kwargs):
+      return self
+
+    def where(self, *, filter):
+      return self
+
+    def limit(self, _limit):
+      return self
+
+    def stream(self):
+      return [DummyDoc()]
+
+  class DummyCol:
+
+    def order_by(self, *_args, **_kwargs):
+      return DummyQuery()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_social_posts"
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+
+  posts = firestore.get_joke_social_posts()
+
+  assert len(posts) == 1
+  assert posts[0].creation_time == created_at
+
+
 def test_upsert_social_post_updates_document(monkeypatch):
   captured = {}
 
   class DummyOperationsDoc:
+
     def __init__(self):
       self.exists = False
       self.data = {}
@@ -263,6 +409,7 @@ def test_upsert_social_post_updates_document(monkeypatch):
       return {"pinterest_title": "Old"}
 
   class DummyDocRef:
+
     def __init__(self):
       self._operations_doc = DummyOperationsDoc()
 
@@ -276,6 +423,7 @@ def test_upsert_social_post_updates_document(monkeypatch):
       assert name == "metadata"
 
       class DummyMetadataCol:
+
         def __init__(self, operations_doc):
           self._operations_doc = operations_doc
 
@@ -286,10 +434,12 @@ def test_upsert_social_post_updates_document(monkeypatch):
       return DummyMetadataCol(self._operations_doc)
 
   class DummyCol:
+
     def document(self, _doc_id):
       return DummyDocRef()
 
   class DummyDB:
+
     def collection(self, name):
       assert name == "joke_social_posts"
       return DummyCol()

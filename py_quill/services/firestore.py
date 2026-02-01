@@ -209,27 +209,30 @@ def get_punny_jokes(joke_ids: Collection[str]) -> list[models.PunnyJoke]:
 def get_joke_social_posts(
   *,
   limit: int | None = None,
-) -> list[tuple[models.JokeSocialPost, datetime.datetime | None]]:
-  """Fetch social posts ordered by creation_time descending."""
+  post_type: models.JokeSocialPostType | None = None,
+) -> list[models.JokeSocialPost]:
+  """Fetch most recently created social posts."""
   query = db().collection('joke_social_posts').order_by(
     'creation_time',
     direction=Query.DESCENDING,
   )
+  if post_type:
+    query = query.where(filter=FieldFilter('type', '==', post_type.value))
+
   if limit:
     query = query.limit(limit)
 
-  entries: list[tuple[models.JokeSocialPost, datetime.datetime | None]] = []
+  entries: list[models.JokeSocialPost] = []
   for doc in query.stream():
     if not doc.exists:
       continue
     data = doc.to_dict() or {}
-    creation_time = data.get('creation_time')
     try:
       post = models.JokeSocialPost.from_firestore_dict(data, key=doc.id)
     except ValueError as exc:
       logger.warn(f"Skipping invalid social post {doc.id}: {exc}")
       continue
-    entries.append((post, creation_time))
+    entries.append(post)
   return entries
 
 
@@ -1598,8 +1601,7 @@ def initialize_user_document(user_id: str, email: str) -> bool:
   return created
 
 
-def get_users_missing_mailerlite_subscriber_id(
-    limit: int | None = None):
+def get_users_missing_mailerlite_subscriber_id(limit: int | None = None):
   """Return Firestore docs for users missing a MailerLite subscriber id."""
   query = db().collection('users').where(
     filter=FieldFilter('mailerlite_subscriber_id', '==', None))
@@ -1620,7 +1622,8 @@ def update_user_mailerlite_subscriber_id(
   if not subscriber_id:
     raise ValueError("subscriber_id is required")
   db().collection('users').document(user_id).update({
-    'mailerlite_subscriber_id': subscriber_id,
+    'mailerlite_subscriber_id':
+    subscriber_id,
   })
 
 

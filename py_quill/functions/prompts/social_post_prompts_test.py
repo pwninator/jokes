@@ -48,6 +48,7 @@ def test_generate_pinterest_post_text_parses_fields(monkeypatch):
   title, description, alt_text, metadata = social_post_prompts.generate_pinterest_post_text(
     [image_bytes],
     post_type=models.JokeSocialPostType.JOKE_GRID,
+    recent_posts=[],
   )
 
   assert title == "Cute Jokes"
@@ -74,4 +75,5 @@ def test_generate_pinterest_post_text_requires_output(monkeypatch):
     social_post_prompts.generate_pinterest_post_text(
       [b"image"],
       post_type=models.JokeSocialPostType.JOKE_GRID_TEASER,
+      recent_posts=[],
     )

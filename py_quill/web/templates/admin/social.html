@@ -477,8 +477,9 @@
       <div class="pin-controls">
         <label class="post-type-select-label" for="admin-social-post-type">Post type</label>
         <select class="post-type-select" id="admin-social-post-type">
+          {% set resolved_default_post_type = 'JOKE_CAROUSEL' %}
           {% for option in post_type_options %}
-          <option value="{{ option }}" {% if option==default_post_type %}selected{% endif %}>
+          <option value="{{ option }}" {% if option==resolved_default_post_type %}selected{% endif %}>
             {{ option.replace('_', ' ') }}
           </option>
           {% endfor %}
@@ -500,7 +501,7 @@
     <p class="muted">No social posts yet.</p>
     {% else %}
     <div class="social-posts-list" aria-label="Social posts list">
-      {% for post, creation_time in social_posts %}
+      {% for post in social_posts %}
       {% set pinterest_locked = post.pinterest_post_time or post.pinterest_post_id %}
       {% set instagram_locked = post.instagram_post_time or post.instagram_post_id %}
       {% set facebook_locked = post.facebook_post_time or post.facebook_post_id %}
@@ -527,8 +528,8 @@
         {% set carousel_grid_urls = post.instagram_image_urls or post.facebook_image_urls or post.pinterest_image_urls or [] %}
         <header class="social-post-card__header">
           <span class="social-post-card__timestamp js-social-created">
-            {% if creation_time %}
-            {{ creation_time.strftime('%Y-%m-%d %H:%M') }}
+            {% if post.creation_time %}
+            {{ post.creation_time.strftime('%Y-%m-%d %H:%M') }}
             {% else %}
             Unknown
             {% endif %}

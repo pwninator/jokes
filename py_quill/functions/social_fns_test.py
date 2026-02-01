@@ -34,6 +34,15 @@ def _json_payload(resp) -> dict:
   return resp.get_json()
 
 
+@pytest.fixture(autouse=True)
+def _stub_recent_posts(monkeypatch: pytest.MonkeyPatch):
+  monkeypatch.setattr(
+    social_fns.social_operations.firestore,
+    "get_joke_social_posts",
+    lambda **_kwargs: [],
+  )
+
+
 def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
 
@@ -47,20 +56,25 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   expected_link_url = ("https://snickerdoodlejokes.com/jokes/"
                        f"{jokes[-1].human_readable_setup_text_slug}")
 
-  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type):
+  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type, recent_posts):
     assert pin_image_bytes[0].startswith(b"\x89PNG")
     assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    assert recent_posts == []
     return "Title", "Description", "Alt text", {}
 
-  def _fake_instagram_prompt(image_bytes: list[bytes], *, post_type):
+  def _fake_instagram_prompt(image_bytes: list[bytes], *, post_type,
+                             recent_posts):
     assert image_bytes[0].startswith(b"\x89PNG")
     assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    assert recent_posts == []
     return "IG caption", "IG alt", {}
 
-  def _fake_facebook_prompt(image_bytes: list[bytes], *, post_type, link_url):
+  def _fake_facebook_prompt(image_bytes: list[bytes], *, post_type, link_url,
+                            recent_posts):
     assert image_bytes[0].startswith(b"\x89PNG")
     assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
     assert link_url == expected_link_url
+    assert recent_posts == []
     return "FB message", {}
 
   monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
@@ -306,9 +320,10 @@ def test_social_post_creation_process_regenerates_text(
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
                       "download_bytes_from_gcs", lambda _uri: b"image-bytes")
 
-  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type):
+  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type, recent_posts):
     assert pin_image_bytes == [b"image-bytes"]
     assert post_type == models.JokeSocialPostType.JOKE_GRID
+    assert recent_posts == []
     return "New", "Desc", "Alt", {}
 
   monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
@@ -369,9 +384,10 @@ def test_social_post_creation_process_regenerates_text_and_image(
   monkeypatch.setattr(social_fns.social_operations,
                       "generate_social_post_images", _fake_generate_images)
 
-  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type):
+  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type, recent_posts):
     assert pin_image_bytes == [b"new-image"]
     assert post_type == models.JokeSocialPostType.JOKE_GRID_TEASER
+    assert recent_posts == []
     return "New", "Desc", "Alt", {}
 
   monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
@@ -421,9 +437,10 @@ def test_social_post_creation_process_regenerate_overrides_manual(monkeypatch):
   monkeypatch.setattr(social_fns.social_operations.cloud_storage,
                       "download_bytes_from_gcs", lambda _uri: b"image-bytes")
 
-  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type):
+  def _fake_prompt(pin_image_bytes: list[bytes], *, post_type, recent_posts):
     assert pin_image_bytes == [b"image-bytes"]
     assert post_type == models.JokeSocialPostType.JOKE_GRID
+    assert recent_posts == []
     return "Generated", "Generated desc", "Generated alt", {}
 
   monkeypatch.setattr(social_fns.social_operations.social_post_prompts,

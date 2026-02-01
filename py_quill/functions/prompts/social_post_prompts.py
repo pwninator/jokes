@@ -32,6 +32,10 @@ class PlatformConfig:
 
 
 _PLATFORM_CONFIGS: dict[models.SocialPlatform, PlatformConfig] = {
+
+  ######################
+  ##### PINTEREST ######
+  ######################
   models.SocialPlatform.PINTEREST:
   PlatformConfig(
     system_prompt="""You are a Pinterest SEO expert.
@@ -91,6 +95,10 @@ Descriptions:
       ["pinterest_title", "pinterest_description", "pinterest_alt_text"],
     },
   ),
+
+  ######################
+  ##### INSTAGRAM ######
+  ######################
   models.SocialPlatform.INSTAGRAM:
   PlatformConfig(
     system_prompt="""You are an Instagram caption generator.
@@ -141,6 +149,10 @@ Write a caption to optimize for engagement. Include exactly 3-5 relevant hashtag
       "required": ["instagram_caption", "instagram_alt_text"],
     },
   ),
+
+  ######################
+  ##### FACEBOOK #######
+  ######################
   models.SocialPlatform.FACEBOOK:
   PlatformConfig(
     system_prompt="""You are a Facebook Community Manager.
@@ -169,7 +181,7 @@ Write a short post message in this format:
       SocialPostStrategy(
         goal="Drive comments and shares",
         guidelines=
-        "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, include a CTA to encourage sharing or commenting, e.g. 'Tag a friend who loves dog puns'",
+        "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, once every 4-8 posts,, include a CTA to encourage sharing or commenting.",
         cta="None",
         audience="All",
       ),
@@ -177,7 +189,7 @@ Write a short post message in this format:
       SocialPostStrategy(
         goal="Drive comments and shares",
         guidelines=
-        "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, include a CTA to encourage sharing or commenting, e.g. 'Tag a friend who loves dog puns'",
+        "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, once every 4-8 posts, include a CTA to encourage sharing or commenting.",
         cta="None",
         audience="All",
       ),
@@ -195,6 +207,10 @@ Write a short post message in this format:
   ),
 }
 
+_COMMON_SYSTEM_PROMPT = """\
+You are also given a list of recent posts. Use this information to avoid repeating content and ensure that each post is unique and fresh. For example, if including a pun, make sure it's not already in the recent posts.
+"""
+
 _LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient] = {
   platform:
   llm_client.get_client(
@@ -202,7 +218,7 @@ _LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient] = {
     model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
     temperature=1.0,
     output_tokens=8000,
-    system_instructions=[platform_config.system_prompt],
+    system_instructions=[platform_config.system_prompt, _COMMON_SYSTEM_PROMPT],
     response_schema=platform_config.output_schema,
   )
   for platform, platform_config in _PLATFORM_CONFIGS.items()
@@ -227,6 +243,7 @@ def generate_pinterest_post_text(
   image_bytes_list: list[bytes],
   *,
   post_type: models.JokeSocialPostType,
+  recent_posts: list[models.JokeSocialPost],
 ) -> tuple[str, str, str, models.GenerationMetadata]:
   """Generate Pinterest text fields based on the provided image(s)."""
   if not image_bytes_list:
@@ -238,12 +255,17 @@ def generate_pinterest_post_text(
       f"Unsupported post type: {post_type} for platform: {models.SocialPlatform.PINTEREST}"
     )
 
+  recent_posts_prompt = _get_recent_posts_prompt_str(
+    recent_posts, models.SocialPlatform.PINTEREST)
   prompt = f"""STRATEGIC CONTEXT
 * Post format: {post_type.description}
 * Guidelines: {strategy.guidelines}
 * Audience: {strategy.audience}
 * CTA: {strategy.cta}
 * Goal: {strategy.goal}
+
+RECENT POSTS
+{recent_posts_prompt}
 """
 
   client = _get_llm_client(models.SocialPlatform.PINTEREST)
@@ -270,6 +292,7 @@ def generate_instagram_post_text(
   image_bytes_list: list[bytes],
   *,
   post_type: models.JokeSocialPostType,
+  recent_posts: list[models.JokeSocialPost],
 ) -> tuple[str, str, models.GenerationMetadata]:
   """Generate Instagram text fields based on the provided image(s)."""
   if not image_bytes_list:
@@ -281,12 +304,17 @@ def generate_instagram_post_text(
       f"Unsupported post type: {post_type} for platform: {models.SocialPlatform.INSTAGRAM}"
     )
 
+  recent_posts_prompt = _get_recent_posts_prompt_str(
+    recent_posts, models.SocialPlatform.INSTAGRAM)
   prompt = f"""STRATEGIC CONTEXT
 * Post format: {post_type.description}
 * Guidelines: {strategy.guidelines}
 * Audience: {strategy.audience}
 * CTA: {strategy.cta}
 * Goal: {strategy.goal}
+
+RECENT POSTS
+{recent_posts_prompt}
 """
 
   client = _get_llm_client(models.SocialPlatform.INSTAGRAM)
@@ -313,6 +341,7 @@ def generate_facebook_post_text(
   *,
   post_type: models.JokeSocialPostType,
   link_url: str,
+  recent_posts: list[models.JokeSocialPost],
 ) -> tuple[str, models.GenerationMetadata]:
   """Generate Facebook text fields based on the provided image(s)."""
   if not image_bytes_list:
@@ -327,6 +356,8 @@ def generate_facebook_post_text(
       f"Unsupported post type: {post_type} for platform: {models.SocialPlatform.FACEBOOK}"
     )
 
+  recent_posts_prompt = _get_recent_posts_prompt_str(
+    recent_posts, models.SocialPlatform.FACEBOOK)
   prompt = f"""STRATEGIC CONTEXT
 * Post format: {post_type.description}
 * Guidelines: {strategy.guidelines}
@@ -334,6 +365,9 @@ def generate_facebook_post_text(
 * CTA: {strategy.cta}
 * Goal: {strategy.goal}
 * Link URL to include: {normalized_link_url}
+
+RECENT POSTS
+{recent_posts_prompt}
 """
 
   client = _get_llm_client(models.SocialPlatform.FACEBOOK)
@@ -352,3 +386,12 @@ def generate_facebook_post_text(
     raise ValueError("Failed to generate Facebook post text")
 
   return message, response.metadata
+
+
+def _get_recent_posts_prompt_str(recent_posts: list[models.JokeSocialPost],
+                                 platform: models.SocialPlatform) -> str:
+  """Generate a prompt string for the recent posts."""
+  if not recent_posts:
+    return ""
+  return "\n\n".join(
+    [post.platform_summary(platform) for post in recent_posts])

@@ -292,10 +292,83 @@ def test_joke_social_post_from_firestore_filters_jokes():
   assert post.facebook_post_time == ts
 
 
+def test_joke_social_post_from_firestore_keeps_creation_time():
+  """JokeSocialPost should keep creation_time when present."""
+  created_at = datetime.datetime(2024, 6, 7, 8, 9, 10,
+                                 tzinfo=datetime.timezone.utc)
+  post = models.JokeSocialPost.from_firestore_dict(
+    {
+      "type": "JOKE_GRID",
+      "link_url": "https://snickerdoodlejokes.com/jokes/test",
+      "creation_time": created_at,
+    },
+    key="post1",
+  )
+
+  assert post.creation_time == created_at
+
+
 def test_joke_social_post_type_description():
   assert "grid" in models.JokeSocialPostType.JOKE_GRID.description.lower()
   assert "teaser" in models.JokeSocialPostType.JOKE_GRID_TEASER.description.lower(
   )
+
+
+def test_joke_social_post_platform_summary_pinterest_with_time():
+  ts = datetime.datetime(2024, 5, 6, 7, 8)
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/grid",
+    pinterest_post_time=ts,
+    pinterest_title="Grid title",
+    pinterest_description="Grid desc",
+    pinterest_alt_text="Grid alt",
+  )
+
+  summary = post.platform_summary(models.SocialPlatform.PINTEREST)
+
+  assert summary == "\n".join([
+    "Pinterest post:",
+    "Title: Grid title",
+    "Description: Grid desc",
+    "Alt text: Grid alt",
+    "Posted at 2024-05-06 07:08",
+  ])
+
+
+def test_joke_social_post_platform_summary_instagram_without_time():
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/grid",
+    instagram_caption="Caption text",
+    instagram_alt_text="Alt text",
+  )
+
+  summary = post.platform_summary(models.SocialPlatform.INSTAGRAM)
+
+  assert summary == "\n".join([
+    "Instagram post:",
+    "Caption: Caption text",
+    "Alt text: Alt text",
+  ])
+
+
+def test_joke_social_post_platform_summary_facebook_with_time():
+  ts = datetime.datetime(2024, 8, 9, 10, 11)
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/grid",
+    facebook_post_time=ts,
+    facebook_message="Hello friends",
+  )
+
+  summary = post.platform_summary(models.SocialPlatform.FACEBOOK)
+
+  assert summary == "\n".join([
+    "Facebook post:",
+    "Message: Hello friends",
+    "Posted at 2024-08-09 10:11",
+  ])
 
 
 def test_jokesheet_slug_builds_from_category_and_index():

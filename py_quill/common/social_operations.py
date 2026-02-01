@@ -6,10 +6,12 @@ import datetime
 
 from common import image_operations, models, utils
 from functions.prompts import social_post_prompts
-from services import cloud_storage, firestore, meta as meta_service
+from services import cloud_storage, firestore
+from services import meta as meta_service
 
 MAX_SOCIAL_POST_JOKES = 5
 PUBLIC_JOKE_BASE_URL = "https://snickerdoodlejokes.com/jokes"
+NUM_RECENT_POSTS_TO_INCLUDE = 10
 
 
 class SocialPostRequestError(Exception):
@@ -372,28 +374,48 @@ def generate_social_post_text(
     if image_bytes_by_platform:
       platform_image_bytes = image_bytes_by_platform.get(platform)
 
-    if platform == models.SocialPlatform.PINTEREST:
-      if not platform_image_bytes and not post.pinterest_image_urls:
-        continue
-      post = _generate_pinterest_post_text(post, platform_image_bytes)
-      updated = True
-    elif platform == models.SocialPlatform.INSTAGRAM:
-      if not platform_image_bytes and not post.instagram_image_urls:
-        continue
-      post = _generate_instagram_post_text(post, platform_image_bytes)
-      updated = True
-    elif platform == models.SocialPlatform.FACEBOOK:
-      if not platform_image_bytes and not post.facebook_image_urls:
-        continue
-      post = _generate_facebook_post_text(post, platform_image_bytes)
-      updated = True
-    else:
-      raise SocialPostRequestError(f"Unsupported platform: {platform}")
+    recent_posts = firestore.get_joke_social_posts(
+      post_type=post.type,
+      limit=NUM_RECENT_POSTS_TO_INCLUDE,
+    )
+
+    match platform:
+      case models.SocialPlatform.PINTEREST:
+        if not platform_image_bytes and not post.pinterest_image_urls:
+          continue
+        post = _generate_pinterest_post_text(
+          post,
+          recent_posts,
+          platform_image_bytes,
+        )
+        updated = True
+      case models.SocialPlatform.INSTAGRAM:
+        if not platform_image_bytes and not post.instagram_image_urls:
+          continue
+        post = _generate_instagram_post_text(
+          post,
+          recent_posts,
+          platform_image_bytes,
+        )
+        updated = True
+      case models.SocialPlatform.FACEBOOK:
+        if not platform_image_bytes and not post.facebook_image_urls:
+          continue
+        post = _generate_facebook_post_text(
+          post,
+          recent_posts,
+          platform_image_bytes,
+        )
+        updated = True
+      case _:
+        raise SocialPostRequestError(f"Unsupported platform: {platform}")
+
   return post, updated
 
 
 def _generate_pinterest_post_text(
   post: models.JokeSocialPost,
+  recent_posts: list[models.JokeSocialPost],
   pin_image_bytes: list[bytes] | None = None,
 ) -> models.JokeSocialPost:
   """Generate Pinterest text fields based on the composed images."""
@@ -409,6 +431,7 @@ def _generate_pinterest_post_text(
     social_post_prompts.generate_pinterest_post_text(
       pin_image_bytes,
       post_type=post.type,
+      recent_posts=recent_posts,
     ))
   post.pinterest_title = title
   post.pinterest_description = description
@@ -418,6 +441,7 @@ def _generate_pinterest_post_text(
 
 def _generate_instagram_post_text(
   post: models.JokeSocialPost,
+  recent_posts: list[models.JokeSocialPost],
   instagram_image_bytes: list[bytes] | None = None,
 ) -> models.JokeSocialPost:
   """Generate Instagram text fields based on the composed images."""
@@ -434,6 +458,7 @@ def _generate_instagram_post_text(
     social_post_prompts.generate_instagram_post_text(
       instagram_image_bytes,
       post_type=post.type,
+      recent_posts=recent_posts,
     ))
   post.instagram_caption = caption
   post.instagram_alt_text = alt_text
@@ -442,6 +467,7 @@ def _generate_instagram_post_text(
 
 def _generate_facebook_post_text(
   post: models.JokeSocialPost,
+  recent_posts: list[models.JokeSocialPost],
   facebook_image_bytes: list[bytes] | None = None,
 ) -> models.JokeSocialPost:
   """Generate Facebook text fields based on the composed images."""
@@ -457,6 +483,7 @@ def _generate_facebook_post_text(
   message, _metadata = social_post_prompts.generate_facebook_post_text(
     facebook_image_bytes,
     post_type=post.type,
+    recent_posts=recent_posts,
     link_url=post.link_url or "",
   )
   post.facebook_message = message

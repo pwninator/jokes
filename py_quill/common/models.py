@@ -775,6 +775,7 @@ class JokeSocialPost:
   jokes: list[PunnyJoke] = field(default_factory=list)
   key: str | None = None
   link_url: str | None = None
+  creation_time: datetime.datetime | None = None
 
   pinterest_image_urls: list[str] = field(default_factory=list)
   pinterest_post_id: str | None = None
@@ -807,6 +808,37 @@ class JokeSocialPost:
     post_id = getattr(self, f"{prefix}_post_id", None)
     return bool(post_time or post_id)
 
+  def platform_summary(self, platform: SocialPlatform) -> str:
+    """Return a summary of the social post for a given platform."""
+    lines: list[str] = []
+    post_time: datetime.datetime | None = None
+    match platform:
+      case SocialPlatform.PINTEREST:
+        post_time = self.pinterest_post_time or self.creation_time
+        lines.append("Pinterest post:")
+        lines.append(f"Title: {self.pinterest_title}")
+        lines.append(f"Description: {self.pinterest_description}")
+        lines.append(f"Alt text: {self.pinterest_alt_text}")
+
+      case SocialPlatform.INSTAGRAM:
+        post_time = self.instagram_post_time or self.creation_time
+        lines.append("Instagram post:")
+        lines.append(f"Caption: {self.instagram_caption}")
+        lines.append(f"Alt text: {self.instagram_alt_text}")
+
+      case SocialPlatform.FACEBOOK:
+        post_time = self.facebook_post_time or self.creation_time
+        lines.append("Facebook post:")
+        lines.append(f"Message: {self.facebook_message}")
+
+      case _:
+        raise ValueError(f"Unsupported platform: {platform}")
+
+    if post_time:
+      lines.append(f"Posted at {post_time.strftime('%Y-%m-%d %H:%M')}")
+
+    return "\n".join(lines)
+
   def to_dict(self) -> dict:
     """Serialize social post fields for Firestore writes."""
     data = dataclasses.asdict(self)
@@ -817,15 +849,21 @@ class JokeSocialPost:
       if isinstance(joke, PunnyJoke)
     ]
     data.pop('key', None)
+    data.pop('creation_time', None)
     return data
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> "JokeSocialPost":
+  def from_firestore_dict(cls, data: dict, key: str) -> JokeSocialPost:
     """Create a JokeSocialPost from a Firestore dictionary."""
     if not data:
       data = {}
     else:
       data = dict(data)
+
+    creation_time = data.get('creation_time')
+    if creation_time is not None and not isinstance(creation_time,
+                                                    datetime.datetime):
+      data.pop('creation_time', None)
 
     type_value = data.get('type')
     if not isinstance(type_value, str) or not type_value:

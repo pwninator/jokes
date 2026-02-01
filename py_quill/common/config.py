@@ -39,6 +39,10 @@ FIREBASE_WEB_CONFIG = {
   'measurementId': 'G-4KQFXXRSJY',
 }
 
+# Social Media Configuration
+INSTAGRAM_USER_ID = "17841480298186338"
+FACEBOOK_PAGE_ID = "966070413264093"
+
 
 def _get_secret(secret_id: str) -> str:
   """Return the latest version of a Secret Manager secret as a UTF-8 string."""
@@ -76,3 +80,13 @@ def get_joke_bundle_secret() -> str:
 def get_mailerlite_api_key() -> str:
   """Gets the MailerLite API key from the secret manager."""
   return _get_secret("MAILERLITE_API_KEY")
+
+
+def get_meta_app_secret() -> str:
+  """Gets the Meta App Secret from the secret manager."""
+  return _get_secret("META_APP_SECRET")
+
+
+def get_meta_long_lived_token() -> str:
+  """Gets the Meta Long Lived Token from the secret manager."""
+  return _get_secret("META_LONG_LIVED_TOKEN")

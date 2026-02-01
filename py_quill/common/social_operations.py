@@ -6,7 +6,7 @@ import datetime
 
 from common import image_operations, models, utils
 from functions.prompts import social_post_prompts
-from services import cloud_storage, firestore
+from services import cloud_storage, firestore, meta as meta_service
 
 MAX_SOCIAL_POST_JOKES = 5
 PUBLIC_JOKE_BASE_URL = "https://snickerdoodlejokes.com/jokes"
@@ -125,6 +125,70 @@ def apply_platform_text_updates(
       updated = True
 
   return updated
+
+
+def publish_platform(
+  post: models.JokeSocialPost,
+  *,
+  platform: models.SocialPlatform,
+  post_time: datetime.datetime | None = None,
+) -> models.JokeSocialPost:
+  """Publish the social post to a platform and mark it posted.
+
+  Notes:
+    - Only supports Instagram + Facebook (Meta Graph API) today.
+    - For Facebook alt text, uses Instagram alt text since the post model does
+      not currently store a facebook-specific alt text field.
+  """
+  if not isinstance(platform, models.SocialPlatform):
+    raise SocialPostRequestError("platform must be a SocialPlatform")
+  if post.is_platform_posted(platform):
+    raise SocialPostRequestError(
+      f"{platform.value.title()} post already marked as posted")
+
+  now = post_time or datetime.datetime.now(datetime.timezone.utc)
+
+  if platform == models.SocialPlatform.INSTAGRAM:
+    image_urls = post.instagram_image_urls or []
+    caption = (post.instagram_caption or "").strip()
+    if not image_urls:
+      raise SocialPostRequestError("Instagram image URLs are required")
+    if not caption:
+      raise SocialPostRequestError("Instagram caption is required")
+    images = [models.Image(url=url) for url in image_urls]
+    platform_post_id = meta_service.publish_instagram_post(
+      images=images,
+      caption=caption,
+      alt_text=post.instagram_alt_text,
+    )
+    return mark_platform_posted(
+      post,
+      platform=platform,
+      platform_post_id=platform_post_id,
+      post_time=now,
+    )
+
+  if platform == models.SocialPlatform.FACEBOOK:
+    image_urls = post.facebook_image_urls or post.instagram_image_urls or []
+    message = (post.facebook_message or "").strip()
+    if not image_urls:
+      raise SocialPostRequestError("Facebook image URLs are required")
+    if not message:
+      raise SocialPostRequestError("Facebook message is required")
+    images = [models.Image(url=url) for url in image_urls]
+    platform_post_id = meta_service.publish_facebook_post(
+      images=images,
+      message=message,
+      alt_text=post.instagram_alt_text,
+    )
+    return mark_platform_posted(
+      post,
+      platform=platform,
+      platform_post_id=platform_post_id,
+      post_time=now,
+    )
+
+  raise SocialPostRequestError(f"Unsupported platform: {platform.value}")
 
 
 def mark_platform_posted(

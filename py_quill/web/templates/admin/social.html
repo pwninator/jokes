@@ -1516,22 +1516,38 @@
         }
 
         if (postButton) {
-          activePostCard = card;
-          activePostPlatform = postButton.dataset.platform || '';
-          if (postModalInput) {
-            const platformKey = activePostPlatform || '';
-            const currentValue = card.dataset[`${platformKey}PostId`] || '';
-            postModalInput.value = currentValue;
+          const platform = postButton.dataset.platform || '';
+          if (platform === 'pinterest') {
+            activePostCard = card;
+            activePostPlatform = platform;
+            if (postModalInput) {
+              const currentValue = card.dataset[`${platform}PostId`] || '';
+              postModalInput.value = currentValue;
+            }
+            if (postModal) {
+              postModal.classList.add('admin-modal--open');
+              postModal.setAttribute('aria-hidden', 'false');
+            }
+            if (postModalInput) {
+              requestAnimationFrame(() => {
+                postModalInput.focus();
+              });
+            }
+            return;
           }
-          if (postModal) {
-            postModal.classList.add('admin-modal--open');
-            postModal.setAttribute('aria-hidden', 'false');
-          }
-          if (postModalInput) {
-            requestAnimationFrame(() => {
-              postModalInput.focus();
+
+          await runWithButtonState(postButton, 'Posting...', async () => {
+            const data = await sendSocialRequest({
+              post_id: card.dataset.postId,
+              publish_platform: platform,
             });
-          }
+            const postData = data?.post_data || {};
+            const postId = data?.post_id || card.dataset.postId;
+            upsertPostCard(postId, postData);
+          }).catch((error) => {
+            console.error('Failed to publish post:', error);
+            alert('Failed to publish post: ' + error.message);
+          });
           return;
         }
 

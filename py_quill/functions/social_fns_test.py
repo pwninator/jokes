@@ -509,6 +509,84 @@ def test_social_post_creation_process_marks_platform_posted(
   assert isinstance(saved_post.instagram_post_time, datetime.datetime)
 
 
+def test_social_post_creation_process_publish_platform_instagram(
+  monkeypatch: pytest.MonkeyPatch, ):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/ig",
+    instagram_caption="Caption",
+    instagram_alt_text="Alt",
+    instagram_image_urls=["https://cdn.example.com/ig.png"],
+  )
+  post.key = "post1"
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_joke_social_post", lambda _post_id: post)
+
+  captured = {}
+
+  def _fake_publish_instagram_post(*, images, caption, alt_text=None):
+    captured["caption"] = caption
+    captured["alt_text"] = alt_text
+    captured["urls"] = [img.url for img in images]
+    return "ig-999"
+
+  monkeypatch.setattr(social_fns.social_operations.meta_service,
+                      "publish_instagram_post", _fake_publish_instagram_post)
+
+  update_mock = Mock(side_effect=lambda post, **_kwargs: post)
+  monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "post_id": "post1",
+    "publish_platform": "instagram",
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 200
+  payload = _json_payload(resp)
+  post_data = payload["data"]["post_data"]
+  assert post_data["instagram_post_id"] == "ig-999"
+  assert isinstance(post_data["instagram_post_time"], str)
+
+  assert captured["caption"] == "Caption"
+  assert captured["alt_text"] == "Alt"
+  assert captured["urls"] == ["https://cdn.example.com/ig.png"]
+
+  saved_post = update_mock.call_args[0][0]
+  assert saved_post.instagram_post_id == "ig-999"
+
+  assert update_mock.call_args.kwargs["operation"] == "PUBLISH_INSTAGRAM"
+
+
+def test_social_post_creation_process_rejects_publish_and_manual_mark(
+  monkeypatch: pytest.MonkeyPatch, ):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_GRID,
+    link_url="https://snickerdoodlejokes.com/jokes/ig",
+  )
+  post.key = "post1"
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_joke_social_post", lambda _post_id: post)
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "post_id": "post1",
+    "publish_platform": "instagram",
+    "mark_posted_platform": "pinterest",
+    "platform_post_id": "pin-1",
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 400
+  payload = _json_payload(resp)
+  assert "publish_platform cannot be combined" in payload["data"]["error"]
+
+
 def test_social_post_creation_process_skips_pinterest_updates_when_posted(
   monkeypatch: pytest.MonkeyPatch, ):
   monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)

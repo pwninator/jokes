@@ -64,9 +64,19 @@ def run_social_post_creation_process(
     instagram_caption = get_param(req, 'instagram_caption')
     instagram_alt_text = get_param(req, 'instagram_alt_text')
     facebook_message = get_param(req, 'facebook_message')
+    publish_platform_raw = get_param(req, 'publish_platform')
     mark_posted_platform_raw = get_param(req, 'mark_posted_platform')
     platform_post_id = get_param(req, 'platform_post_id')
-    mark_posted_platform = _parse_platform(mark_posted_platform_raw)
+    publish_platform = _parse_platform(publish_platform_raw,
+                                       param_name="publish_platform")
+    mark_posted_platform = _parse_platform(mark_posted_platform_raw,
+                                           param_name="mark_posted_platform")
+
+    if publish_platform and (mark_posted_platform_raw is not None
+                             or platform_post_id is not None):
+      raise social_operations.SocialPostRequestError(
+        'publish_platform cannot be combined with mark_posted_platform or '
+        'platform_post_id')
 
     if post_id and (joke_ids is not None or type_raw is not None):
       raise social_operations.SocialPostRequestError(
@@ -79,6 +89,9 @@ def run_social_post_creation_process(
         'regenerate_image requires regenerate_text',
         status=400,
       )
+    if publish_platform and not post_id:
+      raise social_operations.SocialPostRequestError(
+        'post_id is required to publish a social post')
     if mark_posted_platform and not post_id:
       raise social_operations.SocialPostRequestError(
         'post_id is required to mark a social post as posted')
@@ -135,7 +148,14 @@ def run_social_post_creation_process(
       if did_generate_text:
         operation = "GENERATE_TEXT"
 
-    if mark_posted_platform:
+    if publish_platform:
+      post = social_operations.publish_platform(
+        post,
+        platform=publish_platform,
+        post_time=datetime.datetime.now(datetime.timezone.utc),
+      )
+      operation = f"PUBLISH_{publish_platform.value.upper()}"
+    elif mark_posted_platform:
       post = social_operations.mark_platform_posted(
         post,
         platform=mark_posted_platform,
@@ -184,16 +204,19 @@ def _serialize_social_post(post: models.JokeSocialPost) -> dict[str, Any]:
 
 
 def _parse_platform(
-  platform_raw: str | None, ) -> models.SocialPlatform | None:
+  platform_raw: str | None,
+  *,
+  param_name: str,
+) -> models.SocialPlatform | None:
   if platform_raw is None:
     return None
   if not isinstance(platform_raw, str) or not platform_raw.strip():
     raise social_operations.SocialPostRequestError(
-      "mark_posted_platform is required")
+      f"{param_name} is required")
   normalized = platform_raw.strip().lower()
   try:
     return models.SocialPlatform(normalized)
   except ValueError as exc:
     allowed = ", ".join(p.value for p in models.SocialPlatform)
     raise social_operations.SocialPostRequestError(
-      f"mark_posted_platform must be one of: {allowed}") from exc
+      f"{param_name} must be one of: {allowed}") from exc

@@ -131,6 +131,25 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "joke_social_posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creation_time",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "joke_stats",
       "queryScope": "COLLECTION",
       "fields": [
@@ -430,8 +449,6 @@
           "order": "DESCENDING"
         }
       ],
-      "density": "SPARSE_ALL"
-    },
     {
       "collectionGroup": "jokes",
       "queryScope": "COLLECTION",

@@ -449,6 +449,8 @@
           "order": "DESCENDING"
         }
       ],
+      "density": "SPARSE_ALL"
+    },
     {
       "collectionGroup": "jokes",
       "queryScope": "COLLECTION",

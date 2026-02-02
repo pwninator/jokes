@@ -185,14 +185,31 @@ def download_image_from_gcs(gcs_uri_or_url: str) -> Image.Image:
   return Image.open(BytesIO(download_bytes_from_gcs(gcs_uri)))
 
 
-def get_audio_gcs_uri(file_name_base: str, extension: str) -> str:
-  """Get a GCS URI for an audio file."""
-  return get_gcs_uri(config.AUDIO_BUCKET_NAME, file_name_base, extension)
-
-
 def get_image_gcs_uri(file_name_base: str, extension: str) -> str:
   """Get a GCS URI for an image file."""
   return get_gcs_uri(config.IMAGE_BUCKET_NAME, file_name_base, extension)
+
+
+def get_audio_gcs_uri(file_name_base: str,
+                      extension: str,
+                      temp: bool = False) -> str:
+  """Get a GCS URI for an audio file."""
+  if temp:
+    bucket = config.TEMP_FILE_BUCKET_NAME
+  else:
+    bucket = config.PUBLIC_FILE_BUCKET_NAME
+
+  return get_gcs_uri(bucket, f"audio/{file_name_base}", extension)
+
+
+def get_public_file_gcs_uri(file_name_base: str, extension: str) -> str:
+  """Get a GCS URI for a public file."""
+  return get_gcs_uri(config.PUBLIC_FILE_BUCKET_NAME, file_name_base, extension)
+
+
+def get_temp_file_gcs_uri(file_name_base: str, extension: str) -> str:
+  """Get a GCS URI for a temporary file."""
+  return get_gcs_uri(config.TEMP_FILE_BUCKET_NAME, file_name_base, extension)
 
 
 def get_gcs_uri(bucket: str, file_name_base: str, extension: str) -> str:

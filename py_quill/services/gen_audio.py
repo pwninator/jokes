@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import base64
 import enum
+import io
 import random
 import re
 import time
 import traceback
+import wave
 from typing import Any
 
 from common import config, models, utils
 from firebase_functions import logger
+from google import genai
 from google.api_core.exceptions import GoogleAPICallError, ResourceExhausted
 from google.cloud import texttospeech
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 from services import cloud_storage
 
 
@@ -138,64 +144,10 @@ _SSML_REPLACEMENTS = (
 
 _SSML_UNSUPPORTED_ERROR_MSG = "does not support SSML input"
 
-
-def _synthesize_long_audio_request(
-  *,
-  input_text: str,
-  use_ssml: bool,
-  voice: Voice,
-  audio_config: texttospeech.AudioConfig,
-  output_gcs_uri: str,
-  timeout_sec: int,
-  retry_num: int,
-) -> Any:
-  """Makes a single request to the TextToSpeechLongAudioSynthesizeClient.
-
-  Args:
-    input_text: The text content (either plain or SSML).
-    use_ssml: Whether the input_text is SSML or plain text.
-    voice: The voice configuration.
-    audio_config: The audio output configuration.
-    output_gcs_uri: The GCS URI for the output file.
-    timeout_sec: Timeout for the operation.
-    retry_num: The current retry attempt number (for logging).
-
-  Returns:
-    The operation result.
-
-  Raises:
-    GoogleAPICallError: If the API call fails.
-    TimeoutError: If the operation times out.
-  """
-
-  client = texttospeech.TextToSpeechLongAudioSynthesizeClient()
-
-  if use_ssml:
-    ssml_text = input_text
-    for old, new in _SSML_REPLACEMENTS:
-      ssml_text = ssml_text.replace(old, new)
-    ssml_text = f"<speak>{ssml_text}</speak>"
-    synthesis_input = texttospeech.SynthesisInput(ssml=ssml_text)
-  else:
-    synthesis_input = texttospeech.SynthesisInput(text=input_text)
-
-  tts_voice = texttospeech.VoiceSelectionParams(
-    language_code=voice.language.value, name=voice.voice_name)
-
-  request = texttospeech.SynthesizeLongAudioRequest(
-    parent=_TTS_PARENT_LOCATION,
-    input=synthesis_input,
-    audio_config=audio_config,
-    voice=tts_voice,
-    output_gcs_uri=output_gcs_uri,
-  )
-
-  operation = client.synthesize_long_audio(request=request)
-  input_type = "SSML" if use_ssml else "Text"
-  logger.info(f"Waiting for operation {operation.operation.name} "
-              f"(retry {retry_num}, input: {input_type})...")
-  # Result is expected to be empty for successful synthesis
-  return operation.result(timeout=timeout_sec)
+_GEMINI_MULTI_SPEAKER_MODEL = "gemini-2.5-flash-preview-tts"
+_GEMINI_AUDIO_SAMPLE_RATE_HZ = 24000
+_GEMINI_AUDIO_SAMPLE_WIDTH_BYTES = 2
+_GEMINI_AUDIO_CHANNELS = 1
 
 
 def text_to_speech(
@@ -329,6 +281,224 @@ def text_to_speech(
   # Should not be reached if retry logic is correct, but raise error just in case
   raise GenAudioError(
     f"TTS failed definitively after {max_retries} retries for label: {label}")
+
+
+def generate_multi_turn_dialog(
+  script: str,
+  speakers: dict[str, str],
+  output_filename_base: str,
+  temp_output: bool = False,
+) -> tuple[str, models.SingleGenerationMetadata]:
+  """Generate a multi-speaker dialog audio file using Gemini speech generation.
+
+  Args:
+    script: The dialog script. Speaker labels should match the keys in speakers.
+    speakers: Map of speaker name -> Gemini PrebuiltVoiceConfig voice name.
+    output_filename_base: Base filename used for the output GCS object.
+    timeout_sec: Request timeout for Gemini API.
+    max_retries: Max retries for retryable Gemini errors.
+
+  Returns:
+    (gcs_uri, metadata) for the generated WAV audio.
+  """
+  if utils.is_emulator():
+    logger.info('Running in emulator mode. Returning a test audio file.')
+    random_suffix = f"{random.randint(1, 10):02d}"
+    test_uri = f"gs://test_story_audio_data/test_dialog_audio_{random_suffix}.wav"
+    return test_uri, models.SingleGenerationMetadata()
+
+  normalized_script = (script or "").strip()
+  if not normalized_script:
+    raise GenAudioError("Script must be non-empty")
+  if not speakers:
+    raise GenAudioError("At least one speaker must be provided")
+  if len(speakers) > 2:
+    raise GenAudioError("Gemini multi-speaker audio supports up to 2 speakers")
+
+  for speaker_name, voice_name in speakers.items():
+    if not str(speaker_name).strip():
+      raise GenAudioError("Speaker name must be non-empty")
+    if not str(voice_name).strip():
+      raise GenAudioError("Voice name must be non-empty")
+
+  start_time = time.perf_counter()
+
+  extra_log_data = {
+    "speaker_voices": speakers,
+    "sample_rate_hz": _GEMINI_AUDIO_SAMPLE_RATE_HZ,
+    "channels": _GEMINI_AUDIO_CHANNELS,
+  }
+
+  output_gcs_uri = cloud_storage.get_audio_gcs_uri(
+    output_filename_base,
+    "wav",
+    temp=temp_output,
+  )
+
+  client = genai.Client(api_key=config.get_gemini_api_key())
+
+  speaker_voice_configs = [
+    genai_types.SpeakerVoiceConfig(
+      speaker=speaker_name,
+      voice_config=genai_types.VoiceConfig(
+        prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
+          voice_name=voice_name, ), ),
+    ) for speaker_name, voice_name in speakers.items()
+  ]
+
+  response = client.models.generate_content(
+    model=_GEMINI_MULTI_SPEAKER_MODEL,
+    contents=normalized_script,
+    config=genai_types.GenerateContentConfig(
+      response_modalities=["AUDIO"],
+      speech_config=genai_types.SpeechConfig(
+        multi_speaker_voice_config=genai_types.MultiSpeakerVoiceConfig(
+          speaker_voice_configs=speaker_voice_configs, ), ),
+    ),
+  )
+
+  pcm_bytes = _extract_pcm_bytes_from_gemini_response(response)
+  wav_bytes = _pcm_to_wav_bytes(pcm_bytes)
+
+  cloud_storage.upload_bytes_to_gcs(
+    wav_bytes,
+    output_gcs_uri,
+    content_type="audio/wav",
+  )
+
+  generation_time_sec = time.perf_counter() - start_time
+  metadata = models.SingleGenerationMetadata(
+    label="generate_multi_turn_dialog",
+    model_name=_GEMINI_MULTI_SPEAKER_MODEL,
+    token_counts={
+      "characters": len(normalized_script),
+      "audio_pcm_bytes": len(pcm_bytes),
+      "audio_wav_bytes": len(wav_bytes),
+    },
+    generation_time_sec=generation_time_sec,
+    cost=0.0,
+  )
+
+  _log_tts_response(normalized_script, output_gcs_uri, metadata,
+                    extra_log_data)
+  return output_gcs_uri, metadata
+
+
+def _is_retryable_gemini_audio_error(error: Exception) -> bool:
+  if isinstance(error, ResourceExhausted):
+    return True
+  if isinstance(error, genai_errors.ServerError):
+    return True
+  if isinstance(error, genai_errors.ClientError) and error.code in (408, 429):
+    return True
+  return False
+
+
+def _extract_pcm_bytes_from_gemini_response(response: Any) -> bytes:
+  """Extract PCM bytes from a Gemini speech-generation response."""
+  candidates = getattr(response, "candidates", None) or []
+  if not candidates:
+    raise GenAudioError("Gemini returned no candidates for audio generation")
+
+  content = getattr(candidates[0], "content", None)
+  parts = getattr(content, "parts", None) or []
+  for part in parts:
+    inline_data = getattr(part, "inline_data", None)
+    if inline_data is None:
+      inline_data = getattr(part, "inlineData", None)
+    if inline_data is None:
+      continue
+    data = getattr(inline_data, "data", None)
+    if isinstance(data, bytes):
+      return data
+    if isinstance(data, str):
+      try:
+        return base64.b64decode(data)
+      except Exception as e:
+        raise GenAudioError(
+          f"Gemini returned inline audio data as a non-base64 string: {e}"
+        ) from e
+
+  raise GenAudioError("Gemini returned no inline audio data")
+
+
+def _pcm_to_wav_bytes(
+  pcm_bytes: bytes,
+  *,
+  sample_rate_hz: int = _GEMINI_AUDIO_SAMPLE_RATE_HZ,
+  sample_width_bytes: int = _GEMINI_AUDIO_SAMPLE_WIDTH_BYTES,
+  channels: int = _GEMINI_AUDIO_CHANNELS,
+) -> bytes:
+  """Wrap raw PCM bytes into a WAV container."""
+  buffer = io.BytesIO()
+  with wave.open(buffer, "wb") as wav_file:
+    # pylint: disable=no-member
+    wav_file.setnchannels(channels)
+    wav_file.setsampwidth(sample_width_bytes)
+    wav_file.setframerate(sample_rate_hz)
+    wav_file.writeframes(pcm_bytes)
+    # pylint: enable=no-member
+
+  return buffer.getvalue()
+
+
+def _synthesize_long_audio_request(
+  *,
+  input_text: str,
+  use_ssml: bool,
+  voice: Voice,
+  audio_config: texttospeech.AudioConfig,
+  output_gcs_uri: str,
+  timeout_sec: int,
+  retry_num: int,
+) -> Any:
+  """Makes a single request to the TextToSpeechLongAudioSynthesizeClient.
+
+  Args:
+    input_text: The text content (either plain or SSML).
+    use_ssml: Whether the input_text is SSML or plain text.
+    voice: The voice configuration.
+    audio_config: The audio output configuration.
+    output_gcs_uri: The GCS URI for the output file.
+    timeout_sec: Timeout for the operation.
+    retry_num: The current retry attempt number (for logging).
+
+  Returns:
+    The operation result.
+
+  Raises:
+    GoogleAPICallError: If the API call fails.
+    TimeoutError: If the operation times out.
+  """
+
+  client = texttospeech.TextToSpeechLongAudioSynthesizeClient()
+
+  if use_ssml:
+    ssml_text = input_text
+    for old, new in _SSML_REPLACEMENTS:
+      ssml_text = ssml_text.replace(old, new)
+    ssml_text = f"<speak>{ssml_text}</speak>"
+    synthesis_input = texttospeech.SynthesisInput(ssml=ssml_text)
+  else:
+    synthesis_input = texttospeech.SynthesisInput(text=input_text)
+
+  tts_voice = texttospeech.VoiceSelectionParams(
+    language_code=voice.language.value, name=voice.voice_name)
+
+  request = texttospeech.SynthesizeLongAudioRequest(
+    parent=_TTS_PARENT_LOCATION,
+    input=synthesis_input,
+    audio_config=audio_config,
+    voice=tts_voice,
+    output_gcs_uri=output_gcs_uri,
+  )
+
+  operation = client.synthesize_long_audio(request=request)
+  input_type = "SSML" if use_ssml else "Text"
+  logger.info(f"Waiting for operation {operation.operation.name} "
+              f"(retry {retry_num}, input: {input_type})...")
+  # Result is expected to be empty for successful synthesis
+  return operation.result(timeout=timeout_sec)
 
 
 def _log_tts_response(

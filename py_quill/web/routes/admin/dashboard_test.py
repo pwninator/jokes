@@ -246,8 +246,8 @@ def test_admin_dashboard_includes_image_prompt_tuner_link(monkeypatch):
   assert 'Image Prompt Tuner' in html
 
 
-def test_admin_dashboard_includes_audio_prompt_tuner_link(monkeypatch):
-  """Admin dashboard includes the audio prompt tuner tile."""
+def test_admin_dashboard_includes_joke_media_generator_link(monkeypatch):
+  """Admin dashboard includes the joke media generator tile."""
   _mock_admin_session(monkeypatch)
 
   with app.test_client() as client:
@@ -255,5 +255,5 @@ def test_admin_dashboard_includes_audio_prompt_tuner_link(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert '/admin/audio-prompt-tuner' in html
-  assert 'Audio Prompt Tuner' in html
+  assert '/admin/joke-media-generator' in html
+  assert 'Joke Media Generator' in html

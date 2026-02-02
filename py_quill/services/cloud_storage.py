@@ -202,6 +202,18 @@ def get_audio_gcs_uri(file_name_base: str,
   return get_gcs_uri(bucket, f"audio/{file_name_base}", extension)
 
 
+def get_video_gcs_uri(file_name_base: str,
+                      extension: str,
+                      temp: bool = False) -> str:
+  """Get a GCS URI for a video file."""
+  if temp:
+    bucket = config.TEMP_FILE_BUCKET_NAME
+  else:
+    bucket = config.PUBLIC_FILE_BUCKET_NAME
+
+  return get_gcs_uri(bucket, f"video/{file_name_base}", extension)
+
+
 def get_public_file_gcs_uri(file_name_base: str, extension: str) -> str:
   """Get a GCS URI for a public file."""
   return get_gcs_uri(config.PUBLIC_FILE_BUCKET_NAME, file_name_base, extension)

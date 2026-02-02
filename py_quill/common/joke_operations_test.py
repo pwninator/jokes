@@ -1282,3 +1282,91 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert num_frames(uploaded[1][1]) == int(rate * 0.2)
   assert num_frames(uploaded[2][1]) == int(rate * 0.1)
   assert num_frames(uploaded[3][1]) == int(rate * 0.3)
+
+
+def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
+
+  def make_wav_bytes(duration_sec: float, *, rate: int = 10) -> bytes:
+    frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  joke = models.PunnyJoke(
+    key="joke-42",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="https://images.example.com/setup.png",
+    punchline_image_url="https://images.example.com/punchline.png",
+  )
+
+  audio_metadata = models.SingleGenerationMetadata(model_name="audio-model")
+  video_metadata = models.SingleGenerationMetadata(model_name="video-model")
+  monkeypatch.setattr(
+    joke_operations,
+    "generate_joke_audio",
+    Mock(return_value=(
+      "gs://audio/dialog.wav",
+      "gs://audio/setup.wav",
+      "gs://audio/response.wav",
+      "gs://audio/punchline.wav",
+      audio_metadata,
+    )),
+  )
+
+  create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
+                                         video_metadata))
+  monkeypatch.setattr(joke_operations.gen_video, "create_slideshow_video",
+                      create_video_mock)
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+    "gs://images/setup.png",
+    "gs://images/punchline.png",
+  ]
+  mock_cloud_storage.download_bytes_from_gcs.side_effect = [
+    make_wav_bytes(1.0),
+    make_wav_bytes(0.5),
+    make_wav_bytes(2.0),
+  ]
+
+  video_uri, metadata = joke_operations.generate_joke_video(joke)
+
+  assert video_uri == "gs://videos/joke.mp4"
+  assert [gen.model_name for gen in metadata.generations] == [
+    "audio-model",
+    "video-model",
+  ]
+
+  expected_images = [
+    ("gs://images/setup.png", 0.0),
+    ("gs://images/punchline.png", 1.5),
+  ]
+  expected_audio = [
+    ("gs://audio/setup.wav", 0.0),
+    ("gs://audio/response.wav", 1.0),
+    ("gs://audio/punchline.wav", 1.5),
+  ]
+
+  create_video_mock.assert_called_once()
+  call_kwargs = create_video_mock.call_args.kwargs
+  assert call_kwargs["images"] == expected_images
+  assert call_kwargs["audio_files"] == expected_audio
+  assert call_kwargs["total_duration_sec"] == pytest.approx(5.5)
+  assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
+  assert call_kwargs["temp_output"] is False
+
+
+def test_generate_joke_video_requires_images():
+  joke = models.PunnyJoke(
+    setup_text="Setup",
+    punchline_text="Punchline",
+  )
+
+  with pytest.raises(ValueError, match="setup and punchline images"):
+    joke_operations.generate_joke_video(joke)

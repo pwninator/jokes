@@ -839,6 +839,49 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     "output_tokens"] == 456
 
 
+def test_joke_creation_process_handles_joke_video_op(monkeypatch):
+  """JOKE_VIDEO should generate and return a video GCS URI."""
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-video-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  generation_metadata = models.GenerationMetadata()
+  generation_metadata.add_generation(
+    models.SingleGenerationMetadata(model_name="gemini-tts"))
+  generation_metadata.add_generation(
+    models.SingleGenerationMetadata(model_name="moviepy"))
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_video",
+    lambda _joke: ("gs://public/video/joke.mp4", generation_metadata),
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
+        "joke_id": "j-video-1",
+      }))
+
+  payload = resp.get_json()["data"]
+  assert payload["video_gcs_uri"] == "gs://public/video/joke.mp4"
+  assert payload["video_generation_metadata"]["total_cost"] == 0
+  assert payload["video_generation_metadata"]["costs_by_model"][
+    "gemini-tts"] == 0
+  assert payload["video_generation_metadata"]["costs_by_model"]["moviepy"] == 0
+
+
 def test_joke_creation_process_updates_book_page_ready(monkeypatch):
   """When book_page_ready is provided, it is saved to metadata on upsert."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",

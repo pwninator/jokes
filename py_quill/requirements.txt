@@ -19,6 +19,7 @@ google-genai>=1.51.0
 img2pdf
 more_itertools
 mailerlite
+moviepy
 numpy
 opencv-python-headless
 openai

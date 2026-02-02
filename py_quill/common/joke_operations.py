@@ -15,8 +15,8 @@ from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
-from services import (cloud_storage, firestore, gen_audio, image_client,
-                      image_editor)
+from services import (cloud_storage, firestore, gen_audio, gen_video,
+                      image_client, image_editor)
 
 _IMAGE_UPSCALE_FACTOR = "x2"
 _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
@@ -533,6 +533,7 @@ def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
 
 def generate_joke_audio(
   joke: models.PunnyJoke,
+  temp_output: bool = False,
 ) -> tuple[str, str, str, str, models.SingleGenerationMetadata]:
   """Generate a full dialog WAV plus split clips and upload as public files.
 
@@ -558,7 +559,7 @@ def generate_joke_audio(
         "Riley": "Puck",  # Upbeat
       },
       output_filename_base=f"joke_dialog_{joke_id_for_filename}",
-      temp_output=True,
+      temp_output=temp_output,
     ))
 
   dialog_wav_bytes = cloud_storage.download_bytes_from_gcs(temp_dialog_gcs_uri)
@@ -599,6 +600,68 @@ def generate_joke_audio(
 
   return (dialog_gcs_uri, setup_gcs_uri, response_gcs_uri, punchline_gcs_uri,
           audio_generation_metadata)
+
+
+def generate_joke_video(
+  joke: models.PunnyJoke,
+  temp_output: bool = False,
+) -> tuple[str, models.GenerationMetadata]:
+  """Generate a slideshow video for a joke with synced audio."""
+  if not joke.setup_text or not joke.punchline_text:
+    raise ValueError("Joke must have setup_text and punchline_text")
+
+  setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
+  punchline_image_url = (joke.punchline_image_url_upscaled
+                         or joke.punchline_image_url)
+  if not setup_image_url or not punchline_image_url:
+    raise ValueError("Joke must have setup and punchline images")
+
+  setup_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    setup_image_url)
+  punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    punchline_image_url)
+
+  (
+    _dialog_gcs_uri,
+    setup_audio_gcs_uri,
+    response_audio_gcs_uri,
+    punchline_audio_gcs_uri,
+    audio_generation_metadata,
+  ) = generate_joke_audio(joke, temp_output=temp_output)
+
+  setup_duration_sec = _get_wav_duration_sec(
+    cloud_storage.download_bytes_from_gcs(setup_audio_gcs_uri))
+  response_duration_sec = _get_wav_duration_sec(
+    cloud_storage.download_bytes_from_gcs(response_audio_gcs_uri))
+  punchline_duration_sec = _get_wav_duration_sec(
+    cloud_storage.download_bytes_from_gcs(punchline_audio_gcs_uri))
+
+  punchline_start_sec = setup_duration_sec + response_duration_sec
+  total_duration_sec = punchline_start_sec + punchline_duration_sec + 2.0
+
+  images = [
+    (setup_image_gcs_uri, 0.0),
+    (punchline_image_gcs_uri, punchline_start_sec),
+  ]
+  audio_files = [
+    (setup_audio_gcs_uri, 0.0),
+    (response_audio_gcs_uri, setup_duration_sec),
+    (punchline_audio_gcs_uri, punchline_start_sec),
+  ]
+
+  joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
+  video_gcs_uri, video_generation_metadata = (gen_video.create_slideshow_video(
+    images=images,
+    audio_files=audio_files,
+    total_duration_sec=total_duration_sec,
+    output_filename_base=f"joke_video_{joke_id_for_filename}",
+    temp_output=temp_output,
+  ))
+
+  generation_metadata = models.GenerationMetadata()
+  generation_metadata.add_generation(audio_generation_metadata)
+  generation_metadata.add_generation(video_generation_metadata)
+  return video_gcs_uri, generation_metadata
 
 
 def _build_kid_dialog_script(joke: models.PunnyJoke) -> str:
@@ -690,6 +753,15 @@ def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
       f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
     )
   return params, frames
+
+
+def _get_wav_duration_sec(wav_bytes: bytes) -> float:
+  """Compute WAV duration from bytes."""
+  params, _frames = _read_wav_bytes(wav_bytes)
+  framerate = float(params.framerate)
+  if framerate <= 0:
+    raise ValueError("WAV framerate must be positive")
+  return float(params.nframes) / framerate
 
 
 def _write_wav_bytes(*, params: Any, frames: bytes) -> bytes:

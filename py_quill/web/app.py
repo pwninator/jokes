@@ -12,7 +12,7 @@ import flask
 import web.routes.about as _about  # noqa: E402,F401
 import web.routes.admin.admin_books as _admin_books  # noqa: E402,F401
 import web.routes.admin.admin_jokes as _admin_jokes  # noqa: E402,F401
-import web.routes.admin.audio_prompt_tuner as _admin_audio_prompt_tuner  # noqa: E402,F401
+import web.routes.admin.joke_media_generator as _admin_joke_media_generator  # noqa: E402,F401
 import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
 import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401
 import web.routes.admin.image_prompt_tuner as _admin_image_prompt_tuner  # noqa: E402,F401

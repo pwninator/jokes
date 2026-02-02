@@ -22,6 +22,7 @@ class JokeCreationOp(str, Enum):
   PROC = "proc"
   JOKE_IMAGE = "joke_image"
   JOKE_AUDIO = "joke_audio"
+  JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
   PRINTABLE_NOTE = "printable_note"
 
@@ -80,6 +81,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       return _run_joke_image_tuner(req)
     if op == JokeCreationOp.JOKE_AUDIO:
       return _run_joke_audio_tuner(req)
+    if op == JokeCreationOp.JOKE_VIDEO:
+      return _run_joke_video_tuner(req)
     if op == JokeCreationOp.SOCIAL:
       return social_fns.run_social_post_creation_process(req)
     if op == JokeCreationOp.PRINTABLE_NOTE:
@@ -210,7 +213,7 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       response_gcs_uri,
       punchline_gcs_uri,
       audio_generation_metadata,
-    ) = (joke_operations.generate_joke_audio(joke))
+    ) = (joke_operations.generate_joke_audio(joke, temp_output=True))
     return success_response(
       {
         "dialog_audio_gcs_uri": dialog_gcs_uri,
@@ -229,6 +232,54 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
                           req=req)
   except Exception as exc:  # pylint: disable=broad-except
     error_string = (f"Error handling joke audio tuning: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string, error_type='internal_error', req=req)
+
+
+def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
+  """Generate joke video for prompt tuning."""
+  if req.method != 'POST':
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
+  joke_id = (get_param(req, 'joke_id') or '').strip()
+  if not joke_id:
+    return error_response(
+      'joke_id is required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  joke = firestore.get_punny_joke(joke_id)
+  if not joke:
+    return error_response(
+      f'Joke not found: {joke_id}',
+      error_type='not_found',
+      status=404,
+      req=req,
+    )
+
+  try:
+    video_gcs_uri, generation_metadata = joke_operations.generate_joke_video(
+      joke, temp_output=True)
+    return success_response(
+      {
+        "video_gcs_uri": video_gcs_uri,
+        "video_generation_metadata":
+        generation_metadata.as_dict if generation_metadata else {},
+      },
+      req=req,
+    )
+  except ValueError as exc:
+    return error_response(str(exc),
+                          error_type='invalid_request',
+                          status=400,
+                          req=req)
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error handling joke video tuning: {str(exc)}\n"
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string, error_type='internal_error', req=req)

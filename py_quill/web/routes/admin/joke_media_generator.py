@@ -1,4 +1,4 @@
-"""Admin route for tuning audio prompts."""
+"""Admin route for generating joke audio + video."""
 
 from __future__ import annotations
 
@@ -9,14 +9,15 @@ from web.routes import web_bp
 from web.routes.admin import joke_feed_utils
 
 
-@web_bp.route('/admin/audio-prompt-tuner', methods=['GET'])
+@web_bp.route('/admin/joke-media-generator', methods=['GET'])
 @auth_helpers.require_admin
-def admin_audio_prompt_tuner():
-  """Render the audio prompt tuner (generation happens client-side)."""
+def admin_joke_media_generator():
+  """Render the joke media generator (generation happens client-side)."""
   return flask.render_template(
-    'admin/audio_prompt_tuner.html',
+    'admin/joke_media_generator.html',
     site_name='Snickerdoodle',
     joke_creation_url=joke_feed_utils.joke_creation_url(),
     joke_audio_op=joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value,
+    joke_video_op=joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
     error_message=None,
   )

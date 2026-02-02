@@ -1,7 +1,7 @@
 {% extends "admin/admin_base.html" %}
 {% from "components/joke_picker.html" import joke_picker %}
 
-{% block title %}Audio Prompt Tuner - {{ site_name }} Admin{% endblock %}
+{% block title %}Joke Media Generator - {{ site_name }} Admin{% endblock %}
 
 {% block content %}
 <style>
@@ -82,15 +82,23 @@
 
 <div class="audio-tuner">
   <div class="audio-header">
-    <h2>Audio Prompt Tuner</h2>
+    <h2>Joke Media Generator</h2>
     <p class="muted">
-      Pick a joke, generate a 2-kid dialog, and preview the split clips (setup / “what?” / punchline + giggles).
+      Pick a joke, generate the dialog audio, and preview the audio clips plus the slideshow video.
     </p>
   </div>
 
   <div id="error-banner" class="error-banner {% if not error_message %}is-hidden{% endif %}">
     <span id="error-banner-text">{% if error_message %}{{ error_message }}{% endif %}</span>
   </div>
+
+  <section id="video-results" class="audio-results is-hidden" aria-label="Generated video">
+    <div class="audio-result-card" id="video-card">
+      <h3>Video</h3>
+      <video id="joke-video" controls></video>
+      <div class="muted mono" id="video-uri"></div>
+    </div>
+  </section>
 
   <section id="audio-results" class="audio-results is-hidden" aria-label="Generated audio">
     <div class="stats-card" id="audio-stats-card">
@@ -140,33 +148,48 @@
     </div>
   </section>
 
+  <form id="video-tuner-form" class="card" method="GET">
+    <input type="hidden" name="op" value="{{ joke_video_op }}">
+    <div class="audio-actions">
+      <button id="generate-video-button" type="button" class="text-button" disabled>Generate Video</button>
+    </div>
+  </form>
+
   <form id="audio-tuner-form" class="card" method="GET">
     <input type="hidden" name="op" value="{{ joke_audio_op }}">
     <div class="audio-actions">
-      <button id="generate-button" type="button" class="text-button" disabled>Generate</button>
+      <button id="generate-audio-button" type="button" class="text-button" disabled>Generate Audio</button>
     </div>
-    {{ joke_picker('audio-prompt-tuner-picker') }}
   </form>
+
+  <div class="card">
+    {{ joke_picker('joke-media-generator-picker') }}
+  </div>
 </div>
 
 <script src="/static/js/joke_picker.js"></script>
 <script>
   (function () {
-    const form = document.getElementById('audio-tuner-form');
-    const generateButton = document.getElementById('generate-button');
+    const audioForm = document.getElementById('audio-tuner-form');
+    const videoForm = document.getElementById('video-tuner-form');
+    const generateAudioButton = document.getElementById('generate-audio-button');
+    const generateVideoButton = document.getElementById('generate-video-button');
     const errorBanner = document.getElementById('error-banner');
     const errorBannerText = document.getElementById('error-banner-text');
     const results = document.getElementById('audio-results');
+    const videoResults = document.getElementById('video-results');
 
     const dialogAudio = document.getElementById('dialog-audio');
     const setupAudio = document.getElementById('setup-audio');
     const responseAudio = document.getElementById('response-audio');
     const punchlineAudio = document.getElementById('punchline-audio');
+    const jokeVideo = document.getElementById('joke-video');
 
     const dialogUri = document.getElementById('dialog-uri');
     const setupUri = document.getElementById('setup-uri');
     const responseUri = document.getElementById('response-uri');
     const punchlineUri = document.getElementById('punchline-uri');
+    const videoUri = document.getElementById('video-uri');
 
     const metaModel = document.getElementById('audio-meta-model');
     const metaCost = document.getElementById('audio-meta-cost');
@@ -195,6 +218,9 @@
     }
 
     function hideResults() {
+      if (videoResults) {
+        videoResults.classList.add('is-hidden');
+      }
       if (results) {
         results.classList.add('is-hidden');
       }
@@ -204,10 +230,16 @@
         el.removeAttribute('src');
         el.load();
       });
+      if (jokeVideo) {
+        jokeVideo.pause();
+        jokeVideo.removeAttribute('src');
+        jokeVideo.load();
+      }
       if (dialogUri) dialogUri.textContent = '';
       if (setupUri) setupUri.textContent = '';
       if (responseUri) responseUri.textContent = '';
       if (punchlineUri) punchlineUri.textContent = '';
+      if (videoUri) videoUri.textContent = '';
       if (metaModel) metaModel.textContent = '';
       if (metaCost) metaCost.textContent = '';
       if (metaPromptTokens) metaPromptTokens.textContent = '';
@@ -215,10 +247,10 @@
       if (metaTokenCounts) metaTokenCounts.textContent = '';
     }
 
-    function setLoading(isLoading) {
-      if (!generateButton) return;
-      generateButton.disabled = Boolean(isLoading);
-      generateButton.textContent = isLoading ? 'Generating…' : 'Generate';
+    function setLoading(button, isLoading, label) {
+      if (!button) return;
+      button.disabled = Boolean(isLoading);
+      button.textContent = isLoading ? 'Generating…' : label;
     }
 
     function gcsToCdnUrl(gcsUri) {
@@ -226,59 +258,65 @@
       return 'https://' + String(gcsUri).replace(/^gs:\/\//, '');
     }
 
-    if (!form || !generateButton || !window.JokePicker) {
+    if (!audioForm || !videoForm || !generateAudioButton || !generateVideoButton || !window.JokePicker) {
       return;
     }
 
     const picker = new window.JokePicker({
-      container: '#audio-prompt-tuner-picker',
+      container: '#joke-media-generator-picker',
       states: ['DAILY', 'PUBLISHED'],
       publicOnly: true,
       maxSelection: 1,
       onSelectionChange: (selection) => {
-        generateButton.disabled = selection.length !== 1;
+        const disable = selection.length !== 1;
+        generateAudioButton.disabled = disable;
+        generateVideoButton.disabled = disable;
       },
     });
 
-    generateButton.addEventListener('click', async function () {
+    async function requestGeneration(opValue, jokeId) {
+      const resp = await fetch(jokeCreationUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          data: {
+            op: opValue,
+            joke_id: jokeId,
+          },
+        }),
+      });
+
+      let json = null;
+      try {
+        json = await resp.json();
+      } catch (e) {
+        json = null;
+      }
+      const data = json && json.data ? json.data : {};
+      if (!resp.ok) {
+        throw new Error(data.error || `Request failed (${resp.status})`);
+      }
+      return data;
+    }
+
+    generateAudioButton.addEventListener('click', async function () {
       clearError();
       hideResults();
-      setLoading(true);
+      setLoading(generateAudioButton, true, 'Generate Audio');
 
       const selected = picker ? picker.getSelectedJokes() : [];
       if (!selected || selected.length !== 1) {
-        setLoading(false);
+        setLoading(generateAudioButton, false, 'Generate Audio');
         showError('Please select exactly one joke.');
         return;
       }
 
       const jokeId = selected[0].id;
-      const opValue = (form.querySelector('input[name="op"]') || {}).value;
+      const opValue = (audioForm.querySelector('input[name="op"]') || {}).value;
 
       try {
-        const resp = await fetch(jokeCreationUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            data: {
-              op: opValue,
-              joke_id: jokeId,
-            },
-          }),
-        });
-
-        let json = null;
-        try {
-          json = await resp.json();
-        } catch (e) {
-          json = null;
-        }
-        const data = json && json.data ? json.data : {};
-        if (!resp.ok) {
-          showError(data.error || `Request failed (${resp.status})`);
-          return;
-        }
+        const data = await requestGeneration(opValue, jokeId);
 
         const dialogGcs = data.dialog_audio_gcs_uri;
         const setupGcs = data.setup_audio_gcs_uri;
@@ -320,7 +358,47 @@
       } catch (err) {
         showError(String(err || 'Unexpected error'));
       } finally {
-        setLoading(false);
+        setLoading(generateAudioButton, false, 'Generate Audio');
+      }
+    });
+
+    generateVideoButton.addEventListener('click', async function () {
+      clearError();
+      hideResults();
+      setLoading(generateVideoButton, true, 'Generate Video');
+
+      const selected = picker ? picker.getSelectedJokes() : [];
+      if (!selected || selected.length !== 1) {
+        setLoading(generateVideoButton, false, 'Generate Video');
+        showError('Please select exactly one joke.');
+        return;
+      }
+
+      const jokeId = selected[0].id;
+      const opValue = (videoForm.querySelector('input[name="op"]') || {}).value;
+
+      try {
+        const data = await requestGeneration(opValue, jokeId);
+        const videoGcs = data.video_gcs_uri;
+        if (!videoGcs) {
+          showError('Video generation succeeded but returned no URI');
+          return;
+        }
+
+        const videoUrl = gcsToCdnUrl(videoGcs);
+        if (jokeVideo) {
+          jokeVideo.src = videoUrl;
+        }
+        if (videoUri) {
+          videoUri.textContent = videoGcs;
+        }
+        if (videoResults) {
+          videoResults.classList.remove('is-hidden');
+        }
+      } catch (err) {
+        showError(String(err || 'Unexpected error'));
+      } finally {
+        setLoading(generateVideoButton, false, 'Generate Video');
       }
     });
   })();

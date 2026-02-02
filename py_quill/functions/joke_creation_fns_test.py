@@ -49,26 +49,25 @@ def test_joke_creation_process_overrides_seasonal_tags(monkeypatch):
     joke.tags = ["auto"]
     return joke
 
-  def fake_upsert(joke,
-                  operation=None,
-                  update_metadata=None):  # pylint: disable=unused-argument
+  def fake_upsert(joke, operation=None, update_metadata=None):  # pylint: disable=unused-argument
     saved["joke"] = joke
     return joke
 
   monkeypatch.setattr(joke_creation_fns.joke_operations, "initialize_joke",
                       fake_initialize_joke)
-  monkeypatch.setattr(joke_creation_fns.joke_operations, "generate_joke_metadata",
-                      fake_generate_metadata)
+  monkeypatch.setattr(joke_creation_fns.joke_operations,
+                      "generate_joke_metadata", fake_generate_metadata)
   monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
                       fake_upsert)
 
-  req = DummyReq(data={
-    "joke_id": "j-1",
-    "setup_text": "Setup",
-    "punchline_text": "Punch",
-    "seasonal": " Winter ",
-    "tags": "snow, cozy,",
-  })
+  req = DummyReq(
+    data={
+      "joke_id": "j-1",
+      "setup_text": "Setup",
+      "punchline_text": "Punch",
+      "seasonal": " Winter ",
+      "tags": "snow, cozy,",
+    })
 
   joke_creation_fns.joke_creation_process(req)
 
@@ -97,9 +96,7 @@ def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
     captured_init.update(kwargs)
     return created_joke
 
-  def fake_upsert(joke,
-                  operation=None,
-                  update_metadata=None):  # pylint: disable=unused-argument
+  def fake_upsert(joke, operation=None, update_metadata=None):  # pylint: disable=unused-argument
     saved["joke"] = joke
     return joke
 
@@ -108,13 +105,14 @@ def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
   monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
                       fake_upsert)
 
-  req = DummyReq(data={
-    "joke_id": "j-2",
-    "setup_text": "Setup",
-    "punchline_text": "Punch",
-    "seasonal": "",
-    "tags": "",
-  })
+  req = DummyReq(
+    data={
+      "joke_id": "j-2",
+      "setup_text": "Setup",
+      "punchline_text": "Punch",
+      "seasonal": "",
+      "tags": "",
+    })
 
   joke_creation_fns.joke_creation_process(req)
 
@@ -122,6 +120,8 @@ def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
   assert captured_init["tags"] == []
   assert saved["joke"].seasonal is None
   assert saved["joke"].tags == []
+
+
 """Tests for joke_creation_fns."""
 
 import pytest
@@ -174,11 +174,10 @@ def stub_scene_idea_generation(monkeypatch):
 
 def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   """Scenario 1 should initialize, regenerate, and save a new joke."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
 
   init_kwargs = {}
 
@@ -233,11 +232,10 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
 
 def test_joke_creation_process_applies_suggestions(monkeypatch):
   """Scenario 2 should apply suggestions and persist the joke."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-2",
     setup_text="S",
@@ -303,11 +301,10 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
 
 def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
   """Scenario 2 should work with only setup_suggestion."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
   joke = models.PunnyJoke(key="j-2", setup_text="S", punchline_text="P")
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
                       lambda updated: updated)
@@ -350,11 +347,10 @@ def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
 
 def test_joke_creation_process_generates_images(monkeypatch):
   """Scenario 3 should regenerate images for the joke."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-3",
     setup_text="Setup",
@@ -406,11 +402,10 @@ def test_joke_creation_process_generates_images(monkeypatch):
 
 def test_joke_creation_process_uses_description_overrides(monkeypatch):
   """Image generation should use latest descriptions provided in the request."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-3b",
     setup_text="Setup",
@@ -462,11 +457,10 @@ def test_joke_creation_process_uses_description_overrides(monkeypatch):
 
 def test_joke_creation_process_updates_text_no_regen(monkeypatch):
   """Scenario 1.5 should update text without regenerating ideas when flag false."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
 
   joke = models.PunnyJoke(
     key="j-5",
@@ -520,11 +514,10 @@ def test_joke_creation_process_updates_text_no_regen(monkeypatch):
 
 def test_joke_creation_process_updates_text_with_regen(monkeypatch):
   """Scenario 1.5 should request regeneration when flag true."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
 
   joke = models.PunnyJoke(
     key="j-6",
@@ -576,11 +569,10 @@ def test_joke_creation_process_updates_text_with_regen(monkeypatch):
 
 def test_joke_creation_process_generates_descriptions(monkeypatch):
   """Scenario 2.5 should generate image descriptions only."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
   joke = models.PunnyJoke(
     key="j-4",
     setup_text="Setup",
@@ -632,11 +624,10 @@ def test_joke_creation_process_generates_descriptions(monkeypatch):
 
 def test_joke_creation_process_requires_valid_params(monkeypatch):
   """Unsupported parameter combinations should return errors."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "user-42")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "user-42")
 
   req = DummyReq(data={"admin_owned": True})
 
@@ -675,18 +666,16 @@ def test_joke_creation_process_rejects_unknown_op(monkeypatch):
 
 def test_joke_creation_process_handles_joke_image_op(monkeypatch):
   """JOKE_IMAGE should generate setup and punchline images."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req, allow_unauthenticated=False,
-                      require_admin=False: "admin-user")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
 
   mock_client = MagicMock()
   mock_setup_image = MagicMock()
   mock_setup_image.url = "http://example.com/setup.png"
   mock_setup_image.gcs_uri = "gs://bucket/setup.png"
-  mock_setup_image.custom_temp_data = {
-    "image_generation_call_id": "call-123"
-  }
+  mock_setup_image.custom_temp_data = {"image_generation_call_id": "call-123"}
 
   mock_punchline_image = MagicMock()
   mock_punchline_image.url = "http://example.com/punchline.png"
@@ -700,9 +689,12 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
                       lambda quality: mock_client)
 
   data = {
-    "op": joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value,
-    "setup_image_prompt": "Setup prompt",
-    "punchline_image_prompt": "Punch prompt",
+    "op":
+    joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value,
+    "setup_image_prompt":
+    "Setup prompt",
+    "punchline_image_prompt":
+    "Punch prompt",
     "setup_reference_images": [
       constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0],
       constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1],
@@ -710,8 +702,10 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
     "punchline_reference_images": [
       constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[2],
     ],
-    "include_setup_image": True,
-    "image_quality": "low",
+    "include_setup_image":
+    True,
+    "image_quality":
+    "low",
   }
 
   resp = joke_creation_fns.joke_creation_process(DummyReq(data=data))
@@ -740,11 +734,10 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
 
 def test_joke_creation_process_handles_printable_note_op(monkeypatch):
   """PRINTABLE_NOTE should create a manual notes sheet."""
-  monkeypatch.setattr(joke_creation_fns,
-                      'get_user_id',
-                      lambda req,
-                      allow_unauthenticated=False,
-                      require_admin=False: "admin-user")
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
 
   jokes = [
     models.PunnyJoke(
@@ -776,17 +769,74 @@ def test_joke_creation_process_handles_printable_note_op(monkeypatch):
     fake_ensure_joke_notes_sheet,
   )
 
-  resp = joke_creation_fns.joke_creation_process(DummyReq(data={
-    "op": joke_creation_fns.JokeCreationOp.PRINTABLE_NOTE.value,
-    "joke_ids": [j.key for j in jokes],
-    "sheet_slug": "manual-notes-pack",
-  }))
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.PRINTABLE_NOTE.value,
+        "joke_ids": [j.key for j in jokes],
+        "sheet_slug": "manual-notes-pack",
+      }))
 
   data = resp.get_json()["data"]
   assert data["sheet_id"] == "sheet-1"
   assert data["sheet_slug"] == "manual-notes-pack"
   assert captured["sheet_slug"] == "manual-notes-pack"
   assert len(captured["jokes"]) == 5
+
+
+def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
+  """JOKE_AUDIO should generate and return three audio GCS URIs."""
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-audio-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_audio",
+    lambda _joke: (
+      "gs://public/audio/dialog.wav",
+      "gs://public/audio/setup.wav",
+      "gs://public/audio/response.wav",
+      "gs://public/audio/punchline.wav",
+      models.SingleGenerationMetadata(
+        model_name="gemini-tts",
+        token_counts={
+          "prompt_tokens": 123,
+          "output_tokens": 456,
+        },
+        cost=0.0123,
+      ),
+    ),
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value,
+        "joke_id": "j-audio-1",
+      }))
+
+  payload = resp.get_json()["data"]
+  assert payload["dialog_audio_gcs_uri"] == "gs://public/audio/dialog.wav"
+  assert payload["setup_audio_gcs_uri"] == "gs://public/audio/setup.wav"
+  assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
+  assert payload[
+    "punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
+  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
+  assert payload["audio_generation_metadata"]["token_counts"][
+    "prompt_tokens"] == 123
+  assert payload["audio_generation_metadata"]["token_counts"][
+    "output_tokens"] == 456
 
 
 def test_joke_creation_process_updates_book_page_ready(monkeypatch):
@@ -829,6 +879,7 @@ def test_joke_creation_process_updates_book_page_ready(monkeypatch):
 @pytest.fixture(autouse=True)
 def stub_metadata_generation(monkeypatch):
   """Prevent real prompt calls by stubbing metadata generation."""
+
   def fake_generate_metadata(joke):
     return joke
 

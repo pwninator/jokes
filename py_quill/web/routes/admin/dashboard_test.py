@@ -244,3 +244,16 @@ def test_admin_dashboard_includes_image_prompt_tuner_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert '/admin/image-prompt-tuner' in html
   assert 'Image Prompt Tuner' in html
+
+
+def test_admin_dashboard_includes_audio_prompt_tuner_link(monkeypatch):
+  """Admin dashboard includes the audio prompt tuner tile."""
+  _mock_admin_session(monkeypatch)
+
+  with app.test_client() as client:
+    resp = client.get('/admin')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '/admin/audio-prompt-tuner' in html
+  assert 'Audio Prompt Tuner' in html

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import array
 import datetime
+import io
 import random
+import wave
 from io import BytesIO
 from typing import Any, Literal, Tuple
 
@@ -12,7 +15,8 @@ from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
-from services import cloud_storage, firestore, image_client, image_editor
+from services import (cloud_storage, firestore, gen_audio, image_client,
+                      image_editor)
 
 _IMAGE_UPSCALE_FACTOR = "x2"
 _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
@@ -487,7 +491,8 @@ def sync_joke_to_search_collection(
     update_payload["popularity_score"] = joke.popularity_score
 
   # 8. Sync book_id (explicitly write nulls when missing)
-  if "book_id" not in search_data or search_data.get("book_id") != joke.book_id:
+  if "book_id" not in search_data or search_data.get(
+      "book_id") != joke.book_id:
     update_payload["book_id"] = joke.book_id
 
   if update_payload:
@@ -524,3 +529,287 @@ def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
   joke.tags = tags
   joke.generation_metadata.add_generation(metadata)
   return joke
+
+
+def generate_joke_audio(
+  joke: models.PunnyJoke,
+) -> tuple[str, str, str, str, models.SingleGenerationMetadata]:
+  """Generate a full dialog WAV plus split clips and upload as public files.
+
+  Flow:
+  - Generate a single multi-speaker dialog WAV in the *temp* bucket.
+  - Upload the full dialog WAV to the public audio bucket.
+  - Split the WAV on the two ~1s silent pauses into 3 clips:
+    setup, response ("what?"), punchline (including giggles).
+  - Upload all 3 clips to the public audio bucket and return their GCS URIs,
+    plus the generation metadata from the TTS call.
+  """
+  if not joke.setup_text or not joke.punchline_text:
+    raise ValueError("Joke must have setup_text and punchline_text")
+
+  joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
+  script = _build_kid_dialog_script(joke)
+
+  temp_dialog_gcs_uri, audio_generation_metadata = (
+    gen_audio.generate_multi_turn_dialog(
+      script=script,
+      speakers={
+        "Kid1": "Leda",  # Youthful
+        "Kid2": "Puck",  # Upbeat
+      },
+      output_filename_base=f"joke_dialog_{joke_id_for_filename}",
+      temp_output=True,
+    ))
+
+  dialog_wav_bytes = cloud_storage.download_bytes_from_gcs(temp_dialog_gcs_uri)
+  setup_wav, response_wav, punchline_wav = _split_wav_bytes_on_two_pauses(
+    dialog_wav_bytes,
+    silence_duration_sec=1.0,
+  )
+
+  dialog_gcs_uri = cloud_storage.get_audio_gcs_uri(
+    f"joke_{joke_id_for_filename}_dialog",
+    "wav",
+  )
+  setup_gcs_uri = cloud_storage.get_audio_gcs_uri(
+    f"joke_{joke_id_for_filename}_setup",
+    "wav",
+  )
+  response_gcs_uri = cloud_storage.get_audio_gcs_uri(
+    f"joke_{joke_id_for_filename}_response",
+    "wav",
+  )
+  punchline_gcs_uri = cloud_storage.get_audio_gcs_uri(
+    f"joke_{joke_id_for_filename}_punchline",
+    "wav",
+  )
+
+  cloud_storage.upload_bytes_to_gcs(dialog_wav_bytes,
+                                    dialog_gcs_uri,
+                                    content_type="audio/wav")
+  cloud_storage.upload_bytes_to_gcs(setup_wav,
+                                    setup_gcs_uri,
+                                    content_type="audio/wav")
+  cloud_storage.upload_bytes_to_gcs(response_wav,
+                                    response_gcs_uri,
+                                    content_type="audio/wav")
+  cloud_storage.upload_bytes_to_gcs(punchline_wav,
+                                    punchline_gcs_uri,
+                                    content_type="audio/wav")
+
+  return (dialog_gcs_uri, setup_gcs_uri, response_gcs_uri, punchline_gcs_uri,
+          audio_generation_metadata)
+
+
+def _build_kid_dialog_script(joke: models.PunnyJoke) -> str:
+  """Build a Gemini TTS prompt for a 2-kid dialog with exact pauses."""
+  # The Gemini TTS models generally follow this kind of "director + transcript"
+  # structure (see docs). We keep the transcript speaker-labeled and ask the
+  # model to only speak the transcript portion.
+  return f"""You are generating audio. DO NOT speak any instructions.
+ONLY speak the lines under TRANSCRIPT, using the specified speakers.
+
+AUDIO PROFILE:
+- Two 8-year-old kids on a school playground at recess.
+- Natural, clear kid voices. Light and playful.
+
+DIRECTOR'S NOTES:
+- Insert EXACTLY 1.0 seconds of COMPLETE SILENCE after Kid1's setup line.
+- Insert EXACTLY 1.0 seconds of COMPLETE SILENCE after Kid2's "what?" line.
+- Do NOT read bracketed stage directions aloud. Render them as silence or nonverbal sounds.
+- After the punchline, both kids giggle naturally (nonverbal), without saying the word "giggle".
+
+TRANSCRIPT:
+Kid1: [playfully] Hey, want to hear a joke? {joke.setup_text}
+[1 second silence]
+Kid2: [curiously] what?
+[1 second silence]
+Kid1: [excitedly, holding back laughter] {joke.punchline_text}
+Both Kid1 and Kid2: [giggles]
+"""
+
+
+def _split_wav_bytes_on_two_pauses(
+  wav_bytes: bytes,
+  *,
+  silence_duration_sec: float,
+) -> tuple[bytes, bytes, bytes]:
+  """Split a WAV into 3 clips using the first two interior long silent runs."""
+  params, frames = _read_wav_bytes(wav_bytes)
+  frame_size_bytes = int(params.nchannels) * int(params.sampwidth)
+  silence_frames = max(
+    1, int(round(int(params.framerate) * silence_duration_sec)))
+
+  silent_frames_mask = _compute_silent_frame_mask(
+    frames,
+    params=params,
+    silence_abs_amplitude_threshold=250,
+  )
+  runs = _find_silent_runs(silent_frames_mask, min_run_frames=silence_frames)
+
+  # Prefer pauses between utterances, not leading/trailing.
+  nframes = int(params.nframes)
+  interior_runs = [(start, end) for start, end in runs
+                   if start > 0 and end < nframes]
+  if len(interior_runs) < 2:
+    raise ValueError(
+      f"Expected at least 2 interior silence runs of ~{silence_duration_sec}s; found {len(interior_runs)}"
+    )
+
+  (run1_start, run1_end), (run2_start,
+                           run2_end) = interior_runs[0], interior_runs[1]
+  if not (0 <= run1_start < run1_end <= run2_start < run2_end <= nframes):
+    raise ValueError("Detected silence runs are not ordered as expected")
+
+  setup_frames = frames[:run1_start * frame_size_bytes]
+  response_frames = frames[run1_end * frame_size_bytes:run2_start *
+                           frame_size_bytes]
+  punchline_frames = frames[run2_end * frame_size_bytes:]
+
+  if not setup_frames or not response_frames or not punchline_frames:
+    raise ValueError("Split produced an empty clip")
+
+  return (
+    _write_wav_bytes(params=params, frames=setup_frames),
+    _write_wav_bytes(params=params, frames=response_frames),
+    _write_wav_bytes(params=params, frames=punchline_frames),
+  )
+
+
+def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
+  """Parse WAV bytes into (params, raw PCM frame bytes)."""
+  with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+    # pylint: disable=no-member
+    params = wf.getparams()
+    nframes = wf.getnframes()
+    frames = wf.readframes(nframes)
+    # pylint: enable=no-member
+
+  if getattr(params, "comptype", None) != "NONE":
+    raise ValueError(
+      f"Unsupported WAV compression: {getattr(params, 'comptype', None)}")
+
+  expected_len = int(params.nframes) * int(params.nchannels) * int(
+    params.sampwidth)
+  if expected_len and len(frames) != expected_len:
+    raise ValueError(
+      f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
+    )
+  return params, frames
+
+
+def _write_wav_bytes(*, params: Any, frames: bytes) -> bytes:
+  """Write WAV bytes from params + raw frame bytes."""
+  buffer = io.BytesIO()
+  with wave.open(buffer, "wb") as wf:
+    # pylint: disable=no-member
+    wf.setnchannels(int(params.nchannels))
+    wf.setsampwidth(int(params.sampwidth))
+    wf.setframerate(int(params.framerate))
+    wf.writeframes(frames)
+    # pylint: enable=no-member
+  return buffer.getvalue()
+
+
+def _compute_silent_frame_mask(
+  frames: bytes,
+  *,
+  params: Any,
+  silence_abs_amplitude_threshold: int,
+) -> list[bool]:
+  """Return a per-frame boolean mask for silence detection.
+
+  This is intentionally lightweight (stdlib only). We treat a frame as silent
+  when its peak absolute amplitude is below an adaptive threshold derived from
+  the audio itself. This is more robust than a fixed threshold when "silence"
+  contains quiet room tone.
+  """
+  nchannels = int(params.nchannels)
+  sampwidth = int(params.sampwidth)
+  nframes = int(params.nframes)
+
+  frame_size_bytes = nchannels * sampwidth
+  if nframes == 0:
+    return []
+  if len(frames) != nframes * frame_size_bytes:
+    raise ValueError("Frame byte length does not match WAV params")
+
+  # Gemini output is LINEAR16 (signed int16). Support that robustly.
+  if sampwidth == 2:
+    import sys
+
+    samples = array.array("h")
+    samples.frombytes(frames)
+    if sys.byteorder == "big":
+      # WAV PCM is little-endian. Ensure consistent interpretation.
+      samples.byteswap()
+
+    # Compute a per-frame peak amplitude.
+    peaks: list[int] = [0] * nframes
+    sample_index = 0
+    for frame_index in range(nframes):
+      peak = 0
+      for _ch in range(nchannels):
+        sample = samples[sample_index]
+        sample_index += 1
+        value = abs(int(sample))
+        if value > peak:
+          peak = value
+      peaks[frame_index] = peak
+
+    # Adaptive threshold: sample peaks to estimate noise floor.
+    step = max(1, nframes // 5000)
+    sampled = [peaks[i] for i in range(0, nframes, step)]
+    sampled.sort()
+    if not sampled:
+      return [True] * nframes
+
+    def percentile(p: float) -> int:
+      idx = int(round((len(sampled) - 1) * p))
+      idx = max(0, min(idx, len(sampled) - 1))
+      return int(sampled[idx])
+
+    p10 = percentile(0.10)
+    p50 = percentile(0.50)
+
+    # If the file has long quiet regions, p10 approximates the noise floor.
+    # Use both p10 and p50 so we don't classify everything as silence in cases
+    # where the whole file is quiet.
+    adaptive_threshold = max(
+      int(silence_abs_amplitude_threshold),
+      int(round(p10 * 1.8)),
+      int(round(p50 * 0.05)),
+    )
+
+    return [peak <= adaptive_threshold for peak in peaks]
+
+  # Fallback: treat only all-zero frames as silence.
+  zero_frame = b"\x00" * frame_size_bytes
+  silent = [False] * nframes
+  for frame_index in range(nframes):
+    chunk = frames[frame_index * frame_size_bytes:(frame_index + 1) *
+                   frame_size_bytes]
+    silent[frame_index] = chunk == zero_frame
+  return silent
+
+
+def _find_silent_runs(
+  mask: list[bool],
+  *,
+  min_run_frames: int,
+) -> list[tuple[int, int]]:
+  """Return [(start_frame, end_frame_exclusive)] for silent runs >= min_run."""
+  runs: list[tuple[int, int]] = []
+  i = 0
+  n = len(mask)
+  while i < n:
+    if not mask[i]:
+      i += 1
+      continue
+    start = i
+    while i < n and mask[i]:
+      i += 1
+    end = i
+    if (end - start) >= min_run_frames:
+      runs.append((start, end))
+  return runs

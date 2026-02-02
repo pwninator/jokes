@@ -30,8 +30,18 @@ class _Candidate:
 
 class _Response:
 
-  def __init__(self, candidates):
+  def __init__(self, candidates, usage_metadata=None):
     self.candidates = candidates
+    self.usage_metadata = usage_metadata
+
+
+class _UsageMetadata:
+
+  def __init__(self, prompt_token_count, cached_content_token_count,
+               candidates_token_count):
+    self.prompt_token_count = prompt_token_count
+    self.cached_content_token_count = cached_content_token_count
+    self.candidates_token_count = candidates_token_count
 
 
 class _FakeModels:
@@ -53,7 +63,13 @@ class _FakeClient:
 
 def test_generate_multi_turn_dialog_uploads_wav_bytes():
   pcm_bytes = b"\x00\x01" * 200
-  response = _Response([_Candidate(_Content([_Part(pcm_bytes)]))])
+  usage_metadata = _UsageMetadata(
+    prompt_token_count=100,
+    cached_content_token_count=0,
+    candidates_token_count=3200,
+  )
+  response = _Response([_Candidate(_Content([_Part(pcm_bytes)]))],
+                       usage_metadata=usage_metadata)
   fake_client = _FakeClient(response)
 
   upload_mock = MagicMock()
@@ -80,8 +96,13 @@ def test_generate_multi_turn_dialog_uploads_wav_bytes():
     )
 
   assert gcs_uri == "gs://gen_audio/out.wav"
-  assert metadata.model_name == gen_audio._GEMINI_MULTI_SPEAKER_MODEL
+  assert metadata.model_name == gen_audio.GeminiTtsModel.GEMINI_2_5_FLASH_TTS.value
   assert metadata.token_counts["characters"] > 0
+  assert metadata.token_counts["prompt_tokens"] == 100
+  assert metadata.token_counts["output_tokens"] == 3200
+
+  expected_cost = (100 * 0.50 / 1_000_000) + (3200 * 10.00 / 1_000_000)
+  assert metadata.cost == pytest.approx(expected_cost)
 
   assert upload_mock.call_count == 1
   uploaded_bytes = upload_mock.call_args.args[0]
@@ -95,7 +116,7 @@ def test_generate_multi_turn_dialog_uploads_wav_bytes():
 
   assert fake_client.models.generate_content_calls
   call = fake_client.models.generate_content_calls[0]
-  assert call["model"] == gen_audio._GEMINI_MULTI_SPEAKER_MODEL
+  assert call["model"] == gen_audio.GeminiTtsModel.GEMINI_2_5_FLASH_TTS.value
   assert call["contents"] == "Alice: Hello\nBob: Hi"
   response_modalities = getattr(call["config"], "response_modalities", None) or []
   assert "AUDIO" in response_modalities

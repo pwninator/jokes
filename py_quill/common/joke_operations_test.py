@@ -8,6 +8,9 @@ from common import joke_operations, models
 from google.api_core import datetime_helpers
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
+import io
+import wave
+import array
 
 
 @pytest.fixture(name='mock_firestore')
@@ -152,7 +155,8 @@ def test_initialize_joke_updates_existing_fields(mock_firestore):
   mock_firestore.get_punny_joke.assert_called_once_with("j-1")
 
 
-def test_initialize_joke_updates_image_urls_and_clears_upscaled(mock_firestore):
+def test_initialize_joke_updates_image_urls_and_clears_upscaled(
+    mock_firestore):
   """initialize_joke should allow selecting existing image URLs."""
   joke = models.PunnyJoke(
     key="j-1",
@@ -1186,3 +1190,95 @@ def test_to_response_joke_serializes_datetime_with_nanoseconds():
 
   assert response["public_timestamp"] == now.isoformat()
   assert isinstance(response["public_timestamp"], str)
+
+
+def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
+  monkeypatch,
+  mock_cloud_storage,
+):
+  """generate_joke_audio should upload dialog + split clips."""
+
+  def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  rate = 24000
+  one_second_silence = array.array("h", [0] * rate).tobytes()
+  setup_audio = array.array("h", [1000] * int(rate * 0.2)).tobytes()
+  response_audio = array.array("h", [2000] * int(rate * 0.1)).tobytes()
+  punchline_audio = array.array("h", [3000] * int(rate * 0.3)).tobytes()
+  dialog_frames = (setup_audio + one_second_silence + response_audio +
+                   one_second_silence + punchline_audio)
+  dialog_wav_bytes = make_wav_bytes(dialog_frames, rate=rate)
+
+  mock_gen_audio = Mock()
+  monkeypatch.setattr(joke_operations, "gen_audio", mock_gen_audio)
+  generation_metadata = models.SingleGenerationMetadata(
+    model_name="gemini-tts",
+    token_counts={
+      "prompt_tokens": 10,
+      "output_tokens": 20,
+    },
+    cost=0.123,
+  )
+  mock_gen_audio.generate_multi_turn_dialog.return_value = (
+    "gs://temp/dialog.wav",
+    generation_metadata,
+  )
+
+  mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
+  dialog_uri = "gs://public/audio/dialog.wav"
+  setup_uri = "gs://public/audio/setup.wav"
+  response_uri = "gs://public/audio/response.wav"
+  punchline_uri = "gs://public/audio/punchline.wav"
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = [
+    dialog_uri,
+    setup_uri,
+    response_uri,
+    punchline_uri,
+  ]
+
+  uploaded: list[tuple[str, bytes, str]] = []
+
+  def record_upload(content_bytes: bytes, gcs_uri: str, content_type: str):
+    uploaded.append((gcs_uri, content_bytes, content_type))
+    return gcs_uri
+
+  mock_cloud_storage.upload_bytes_to_gcs.side_effect = record_upload
+
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+  )
+
+  result = joke_operations.generate_joke_audio(joke)
+
+  assert result == (dialog_uri, setup_uri, response_uri, punchline_uri,
+                    generation_metadata)
+  assert [u[0] for u in uploaded] == [
+    dialog_uri,
+    setup_uri,
+    response_uri,
+    punchline_uri,
+  ]
+  assert all(u[2] == "audio/wav" for u in uploaded)
+  assert all(u[1][:4] == b"RIFF" for u in uploaded)
+
+  # Verify we split out the non-silence regions.
+  def num_frames(wav_bytes: bytes) -> int:
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+      # pylint: disable=no-member
+      return wf.getnframes()
+
+  assert num_frames(uploaded[0][1]) == int(rate * 2.6)
+  assert num_frames(uploaded[1][1]) == int(rate * 0.2)
+  assert num_frames(uploaded[2][1]) == int(rate * 0.1)
+  assert num_frames(uploaded[3][1]) == int(rate * 0.3)

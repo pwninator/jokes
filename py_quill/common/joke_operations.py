@@ -554,8 +554,8 @@ def generate_joke_audio(
     gen_audio.generate_multi_turn_dialog(
       script=script,
       speakers={
-        "Kid1": "Leda",  # Youthful
-        "Kid2": "Puck",  # Upbeat
+        "Sam": "Leda",  # Youthful
+        "Riley": "Puck",  # Upbeat
       },
       output_filename_base=f"joke_dialog_{joke_id_for_filename}",
       temp_output=True,
@@ -613,19 +613,13 @@ AUDIO PROFILE:
 - Two 8-year-old kids on a school playground at recess.
 - Natural, clear kid voices. Light and playful.
 
-DIRECTOR'S NOTES:
-- Insert EXACTLY 1.0 seconds of COMPLETE SILENCE after Kid1's setup line.
-- Insert EXACTLY 1.0 seconds of COMPLETE SILENCE after Kid2's "what?" line.
-- Do NOT read bracketed stage directions aloud. Render them as silence or nonverbal sounds.
-- After the punchline, both kids giggle naturally (nonverbal), without saying the word "giggle".
-
 TRANSCRIPT:
-Kid1: [playfully] Hey, want to hear a joke? {joke.setup_text}
+Sam: [playfully, slightly slowly to build intrigue] Hey... want to hear a joke? {joke.setup_text}
 [1 second silence]
-Kid2: [curiously] what?
+Riley: [curiously] what?
 [1 second silence]
-Kid1: [excitedly, holding back laughter] {joke.punchline_text}
-Both Kid1 and Kid2: [giggles]
+Sam: [excitedly, holding back laughter] {joke.punchline_text}
+Riley: [giggles]
 """
 
 

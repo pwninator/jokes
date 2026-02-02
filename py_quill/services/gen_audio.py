@@ -362,8 +362,8 @@ def generate_multi_turn_dialog(
       speaker=speaker_name,
       voice_config=genai_types.VoiceConfig(
         prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
-          voice_name=voice_name, ), ),
-    ) for speaker_name, voice_name in speakers.items()
+          voice_name=voice_name)))
+    for speaker_name, voice_name in speakers.items()
   ]
 
   logger.info(

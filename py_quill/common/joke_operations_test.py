@@ -1284,6 +1284,78 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert num_frames(uploaded[3][1]) == int(rate * 0.3)
 
 
+def test_generate_joke_audio_uses_template_and_speakers(
+    monkeypatch, mock_cloud_storage):
+
+  def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  rate = 24000
+  one_second_silence = array.array("h", [0] * rate).tobytes()
+  setup_audio = array.array("h", [1000] * int(rate * 0.2)).tobytes()
+  response_audio = array.array("h", [2000] * int(rate * 0.1)).tobytes()
+  punchline_audio = array.array("h", [3000] * int(rate * 0.3)).tobytes()
+  dialog_frames = (setup_audio + one_second_silence + response_audio +
+                   one_second_silence + punchline_audio)
+  dialog_wav_bytes = make_wav_bytes(dialog_frames, rate=rate)
+
+  mock_gen_audio = Mock()
+  monkeypatch.setattr(joke_operations, "gen_audio", mock_gen_audio)
+  generation_metadata = models.SingleGenerationMetadata(
+    model_name="gemini-tts")
+  mock_gen_audio.generate_multi_turn_dialog.return_value = (
+    "gs://temp/dialog.wav",
+    generation_metadata,
+  )
+
+  mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = [
+    "gs://public/audio/dialog.wav",
+    "gs://public/audio/setup.wav",
+    "gs://public/audio/response.wav",
+    "gs://public/audio/punchline.wav",
+  ]
+  mock_cloud_storage.upload_bytes_to_gcs.return_value = None
+
+  joke = models.PunnyJoke(
+    key="joke-9",
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+  )
+
+  script_template = ("A: {setup_text}\n"
+                     "[1 second silence]\n"
+                     "B: what?\n"
+                     "[1 second silence]\n"
+                     "A: {punchline_text}\n"
+                     "B: [giggles]\n")
+  speakers = {"A": "VoiceA", "B": "VoiceB"}
+
+  _ = joke_operations.generate_joke_audio(
+    joke,
+    script_template=script_template,
+    speakers=speakers,
+  )
+
+  mock_gen_audio.generate_multi_turn_dialog.assert_called_once()
+  call_kwargs = mock_gen_audio.generate_multi_turn_dialog.call_args.kwargs
+  assert call_kwargs["script"].strip() == ("A: Setup text\n"
+                                           "[1 second silence]\n"
+                                           "B: what?\n"
+                                           "[1 second silence]\n"
+                                           "A: Punchline text\n"
+                                           "B: [giggles]")
+  assert call_kwargs["speakers"] == {"A": "VoiceA", "B": "VoiceB"}
+
+
 def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
 
   def make_wav_bytes(duration_sec: float, *, rate: int = 10) -> bytes:
@@ -1345,19 +1417,19 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
 
   expected_images = [
     ("gs://images/setup.png", 0.0),
-    ("gs://images/punchline.png", 1.5),
+    ("gs://images/punchline.png", 2.3),
   ]
   expected_audio = [
     ("gs://audio/setup.wav", 0.0),
-    ("gs://audio/response.wav", 1.0),
-    ("gs://audio/punchline.wav", 1.5),
+    ("gs://audio/response.wav", 1.4),
+    ("gs://audio/punchline.wav", 2.3),
   ]
 
   create_video_mock.assert_called_once()
   call_kwargs = create_video_mock.call_args.kwargs
   assert call_kwargs["images"] == expected_images
   assert call_kwargs["audio_files"] == expected_audio
-  assert call_kwargs["total_duration_sec"] == pytest.approx(5.5)
+  assert call_kwargs["total_duration_sec"] == pytest.approx(6.3)
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
 

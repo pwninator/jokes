@@ -800,10 +800,16 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
   monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
                       lambda _joke_id: joke)
 
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    "generate_joke_audio",
-    lambda _joke: (
+  captured_audio_args: dict[str, str] = {}
+
+  def fake_generate_audio(_joke,
+                          *,
+                          temp_output=False,
+                          script_template=None,
+                          speakers=None):
+    captured_audio_args["script_template"] = script_template
+    captured_audio_args["speakers"] = speakers
+    return (
       "gs://public/audio/dialog.wav",
       "gs://public/audio/setup.wav",
       "gs://public/audio/response.wav",
@@ -816,7 +822,12 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
         },
         cost=0.0123,
       ),
-    ),
+    )
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_audio",
+    fake_generate_audio,
   )
 
   resp = joke_creation_fns.joke_creation_process(
@@ -824,6 +835,8 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value,
         "joke_id": "j-audio-1",
+        "script_template": "Sam: {setup_text}",
+        "speaker_voice_pairs": "Sam:Leda|Riley:Puck",
       }))
 
   payload = resp.get_json()["data"]
@@ -837,6 +850,11 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     "prompt_tokens"] == 123
   assert payload["audio_generation_metadata"]["token_counts"][
     "output_tokens"] == 456
+  assert captured_audio_args["script_template"] == "Sam: {setup_text}"
+  assert captured_audio_args["speakers"] == {
+    "Sam": "Leda",
+    "Riley": "Puck",
+  }
 
 
 def test_joke_creation_process_handles_joke_video_op(monkeypatch):
@@ -861,10 +879,21 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   generation_metadata.add_generation(
     models.SingleGenerationMetadata(model_name="moviepy"))
 
+  captured_video_args: dict[str, str] = {}
+
+  def fake_generate_video(_joke,
+                          *,
+                          temp_output=False,
+                          script_template=None,
+                          speakers=None):
+    captured_video_args["script_template"] = script_template
+    captured_video_args["speakers"] = speakers
+    return ("gs://public/video/joke.mp4", generation_metadata)
+
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
     "generate_joke_video",
-    lambda _joke: ("gs://public/video/joke.mp4", generation_metadata),
+    fake_generate_video,
   )
 
   resp = joke_creation_fns.joke_creation_process(
@@ -872,6 +901,8 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
         "joke_id": "j-video-1",
+        "script_template": "Sam: {setup_text}",
+        "speaker_voice_pairs": "Sam:Leda|Riley:Puck",
       }))
 
   payload = resp.get_json()["data"]
@@ -880,6 +911,11 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert payload["video_generation_metadata"]["costs_by_model"][
     "gemini-tts"] == 0
   assert payload["video_generation_metadata"]["costs_by_model"]["moviepy"] == 0
+  assert captured_video_args["script_template"] == "Sam: {setup_text}"
+  assert captured_video_args["speakers"] == {
+    "Sam": "Leda",
+    "Riley": "Puck",
+  }
 
 
 def test_joke_creation_process_updates_book_page_ready(monkeypatch):

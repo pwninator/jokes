@@ -42,6 +42,11 @@
     gap: 16px;
   }
 
+  #video-results {
+    grid-template-columns: minmax(0, max-content);
+    justify-content: start;
+  }
+
   .audio-result-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -54,6 +59,18 @@
 
   .audio-result-card audio {
     width: 100%;
+  }
+
+  #video-card {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  #video-card video {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
   }
 
   .mono {
@@ -78,6 +95,23 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
   }
+
+  .script-template textarea {
+    width: 100%;
+    min-height: 180px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      "Liberation Mono", "Courier New", monospace;
+  }
+
+  .speaker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .speaker-grid input {
+    width: 100%;
+  }
 </style>
 
 <div class="audio-tuner">
@@ -91,6 +125,36 @@
   <div id="error-banner" class="error-banner {% if not error_message %}is-hidden{% endif %}">
     <span id="error-banner-text">{% if error_message %}{{ error_message }}{% endif %}</span>
   </div>
+
+  <section class="card script-template" aria-label="Script template">
+    <h3>Script template</h3>
+    <p class="muted small">
+      Use {setup_text} and {punchline_text} placeholders in the script.
+    </p>
+    <textarea id="script-template" rows="10">{{ default_script_template }}</textarea>
+  </section>
+
+  <section class="card" aria-label="Speakers and voices">
+    <h3>Speakers + voices</h3>
+    <div class="speaker-grid">
+      <div>
+        <label for="speaker1-name" class="muted small">Speaker 1</label>
+        <input id="speaker1-name" type="text" value="{{ default_speaker1_name }}">
+      </div>
+      <div>
+        <label for="speaker1-voice" class="muted small">Voice 1</label>
+        <input id="speaker1-voice" type="text" value="{{ default_speaker1_voice }}">
+      </div>
+      <div>
+        <label for="speaker2-name" class="muted small">Speaker 2</label>
+        <input id="speaker2-name" type="text" value="{{ default_speaker2_name }}">
+      </div>
+      <div>
+        <label for="speaker2-voice" class="muted small">Voice 2</label>
+        <input id="speaker2-voice" type="text" value="{{ default_speaker2_voice }}">
+      </div>
+    </div>
+  </section>
 
   <section id="video-results" class="audio-results is-hidden" aria-label="Generated video">
     <div class="audio-result-card" id="video-card">
@@ -178,6 +242,11 @@
     const errorBannerText = document.getElementById('error-banner-text');
     const results = document.getElementById('audio-results');
     const videoResults = document.getElementById('video-results');
+    const scriptTemplateInput = document.getElementById('script-template');
+    const speaker1NameInput = document.getElementById('speaker1-name');
+    const speaker1VoiceInput = document.getElementById('speaker1-voice');
+    const speaker2NameInput = document.getElementById('speaker2-name');
+    const speaker2VoiceInput = document.getElementById('speaker2-voice');
 
     const dialogAudio = document.getElementById('dialog-audio');
     const setupAudio = document.getElementById('setup-audio');
@@ -274,7 +343,31 @@
       },
     });
 
-    async function requestGeneration(opValue, jokeId) {
+    function buildSpeakerVoicePairs() {
+      const pairs = [];
+      const speaker1Name = (speaker1NameInput?.value || '').trim();
+      const speaker1Voice = (speaker1VoiceInput?.value || '').trim();
+      const speaker2Name = (speaker2NameInput?.value || '').trim();
+      const speaker2Voice = (speaker2VoiceInput?.value || '').trim();
+
+      if ((speaker1Name && !speaker1Voice) || (!speaker1Name && speaker1Voice)) {
+        throw new Error('Speaker 1 name and voice must both be filled in.');
+      }
+      if ((speaker2Name && !speaker2Voice) || (!speaker2Name && speaker2Voice)) {
+        throw new Error('Speaker 2 name and voice must both be filled in.');
+      }
+
+      if (speaker1Name && speaker1Voice) {
+        pairs.push(`${speaker1Name}:${speaker1Voice}`);
+      }
+      if (speaker2Name && speaker2Voice) {
+        pairs.push(`${speaker2Name}:${speaker2Voice}`);
+      }
+
+      return pairs.join('|');
+    }
+
+    async function requestGeneration(opValue, jokeId, extraData) {
       const resp = await fetch(jokeCreationUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,6 +376,7 @@
           data: {
             op: opValue,
             joke_id: jokeId,
+            ...(extraData || {}),
           },
         }),
       });
@@ -316,7 +410,10 @@
       const opValue = (audioForm.querySelector('input[name="op"]') || {}).value;
 
       try {
-        const data = await requestGeneration(opValue, jokeId);
+        const data = await requestGeneration(opValue, jokeId, {
+          script_template: scriptTemplateInput?.value || '',
+          speaker_voice_pairs: buildSpeakerVoicePairs(),
+        });
 
         const dialogGcs = data.dialog_audio_gcs_uri;
         const setupGcs = data.setup_audio_gcs_uri;
@@ -362,6 +459,15 @@
       }
     });
 
+    function extractAudioGeneration(meta) {
+      if (!meta) return null;
+      const generations = Array.isArray(meta.generations) ? meta.generations : [];
+      return generations.find((gen) => {
+        const tokenCounts = gen?.token_counts || {};
+        return tokenCounts.prompt_tokens || tokenCounts.output_tokens;
+      }) || null;
+    }
+
     generateVideoButton.addEventListener('click', async function () {
       clearError();
       hideResults();
@@ -378,8 +484,12 @@
       const opValue = (videoForm.querySelector('input[name="op"]') || {}).value;
 
       try {
-        const data = await requestGeneration(opValue, jokeId);
+        const data = await requestGeneration(opValue, jokeId, {
+          script_template: scriptTemplateInput?.value || '',
+          speaker_voice_pairs: buildSpeakerVoicePairs(),
+        });
         const videoGcs = data.video_gcs_uri;
+        const meta = data.video_generation_metadata || {};
         if (!videoGcs) {
           showError('Video generation succeeded but returned no URI');
           return;
@@ -394,6 +504,22 @@
         }
         if (videoResults) {
           videoResults.classList.remove('is-hidden');
+        }
+
+        const audioMeta = extractAudioGeneration(meta);
+        if (audioMeta) {
+          const tokenCounts = audioMeta.token_counts || {};
+          if (metaModel) metaModel.textContent = audioMeta.model_name || '';
+          if (metaCost) {
+            const costValue = typeof audioMeta.cost === 'number' ? audioMeta.cost : null;
+            metaCost.textContent = costValue === null ? '' : costValue.toFixed(6);
+          }
+          if (metaPromptTokens) metaPromptTokens.textContent = String(tokenCounts.prompt_tokens ?? '');
+          if (metaOutputTokens) metaOutputTokens.textContent = String(tokenCounts.output_tokens ?? '');
+          if (metaTokenCounts) metaTokenCounts.textContent = JSON.stringify(tokenCounts, null, 2);
+          if (results) {
+            results.classList.remove('is-hidden');
+          }
         }
       } catch (err) {
         showError(String(err || 'Unexpected error'));

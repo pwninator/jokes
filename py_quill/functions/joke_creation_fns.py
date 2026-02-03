@@ -41,6 +41,38 @@ def _filter_reference_images(selected_urls: list[str],
   return [url for url in selected_urls if url in allowed]
 
 
+def _parse_speaker_voice_pairs(
+  speaker_voice_pairs: str | None, ) -> dict[str, str] | None:
+  """Parse speaker/voice pairs in 'speaker:voice|speaker:voice' format."""
+  if not speaker_voice_pairs or not speaker_voice_pairs.strip():
+    return None
+
+  pairs = [
+    entry.strip() for entry in speaker_voice_pairs.split("|") if entry.strip()
+  ]
+  speakers: dict[str, str] = {}
+  for entry in pairs:
+    if ":" not in entry:
+      raise ValueError(
+        "Speaker/voice pairs must be formatted as speaker:voice")
+    speaker, voice = entry.split(":", 1)
+    speaker = speaker.strip()
+    voice = voice.strip()
+    if not speaker or not voice:
+      raise ValueError(
+        "Speaker/voice pairs must include both speaker and voice")
+    if speaker in speakers:
+      raise ValueError(f"Duplicate speaker name: {speaker}")
+    speakers[speaker] = voice
+
+  if not speakers:
+    raise ValueError("At least one speaker/voice pair must be provided")
+  if len(speakers) > 2:
+    raise ValueError("Speaker/voice pairs supports up to 2 speakers")
+
+  return speakers
+
+
 @https_fn.on_request(
   memory=options.MemoryOption.GB_2,
   min_instances=1,
@@ -206,6 +238,10 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
+  script_template = get_param(req, 'script_template')
+  speaker_voice_pairs = get_param(req, 'speaker_voice_pairs')
+  speakers = _parse_speaker_voice_pairs(speaker_voice_pairs)
+
   try:
     (
       dialog_gcs_uri,
@@ -213,7 +249,12 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       response_gcs_uri,
       punchline_gcs_uri,
       audio_generation_metadata,
-    ) = (joke_operations.generate_joke_audio(joke, temp_output=True))
+    ) = (joke_operations.generate_joke_audio(
+      joke,
+      temp_output=True,
+      script_template=script_template,
+      speakers=speakers,
+    ))
     return success_response(
       {
         "dialog_audio_gcs_uri": dialog_gcs_uri,
@@ -262,9 +303,17 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
+  script_template = get_param(req, 'script_template')
+  speaker_voice_pairs = get_param(req, 'speaker_voice_pairs')
+  speakers = _parse_speaker_voice_pairs(speaker_voice_pairs)
+
   try:
     video_gcs_uri, generation_metadata = joke_operations.generate_joke_video(
-      joke, temp_output=True)
+      joke,
+      temp_output=True,
+      script_template=script_template,
+      speakers=speakers,
+    )
     return success_response(
       {
         "video_gcs_uri": video_gcs_uri,

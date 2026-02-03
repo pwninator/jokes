@@ -21,6 +21,30 @@ from services import (cloud_storage, firestore, gen_audio, gen_video,
 _IMAGE_UPSCALE_FACTOR = "x2"
 _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
 
+_JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
+_JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
+
+DEFAULT_JOKE_AUDIO_SCRIPT_TEMPLATE = """You are generating audio. DO NOT speak any instructions.
+ONLY speak the lines under TRANSCRIPT, using the specified speakers.
+
+AUDIO PROFILE:
+- Two 8-year-old kids on a school playground at recess.
+- Natural, clear kid voices. Light and playful.
+
+TRANSCRIPT:
+Sam: [playfully, slightly slowly to build intrigue] Hey... want to hear a joke? {setup_text}
+[1 second silence]
+Riley: [curiously] what?
+[1 second silence]
+Sam: [excitedly, holding back laughter] {punchline_text}
+Riley: [giggles]
+"""
+
+DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME = "Sam"
+DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = "Leda"
+DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME = "Riley"
+DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = "Puck"
+
 _MIME_TYPE_CONFIG: dict[str, Tuple[str, str]] = {
   "image/png": ("PNG", "png"),
   "image/jpeg": ("JPEG", "jpg"),
@@ -534,6 +558,8 @@ def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
 def generate_joke_audio(
   joke: models.PunnyJoke,
   temp_output: bool = False,
+  script_template: str | None = None,
+  speakers: dict[str, str] | None = None,
 ) -> tuple[str, str, str, str, models.SingleGenerationMetadata]:
   """Generate a full dialog WAV plus split clips and upload as public files.
 
@@ -549,15 +575,13 @@ def generate_joke_audio(
     raise ValueError("Joke must have setup_text and punchline_text")
 
   joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
-  script = _build_kid_dialog_script(joke)
+  script = _render_dialog_script(joke, script_template)
+  speakers = _resolve_speakers(speakers)
 
   temp_dialog_gcs_uri, audio_generation_metadata = (
     gen_audio.generate_multi_turn_dialog(
       script=script,
-      speakers={
-        "Sam": "Leda",  # Youthful
-        "Riley": "Puck",  # Upbeat
-      },
+      speakers=speakers,
       output_filename_base=f"joke_dialog_{joke_id_for_filename}",
       temp_output=temp_output,
     ))
@@ -605,6 +629,8 @@ def generate_joke_audio(
 def generate_joke_video(
   joke: models.PunnyJoke,
   temp_output: bool = False,
+  script_template: str | None = None,
+  speakers: dict[str, str] | None = None,
 ) -> tuple[str, models.GenerationMetadata]:
   """Generate a slideshow video for a joke with synced audio."""
   if not joke.setup_text or not joke.punchline_text:
@@ -627,7 +653,10 @@ def generate_joke_video(
     response_audio_gcs_uri,
     punchline_audio_gcs_uri,
     audio_generation_metadata,
-  ) = generate_joke_audio(joke, temp_output=temp_output)
+  ) = generate_joke_audio(joke,
+                          temp_output=temp_output,
+                          script_template=script_template,
+                          speakers=speakers)
 
   setup_duration_sec = _get_wav_duration_sec(
     cloud_storage.download_bytes_from_gcs(setup_audio_gcs_uri))
@@ -636,7 +665,8 @@ def generate_joke_video(
   punchline_duration_sec = _get_wav_duration_sec(
     cloud_storage.download_bytes_from_gcs(punchline_audio_gcs_uri))
 
-  punchline_start_sec = setup_duration_sec + response_duration_sec
+  response_start_sec = setup_duration_sec + _JOKE_AUDIO_RESPONSE_GAP_SEC
+  punchline_start_sec = response_start_sec + response_duration_sec + _JOKE_AUDIO_PUNCHLINE_GAP_SEC
   total_duration_sec = punchline_start_sec + punchline_duration_sec + 2.0
 
   images = [
@@ -645,7 +675,7 @@ def generate_joke_video(
   ]
   audio_files = [
     (setup_audio_gcs_uri, 0.0),
-    (response_audio_gcs_uri, setup_duration_sec),
+    (response_audio_gcs_uri, response_start_sec),
     (punchline_audio_gcs_uri, punchline_start_sec),
   ]
 
@@ -664,26 +694,47 @@ def generate_joke_video(
   return video_gcs_uri, generation_metadata
 
 
-def _build_kid_dialog_script(joke: models.PunnyJoke) -> str:
-  """Build a Gemini TTS prompt for a 2-kid dialog with exact pauses."""
-  # The Gemini TTS models generally follow this kind of "director + transcript"
-  # structure (see docs). We keep the transcript speaker-labeled and ask the
-  # model to only speak the transcript portion.
-  return f"""You are generating audio. DO NOT speak any instructions.
-ONLY speak the lines under TRANSCRIPT, using the specified speakers.
+def _render_dialog_script(joke: models.PunnyJoke,
+                          script_template: str | None) -> str:
+  """Render the dialog script from a template."""
+  template = script_template if script_template is not None else ""
+  template = template.strip() or DEFAULT_JOKE_AUDIO_SCRIPT_TEMPLATE
 
-AUDIO PROFILE:
-- Two 8-year-old kids on a school playground at recess.
-- Natural, clear kid voices. Light and playful.
+  if "{setup_text}" not in template or "{punchline_text}" not in template:
+    raise ValueError(
+      "Script template must include {setup_text} and {punchline_text} placeholders"
+    )
 
-TRANSCRIPT:
-Sam: [playfully, slightly slowly to build intrigue] Hey... want to hear a joke? {joke.setup_text}
-[1 second silence]
-Riley: [curiously] what?
-[1 second silence]
-Sam: [excitedly, holding back laughter] {joke.punchline_text}
-Riley: [giggles]
-"""
+  try:
+    return template.format(setup_text=joke.setup_text,
+                           punchline_text=joke.punchline_text)
+  except KeyError as exc:
+    raise ValueError(
+      f"Script template uses unsupported placeholder: {exc}") from exc
+
+
+def _resolve_speakers(speakers: dict[str, str] | None, ) -> dict[str, str]:
+  """Resolve speakers from input or defaults."""
+  if not speakers:
+    return {
+      DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME: DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
+      DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME: DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE,
+    }
+
+  normalized: dict[str, str] = {}
+  for speaker, voice in speakers.items():
+    speaker = str(speaker).strip()
+    voice = str(voice).strip()
+    if not speaker or not voice:
+      raise ValueError("Speakers dict must include both speaker and voice")
+    if speaker in normalized:
+      raise ValueError(f"Duplicate speaker name: {speaker}")
+    normalized[speaker] = voice
+
+  if len(normalized) > 2:
+    raise ValueError("Speakers supports up to 2 speakers")
+
+  return normalized
 
 
 def _split_wav_bytes_on_two_pauses(

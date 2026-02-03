@@ -1,0 +1,211 @@
+"""Base class for posable sprite-based characters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from PIL import Image
+from services import cloud_storage
+
+
+@dataclass(frozen=True)
+class Transform:
+  """Translation and scaling transform for a sprite component."""
+
+  translate_x: float = 0.0
+  translate_y: float = 0.0
+  scale_x: float = 1.0
+  scale_y: float = 1.0
+
+  @staticmethod
+  def from_tuple(
+    values: tuple[float, float] | tuple[float, float, float, float]
+  ) -> "Transform":
+    """Create a Transform from (tx, ty) or (tx, ty, sx, sy)."""
+    if len(values) == 2:
+      translate_x, translate_y = values
+      return Transform(translate_x=translate_x, translate_y=translate_y)
+    if len(values) == 4:
+      translate_x, translate_y, scale_x, scale_y = values
+      return Transform(
+        translate_x=translate_x,
+        translate_y=translate_y,
+        scale_x=scale_x,
+        scale_y=scale_y,
+      )
+    raise ValueError("Transform tuple must have 2 or 4 values")
+
+
+class PosableCharacter:
+  """Base class for sprite-based characters with posable components."""
+
+  width: int = 0
+  height: int = 0
+
+  head_gcs_uri: str = ""
+  left_hand_gcs_uri: str = ""
+  right_hand_gcs_uri: str = ""
+  mouth_open_gcs_uri: str = ""
+  mouth_closed_gcs_uri: str = ""
+  left_eye_open_gcs_uri: str = ""
+  left_eye_closed_gcs_uri: str = ""
+  right_eye_open_gcs_uri: str = ""
+  right_eye_closed_gcs_uri: str = ""
+
+  def __init__(self):
+    self.left_eye_open = True
+    self.right_eye_open = True
+    self.mouth_open = True
+    self.left_hand_visible = True
+    self.right_hand_visible = True
+    self.left_hand_transform = Transform()
+    self.right_hand_transform = Transform()
+    self.head_transform = Transform()
+    self._image_cache: dict[tuple[object, ...], Image.Image] = {}
+    self._component_cache: dict[str, Image.Image] = {}
+
+  def set_pose(
+    self,
+    *,
+    left_eye_open: bool | None = None,
+    right_eye_open: bool | None = None,
+    mouth_open: bool | None = None,
+    left_hand_visible: bool | None = None,
+    right_hand_visible: bool | None = None,
+    left_hand_transform: Transform | tuple[float, float]
+    | tuple[float, float, float, float] | None = None,
+    right_hand_transform: Transform | tuple[float, float]
+    | tuple[float, float, float, float] | None = None,
+    head_transform: Transform | tuple[float, float]
+    | tuple[float, float, float, float] | None = None,
+  ) -> None:
+    """Set the pose state; only provided params are updated."""
+    if left_eye_open is not None:
+      self.left_eye_open = left_eye_open
+    if right_eye_open is not None:
+      self.right_eye_open = right_eye_open
+    if mouth_open is not None:
+      self.mouth_open = mouth_open
+    if left_hand_visible is not None:
+      self.left_hand_visible = left_hand_visible
+    if right_hand_visible is not None:
+      self.right_hand_visible = right_hand_visible
+    if left_hand_transform is not None:
+      self.left_hand_transform = _coerce_transform(left_hand_transform)
+    if right_hand_transform is not None:
+      self.right_hand_transform = _coerce_transform(right_hand_transform)
+    if head_transform is not None:
+      self.head_transform = _coerce_transform(head_transform)
+
+  def get_image(self) -> Image.Image:
+    """Return a PIL image of the current pose, using cache if available."""
+    self._validate_assets()
+    cache_key = self._get_pose_cache_key()
+    cached = self._image_cache.get(cache_key)
+    if cached is not None:
+      return cached
+
+    canvas = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+
+    head_image = self._load_component(self.head_gcs_uri)
+    self._paste_component(canvas, head_image, self.head_transform)
+
+    left_eye_uri = (self.left_eye_open_gcs_uri
+                    if self.left_eye_open else self.left_eye_closed_gcs_uri)
+    right_eye_uri = (self.right_eye_open_gcs_uri
+                     if self.right_eye_open else self.right_eye_closed_gcs_uri)
+    mouth_uri = (self.mouth_open_gcs_uri
+                 if self.mouth_open else self.mouth_closed_gcs_uri)
+
+    left_eye_image = self._load_component(left_eye_uri)
+    right_eye_image = self._load_component(right_eye_uri)
+    mouth_image = self._load_component(mouth_uri)
+
+    self._paste_component(canvas, left_eye_image, self.head_transform)
+    self._paste_component(canvas, right_eye_image, self.head_transform)
+    self._paste_component(canvas, mouth_image, self.head_transform)
+
+    if self.left_hand_visible:
+      left_hand_image = self._load_component(self.left_hand_gcs_uri)
+      self._paste_component(canvas, left_hand_image, self.left_hand_transform)
+    if self.right_hand_visible:
+      right_hand_image = self._load_component(self.right_hand_gcs_uri)
+      self._paste_component(canvas, right_hand_image,
+                            self.right_hand_transform)
+
+    self._image_cache[cache_key] = canvas
+    return canvas
+
+  def _get_pose_cache_key(self) -> tuple[object, ...]:
+    return (
+      self.left_eye_open,
+      self.right_eye_open,
+      self.mouth_open,
+      self.left_hand_visible,
+      self.right_hand_visible,
+      self.left_hand_transform,
+      self.right_hand_transform,
+      self.head_transform,
+    )
+
+  def _load_component(self, gcs_uri: str) -> Image.Image:
+    cached = self._component_cache.get(gcs_uri)
+    if cached is not None:
+      return cached
+    image = cloud_storage.download_image_from_gcs(gcs_uri).convert("RGBA")
+    self._component_cache[gcs_uri] = image
+    return image
+
+  def _paste_component(self, canvas: Image.Image, component: Image.Image,
+                       transform: Transform) -> None:
+    transformed, x, y = self._apply_transform(component, transform,
+                                              canvas.size)
+    canvas.paste(transformed, (x, y), transformed)
+
+  def _apply_transform(
+    self,
+    component: Image.Image,
+    transform: Transform,
+    canvas_size: tuple[int, int],
+  ) -> tuple[Image.Image, int, int]:
+    target_width = max(1, int(round(component.width * transform.scale_x)))
+    target_height = max(1, int(round(component.height * transform.scale_y)))
+    resized = component
+    if (target_width, target_height) != component.size:
+      resized = component.resize(
+        (target_width, target_height),
+        resample=Image.Resampling.LANCZOS,
+      )
+    base_x = (canvas_size[0] - target_width) / 2
+    base_y = (canvas_size[1] - target_height) / 2
+    x = int(round(base_x + transform.translate_x))
+    y = int(round(base_y + transform.translate_y))
+    return resized, x, y
+
+  def _validate_assets(self) -> None:
+    required = {
+      "width": self.width,
+      "height": self.height,
+      "head_gcs_uri": self.head_gcs_uri,
+      "left_hand_gcs_uri": self.left_hand_gcs_uri,
+      "right_hand_gcs_uri": self.right_hand_gcs_uri,
+      "mouth_open_gcs_uri": self.mouth_open_gcs_uri,
+      "mouth_closed_gcs_uri": self.mouth_closed_gcs_uri,
+      "left_eye_open_gcs_uri": self.left_eye_open_gcs_uri,
+      "left_eye_closed_gcs_uri": self.left_eye_closed_gcs_uri,
+      "right_eye_open_gcs_uri": self.right_eye_open_gcs_uri,
+      "right_eye_closed_gcs_uri": self.right_eye_closed_gcs_uri,
+    }
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+      raise ValueError("PosableCharacter subclass must define: " +
+                       ", ".join(missing))
+
+
+def _coerce_transform(
+  transform: Transform | tuple[float, float]
+  | tuple[float, float, float, float]
+) -> Transform:
+  if isinstance(transform, Transform):
+    return transform
+  return Transform.from_tuple(transform)

@@ -18,8 +18,8 @@ from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip, VideoClip)
 from PIL import Image
-from services import cloud_storage
-from services.syllable_detection import Syllable, detect_syllables
+from services import cloud_storage, syllable_detection
+from services.syllable_detection import Syllable
 
 _DEFAULT_VIDEO_FPS = 24
 _PORTRAIT_VIDEO_SIZE = (1080, 1920)
@@ -652,7 +652,7 @@ def _build_character_syllable_data(
   character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
                                                                     float]]]],
   audio_path_by_key: dict[tuple[str, float], str],
-) -> list[list["Syllable"]]:
+) -> list[list[Syllable]]:
 
   syllable_data: list[list[Syllable]] = []
   for character, dialogs in character_dialogs:
@@ -668,14 +668,13 @@ def _build_character_syllable_data(
       with open(audio_path, "rb") as audio_handle:
         wav_bytes = audio_handle.read()
       logger.info(f"Detecting syllable timing for {gcs_uri} @ {start_time}")
-      clip_syllables = detect_syllables(wav_bytes)
+      clip_syllables = syllable_detection.detect_syllables(wav_bytes)
       for syllable in clip_syllables:
         character_syllables.append(
           Syllable(
             start_time=syllable.start_time + start_time,
             end_time=syllable.end_time + start_time,
             mouth_shape=syllable.mouth_shape,
-            onset_strength=syllable.onset_strength,
           ))
     character_syllables.sort(key=lambda entry: entry.start_time)
     syllable_data.append(character_syllables)
@@ -685,25 +684,90 @@ def _build_character_syllable_data(
 def _apply_forced_closures(
   syllables: list["Syllable"],
   *,
-  closure_duration_sec: float = 0.02,
+  min_syllable_for_closure_sec: float = 0.05,
+  closure_fraction: float = 0.25,
+  min_closure_sec: float = 0.015,
+  max_closure_sec: float = 0.04,
   max_gap_sec: float = 0.15,
 ) -> list[tuple[MouthState, float, float]]:
+  """Apply forced mouth closures between consecutive same-shape syllables.
+
+  This ensures each syllable has a visible effect by inserting brief CLOSED
+  states between adjacent syllables with the same mouth shape.
+
+  Args:
+    syllables: List of detected syllables.
+    min_syllable_for_closure_sec: Minimum syllable duration to consider for
+      forced closures. Very short syllables skip closure insertion to avoid
+      strobe effects.
+    closure_fraction: Closure duration as a fraction of the shorter syllable.
+    min_closure_sec: Minimum closure duration.
+    max_closure_sec: Maximum closure duration.
+    max_gap_sec: Maximum gap to insert a closure. Larger gaps are natural
+      silence and don't need forced closures.
+
+  Returns:
+    Timeline of (MouthState, start_time, end_time) tuples, sorted by start_time.
+  """
   if not syllables:
     return []
+
   timeline: list[tuple[MouthState, float, float]] = []
+
   for index, syllable in enumerate(syllables):
-    timeline.append(
-      (syllable.mouth_shape, syllable.start_time, syllable.end_time))
-    if index + 1 >= len(syllables):
-      continue
-    next_syllable = syllables[index + 1]
-    gap = next_syllable.start_time - syllable.end_time
-    if (syllable.mouth_shape == next_syllable.mouth_shape
-        and gap >= closure_duration_sec * 2 and gap <= max_gap_sec):
-      mid_point = syllable.end_time + gap / 2
-      closure_start = mid_point - closure_duration_sec / 2
-      closure_end = mid_point + closure_duration_sec / 2
-      timeline.append((MouthState.CLOSED, closure_start, closure_end))
+    syl_start = syllable.start_time
+    syl_end = syllable.end_time
+    syl_duration = syl_end - syl_start
+
+    # Check if we need to insert a closure before this syllable
+    if index > 0:
+      prev_syllable = syllables[index - 1]
+      prev_duration = prev_syllable.end_time - prev_syllable.start_time
+      gap = syl_start - prev_syllable.end_time
+
+      # Conditions for inserting a forced closure:
+      # 1. Same mouth shape as previous syllable
+      # 2. Both syllables are long enough to warrant closure
+      # 3. Gap is not too large (natural silence doesn't need forced closure)
+      should_insert_closure = (
+        syllable.mouth_shape == prev_syllable.mouth_shape
+        and syl_duration >= min_syllable_for_closure_sec
+        and prev_duration >= min_syllable_for_closure_sec
+        and gap <= max_gap_sec)
+
+      if should_insert_closure:
+        # Calculate dynamic closure duration based on shorter syllable
+        shorter_duration = min(syl_duration, prev_duration)
+        closure_duration = shorter_duration * closure_fraction
+        closure_duration = max(min_closure_sec,
+                               min(closure_duration, max_closure_sec))
+
+        if gap >= closure_duration:
+          # Enough space in the gap - place closure in the middle
+          mid_point = prev_syllable.end_time + gap / 2
+          closure_start = mid_point - closure_duration / 2
+          closure_end = mid_point + closure_duration / 2
+          timeline.append((MouthState.CLOSED, closure_start, closure_end))
+        elif gap >= 0:
+          # Not enough gap - steal time from both syllables
+          needed_space = closure_duration - gap
+          steal_each = needed_space / 2
+
+          # Shrink previous syllable's end (already added to timeline)
+          if timeline and timeline[-1][0] == prev_syllable.mouth_shape:
+            prev_entry = timeline[-1]
+            new_prev_end = prev_entry[2] - steal_each
+            if new_prev_end > prev_entry[1] + min_syllable_for_closure_sec:
+              timeline[-1] = (prev_entry[0], prev_entry[1], new_prev_end)
+              # Insert closure
+              closure_start = new_prev_end
+              closure_end = closure_start + closure_duration
+              timeline.append((MouthState.CLOSED, closure_start, closure_end))
+              # Adjust current syllable start
+              syl_start = closure_end
+
+    timeline.append((syllable.mouth_shape, syl_start, syl_end))
+
   timeline.sort(key=lambda entry: entry[1])
   return timeline
 

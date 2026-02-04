@@ -258,22 +258,117 @@ def test_create_slideshow_video_emulator_returns_test_uri():
 
 
 def test_apply_forced_closures_inserts_closed_between_same_shapes():
+  """Closure inserted when gap exists between same-shape syllables."""
   syllables = [
-    Syllable(start_time=0.0,
-             end_time=0.1,
-             mouth_shape=MouthState.OPEN,
-             onset_strength=1.0),
-    Syllable(start_time=0.14,
-             end_time=0.24,
-             mouth_shape=MouthState.OPEN,
-             onset_strength=1.0),
+    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.14, end_time=0.24, mouth_shape=MouthState.OPEN),
+  ]
+  timeline = gen_video._apply_forced_closures(syllables)
+
+  assert any(state == MouthState.CLOSED for state, _, _ in timeline)
+  # Verify timeline is sorted
+  starts = [start for _, start, _ in timeline]
+  assert starts == sorted(starts)
+
+
+def test_apply_forced_closures_no_closure_for_different_shapes():
+  """No closure between syllables with different mouth shapes."""
+  syllables = [
+    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.14, end_time=0.24, mouth_shape=MouthState.O),
+  ]
+  timeline = gen_video._apply_forced_closures(syllables)
+
+  assert not any(state == MouthState.CLOSED for state, _, _ in timeline)
+
+
+def test_apply_forced_closures_skips_very_short_syllables():
+  """No closure for syllables shorter than min_syllable_for_closure_sec."""
+  syllables = [
+    Syllable(start_time=0.0, end_time=0.03, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.05, end_time=0.08, mouth_shape=MouthState.OPEN),
   ]
   timeline = gen_video._apply_forced_closures(
     syllables,
-    closure_duration_sec=0.02,
-    max_gap_sec=0.2,
+    min_syllable_for_closure_sec=0.05,
   )
+
+  # Both syllables are < 50ms, so no closure should be inserted
+  assert not any(state == MouthState.CLOSED for state, _, _ in timeline)
+
+
+def test_apply_forced_closures_creates_space_for_adjacent_syllables():
+  """Closure created by stealing time from adjacent same-shape syllables."""
+  syllables = [
+    Syllable(start_time=0.0, end_time=0.15, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.15, end_time=0.30, mouth_shape=MouthState.OPEN),
+  ]
+  timeline = gen_video._apply_forced_closures(syllables)
+
+  # Should have closure even with zero gap
   assert any(state == MouthState.CLOSED for state, _, _ in timeline)
+
+
+def test_apply_forced_closures_no_closure_for_large_gap():
+  """No closure when gap exceeds max_gap_sec (natural silence)."""
+  syllables = [
+    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.5, end_time=0.6, mouth_shape=MouthState.OPEN),
+  ]
+  timeline = gen_video._apply_forced_closures(
+    syllables,
+    max_gap_sec=0.15,
+  )
+
+  # Gap is 0.4s which exceeds max_gap_sec, so no closure
+  assert not any(state == MouthState.CLOSED for state, _, _ in timeline)
+
+
+def test_apply_forced_closures_dynamic_duration():
+  """Closure duration scales with syllable duration."""
+  # Long syllables should get longer closures
+  long_syllables = [
+    Syllable(start_time=0.0, end_time=0.2, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.25, end_time=0.45, mouth_shape=MouthState.OPEN),
+  ]
+  long_timeline = gen_video._apply_forced_closures(long_syllables)
+  long_closures = [(s, e) for state, s, e in long_timeline
+                   if state == MouthState.CLOSED]
+
+  # Short syllables should get shorter closures
+  short_syllables = [
+    Syllable(start_time=0.0, end_time=0.08, mouth_shape=MouthState.OPEN),
+    Syllable(start_time=0.12, end_time=0.20, mouth_shape=MouthState.OPEN),
+  ]
+  short_timeline = gen_video._apply_forced_closures(short_syllables)
+  short_closures = [(s, e) for state, s, e in short_timeline
+                    if state == MouthState.CLOSED]
+
+  assert len(long_closures) == 1
+  assert len(short_closures) == 1
+
+  long_closure_duration = long_closures[0][1] - long_closures[0][0]
+  short_closure_duration = short_closures[0][1] - short_closures[0][0]
+
+  # Long syllables should produce longer closure (or at least not shorter)
+  assert long_closure_duration >= short_closure_duration
+
+
+def test_apply_forced_closures_empty_input():
+  """Empty syllable list returns empty timeline."""
+  timeline = gen_video._apply_forced_closures([])
+  assert timeline == []
+
+
+def test_apply_forced_closures_single_syllable():
+  """Single syllable returns timeline with just that syllable."""
+  syllables = [
+    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+  ]
+  timeline = gen_video._apply_forced_closures(syllables)
+
+  assert len(timeline) == 1
+  assert timeline[0] == (MouthState.OPEN, 0.0, 0.1)
 
 
 def test_create_portrait_character_video_uploads_mp4():

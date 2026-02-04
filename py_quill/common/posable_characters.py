@@ -18,6 +18,7 @@ class PosableCat(PosableCharacter):
   right_hand_gcs_uri = f"{_CAT_ASSET_DIR}/cat_hand_right.png"
   mouth_open_gcs_uri = f"{_CAT_ASSET_DIR}/cat_mouth_open.png"
   mouth_closed_gcs_uri = f"{_CAT_ASSET_DIR}/cat_mouth_closed.png"
+  mouth_o_gcs_uri = f"{_CAT_ASSET_DIR}/cat_mouth_o.png"
   left_eye_open_gcs_uri = f"{_CAT_ASSET_DIR}/cat_eye_left_open.png"
   left_eye_closed_gcs_uri = f"{_CAT_ASSET_DIR}/cat_eye_left_closed.png"
   right_eye_open_gcs_uri = f"{_CAT_ASSET_DIR}/cat_eye_right_open.png"

@@ -17,7 +17,7 @@ from typing import Any
 
 import numpy as np
 from common import models, utils
-from common.posable_character import PosableCharacter
+from common.posable_character import MouthState, PosableCharacter
 from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip, VideoClip)
@@ -891,17 +891,17 @@ def _build_character_images(
   *,
   max_height: int,
 ) -> tuple[Image.Image, Image.Image]:
-  images: dict[bool, Image.Image] = {}
-  for mouth_open in (False, True):
-    character.set_pose(mouth_open=mouth_open)
+  images: dict[MouthState, Image.Image] = {}
+  for mouth_state in (MouthState.CLOSED, MouthState.OPEN):
+    character.set_pose(mouth_state=mouth_state)
     rendered = character.get_image()
     if rendered.height > max_height:
       scale = max_height / rendered.height
       target_size = (max(1, int(round(rendered.width * scale))),
                      max(1, int(round(rendered.height * scale))))
       rendered = rendered.resize(target_size, Image.Resampling.LANCZOS)
-    images[mouth_open] = rendered
-  return images[True], images[False]
+    images[mouth_state] = rendered
+  return images[MouthState.OPEN], images[MouthState.CLOSED]
 
 
 def _build_portrait_frame_renderer(

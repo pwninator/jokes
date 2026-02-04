@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 
 from PIL import Image
 from services import cloud_storage
+
+
+class MouthState(Enum):
+  """State of the mouth for a posable character."""
+
+  CLOSED = "CLOSED"
+  OPEN = "OPEN"
+  O = "O"
 
 
 @dataclass(frozen=True)
@@ -47,6 +56,7 @@ class PosableCharacter:
   right_hand_gcs_uri: str = ""
   mouth_open_gcs_uri: str = ""
   mouth_closed_gcs_uri: str = ""
+  mouth_o_gcs_uri: str = ""
   left_eye_open_gcs_uri: str = ""
   left_eye_closed_gcs_uri: str = ""
   right_eye_open_gcs_uri: str = ""
@@ -55,7 +65,7 @@ class PosableCharacter:
   def __init__(self):
     self.left_eye_open = True
     self.right_eye_open = True
-    self.mouth_open = True
+    self.mouth_state = MouthState.OPEN
     self.left_hand_visible = True
     self.right_hand_visible = True
     self.left_hand_transform = Transform()
@@ -69,7 +79,7 @@ class PosableCharacter:
     *,
     left_eye_open: bool | None = None,
     right_eye_open: bool | None = None,
-    mouth_open: bool | None = None,
+    mouth_state: MouthState | None = None,
     left_hand_visible: bool | None = None,
     right_hand_visible: bool | None = None,
     left_hand_transform: Transform | tuple[float, float]
@@ -84,8 +94,8 @@ class PosableCharacter:
       self.left_eye_open = left_eye_open
     if right_eye_open is not None:
       self.right_eye_open = right_eye_open
-    if mouth_open is not None:
-      self.mouth_open = mouth_open
+    if mouth_state is not None:
+      self.mouth_state = mouth_state
     if left_hand_visible is not None:
       self.left_hand_visible = left_hand_visible
     if right_hand_visible is not None:
@@ -114,8 +124,7 @@ class PosableCharacter:
                     if self.left_eye_open else self.left_eye_closed_gcs_uri)
     right_eye_uri = (self.right_eye_open_gcs_uri
                      if self.right_eye_open else self.right_eye_closed_gcs_uri)
-    mouth_uri = (self.mouth_open_gcs_uri
-                 if self.mouth_open else self.mouth_closed_gcs_uri)
+    mouth_uri = _get_mouth_gcs_uri(self)
 
     left_eye_image = self._load_component(left_eye_uri)
     right_eye_image = self._load_component(right_eye_uri)
@@ -140,7 +149,7 @@ class PosableCharacter:
     return (
       self.left_eye_open,
       self.right_eye_open,
-      self.mouth_open,
+      self.mouth_state,
       self.left_hand_visible,
       self.right_hand_visible,
       self.left_hand_transform,
@@ -191,6 +200,7 @@ class PosableCharacter:
       "right_hand_gcs_uri": self.right_hand_gcs_uri,
       "mouth_open_gcs_uri": self.mouth_open_gcs_uri,
       "mouth_closed_gcs_uri": self.mouth_closed_gcs_uri,
+      "mouth_o_gcs_uri": self.mouth_o_gcs_uri,
       "left_eye_open_gcs_uri": self.left_eye_open_gcs_uri,
       "left_eye_closed_gcs_uri": self.left_eye_closed_gcs_uri,
       "right_eye_open_gcs_uri": self.right_eye_open_gcs_uri,
@@ -209,3 +219,11 @@ def _coerce_transform(
   if isinstance(transform, Transform):
     return transform
   return Transform.from_tuple(transform)
+
+
+def _get_mouth_gcs_uri(character: PosableCharacter) -> str:
+  if character.mouth_state == MouthState.OPEN:
+    return character.mouth_open_gcs_uri
+  if character.mouth_state == MouthState.O:
+    return character.mouth_o_gcs_uri
+  return character.mouth_closed_gcs_uri

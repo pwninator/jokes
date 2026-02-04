@@ -135,6 +135,7 @@ class _DummyCharacter(PosableCharacter):
   right_hand_gcs_uri = "gs://test/right_hand.png"
   mouth_open_gcs_uri = "gs://test/mouth_open.png"
   mouth_closed_gcs_uri = "gs://test/mouth_closed.png"
+  mouth_o_gcs_uri = "gs://test/mouth_o.png"
   left_eye_open_gcs_uri = "gs://test/left_eye_open.png"
   left_eye_closed_gcs_uri = "gs://test/left_eye_closed.png"
   right_eye_open_gcs_uri = "gs://test/right_eye_open.png"

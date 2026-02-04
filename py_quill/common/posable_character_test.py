@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from common.posable_character import PosableCharacter, Transform
+from common.posable_character import MouthState, PosableCharacter, Transform
 from PIL import Image
 
 
@@ -24,6 +24,7 @@ class SampleCharacter(PosableCharacter):
   right_hand_gcs_uri = "gs://test/right_hand.png"
   mouth_open_gcs_uri = "gs://test/mouth_open.png"
   mouth_closed_gcs_uri = "gs://test/mouth_closed.png"
+  mouth_o_gcs_uri = "gs://test/mouth_o.png"
   left_eye_open_gcs_uri = "gs://test/left_eye_open.png"
   left_eye_closed_gcs_uri = "gs://test/left_eye_closed.png"
   right_eye_open_gcs_uri = "gs://test/right_eye_open.png"
@@ -66,6 +67,7 @@ class PosableCharacterTest(unittest.TestCase):
       SampleCharacter.right_eye_closed_gcs_uri: _make_image((0, 0, 255, 255)),
       SampleCharacter.mouth_open_gcs_uri: _make_image((255, 255, 0, 255)),
       SampleCharacter.mouth_closed_gcs_uri: _make_image((255, 255, 0, 255)),
+      SampleCharacter.mouth_o_gcs_uri: _make_image((255, 255, 0, 255)),
       SampleCharacter.left_hand_gcs_uri: _make_image((255, 0, 255, 255)),
       SampleCharacter.right_hand_gcs_uri: _make_image((0, 255, 255, 255)),
     }
@@ -75,7 +77,7 @@ class PosableCharacterTest(unittest.TestCase):
     character.set_pose(left_eye_open=False)
     self.assertFalse(character.left_eye_open)
     self.assertTrue(character.right_eye_open)
-    self.assertTrue(character.mouth_open)
+    self.assertEqual(character.mouth_state, MouthState.OPEN)
 
   def test_set_pose_accepts_transform_tuples(self):
     character = self._build_character()
@@ -116,6 +118,7 @@ class PosableCharacterTest(unittest.TestCase):
     images[SampleCharacter.right_eye_closed_gcs_uri] = transparent
     images[SampleCharacter.mouth_open_gcs_uri] = transparent
     images[SampleCharacter.mouth_closed_gcs_uri] = transparent
+    images[SampleCharacter.mouth_o_gcs_uri] = transparent
     images[SampleCharacter.right_hand_gcs_uri] = transparent
     images[SampleCharacter.left_hand_gcs_uri] = _make_image((200, 10, 10, 255))
     mock_download.side_effect = lambda uri: images[uri]
@@ -137,6 +140,7 @@ class PosableCharacterTest(unittest.TestCase):
     images[SampleCharacter.head_gcs_uri] = transparent
     images[SampleCharacter.mouth_open_gcs_uri] = transparent
     images[SampleCharacter.mouth_closed_gcs_uri] = transparent
+    images[SampleCharacter.mouth_o_gcs_uri] = transparent
     images[SampleCharacter.right_eye_open_gcs_uri] = transparent
     images[SampleCharacter.right_eye_closed_gcs_uri] = transparent
     mock_download.side_effect = lambda uri: images[uri]

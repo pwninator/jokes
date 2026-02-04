@@ -6,6 +6,7 @@ import array
 import datetime
 import io
 import random
+import sys
 import wave
 from io import BytesIO
 from typing import Any, Literal, Tuple
@@ -869,7 +870,6 @@ def _compute_silent_frame_mask(
 
   # Gemini output is LINEAR16 (signed int16). Support that robustly.
   if sampwidth == 2:
-    import sys
 
     samples = array.array("h")
     samples.frombytes(frames)

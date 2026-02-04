@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import array
-import io
 import math
 import os
 import random
-import sys
 import tempfile
 import time
 import traceback
-import wave
 from bisect import bisect_right
 from typing import Any
 
@@ -23,6 +19,7 @@ from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip, VideoClip)
 from PIL import Image
 from services import cloud_storage
+from services.syllable_detection import Syllable, detect_syllables
 
 _DEFAULT_VIDEO_FPS = 24
 _PORTRAIT_VIDEO_SIZE = (1080, 1920)
@@ -273,13 +270,16 @@ def create_portrait_character_video(
         for (gcs_uri, start_time), path in zip(normalized_audio, audio_paths)
       }
       syllable_start = time.perf_counter()
-      syllable_timing = _build_character_syllable_timing(
+      syllable_data = _build_character_syllable_data(
         normalized_dialogs,
         audio_path_by_key,
       )
+      mouth_timelines = [
+        _apply_forced_closures(syllables) for syllables in syllable_data
+      ]
       syllable_time = time.perf_counter() - syllable_start
       logger.info(
-        f"Built syllable timing for {len(syllable_timing)} dialogs in {syllable_time:.2f}s"
+        f"Built syllable timing for {len(mouth_timelines)} dialogs in {syllable_time:.2f}s"
       )
 
       image_load_start = time.perf_counter()
@@ -318,7 +318,7 @@ def create_portrait_character_video(
         images=image_frames,
         footer_background=footer_background,
         character_renders=character_renders,
-        syllable_timing=syllable_timing,
+        mouth_timelines=mouth_timelines,
         fps=_DEFAULT_VIDEO_FPS,
         total_duration_sec=total_duration_sec,
       )
@@ -648,17 +648,18 @@ def _flatten_character_audio(
   return flattened
 
 
-def _build_character_syllable_timing(
+def _build_character_syllable_data(
   character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
                                                                     float]]]],
   audio_path_by_key: dict[tuple[str, float], str],
-) -> list[list[tuple[float, float]]]:
-  syllable_timing: list[list[tuple[float, float]]] = []
+) -> list[list["Syllable"]]:
+
+  syllable_data: list[list[Syllable]] = []
   for character, dialogs in character_dialogs:
     if character is None:
-      syllable_timing.append([])
+      syllable_data.append([])
       continue
-    character_ranges: list[tuple[float, float]] = []
+    character_syllables: list[Syllable] = []
     for gcs_uri, start_time in dialogs:
       audio_path = audio_path_by_key.get((gcs_uri, start_time))
       if not audio_path:
@@ -667,155 +668,44 @@ def _build_character_syllable_timing(
       with open(audio_path, "rb") as audio_handle:
         wav_bytes = audio_handle.read()
       logger.info(f"Detecting syllable timing for {gcs_uri} @ {start_time}")
-      clip_ranges = _detect_syllable_timing(wav_bytes)
-      for start, end in clip_ranges:
-        character_ranges.append((start + start_time, end + start_time))
-    character_ranges.sort(key=lambda pair: pair[0])
-    syllable_timing.append(character_ranges)
-  return syllable_timing
+      clip_syllables = detect_syllables(wav_bytes)
+      for syllable in clip_syllables:
+        character_syllables.append(
+          Syllable(
+            start_time=syllable.start_time + start_time,
+            end_time=syllable.end_time + start_time,
+            mouth_shape=syllable.mouth_shape,
+            onset_strength=syllable.onset_strength,
+          ))
+    character_syllables.sort(key=lambda entry: entry.start_time)
+    syllable_data.append(character_syllables)
+  return syllable_data
 
 
-def _detect_syllable_timing(wav_bytes: bytes) -> list[tuple[float, float]]:
-  """Detect syllable timing from WAV audio using waveform peaks."""
-  params, frames = _read_wav_bytes(wav_bytes)
-  framerate = float(params.framerate)
-  if framerate <= 0:
-    raise GenVideoError("WAV framerate must be positive")
-  if int(params.nframes) == 0:
-    return []
-
-  peaks = _compute_frame_peaks(frames, params=params)
-  if not peaks:
-    return []
-
-  window_duration_sec = 0.04
-  window_frames = max(1, int(round(framerate * window_duration_sec)))
-  window_peaks = [
-    max(peaks[i:i + window_frames])
-    for i in range(0, len(peaks), window_frames)
-  ]
-  if not window_peaks or max(window_peaks) == 0:
-    return []
-
-  step = max(1, len(window_peaks) // 1000)
-  sampled = [window_peaks[i] for i in range(0, len(window_peaks), step)]
-  sampled.sort()
-
-  def percentile(p: float) -> int:
-    idx = int(round((len(sampled) - 1) * p))
-    idx = max(0, min(idx, len(sampled) - 1))
-    return int(sampled[idx])
-
-  p10 = percentile(0.10)
-  p50 = percentile(0.50)
-  p90 = percentile(0.90)
-  threshold = max(
-    200,
-    int(round(p10 * 2.2)),
-    int(round(p50 * 0.6)),
-    int(round(p90 * 0.2)),
-  )
-
-  active_mask = [peak >= threshold for peak in window_peaks]
-  runs = _find_runs(active_mask, min_run_frames=1)
-
-  min_syllable_frames = max(1, int(round(0.05 / window_duration_sec)))
-  merge_gap_frames = int(round(0.08 / window_duration_sec))
-  merged: list[tuple[int, int]] = []
-  for start, end in runs:
-    if (end - start) < min_syllable_frames:
-      continue
-    if merged and start - merged[-1][1] <= merge_gap_frames:
-      merged[-1] = (merged[-1][0], end)
-    else:
-      merged.append((start, end))
-
-  max_time_sec = float(params.nframes) / framerate
-  syllables: list[tuple[float, float]] = []
-  for start, end in merged:
-    start_sec = start * window_duration_sec
-    end_sec = min(max_time_sec, end * window_duration_sec)
-    if end_sec > start_sec:
-      syllables.append((start_sec, end_sec))
-  return syllables
-
-
-def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
-  """Parse WAV bytes into (params, raw PCM frame bytes)."""
-  with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
-    # pylint: disable=no-member
-    params = wf.getparams()
-    nframes = wf.getnframes()
-    frames = wf.readframes(nframes)
-    # pylint: enable=no-member
-
-  if getattr(params, "comptype", None) != "NONE":
-    raise GenVideoError(
-      f"Unsupported WAV compression: {getattr(params, 'comptype', None)}")
-
-  expected_len = int(params.nframes) * int(params.nchannels) * int(
-    params.sampwidth)
-  if expected_len and len(frames) != expected_len:
-    raise GenVideoError(
-      f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
-    )
-  return params, frames
-
-
-def _compute_frame_peaks(
-  frames: bytes,
+def _apply_forced_closures(
+  syllables: list["Syllable"],
   *,
-  params: Any,
-) -> list[int]:
-  """Compute per-frame peak absolute amplitude."""
-  nchannels = int(params.nchannels)
-  sampwidth = int(params.sampwidth)
-  nframes = int(params.nframes)
-  if nframes == 0:
+  closure_duration_sec: float = 0.02,
+  max_gap_sec: float = 0.15,
+) -> list[tuple[MouthState, float, float]]:
+  if not syllables:
     return []
-
-  frame_size_bytes = nchannels * sampwidth
-  if len(frames) != nframes * frame_size_bytes:
-    raise GenVideoError("Frame byte length does not match WAV params")
-
-  if sampwidth != 2:
-    raise GenVideoError("Only 16-bit PCM WAV files are supported")
-
-  samples = array.array("h")
-  samples.frombytes(frames)
-  if sys.byteorder == "big":
-    samples.byteswap()
-
-  peaks: list[int] = [0] * nframes
-  sample_index = 0
-  for frame_index in range(nframes):
-    peak = 0
-    for _ch in range(nchannels):
-      sample = samples[sample_index]
-      sample_index += 1
-      value = abs(int(sample))
-      if value > peak:
-        peak = value
-    peaks[frame_index] = peak
-  return peaks
-
-
-def _find_runs(mask: list[bool], *,
-               min_run_frames: int) -> list[tuple[int, int]]:
-  runs: list[tuple[int, int]] = []
-  i = 0
-  n = len(mask)
-  while i < n:
-    if not mask[i]:
-      i += 1
+  timeline: list[tuple[MouthState, float, float]] = []
+  for index, syllable in enumerate(syllables):
+    timeline.append(
+      (syllable.mouth_shape, syllable.start_time, syllable.end_time))
+    if index + 1 >= len(syllables):
       continue
-    start = i
-    while i < n and mask[i]:
-      i += 1
-    end = i
-    if (end - start) >= min_run_frames:
-      runs.append((start, end))
-  return runs
+    next_syllable = syllables[index + 1]
+    gap = next_syllable.start_time - syllable.end_time
+    if (syllable.mouth_shape == next_syllable.mouth_shape
+        and gap >= closure_duration_sec * 2 and gap <= max_gap_sec):
+      mid_point = syllable.end_time + gap / 2
+      closure_start = mid_point - closure_duration_sec / 2
+      closure_end = mid_point + closure_duration_sec / 2
+      timeline.append((MouthState.CLOSED, closure_start, closure_end))
+  timeline.sort(key=lambda entry: entry[1])
+  return timeline
 
 
 def _load_resized_images(
@@ -871,15 +761,13 @@ def _prepare_character_renders(
       continue
     center_x = centers[center_index]
     center_index += 1
-    open_image, closed_image = _build_character_images(
-      character, max_height=footer_height)
-    width, height = open_image.size
+    mouth_images = _build_character_images(character, max_height=footer_height)
+    width, height = mouth_images[MouthState.OPEN].size
     x = int(round(center_x - (width / 2)))
     y = int(round((footer_height - height) / 2))
     renders.append({
       "character": character,
-      "open_image": open_image,
-      "closed_image": closed_image,
+      "mouth_images": mouth_images,
       "position": (x, y),
       "dialog_index": dialog_index,
     })
@@ -890,9 +778,9 @@ def _build_character_images(
   character: PosableCharacter,
   *,
   max_height: int,
-) -> tuple[Image.Image, Image.Image]:
+) -> dict[MouthState, Image.Image]:
   images: dict[MouthState, Image.Image] = {}
-  for mouth_state in (MouthState.CLOSED, MouthState.OPEN):
+  for mouth_state in (MouthState.CLOSED, MouthState.OPEN, MouthState.O):
     character.set_pose(mouth_state=mouth_state)
     rendered = character.get_image()
     if rendered.height > max_height:
@@ -901,7 +789,7 @@ def _build_character_images(
                      max(1, int(round(rendered.height * scale))))
       rendered = rendered.resize(target_size, Image.Resampling.LANCZOS)
     images[mouth_state] = rendered
-  return images[MouthState.OPEN], images[MouthState.CLOSED]
+  return images
 
 
 def _build_portrait_frame_renderer(
@@ -909,7 +797,7 @@ def _build_portrait_frame_renderer(
   images: list[tuple[float, Image.Image]],
   footer_background: Image.Image,
   character_renders: list[dict[str, Any]],
-  syllable_timing: list[list[tuple[float, float]]],
+  mouth_timelines: list[list[tuple[MouthState, float, float]]],
   fps: int,
   total_duration_sec: float,
 ) -> callable:
@@ -918,7 +806,7 @@ def _build_portrait_frame_renderer(
 
   base_frames = _build_portrait_base_frames(images, footer_background)
   base_starts = [start for start, _ in base_frames]
-  timing_index = _build_syllable_index(syllable_timing)
+  timing_index = _build_mouth_timeline_index(mouth_timelines)
   total_frames = int(math.ceil(total_duration_sec * fps))
   progress_interval = 50
   last_logged = {"frame": -1}
@@ -931,13 +819,15 @@ def _build_portrait_frame_renderer(
 
     for render in character_renders:
       dialog_index = render["dialog_index"]
-      starts, ends = timing_index[dialog_index]
-      mouth_open = False
+      starts, ends, states = timing_index[dialog_index]
+      mouth_state = MouthState.CLOSED
       if starts:
         idx = bisect_right(starts, time_sec) - 1
         if idx >= 0 and time_sec <= ends[idx]:
-          mouth_open = True
-      image = render["open_image"] if mouth_open else render["closed_image"]
+          mouth_state = states[idx]
+      image = render["mouth_images"].get(mouth_state)
+      if image is None:
+        image = render["mouth_images"][MouthState.CLOSED]
       x, y = render["position"]
       base.paste(
         image,
@@ -971,12 +861,13 @@ def _build_portrait_base_frames(
   return base_frames
 
 
-def _build_syllable_index(
-  syllable_timing: list[list[tuple[float, float]]]
-) -> list[tuple[list[float], list[float]]]:
-  index: list[tuple[list[float], list[float]]] = []
-  for ranges in syllable_timing:
-    starts = [start for start, _ in ranges]
-    ends = [end for _, end in ranges]
-    index.append((starts, ends))
+def _build_mouth_timeline_index(
+  mouth_timelines: list[list[tuple[MouthState, float, float]]]
+) -> list[tuple[list[float], list[float], list[MouthState]]]:
+  index: list[tuple[list[float], list[float], list[MouthState]]] = []
+  for timeline in mouth_timelines:
+    starts = [start for _, start, _ in timeline]
+    ends = [end for _, _, end in timeline]
+    states = [state for state, _, _ in timeline]
+    index.append((starts, ends, states))
   return index

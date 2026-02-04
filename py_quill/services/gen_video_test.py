@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from services import gen_video
-from common.posable_character import PosableCharacter
+from services.syllable_detection import Syllable
+from common.posable_character import MouthState, PosableCharacter
 from PIL import Image
 
 
@@ -256,14 +257,23 @@ def test_create_slideshow_video_emulator_returns_test_uri():
   assert metadata.is_empty
 
 
-def test_detect_syllable_timing_detects_peaks():
-  wav_bytes = _make_wav_bytes()
-  syllables = gen_video._detect_syllable_timing(wav_bytes)
-
-  assert len(syllables) >= 3
-  assert syllables[0][0] == pytest.approx(0.1, abs=0.08)
-  assert syllables[1][0] == pytest.approx(0.4, abs=0.08)
-  assert syllables[2][0] == pytest.approx(0.7, abs=0.08)
+def test_apply_forced_closures_inserts_closed_between_same_shapes():
+  syllables = [
+    Syllable(start_time=0.0,
+             end_time=0.1,
+             mouth_shape=MouthState.OPEN,
+             onset_strength=1.0),
+    Syllable(start_time=0.14,
+             end_time=0.24,
+             mouth_shape=MouthState.OPEN,
+             onset_strength=1.0),
+  ]
+  timeline = gen_video._apply_forced_closures(
+    syllables,
+    closure_duration_sec=0.02,
+    max_gap_sec=0.2,
+  )
+  assert any(state == MouthState.CLOSED for state, _, _ in timeline)
 
 
 def test_create_portrait_character_video_uploads_mp4():

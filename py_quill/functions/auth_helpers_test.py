@@ -184,19 +184,19 @@ def test_require_admin_allows_admin(monkeypatch, flask_app):
 def test_cookie_domain_for_request_uses_host(monkeypatch, flask_app):
   with flask_app.test_request_context('/'):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == f".{config.ADMIN_HOST}"
+  assert domain == f".{config.ROOT_HOST}"
 
 
 def test_cookie_domain_for_request_ignores_localhost(monkeypatch, flask_app):
   with flask_app.test_request_context('/', headers={'Host': 'localhost:5000'}):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == f".{config.ADMIN_HOST}"
+  assert domain == f".{config.ROOT_HOST}"
 
 
 def test_cookie_domain_for_request_env_override(monkeypatch, flask_app):
   with flask_app.test_request_context('/', headers={'Host': 'ignored.com'}):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == f".{config.ADMIN_HOST}"
+  assert domain == f".{config.ROOT_HOST}"
 
 
 def test_cookie_domain_for_request_emulator(monkeypatch, flask_app):

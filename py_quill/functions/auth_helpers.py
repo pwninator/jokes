@@ -87,7 +87,7 @@ def external_host_for_request(request: flask.Request) -> str | None:
   if utils.is_emulator():
     host = (request.host or '').split(':')[0]
     return host.lower() if host else 'localhost'
-  return config.ADMIN_HOST
+  return config.ROOT_HOST
 
 
 def external_scheme_for_request(request: flask.Request) -> str:
@@ -108,7 +108,7 @@ def cookie_domain_for_request(request: flask.Request) -> str | None:
 
   # In production we want the admin session cookie to be shared across
   # snickerdoodlejokes.com and api.snickerdoodlejokes.com.
-  parent = config.ADMIN_HOST.lstrip(".").lower()
+  parent = config.ROOT_HOST.lstrip(".").lower()
   return f".{parent}"
 
 

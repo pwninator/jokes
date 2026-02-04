@@ -1394,8 +1394,8 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
 
   create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
                                          video_metadata))
-  monkeypatch.setattr(joke_operations.gen_video, "create_slideshow_video",
-                      create_video_mock)
+  monkeypatch.setattr(joke_operations.gen_video,
+                      "create_portrait_character_video", create_video_mock)
 
   mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
     "gs://images/setup.png",
@@ -1417,19 +1417,28 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
 
   expected_images = [
     ("gs://images/setup.png", 0.0),
-    ("gs://images/punchline.png", 2.3),
+    ("gs://images/punchline.png", 3.3),
   ]
-  expected_audio = [
+  expected_setup_punchline_audio = [
     ("gs://audio/setup.wav", 0.0),
-    ("gs://audio/response.wav", 1.4),
-    ("gs://audio/punchline.wav", 2.3),
+    ("gs://audio/punchline.wav", 3.3),
+  ]
+  expected_response_audio = [
+    ("gs://audio/response.wav", 1.8),
   ]
 
   create_video_mock.assert_called_once()
   call_kwargs = create_video_mock.call_args.kwargs
-  assert call_kwargs["images"] == expected_images
-  assert call_kwargs["audio_files"] == expected_audio
-  assert call_kwargs["total_duration_sec"] == pytest.approx(6.3)
+  assert call_kwargs["joke_images"] == expected_images
+  assert call_kwargs["footer_background_gcs_uri"].startswith("gs://")
+  assert len(call_kwargs["character_dialogs"]) == 2
+  first_character, first_audio = call_kwargs["character_dialogs"][0]
+  second_character, second_audio = call_kwargs["character_dialogs"][1]
+  assert isinstance(first_character, joke_operations.PosableCat)
+  assert isinstance(second_character, joke_operations.PosableCat)
+  assert first_audio == expected_setup_punchline_audio
+  assert second_audio == expected_response_audio
+  assert call_kwargs["total_duration_sec"] == pytest.approx(7.3)
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
 

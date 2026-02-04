@@ -11,9 +11,9 @@ AUDIO_BUCKET_NAME = "gen_audio"
 IMAGE_BUCKET_NAME = "images.quillsstorybook.com"
 PUBLIC_FILE_BUCKET_NAME = "files.snickerdoodlejokes.com"
 TEMP_FILE_BUCKET_NAME = "temp.snickerdoodlejokes.com"
-ADMIN_HOST = "snickerdoodlejokes.com"
+
+ROOT_HOST = "snickerdoodlejokes.com"
 JOKE_CREATION_API_HOST = "api.snickerdoodlejokes.com"
-JOKE_BUNDLE_SECRET_ID = "JOKE_BUNDLE_SECRET"
 
 # Admin session
 SESSION_COOKIE_NAME = '__session'
@@ -74,7 +74,7 @@ def get_google_analytics_api_key() -> str:
 
 def get_joke_bundle_secret() -> str:
   """Gets the secret that can authorize bundle generation requests."""
-  return _get_secret(JOKE_BUNDLE_SECRET_ID)
+  return _get_secret("JOKE_BUNDLE_SECRET")
 
 
 def get_mailerlite_api_key() -> str:

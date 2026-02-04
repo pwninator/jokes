@@ -2,20 +2,35 @@
 
 from __future__ import annotations
 
+import array
+import io
+import math
 import os
 import random
+import sys
 import tempfile
 import time
 import traceback
+import wave
+from bisect import bisect_right
 from typing import Any
 
+import numpy as np
 from common import models, utils
+from common.posable_character import PosableCharacter
 from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
-                     ImageClip)
+                     ImageClip, VideoClip)
+from PIL import Image
 from services import cloud_storage
 
 _DEFAULT_VIDEO_FPS = 24
+_PORTRAIT_VIDEO_SIZE = (1080, 1920)
+_PORTRAIT_IMAGE_SIZE = (1080, 1080)
+_PORTRAIT_FOOTER_SIZE = (
+  _PORTRAIT_VIDEO_SIZE[0],
+  _PORTRAIT_VIDEO_SIZE[1] - _PORTRAIT_IMAGE_SIZE[1],
+)
 
 
 class Error(Exception):
@@ -81,17 +96,27 @@ def create_slideshow_video(
 
   try:
     with tempfile.TemporaryDirectory() as temp_dir:
+      image_download_start = time.perf_counter()
       image_paths = _download_assets_to_temp(
         normalized_images,
         temp_dir,
         prefix="image",
         default_extension=".png",
       )
+      image_download_time = time.perf_counter() - image_download_start
+      logger.info(
+        f"Downloaded {len(image_paths)} images in {image_download_time:.2f}s")
+
+      audio_download_start = time.perf_counter()
       audio_paths = _download_assets_to_temp(
         normalized_audio,
         temp_dir,
         prefix="audio",
         default_extension=".wav",
+      )
+      audio_download_time = time.perf_counter() - audio_download_start
+      logger.info(
+        f"Downloaded {len(audio_paths)} audio files in {audio_download_time:.2f}s"
       )
 
       base_size = _extract_base_size(image_paths)
@@ -151,6 +176,217 @@ def create_slideshow_video(
         clip.close()
       except Exception:
         pass
+    for clip in audio_clips:
+      try:
+        clip.close()
+      except Exception:
+        pass
+    if audio_composite is not None:
+      try:
+        audio_composite.close()
+      except Exception:
+        pass
+    if video_clip is not None:
+      try:
+        video_clip.close()
+      except Exception:
+        pass
+
+
+def create_portrait_character_video(
+  joke_images: list[tuple[str, float]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
+                                                                    float]]]],
+  footer_background_gcs_uri: str,
+  total_duration_sec: float,
+  output_filename_base: str,
+  temp_output: bool = False,
+) -> tuple[str, models.SingleGenerationMetadata]:
+  """Create a portrait video with animated character(s) in the footer."""
+  if utils.is_emulator():
+    logger.info('Running in emulator mode. Returning a test video file.')
+    random_suffix = f"{random.randint(1, 10):02d}"
+    test_uri = f"gs://test_story_video_data/test_portrait_video_{random_suffix}.mp4"
+    return test_uri, models.SingleGenerationMetadata()
+
+  normalized_images = _normalize_timed_assets(
+    joke_images,
+    label="image",
+    allow_empty=False,
+  )
+  normalized_dialogs = _normalize_character_dialogs(character_dialogs)
+  flattened_audio = _flatten_character_audio(normalized_dialogs)
+  normalized_audio = _normalize_timed_assets(
+    flattened_audio,
+    label="audio",
+    allow_empty=True,
+  )
+  _validate_video_duration(total_duration_sec)
+  _validate_output_filename(output_filename_base)
+  _validate_image_timing(normalized_images, total_duration_sec)
+  _validate_audio_timing(normalized_audio, total_duration_sec)
+
+  start_time = time.perf_counter()
+  output_gcs_uri = cloud_storage.get_video_gcs_uri(
+    output_filename_base,
+    "mp4",
+    temp=temp_output,
+  )
+
+  logger.info(
+    "Starting portrait video generation: "
+    f"{len(normalized_images)} images, {len(normalized_audio)} audio files, "
+    f"{len([c for c, _ in normalized_dialogs if c is not None])} characters, "
+    f"duration={total_duration_sec}s, output={output_gcs_uri}")
+
+  video_clip = None
+  audio_composite = None
+  audio_clips: list[AudioFileClip] = []
+
+  try:
+    with tempfile.TemporaryDirectory() as temp_dir:
+      image_download_start = time.perf_counter()
+      image_paths = _download_assets_to_temp(
+        normalized_images,
+        temp_dir,
+        prefix="image",
+        default_extension=".png",
+      )
+      image_download_time = time.perf_counter() - image_download_start
+      logger.info(
+        f"Downloaded {len(image_paths)} images in {image_download_time:.2f}s")
+
+      audio_download_start = time.perf_counter()
+      audio_paths = _download_assets_to_temp(
+        normalized_audio,
+        temp_dir,
+        prefix="audio",
+        default_extension=".wav",
+      )
+      audio_download_time = time.perf_counter() - audio_download_start
+      logger.info(
+        f"Downloaded {len(audio_paths)} audio files in {audio_download_time:.2f}s"
+      )
+
+      audio_path_by_key = {
+        (gcs_uri, start_time): path
+        for (gcs_uri, start_time), path in zip(normalized_audio, audio_paths)
+      }
+      syllable_start = time.perf_counter()
+      syllable_timing = _build_character_syllable_timing(
+        normalized_dialogs,
+        audio_path_by_key,
+      )
+      syllable_time = time.perf_counter() - syllable_start
+      logger.info(
+        f"Built syllable timing for {len(syllable_timing)} dialogs in {syllable_time:.2f}s"
+      )
+
+      image_load_start = time.perf_counter()
+      image_frames = _load_resized_images(
+        normalized_images,
+        image_paths,
+        target_size=_PORTRAIT_IMAGE_SIZE,
+      )
+      image_load_time = time.perf_counter() - image_load_start
+      logger.info(
+        f"Prepared {len(image_frames)} resized images in {image_load_time:.2f}s"
+      )
+      footer_start = time.perf_counter()
+      footer_background = _load_resized_image(
+        footer_background_gcs_uri,
+        target_size=_PORTRAIT_FOOTER_SIZE,
+      )
+      footer_time = time.perf_counter() - footer_start
+      logger.info(
+        f"Loaded footer background in {footer_time:.2f}s ({footer_background.size[0]}x{footer_background.size[1]})"
+      )
+      render_prep_start = time.perf_counter()
+      character_renders = _prepare_character_renders(
+        normalized_dialogs,
+        footer_height=_PORTRAIT_FOOTER_SIZE[1],
+        footer_width=_PORTRAIT_FOOTER_SIZE[0],
+      )
+      render_prep_time = time.perf_counter() - render_prep_start
+      logger.info(
+        f"Prepared {len(character_renders)} character renders in {render_prep_time:.2f}s"
+      )
+
+      total_frames = int(math.ceil(total_duration_sec * _DEFAULT_VIDEO_FPS))
+      logger.info(f"Creating VideoClip renderer for {total_frames} frames")
+      make_frame = _build_portrait_frame_renderer(
+        images=image_frames,
+        footer_background=footer_background,
+        character_renders=character_renders,
+        syllable_timing=syllable_timing,
+        fps=_DEFAULT_VIDEO_FPS,
+        total_duration_sec=total_duration_sec,
+      )
+      encode_start = time.perf_counter()
+      video_clip = VideoClip(make_frame, duration=total_duration_sec)
+      if audio_paths:
+        audio_clips = _create_audio_clips(normalized_audio, audio_paths)
+        audio_composite = CompositeAudioClip(audio_clips)
+        video_clip = video_clip.with_audio(audio_composite)
+
+      output_path = os.path.join(temp_dir, "portrait.mp4")
+      logger.info(f"Writing video clip to {output_path}")
+      video_clip.write_videofile(
+        output_path,
+        codec="libx264",
+        audio_codec="aac",
+        fps=_DEFAULT_VIDEO_FPS,
+        logger=None,
+      )
+      encode_time = time.perf_counter() - encode_start
+      logger.info(f"Encoded video in {encode_time:.2f}s")
+
+      logger.info(f"Uploading video clip to {output_gcs_uri}")
+      cloud_storage.upload_file_to_gcs(
+        output_path,
+        output_gcs_uri,
+        content_type="video/mp4",
+      )
+
+      file_size_bytes = os.path.getsize(output_path)
+      generation_time_sec = time.perf_counter() - start_time
+
+      metadata = models.SingleGenerationMetadata(
+        label="create_portrait_character_video",
+        model_name="moviepy",
+        token_counts={
+          "num_images":
+          len(normalized_images),
+          "num_audio_files":
+          len(normalized_audio),
+          "num_characters":
+          len([character for character, _ in normalized_dialogs if character]),
+          "video_duration_sec":
+          int(total_duration_sec),
+          "output_file_size_bytes":
+          file_size_bytes,
+        },
+        generation_time_sec=generation_time_sec,
+        cost=0.0,
+      )
+
+      _log_video_response(
+        normalized_images,
+        normalized_audio,
+        output_gcs_uri,
+        metadata,
+        extra_log_data={
+          "num_characters":
+          len([character for character, _ in normalized_dialogs if character]),
+        },
+      )
+      return output_gcs_uri, metadata
+
+  except Exception as e:
+    logger.error("Portrait video generation failed:\n"
+                 f"{traceback.format_exc()}")
+    raise GenVideoError(f"Portrait video generation failed: {e}") from e
+  finally:
     for clip in audio_clips:
       try:
         clip.close()
@@ -260,6 +496,7 @@ def _download_assets_to_temp(
   """Download assets from GCS into a temporary directory."""
   paths: list[str] = []
   for index, (gcs_uri, _) in enumerate(assets):
+    logger.info(f"Downloading asset to temp directory: {gcs_uri}")
     _, blob_name = cloud_storage.parse_gcs_uri(gcs_uri)
     extension = os.path.splitext(blob_name)[1] or default_extension
     local_path = os.path.join(temp_dir, f"{prefix}_{index}{extension}")
@@ -375,3 +612,371 @@ Generation cost: ${metadata.cost:.6f}
         logger.info(f"{header}\n{part}", extra={"json_fields": log_extra_data})
       else:
         logger.info(f"{header}\n{part}")
+
+
+def _normalize_character_dialogs(
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
+                                                                    float]]]]
+) -> list[tuple[PosableCharacter | None, list[tuple[str, float]]]]:
+  if character_dialogs is None:
+    raise GenVideoError("character_dialogs must be provided")
+
+  normalized: list[tuple[PosableCharacter | None, list[tuple[str,
+                                                             float]]]] = []
+  for index, entry in enumerate(character_dialogs):
+    try:
+      character, dialogs = entry
+    except (TypeError, ValueError) as exc:
+      raise GenVideoError(
+        f"Invalid character dialog entry at index {index}: {entry}") from exc
+    normalized_dialogs = _normalize_timed_assets(
+      dialogs,
+      label="character audio",
+      allow_empty=True,
+    )
+    normalized.append((character, normalized_dialogs))
+  return normalized
+
+
+def _flatten_character_audio(
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
+                                                                    float]]]]
+) -> list[tuple[str, float]]:
+  flattened: list[tuple[str, float]] = []
+  for _, dialogs in character_dialogs:
+    flattened.extend(dialogs)
+  return flattened
+
+
+def _build_character_syllable_timing(
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
+                                                                    float]]]],
+  audio_path_by_key: dict[tuple[str, float], str],
+) -> list[list[tuple[float, float]]]:
+  syllable_timing: list[list[tuple[float, float]]] = []
+  for character, dialogs in character_dialogs:
+    if character is None:
+      syllable_timing.append([])
+      continue
+    character_ranges: list[tuple[float, float]] = []
+    for gcs_uri, start_time in dialogs:
+      audio_path = audio_path_by_key.get((gcs_uri, start_time))
+      if not audio_path:
+        raise GenVideoError("Missing audio path for character dialog "
+                            f"{gcs_uri} @ {start_time}")
+      with open(audio_path, "rb") as audio_handle:
+        wav_bytes = audio_handle.read()
+      logger.info(f"Detecting syllable timing for {gcs_uri} @ {start_time}")
+      clip_ranges = _detect_syllable_timing(wav_bytes)
+      for start, end in clip_ranges:
+        character_ranges.append((start + start_time, end + start_time))
+    character_ranges.sort(key=lambda pair: pair[0])
+    syllable_timing.append(character_ranges)
+  return syllable_timing
+
+
+def _detect_syllable_timing(wav_bytes: bytes) -> list[tuple[float, float]]:
+  """Detect syllable timing from WAV audio using waveform peaks."""
+  params, frames = _read_wav_bytes(wav_bytes)
+  framerate = float(params.framerate)
+  if framerate <= 0:
+    raise GenVideoError("WAV framerate must be positive")
+  if int(params.nframes) == 0:
+    return []
+
+  peaks = _compute_frame_peaks(frames, params=params)
+  if not peaks:
+    return []
+
+  window_duration_sec = 0.04
+  window_frames = max(1, int(round(framerate * window_duration_sec)))
+  window_peaks = [
+    max(peaks[i:i + window_frames])
+    for i in range(0, len(peaks), window_frames)
+  ]
+  if not window_peaks or max(window_peaks) == 0:
+    return []
+
+  step = max(1, len(window_peaks) // 1000)
+  sampled = [window_peaks[i] for i in range(0, len(window_peaks), step)]
+  sampled.sort()
+
+  def percentile(p: float) -> int:
+    idx = int(round((len(sampled) - 1) * p))
+    idx = max(0, min(idx, len(sampled) - 1))
+    return int(sampled[idx])
+
+  p10 = percentile(0.10)
+  p50 = percentile(0.50)
+  p90 = percentile(0.90)
+  threshold = max(
+    200,
+    int(round(p10 * 2.2)),
+    int(round(p50 * 0.6)),
+    int(round(p90 * 0.2)),
+  )
+
+  active_mask = [peak >= threshold for peak in window_peaks]
+  runs = _find_runs(active_mask, min_run_frames=1)
+
+  min_syllable_frames = max(1, int(round(0.05 / window_duration_sec)))
+  merge_gap_frames = int(round(0.08 / window_duration_sec))
+  merged: list[tuple[int, int]] = []
+  for start, end in runs:
+    if (end - start) < min_syllable_frames:
+      continue
+    if merged and start - merged[-1][1] <= merge_gap_frames:
+      merged[-1] = (merged[-1][0], end)
+    else:
+      merged.append((start, end))
+
+  max_time_sec = float(params.nframes) / framerate
+  syllables: list[tuple[float, float]] = []
+  for start, end in merged:
+    start_sec = start * window_duration_sec
+    end_sec = min(max_time_sec, end * window_duration_sec)
+    if end_sec > start_sec:
+      syllables.append((start_sec, end_sec))
+  return syllables
+
+
+def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
+  """Parse WAV bytes into (params, raw PCM frame bytes)."""
+  with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+    # pylint: disable=no-member
+    params = wf.getparams()
+    nframes = wf.getnframes()
+    frames = wf.readframes(nframes)
+    # pylint: enable=no-member
+
+  if getattr(params, "comptype", None) != "NONE":
+    raise GenVideoError(
+      f"Unsupported WAV compression: {getattr(params, 'comptype', None)}")
+
+  expected_len = int(params.nframes) * int(params.nchannels) * int(
+    params.sampwidth)
+  if expected_len and len(frames) != expected_len:
+    raise GenVideoError(
+      f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
+    )
+  return params, frames
+
+
+def _compute_frame_peaks(
+  frames: bytes,
+  *,
+  params: Any,
+) -> list[int]:
+  """Compute per-frame peak absolute amplitude."""
+  nchannels = int(params.nchannels)
+  sampwidth = int(params.sampwidth)
+  nframes = int(params.nframes)
+  if nframes == 0:
+    return []
+
+  frame_size_bytes = nchannels * sampwidth
+  if len(frames) != nframes * frame_size_bytes:
+    raise GenVideoError("Frame byte length does not match WAV params")
+
+  if sampwidth != 2:
+    raise GenVideoError("Only 16-bit PCM WAV files are supported")
+
+  samples = array.array("h")
+  samples.frombytes(frames)
+  if sys.byteorder == "big":
+    samples.byteswap()
+
+  peaks: list[int] = [0] * nframes
+  sample_index = 0
+  for frame_index in range(nframes):
+    peak = 0
+    for _ch in range(nchannels):
+      sample = samples[sample_index]
+      sample_index += 1
+      value = abs(int(sample))
+      if value > peak:
+        peak = value
+    peaks[frame_index] = peak
+  return peaks
+
+
+def _find_runs(mask: list[bool], *,
+               min_run_frames: int) -> list[tuple[int, int]]:
+  runs: list[tuple[int, int]] = []
+  i = 0
+  n = len(mask)
+  while i < n:
+    if not mask[i]:
+      i += 1
+      continue
+    start = i
+    while i < n and mask[i]:
+      i += 1
+    end = i
+    if (end - start) >= min_run_frames:
+      runs.append((start, end))
+  return runs
+
+
+def _load_resized_images(
+  images: list[tuple[str, float]],
+  image_paths: list[str],
+  *,
+  target_size: tuple[int, int],
+) -> list[tuple[float, Image.Image]]:
+  frames: list[tuple[float, Image.Image]] = []
+  for (_, start_time), image_path in zip(images, image_paths):
+    with Image.open(image_path) as image:
+      frames.append((start_time, _resize_image(image, target_size)))
+  return frames
+
+
+def _load_resized_image(gcs_uri: str, *,
+                        target_size: tuple[int, int]) -> Image.Image:
+  image = cloud_storage.download_image_from_gcs(gcs_uri).convert("RGBA")
+  return _resize_image(image, target_size)
+
+
+def _resize_image(image: Image.Image, target_size: tuple[int,
+                                                         int]) -> Image.Image:
+  if image.size == target_size:
+    return image.convert("RGBA")
+  return image.convert("RGBA").resize(
+    target_size,
+    resample=Image.Resampling.LANCZOS,
+  )
+
+
+def _prepare_character_renders(
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
+                                                                    float]]]],
+  *,
+  footer_height: int,
+  footer_width: int,
+) -> list[dict[str, Any]]:
+  characters = [
+    character for character, _ in character_dialogs if character is not None
+  ]
+  logger.info(f"Preparing character renders for {len(characters)} characters")
+  if not characters:
+    return []
+
+  spacing = footer_width / (len(characters) + 1)
+  centers = [spacing * (index + 1) for index in range(len(characters))]
+
+  renders: list[dict[str, Any]] = []
+  center_index = 0
+  for dialog_index, (character, _dialogs) in enumerate(character_dialogs):
+    if character is None:
+      continue
+    center_x = centers[center_index]
+    center_index += 1
+    open_image, closed_image = _build_character_images(
+      character, max_height=footer_height)
+    width, height = open_image.size
+    x = int(round(center_x - (width / 2)))
+    y = int(round((footer_height - height) / 2))
+    renders.append({
+      "character": character,
+      "open_image": open_image,
+      "closed_image": closed_image,
+      "position": (x, y),
+      "dialog_index": dialog_index,
+    })
+  return renders
+
+
+def _build_character_images(
+  character: PosableCharacter,
+  *,
+  max_height: int,
+) -> tuple[Image.Image, Image.Image]:
+  images: dict[bool, Image.Image] = {}
+  for mouth_open in (False, True):
+    character.set_pose(mouth_open=mouth_open)
+    rendered = character.get_image()
+    if rendered.height > max_height:
+      scale = max_height / rendered.height
+      target_size = (max(1, int(round(rendered.width * scale))),
+                     max(1, int(round(rendered.height * scale))))
+      rendered = rendered.resize(target_size, Image.Resampling.LANCZOS)
+    images[mouth_open] = rendered
+  return images[True], images[False]
+
+
+def _build_portrait_frame_renderer(
+  *,
+  images: list[tuple[float, Image.Image]],
+  footer_background: Image.Image,
+  character_renders: list[dict[str, Any]],
+  syllable_timing: list[list[tuple[float, float]]],
+  fps: int,
+  total_duration_sec: float,
+) -> callable:
+  if fps <= 0:
+    raise GenVideoError("FPS must be positive")
+
+  base_frames = _build_portrait_base_frames(images, footer_background)
+  base_starts = [start for start, _ in base_frames]
+  timing_index = _build_syllable_index(syllable_timing)
+  total_frames = int(math.ceil(total_duration_sec * fps))
+  progress_interval = 50
+  last_logged = {"frame": -1}
+
+  def make_frame(time_sec: float) -> np.ndarray:
+    base_index = bisect_right(base_starts, time_sec) - 1
+    if base_index < 0:
+      base_index = 0
+    base = base_frames[base_index][1].copy()
+
+    for render in character_renders:
+      dialog_index = render["dialog_index"]
+      starts, ends = timing_index[dialog_index]
+      mouth_open = False
+      if starts:
+        idx = bisect_right(starts, time_sec) - 1
+        if idx >= 0 and time_sec <= ends[idx]:
+          mouth_open = True
+      image = render["open_image"] if mouth_open else render["closed_image"]
+      x, y = render["position"]
+      base.paste(
+        image,
+        (x, _PORTRAIT_IMAGE_SIZE[1] + y),
+        image,
+      )
+
+    frame_index = int(time_sec * fps)
+    if frame_index >= 0 and frame_index - last_logged[
+        "frame"] >= progress_interval:
+      last_logged["frame"] = frame_index
+      logger.info(
+        f"Rendered {min(frame_index + 1, total_frames)}/{total_frames} frames "
+        f"({min(frame_index + 1, total_frames) / total_frames:.0%})")
+
+    return np.asarray(base.convert("RGB"))
+
+  return make_frame
+
+
+def _build_portrait_base_frames(
+  images: list[tuple[float, Image.Image]],
+  footer_background: Image.Image,
+) -> list[tuple[float, Image.Image]]:
+  base_frames: list[tuple[float, Image.Image]] = []
+  for start_time, image in images:
+    base = Image.new("RGBA", _PORTRAIT_VIDEO_SIZE, (0, 0, 0, 0))
+    base.paste(image, (0, 0))
+    base.paste(footer_background, (0, _PORTRAIT_IMAGE_SIZE[1]))
+    base_frames.append((start_time, base))
+  return base_frames
+
+
+def _build_syllable_index(
+  syllable_timing: list[list[tuple[float, float]]]
+) -> list[tuple[list[float], list[float]]]:
+  index: list[tuple[list[float], list[float]]] = []
+  for ranges in syllable_timing:
+    starts = [start for start, _ in ranges]
+    ends = [end for _, end in ranges]
+    index.append((starts, ends))
+  return index

@@ -367,8 +367,8 @@
       return pairs.join('|');
     }
 
-    async function requestGeneration(opValue, jokeId, extraData) {
-      const resp = await fetch(jokeCreationUrl, {
+    async function requestGeneration(requestUrl, opValue, jokeId, extraData) {
+      const resp = await fetch(requestUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -410,7 +410,7 @@
       const opValue = (audioForm.querySelector('input[name="op"]') || {}).value;
 
       try {
-        const data = await requestGeneration(opValue, jokeId, {
+        const data = await requestGeneration(jokeCreationUrl, opValue, jokeId, {
           script_template: scriptTemplateInput?.value || '',
           speaker_voice_pairs: buildSpeakerVoicePairs(),
         });
@@ -484,7 +484,7 @@
       const opValue = (videoForm.querySelector('input[name="op"]') || {}).value;
 
       try {
-        const data = await requestGeneration(opValue, jokeId, {
+        const data = await requestGeneration(jokeCreationUrl, opValue, jokeId, {
           script_template: scriptTemplateInput?.value || '',
           speaker_voice_pairs: buildSpeakerVoicePairs(),
         });

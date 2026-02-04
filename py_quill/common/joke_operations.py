@@ -11,6 +11,8 @@ from io import BytesIO
 from typing import Any, Literal, Tuple
 
 from common import image_generation, models
+from common.posable_character import PosableCharacter
+from common.posable_characters import PosableCat
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
@@ -23,6 +25,8 @@ _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
 
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
+_JOKE_VIDEO_FOOTER_BACKGROUND_GCS_URI = (
+  "gs://images.quillsstorybook.com/_joke_assets/blank_paper.png")
 
 DEFAULT_JOKE_AUDIO_SCRIPT_TEMPLATE = """You are generating audio. DO NOT speak any instructions.
 ONLY speak the lines under TRANSCRIPT, using the specified speakers.
@@ -631,8 +635,9 @@ def generate_joke_video(
   temp_output: bool = False,
   script_template: str | None = None,
   speakers: dict[str, str] | None = None,
+  character_class: type[PosableCharacter] | None = PosableCat,
 ) -> tuple[str, models.GenerationMetadata]:
-  """Generate a slideshow video for a joke with synced audio."""
+  """Generate a portrait video for a joke with synced audio."""
   if not joke.setup_text or not joke.punchline_text:
     raise ValueError("Joke must have setup_text and punchline_text")
 
@@ -669,24 +674,35 @@ def generate_joke_video(
   punchline_start_sec = response_start_sec + response_duration_sec + _JOKE_AUDIO_PUNCHLINE_GAP_SEC
   total_duration_sec = punchline_start_sec + punchline_duration_sec + 2.0
 
-  images = [
+  joke_images = [
     (setup_image_gcs_uri, 0.0),
     (punchline_image_gcs_uri, punchline_start_sec),
   ]
-  audio_files = [
+  setup_punchline_audio = [
     (setup_audio_gcs_uri, 0.0),
-    (response_audio_gcs_uri, response_start_sec),
     (punchline_audio_gcs_uri, punchline_start_sec),
   ]
+  response_audio = [
+    (response_audio_gcs_uri, response_start_sec),
+  ]
+  if character_class is None:
+    character_dialogs = [(None, setup_punchline_audio + response_audio)]
+  else:
+    character_dialogs = [
+      (character_class(), setup_punchline_audio),
+      (character_class(), response_audio),
+    ]
 
   joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
-  video_gcs_uri, video_generation_metadata = (gen_video.create_slideshow_video(
-    images=images,
-    audio_files=audio_files,
-    total_duration_sec=total_duration_sec,
-    output_filename_base=f"joke_video_{joke_id_for_filename}",
-    temp_output=temp_output,
-  ))
+  video_gcs_uri, video_generation_metadata = (
+    gen_video.create_portrait_character_video(
+      joke_images=joke_images,
+      character_dialogs=character_dialogs,
+      footer_background_gcs_uri=_JOKE_VIDEO_FOOTER_BACKGROUND_GCS_URI,
+      total_duration_sec=total_duration_sec,
+      output_filename_base=f"joke_video_{joke_id_for_filename}",
+      temp_output=temp_output,
+    ))
 
   generation_metadata = models.GenerationMetadata()
   generation_metadata.add_generation(audio_generation_metadata)

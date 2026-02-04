@@ -6,7 +6,8 @@ import traceback
 from enum import Enum
 
 from agents import constants
-from common import image_generation, joke_notes_sheet_operations, joke_operations, utils
+from common import (image_generation, joke_notes_sheet_operations,
+                    joke_operations, utils)
 from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
@@ -25,6 +26,57 @@ class JokeCreationOp(str, Enum):
   JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
   PRINTABLE_NOTE = "printable_note"
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_2,
+  min_instances=1,
+  timeout_sec=600,
+)
+def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
+  """Handle joke creation scenarios for text entry, suggestions, and images."""
+  try:
+    if response := _handle_admin_request(req):
+      return response
+
+    op_value = get_param(req, "op", JokeCreationOp.PROC.value)
+    try:
+      op = JokeCreationOp(op_value)
+    except ValueError:
+      return error_response(f'Unsupported op: {op_value}',
+                            error_type='unsupported_operation',
+                            req=req,
+                            status=400)
+    if op == JokeCreationOp.PROC:
+      return _run_joke_creation_proc(req)
+    if op == JokeCreationOp.JOKE_IMAGE:
+      return _run_joke_image_tuner(req)
+    if op == JokeCreationOp.JOKE_AUDIO:
+      return _run_joke_audio_tuner(req)
+    if op == JokeCreationOp.JOKE_VIDEO:
+      return _run_joke_video_tuner(req)
+    if op == JokeCreationOp.SOCIAL:
+      return social_fns.run_social_post_creation_process(req)
+    if op == JokeCreationOp.PRINTABLE_NOTE:
+      return _run_printable_sheet_proc(req)
+
+    return error_response(f'Unsupported op: {op_value}',
+                          error_type='unsupported_operation',
+                          req=req,
+                          status=400)
+
+  except joke_operations.SafetyCheckError as exc:
+    error_string = f"Safety check failed: {str(exc)}"
+    logger.error(error_string)
+    return error_response(error_string, error_type='safety_failed', req=req)
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error handling joke_creation_process: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string,
+                          error_type='internal_error',
+                          req=req,
+                          status=500)
 
 
 def _select_image_client(image_quality: str):
@@ -73,70 +125,24 @@ def _parse_speaker_voice_pairs(
   return speakers
 
 
-@https_fn.on_request(
-  memory=options.MemoryOption.GB_2,
-  min_instances=1,
-  timeout_sec=600,
-)
-def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
-  """Handle joke creation scenarios for text entry, suggestions, and images."""
+def _handle_admin_request(req: https_fn.Request) -> https_fn.Response | None:
+  if response := handle_cors_preflight(req):
+    return response
+  if response := handle_health_check(req):
+    return response
+
+  if req.method not in ['GET', 'POST']:
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
   try:
-    if response := handle_cors_preflight(req):
-      return response
+    if not utils.is_emulator():
+      get_user_id(req, allow_unauthenticated=False, require_admin=True)
+  except AuthError:
+    return error_response('Unauthorized', status=403, req=req)
 
-    if response := handle_health_check(req):
-      return response
-
-    if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}',
-                            req=req,
-                            status=405)
-
-    # Only allow admin access
-    try:
-      if not utils.is_emulator():
-        get_user_id(req, allow_unauthenticated=False, require_admin=True)
-    except AuthError:
-      return error_response('Unauthorized', status=403, req=req)
-
-    op_value = get_param(req, "op", JokeCreationOp.PROC.value)
-    try:
-      op = JokeCreationOp(op_value)
-    except ValueError:
-      return error_response(f'Unsupported op: {op_value}',
-                            error_type='unsupported_operation',
-                            req=req,
-                            status=400)
-    if op == JokeCreationOp.PROC:
-      return _run_joke_creation_proc(req)
-    if op == JokeCreationOp.JOKE_IMAGE:
-      return _run_joke_image_tuner(req)
-    if op == JokeCreationOp.JOKE_AUDIO:
-      return _run_joke_audio_tuner(req)
-    if op == JokeCreationOp.JOKE_VIDEO:
-      return _run_joke_video_tuner(req)
-    if op == JokeCreationOp.SOCIAL:
-      return social_fns.run_social_post_creation_process(req)
-    if op == JokeCreationOp.PRINTABLE_NOTE:
-      return _run_printable_sheet_proc(req)
-
-    return error_response(f'Unsupported op: {op_value}',
-                          error_type='unsupported_operation',
-                          req=req,
-                          status=400)
-
-  except joke_operations.SafetyCheckError as exc:
-    error_string = f"Safety check failed: {str(exc)}"
-    logger.error(error_string)
-    return error_response(error_string, error_type='safety_failed', req=req)
-  except Exception as exc:  # pylint: disable=broad-except
-    error_string = (f"Error handling joke_creation_process: {str(exc)}\n"
-                    f"{traceback.format_exc()}")
-    logger.error(error_string)
-    return error_response(error_string,
-                          error_type='internal_error',
-                          req=req,
-                          status=500)
+  return None
 
 
 def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:

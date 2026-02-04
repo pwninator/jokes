@@ -109,7 +109,8 @@
     gap: 12px;
   }
 
-  .speaker-grid input {
+  .speaker-grid input,
+  .speaker-grid select {
     width: 100%;
   }
 </style>
@@ -143,7 +144,13 @@
       </div>
       <div>
         <label for="speaker1-voice" class="muted small">Voice 1</label>
-        <input id="speaker1-voice" type="text" value="{{ default_speaker1_voice }}">
+        <select id="speaker1-voice">
+          {% for voice in gemini_voices %}
+            <option value="{{ voice.value }}" {% if voice.value == default_speaker1_voice %}selected{% endif %}>
+              {{ voice.label }}
+            </option>
+          {% endfor %}
+        </select>
       </div>
       <div>
         <label for="speaker2-name" class="muted small">Speaker 2</label>
@@ -151,7 +158,13 @@
       </div>
       <div>
         <label for="speaker2-voice" class="muted small">Voice 2</label>
-        <input id="speaker2-voice" type="text" value="{{ default_speaker2_voice }}">
+        <select id="speaker2-voice">
+          {% for voice in gemini_voices %}
+            <option value="{{ voice.value }}" {% if voice.value == default_speaker2_voice %}selected{% endif %}>
+              {{ voice.label }}
+            </option>
+          {% endfor %}
+        </select>
       </div>
     </div>
   </section>

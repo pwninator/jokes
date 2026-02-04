@@ -27,11 +27,17 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     speaker2_name = get_param(req, "speaker2_name", "Speaker 2") or ""
     speaker2_voice = get_param(req, "speaker2_voice", "") or ""
 
-    speakers: dict[str, str] = {}
+    speakers: dict[str, gen_audio.Voice] = {}
     if speaker1_name.strip() and speaker1_voice.strip():
-      speakers[speaker1_name.strip()] = speaker1_voice.strip()
+      speakers[speaker1_name.strip()] = gen_audio.Voice.from_identifier(
+        speaker1_voice.strip(),
+        model=gen_audio.VoiceModel.GEMINI,
+      )
     if speaker2_name.strip() and speaker2_voice.strip():
-      speakers[speaker2_name.strip()] = speaker2_voice.strip()
+      speakers[speaker2_name.strip()] = gen_audio.Voice.from_identifier(
+        speaker2_voice.strip(),
+        model=gen_audio.VoiceModel.GEMINI,
+      )
 
     if not script.strip():
       return function_utils.error_response(
@@ -75,8 +81,23 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     "Alice: That's okay. I can handle the crumbs.\n")
   default_speaker1_name = "Alice"
   default_speaker2_name = "Bob"
-  default_speaker1_voice = "Kore"
-  default_speaker2_voice = "Puck"
+  default_speaker1_voice = gen_audio.Voice.GEMINI_KORE
+  default_speaker2_voice = gen_audio.Voice.GEMINI_PUCK
+
+  gemini_voice_options = gen_audio.Voice.voices_for_model(
+    gen_audio.VoiceModel.GEMINI)
+  voice_options_html = "\n".join([
+    f'<option value="{voice.name}"'
+    f' {"selected" if voice is default_speaker1_voice else ""}>'
+    f'{voice.voice_name} ({voice.gender.value})</option>'
+    for voice in gemini_voice_options
+  ])
+  voice_options_html_2 = "\n".join([
+    f'<option value="{voice.name}"'
+    f' {"selected" if voice is default_speaker2_voice else ""}>'
+    f'{voice.voice_name} ({voice.gender.value})</option>'
+    for voice in gemini_voice_options
+  ])
 
   html = f"""<!DOCTYPE html>
 <html>
@@ -85,7 +106,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   <title>Generate Multi-Speaker Audio</title>
   <style>
     body {{ font-family: system-ui, Arial, sans-serif; margin: 24px; }}
-    input, textarea {{ width: 100%; max-width: 900px; }}
+    input, textarea, select {{ width: 100%; max-width: 900px; }}
     textarea {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }}
     .row {{ display: flex; gap: 12px; max-width: 900px; }}
     .col {{ flex: 1; }}
@@ -108,8 +129,10 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
         <input id="speaker1_name" name="speaker1_name" value="{default_speaker1_name}" required>
       </div>
       <div class="col">
-        <label for="speaker1_voice">Speaker 1 Voice Name</label><br>
-        <input id="speaker1_voice" name="speaker1_voice" value="{default_speaker1_voice}" required>
+        <label for="speaker1_voice">Speaker 1 Voice</label><br>
+        <select id="speaker1_voice" name="speaker1_voice" required>
+          {voice_options_html}
+        </select>
       </div>
     </div>
     <br>
@@ -119,8 +142,10 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
         <input id="speaker2_name" name="speaker2_name" value="{default_speaker2_name}" required>
       </div>
       <div class="col">
-        <label for="speaker2_voice">Speaker 2 Voice Name</label><br>
-        <input id="speaker2_voice" name="speaker2_voice" value="{default_speaker2_voice}" required>
+        <label for="speaker2_voice">Speaker 2 Voice</label><br>
+        <select id="speaker2_voice" name="speaker2_voice" required>
+          {voice_options_html_2}
+        </select>
       </div>
     </div>
     <br>

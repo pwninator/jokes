@@ -15,7 +15,7 @@ from functions.function_utils import (AuthError, error_response,
                                       get_param, get_user_id,
                                       handle_cors_preflight,
                                       handle_health_check, success_response)
-from services import firestore
+from services import firestore, gen_audio
 
 
 class JokeCreationOp(str, Enum):
@@ -94,7 +94,7 @@ def _filter_reference_images(selected_urls: list[str],
 
 
 def _parse_speaker_voice_pairs(
-  speaker_voice_pairs: str | None, ) -> dict[str, str] | None:
+  speaker_voice_pairs: str | None, ) -> dict[str, gen_audio.Voice] | None:
   """Parse speaker/voice pairs in 'speaker:voice|speaker:voice' format."""
   if not speaker_voice_pairs or not speaker_voice_pairs.strip():
     return None
@@ -102,11 +102,11 @@ def _parse_speaker_voice_pairs(
   pairs = [
     entry.strip() for entry in speaker_voice_pairs.split("|") if entry.strip()
   ]
-  speakers: dict[str, str] = {}
+  speakers: dict[str, gen_audio.Voice] = {}
   for entry in pairs:
     if ":" not in entry:
       raise ValueError(
-        "Speaker/voice pairs must be formatted as speaker:voice")
+         "Speaker/voice pairs must be formatted as speaker:voice")
     speaker, voice = entry.split(":", 1)
     speaker = speaker.strip()
     voice = voice.strip()
@@ -115,7 +115,11 @@ def _parse_speaker_voice_pairs(
         "Speaker/voice pairs must include both speaker and voice")
     if speaker in speakers:
       raise ValueError(f"Duplicate speaker name: {speaker}")
-    speakers[speaker] = voice
+    parsed_voice = gen_audio.Voice.from_identifier(
+      voice,
+      model=gen_audio.VoiceModel.GEMINI,
+    )
+    speakers[speaker] = parsed_voice
 
   if not speakers:
     raise ValueError("At least one speaker/voice pair must be provided")

@@ -1218,8 +1218,6 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
                    one_second_silence + punchline_audio)
   dialog_wav_bytes = make_wav_bytes(dialog_frames, rate=rate)
 
-  mock_gen_audio = Mock()
-  monkeypatch.setattr(joke_operations, "gen_audio", mock_gen_audio)
   generation_metadata = models.SingleGenerationMetadata(
     model_name="gemini-tts",
     token_counts={
@@ -1228,10 +1226,10 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
     },
     cost=0.123,
   )
-  mock_gen_audio.generate_multi_turn_dialog.return_value = (
-    "gs://temp/dialog.wav",
-    generation_metadata,
-  )
+  mock_generate_multi_turn_dialog = Mock(
+    return_value=("gs://temp/dialog.wav", generation_metadata))
+  monkeypatch.setattr(joke_operations.gen_audio, "generate_multi_turn_dialog",
+                      mock_generate_multi_turn_dialog)
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   dialog_uri = "gs://public/audio/dialog.wav"
@@ -1307,14 +1305,12 @@ def test_generate_joke_audio_uses_template_and_speakers(
                    one_second_silence + punchline_audio)
   dialog_wav_bytes = make_wav_bytes(dialog_frames, rate=rate)
 
-  mock_gen_audio = Mock()
-  monkeypatch.setattr(joke_operations, "gen_audio", mock_gen_audio)
   generation_metadata = models.SingleGenerationMetadata(
     model_name="gemini-tts")
-  mock_gen_audio.generate_multi_turn_dialog.return_value = (
-    "gs://temp/dialog.wav",
-    generation_metadata,
-  )
+  mock_generate_multi_turn_dialog = Mock(
+    return_value=("gs://temp/dialog.wav", generation_metadata))
+  monkeypatch.setattr(joke_operations.gen_audio, "generate_multi_turn_dialog",
+                      mock_generate_multi_turn_dialog)
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   mock_cloud_storage.get_audio_gcs_uri.side_effect = [
@@ -1337,7 +1333,10 @@ def test_generate_joke_audio_uses_template_and_speakers(
                      "[1 second silence]\n"
                      "A: {punchline_text}\n"
                      "B: [giggles]\n")
-  speakers = {"A": "VoiceA", "B": "VoiceB"}
+  speakers = {
+    "A": joke_operations.gen_audio.Voice.GEMINI_KORE,
+    "B": joke_operations.gen_audio.Voice.GEMINI_PUCK,
+  }
 
   _ = joke_operations.generate_joke_audio(
     joke,
@@ -1345,15 +1344,18 @@ def test_generate_joke_audio_uses_template_and_speakers(
     speakers=speakers,
   )
 
-  mock_gen_audio.generate_multi_turn_dialog.assert_called_once()
-  call_kwargs = mock_gen_audio.generate_multi_turn_dialog.call_args.kwargs
+  mock_generate_multi_turn_dialog.assert_called_once()
+  call_kwargs = mock_generate_multi_turn_dialog.call_args.kwargs
   assert call_kwargs["script"].strip() == ("A: Setup text\n"
                                            "[1 second silence]\n"
                                            "B: what?\n"
                                            "[1 second silence]\n"
                                            "A: Punchline text\n"
                                            "B: [giggles]")
-  assert call_kwargs["speakers"] == {"A": "VoiceA", "B": "VoiceB"}
+  assert call_kwargs["speakers"] == {
+    "A": joke_operations.gen_audio.Voice.GEMINI_KORE,
+    "B": joke_operations.gen_audio.Voice.GEMINI_PUCK,
+  }
 
 
 def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):

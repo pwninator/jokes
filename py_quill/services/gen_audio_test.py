@@ -89,8 +89,8 @@ def test_generate_multi_turn_dialog_uploads_wav_bytes():
     gcs_uri, metadata = gen_audio.generate_multi_turn_dialog(
       script="Alice: Hello\nBob: Hi",
       speakers={
-        "Alice": "Kore",
-        "Bob": "Puck",
+        "Alice": gen_audio.Voice.GEMINI_KORE,
+        "Bob": gen_audio.Voice.GEMINI_PUCK,
       },
       output_filename_base="out",
     )
@@ -127,9 +127,20 @@ def test_generate_multi_turn_dialog_rejects_more_than_two_speakers():
     gen_audio.generate_multi_turn_dialog(
       script="A: hi",
       speakers={
-        "A": "Kore",
-        "B": "Puck",
-        "C": "Orus",
+        "A": gen_audio.Voice.GEMINI_KORE,
+        "B": gen_audio.Voice.GEMINI_PUCK,
+        "C": gen_audio.Voice.GEMINI_ORUS,
+      },
+      output_filename_base="out",
+    )
+
+
+def test_generate_multi_turn_dialog_rejects_non_gemini_voices():
+  with pytest.raises(gen_audio.GenAudioError, match="requires GEMINI voices"):
+    gen_audio.generate_multi_turn_dialog(
+      script="A: hi",
+      speakers={
+        "A": gen_audio.Voice.EN_US_STANDARD_FEMALE_1,
       },
       output_filename_base="out",
     )

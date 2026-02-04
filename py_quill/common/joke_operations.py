@@ -46,9 +46,9 @@ Riley: [giggles]
 """
 
 DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME = "Sam"
-DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = "Leda"
+DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = gen_audio.Voice.GEMINI_LEDA
 DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME = "Riley"
-DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = "Puck"
+DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = gen_audio.Voice.GEMINI_PUCK
 
 _MIME_TYPE_CONFIG: dict[str, Tuple[str, str]] = {
   "image/png": ("PNG", "png"),
@@ -564,7 +564,7 @@ def generate_joke_audio(
   joke: models.PunnyJoke,
   temp_output: bool = False,
   script_template: str | None = None,
-  speakers: dict[str, str] | None = None,
+  speakers: dict[str, gen_audio.Voice] | None = None,
 ) -> tuple[str, str, str, str, models.SingleGenerationMetadata]:
   """Generate a full dialog WAV plus split clips and upload as public files.
 
@@ -635,7 +635,7 @@ def generate_joke_video(
   joke: models.PunnyJoke,
   temp_output: bool = False,
   script_template: str | None = None,
-  speakers: dict[str, str] | None = None,
+  speakers: dict[str, gen_audio.Voice] | None = None,
   character_class: type[PosableCharacter] | None = PosableCat,
 ) -> tuple[str, models.GenerationMetadata]:
   """Generate a portrait video for a joke with synced audio."""
@@ -730,7 +730,9 @@ def _render_dialog_script(joke: models.PunnyJoke,
       f"Script template uses unsupported placeholder: {exc}") from exc
 
 
-def _resolve_speakers(speakers: dict[str, str] | None, ) -> dict[str, str]:
+def _resolve_speakers(
+  speakers: dict[str, gen_audio.Voice] | None,
+) -> dict[str, gen_audio.Voice]:
   """Resolve speakers from input or defaults."""
   if not speakers:
     return {
@@ -738,12 +740,13 @@ def _resolve_speakers(speakers: dict[str, str] | None, ) -> dict[str, str]:
       DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME: DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE,
     }
 
-  normalized: dict[str, str] = {}
+  normalized: dict[str, gen_audio.Voice] = {}
   for speaker, voice in speakers.items():
     speaker = str(speaker).strip()
-    voice = str(voice).strip()
-    if not speaker or not voice:
+    if not speaker or voice is None:
       raise ValueError("Speakers dict must include both speaker and voice")
+    if not isinstance(voice, gen_audio.Voice):
+      raise ValueError("Speakers dict voices must be gen_audio.Voice values")
     if speaker in normalized:
       raise ValueError(f"Duplicate speaker name: {speaker}")
     normalized[speaker] = voice

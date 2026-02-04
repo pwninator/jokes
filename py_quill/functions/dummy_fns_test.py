@@ -23,9 +23,9 @@ class TestDummyEndpoint(unittest.TestCase):
       "data": {
         "script": "Alice: Hello\nBob: Hi",
         "speaker1_name": "Alice",
-        "speaker1_voice": "Kore",
+        "speaker1_voice": "GEMINI_KORE",
         "speaker2_name": "Bob",
-        "speaker2_voice": "Puck",
+        "speaker2_voice": "GEMINI_PUCK",
       }
     }
     req.args = {}
@@ -42,8 +42,8 @@ class TestDummyEndpoint(unittest.TestCase):
     called_kwargs = mock_generate_dialog.call_args.kwargs
     self.assertEqual(called_kwargs["script"], "Alice: Hello\nBob: Hi")
     self.assertEqual(called_kwargs["speakers"], {
-      "Alice": "Kore",
-      "Bob": "Puck",
+      "Alice": dummy_fns.gen_audio.Voice.GEMINI_KORE,
+      "Bob": dummy_fns.gen_audio.Voice.GEMINI_PUCK,
     })
 
   def test_get_request_returns_form(self):

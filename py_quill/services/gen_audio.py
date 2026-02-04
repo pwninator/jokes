@@ -38,6 +38,7 @@ class LanguageCode(enum.Enum):
 class VoiceModel(enum.Enum):
   """Voice model types."""
   CHIRP3 = "chirp3"
+  GEMINI = "gemini"
   NEURAL2 = "neural2"
   STANDARD = "standard"
 
@@ -83,6 +84,68 @@ class Voice(enum.Enum):
     """Get the voice gender."""
     return self._gender
 
+  @classmethod
+  def voices_for_model(cls, model: VoiceModel) -> list["Voice"]:
+    """Return all voices for a given model."""
+    voices = [voice for voice in cls if voice.model is model]
+    return sorted(voices, key=lambda v: (v.voice_name, v.name))
+
+  @classmethod
+  def from_voice_name(
+    cls,
+    voice_name: str,
+    *,
+    model: VoiceModel | None = None,
+  ) -> "Voice":
+    """Resolve a Voice enum member from its API voice name.
+
+    Args:
+      voice_name: The API voice name (e.g. "Leda" for Gemini, or
+        "en-US-Standard-F" for Cloud TTS).
+      model: Optional model filter (e.g. VoiceModel.GEMINI).
+    """
+    normalized = (voice_name or "").strip()
+    if not normalized:
+      raise ValueError("voice_name must be non-empty")
+
+    for voice in cls:
+      if model is not None and voice.model is not model:
+        continue
+      if voice.voice_name == normalized:
+        return voice
+
+    allowed = sorted(v.voice_name for v in cls
+                     if model is None or v.model is model)
+    model_msg = f" for model {model.name}" if model is not None else ""
+    raise ValueError(
+      f"Unknown voice_name{model_msg}: {normalized}. Allowed: {allowed}")
+
+  @classmethod
+  def from_identifier(
+    cls,
+    identifier: str,
+    *,
+    model: VoiceModel | None = None,
+  ) -> "Voice":
+    """Resolve a voice from either enum name or API voice name.
+
+    This is useful for request inputs where the UI may submit either the enum
+    member name (e.g. "GEMINI_KORE") or the API voice name (e.g. "Kore").
+    """
+    normalized = (identifier or "").strip()
+    if not normalized:
+      raise ValueError("identifier must be non-empty")
+
+    try:
+      voice = cls[normalized]
+      if model is not None and voice.model is not model:
+        raise ValueError(
+          f"Voice {normalized} is model {voice.model.name}, expected {model.name}"
+        )
+      return voice
+    except KeyError:
+      return cls.from_voice_name(normalized, model=model)
+
   # UK Voices
   EN_GB_STANDARD_FEMALE_1 = ("en-GB-Standard-C", LanguageCode.EN_GB,
                              VoiceModel.STANDARD, VoiceGender.FEMALE)
@@ -110,6 +173,69 @@ class Voice(enum.Enum):
                                  VoiceModel.CHIRP3, VoiceGender.FEMALE)
   EN_US_CHIRP3_HD_MALE_CHARON = ("en-US-Chirp3-HD-Charon", LanguageCode.EN_US,
                                  VoiceModel.CHIRP3, VoiceGender.MALE)
+
+  # Gemini (Speech generation) prebuilt voices
+  # Source: https://ai.google.dev/gemini-api/docs/speech-generation
+  GEMINI_ZEPHYR = ("Zephyr", LanguageCode.EN_US, VoiceModel.GEMINI,
+                   VoiceGender.MALE)  # Bright
+  GEMINI_PUCK = ("Puck", LanguageCode.EN_US, VoiceModel.GEMINI,
+                 VoiceGender.MALE)  # Upbeat
+  GEMINI_CHARON = ("Charon", LanguageCode.EN_US, VoiceModel.GEMINI,
+                   VoiceGender.MALE)  # Informative
+  GEMINI_KORE = ("Kore", LanguageCode.EN_US, VoiceModel.GEMINI,
+                 VoiceGender.FEMALE)  # Firm
+  GEMINI_FENRIR = ("Fenrir", LanguageCode.EN_US, VoiceModel.GEMINI,
+                   VoiceGender.MALE)  # Excitable
+  GEMINI_LEDA = ("Leda", LanguageCode.EN_US, VoiceModel.GEMINI,
+                 VoiceGender.FEMALE)  # Youthful
+  GEMINI_ORUS = ("Orus", LanguageCode.EN_US, VoiceModel.GEMINI,
+                 VoiceGender.MALE)  # Firm
+  GEMINI_AOEDE = ("Aoede", LanguageCode.EN_US, VoiceModel.GEMINI,
+                  VoiceGender.FEMALE)  # Breezy
+  GEMINI_CALLIRRHOE = ("Callirrhoe", LanguageCode.EN_US, VoiceModel.GEMINI,
+                       VoiceGender.FEMALE)  # Easy-going
+  GEMINI_AUTONOE = ("Autonoe", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.FEMALE)  # Bright
+  GEMINI_ENCELADUS = ("Enceladus", LanguageCode.EN_US, VoiceModel.GEMINI,
+                      VoiceGender.FEMALE)  # Breathy
+  GEMINI_IAPETUS = ("Iapetus", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.MALE)  # Clear
+  GEMINI_UMBRIEL = ("Umbriel", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.FEMALE)  # Easy-going
+  GEMINI_ALGIEBA = ("Algieba", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.MALE)  # Smooth
+  GEMINI_DESPINA = ("Despina", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.FEMALE)  # Smooth
+  GEMINI_ERINOME = ("Erinome", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.MALE)  # Clear
+  GEMINI_ALGENIB = ("Algenib", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.MALE)  # Gravelly
+  GEMINI_RASALGETHI = ("Rasalgethi", LanguageCode.EN_US, VoiceModel.GEMINI,
+                       VoiceGender.MALE)  # Informative
+  GEMINI_LAOMEDEIA = ("Laomedeia", LanguageCode.EN_US, VoiceModel.GEMINI,
+                      VoiceGender.FEMALE)  # Upbeat
+  GEMINI_ACHERNAR = ("Achernar", LanguageCode.EN_US, VoiceModel.GEMINI,
+                     VoiceGender.FEMALE)  # Soft
+  GEMINI_ALNILAM = ("Alnilam", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.MALE)  # Firm
+  GEMINI_SCHEDAR = ("Schedar", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.MALE)  # Even
+  GEMINI_GACRUX = ("Gacrux", LanguageCode.EN_US, VoiceModel.GEMINI,
+                   VoiceGender.MALE)  # Mature
+  GEMINI_PULCHERRIMA = ("Pulcherrima", LanguageCode.EN_US, VoiceModel.GEMINI,
+                        VoiceGender.MALE)  # Forward
+  GEMINI_ACHIRD = ("Achird", LanguageCode.EN_US, VoiceModel.GEMINI,
+                   VoiceGender.MALE)  # Friendly
+  GEMINI_ZUBENELGENUBI = ("Zubenelgenubi", LanguageCode.EN_US,
+                          VoiceModel.GEMINI, VoiceGender.MALE)  # Casual
+  GEMINI_VINDEMIATRIX = ("Vindemiatrix", LanguageCode.EN_US, VoiceModel.GEMINI,
+                         VoiceGender.FEMALE)  # Gentle
+  GEMINI_SADACHBIA = ("Sadachbia", LanguageCode.EN_US, VoiceModel.GEMINI,
+                      VoiceGender.MALE)  # Lively
+  GEMINI_SADALTAGER = ("Sadaltager", LanguageCode.EN_US, VoiceModel.GEMINI,
+                       VoiceGender.MALE)  # Knowledgeable
+  GEMINI_SULAFAT = ("Sulafat", LanguageCode.EN_US, VoiceModel.GEMINI,
+                    VoiceGender.FEMALE)  # Warm
 
 
 # Pricing per character (USD)
@@ -201,6 +327,11 @@ def text_to_speech(
     Raises:
         GenAudioError: If audio synthesis fails or encoding is unsupported.
   """
+  if voice.model is VoiceModel.GEMINI:
+    raise GenAudioError(
+      "Gemini prebuilt voices are only supported via generate_multi_turn_dialog"
+    )
+
   if utils.is_emulator():
     logger.info('Running in emulator mode. Returning a test audio file.')
     random_suffix = f"{random.randint(1, 10):02d}"
@@ -304,7 +435,7 @@ def text_to_speech(
 
 def generate_multi_turn_dialog(
   script: str,
-  speakers: dict[str, str],
+  speakers: dict[str, Voice],
   output_filename_base: str,
   temp_output: bool = False,
   model: GeminiTtsModel = GeminiTtsModel.GEMINI_2_5_FLASH_TTS,
@@ -313,7 +444,7 @@ def generate_multi_turn_dialog(
 
   Args:
     script: The dialog script. Speaker labels should match the keys in speakers.
-    speakers: Map of speaker name -> Gemini PrebuiltVoiceConfig voice name.
+    speakers: Map of speaker name -> Gemini prebuilt Voice (must be GEMINI model).
     output_filename_base: Base filename used for the output GCS object.
     timeout_sec: Request timeout for Gemini API.
     max_retries: Max retries for retryable Gemini errors.
@@ -335,16 +466,24 @@ def generate_multi_turn_dialog(
   if len(speakers) > 2:
     raise GenAudioError("Gemini multi-speaker audio supports up to 2 speakers")
 
-  for speaker_name, voice_name in speakers.items():
+  for speaker_name, voice in speakers.items():
     if not str(speaker_name).strip():
       raise GenAudioError("Speaker name must be non-empty")
-    if not str(voice_name).strip():
+    if not isinstance(voice, Voice):
+      raise GenAudioError(
+        f"Voice for speaker '{speaker_name}' must be a Voice enum value")
+    if voice.model is not VoiceModel.GEMINI:
+      raise GenAudioError(
+        f"Gemini multi-speaker audio requires GEMINI voices; got {voice.model.name} for speaker '{speaker_name}'"
+      )
+    if not str(voice.voice_name).strip():
       raise GenAudioError("Voice name must be non-empty")
 
   start_time = time.perf_counter()
 
+  speakers_log = {name: voice.voice_name for name, voice in speakers.items()}
   extra_log_data = {
-    "speaker_voices": speakers,
+    "speaker_voices": speakers_log,
     "sample_rate_hz": _GEMINI_AUDIO_SAMPLE_RATE_HZ,
     "channels": _GEMINI_AUDIO_CHANNELS,
   }
@@ -362,8 +501,8 @@ def generate_multi_turn_dialog(
       speaker=speaker_name,
       voice_config=genai_types.VoiceConfig(
         prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
-          voice_name=voice_name)))
-    for speaker_name, voice_name in speakers.items()
+          voice_name=voice.voice_name)))
+    for speaker_name, voice in speakers.items()
   ]
 
   logger.info(

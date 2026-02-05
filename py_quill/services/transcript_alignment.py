@@ -6,20 +6,42 @@ dynamic programming to produce more accurate lip-sync than audio-only detection.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Sequence
 
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState
 from g2p_en import G2p
 
+# Ensure bundled NLTK data (if present) is discoverable before G2P initializes.
+_BUNDLED_NLTK_DATA_DIR = Path(__file__).resolve().parents[1] / "nltk_data"
+if _BUNDLED_NLTK_DATA_DIR.exists():
+  os.environ.setdefault("NLTK_DATA", str(_BUNDLED_NLTK_DATA_DIR))
+
 # Initialize G2P converter (lazy-loaded singleton)
 _g2p: G2p | None = None
+
+
+def _ensure_nltk_data_path() -> None:
+  nltk_data_dir = os.environ.get("NLTK_DATA")
+  if not nltk_data_dir:
+    return
+
+  try:
+    import nltk
+  except ImportError:
+    return
+
+  if nltk_data_dir not in nltk.data.path:
+    nltk.data.path.insert(0, nltk_data_dir)
 
 
 def _get_g2p() -> G2p:
   """Get or create the G2P converter singleton."""
   global _g2p
   if _g2p is None:
+    _ensure_nltk_data_path()
     _g2p = G2p()
   return _g2p
 

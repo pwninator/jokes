@@ -4,7 +4,8 @@ bs4
 firebase-functions
 Flask
 functions-framework
-g2p_en
+nltk==3.9.1
+g2p_en==2.1.0
 google-adk
 google-api-python-client
 google-auth-httplib2

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import enum
+import io
 import random
 import re
 import time
 import traceback
+import wave
 from typing import Any
 
 from common import config, models, utils
 from firebase_functions import logger
+from google import genai
+from google.genai import types as genai_types
 from google.api_core.exceptions import GoogleAPICallError, ResourceExhausted
 from google.cloud import texttospeech
 from services import cloud_storage
@@ -80,6 +84,161 @@ _GEMINI_TTS_GENERATION_COSTS_USD_PER_TOKEN: dict[GeminiTtsModel, dict[
       "output_tokens": 20.00 / 1_000_000,
     },
   }
+
+
+def _pcm_to_wav_bytes(
+  pcm_bytes: bytes,
+  *,
+  sample_rate_hz: int,
+  sample_width_bytes: int,
+  channels: int,
+) -> bytes:
+  buffer = io.BytesIO()
+  with wave.open(buffer, "wb") as wf:
+    # pylint: disable=no-member
+    wf.setnchannels(int(channels))
+    wf.setsampwidth(int(sample_width_bytes))
+    wf.setframerate(int(sample_rate_hz))
+    wf.writeframes(pcm_bytes)
+    # pylint: enable=no-member
+  return buffer.getvalue()
+
+
+def _extract_token_counts(response: object) -> dict[str, int]:
+  usage = getattr(response, "usage_metadata", None)
+  prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
+  cached_tokens = int(getattr(usage, "cached_content_token_count", 0) or 0)
+  output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+  return {
+    "prompt_tokens": prompt_tokens,
+    "cached_content_tokens": cached_tokens,
+    "output_tokens": output_tokens,
+  }
+
+
+def _extract_pcm_bytes(response: object) -> bytes:
+  try:
+    data = response.candidates[0].content.parts[0].inline_data.data
+  except Exception as exc:
+    raise GenAudioError(
+      f"Gemini response missing inline audio data: {exc}") from exc
+
+  if isinstance(data, bytes):
+    return data
+  if isinstance(data, str):
+    return data.encode("utf-8")
+  raise GenAudioError(f"Gemini response inline audio is unexpected type: {type(data)}")
+
+
+def _get_gemini_tts_cost(
+  *,
+  model: GeminiTtsModel,
+  token_counts: dict[str, int],
+) -> float:
+  costs = _GEMINI_TTS_GENERATION_COSTS_USD_PER_TOKEN.get(model)
+  if not costs:
+    return 0.0
+  return (float(costs.get("prompt_tokens", 0.0)) *
+          int(token_counts.get("prompt_tokens", 0)) +
+          float(costs.get("output_tokens", 0.0)) *
+          int(token_counts.get("output_tokens", 0)))
+
+
+def generate_multi_turn_dialog_old(
+  *,
+  script: str,
+  speakers: dict[str, Voice],
+  output_filename_base: str,
+  model: GeminiTtsModel = GeminiTtsModel.GEMINI_2_5_FLASH_TTS,
+) -> tuple[str, models.SingleGenerationMetadata]:
+  """Generate multi-speaker dialog audio with explicit speaker labels via Gemini."""
+  normalized_script = (script or "").strip()
+  if not normalized_script:
+    raise GenAudioError("script must be non-empty")
+
+  if not speakers or not isinstance(speakers, dict):
+    raise GenAudioError("speakers must be a non-empty dict")
+
+  speaker_items = [(str(name).strip(), voice) for name, voice in speakers.items()]
+  speaker_items = [(name, voice) for name, voice in speaker_items if name]
+  if len(speaker_items) > 2:
+    raise GenAudioError("Gemini multi-speaker audio supports up to 2 speakers")
+
+  for name, voice in speaker_items:
+    if not isinstance(voice, Voice) or voice.model is not VoiceModel.GEMINI:
+      raise GenAudioError("Gemini multi-speaker audio requires GEMINI voices")
+    if not voice.voice_name:
+      raise GenAudioError(f"Speaker {name} voice must have a voice_name")
+
+  if utils.is_emulator():
+    logger.info("Running in emulator mode. Returning a test audio file.")
+    test_uri = cloud_storage.get_audio_gcs_uri(output_filename_base, "wav")
+    return test_uri, models.SingleGenerationMetadata()
+
+  start_time = time.perf_counter()
+  client = genai.Client(api_key=config.get_gemini_api_key())
+  speaker_voice_configs = [
+    genai_types.SpeakerVoiceConfig(
+      speaker=speaker_name,
+      voice_config=genai_types.VoiceConfig(
+        prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
+          voice_name=voice.voice_name)))
+    for speaker_name, voice in speaker_items
+  ]
+
+  response = client.models.generate_content(
+    model=model.value,
+    contents=normalized_script,
+    config=genai_types.GenerateContentConfig(
+      response_modalities=["AUDIO"],
+      speech_config=genai_types.SpeechConfig(
+        multi_speaker_voice_config=genai_types.MultiSpeakerVoiceConfig(
+          speaker_voice_configs=speaker_voice_configs)),
+    ),
+  )
+
+  token_counts = _extract_token_counts(response)
+  pcm_bytes = _extract_pcm_bytes(response)
+  wav_bytes = _pcm_to_wav_bytes(
+    pcm_bytes,
+    sample_rate_hz=_GEMINI_AUDIO_SAMPLE_RATE_HZ,
+    sample_width_bytes=_GEMINI_AUDIO_SAMPLE_WIDTH_BYTES,
+    channels=_GEMINI_AUDIO_CHANNELS,
+  )
+
+  token_counts["characters"] = len(normalized_script)
+  token_counts["audio_pcm_bytes"] = len(pcm_bytes)
+  token_counts["audio_wav_bytes"] = len(wav_bytes)
+
+  gcs_uri = cloud_storage.get_audio_gcs_uri(output_filename_base, "wav")
+  cloud_storage.upload_bytes_to_gcs(wav_bytes, gcs_uri, content_type="audio/wav")
+
+  generation_time_sec = time.perf_counter() - start_time
+  cost = _get_gemini_tts_cost(model=model, token_counts=token_counts)
+  metadata = models.SingleGenerationMetadata(
+    label="generate_multi_turn_dialog_old",
+    model_name=model.value,
+    token_counts=token_counts,
+    generation_time_sec=generation_time_sec,
+    cost=cost,
+  )
+  return gcs_uri, metadata
+
+
+def generate_multi_turn_dialog(
+  *,
+  script: str,
+  speakers: dict[str, Voice],
+  output_filename_base: str,
+  model: GeminiTtsModel = GeminiTtsModel.GEMINI_2_5_FLASH_TTS,
+) -> tuple[str, models.SingleGenerationMetadata]:
+  """Generate multi-speaker dialog audio (legacy wrapper)."""
+  return generate_multi_turn_dialog_old(
+    script=script,
+    speakers=speakers,
+    output_filename_base=output_filename_base,
+    model=model,
+  )
 
 
 def text_to_speech(

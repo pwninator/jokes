@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functions import auth_helpers, joke_creation_fns
+from services import audio_client, gen_audio
 from web.app import app
 
 
@@ -25,6 +26,7 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'Joke Media Generator' in html
   assert 'id="audio-model"' in html
+  assert f'value="{audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value}" selected' in html
   assert 'id="turn1-voice-gemini"' in html
   assert 'id="turn1-voice-eleven"' in html
   assert 'id="turn1-script"' in html
@@ -37,6 +39,10 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   assert 'id="turn3-voice-eleven"' in html
   assert 'id="turn3-script"' in html
   assert 'id="turn3-pause-after"' in html
+  assert html.count(
+    f'value="{gen_audio.Voice.ELEVENLABS_MINNIE.name}" selected') == 2
+  assert html.count(
+    f'value="{gen_audio.Voice.ELEVENLABS_JERRY_B.name}" selected') == 1
   assert 'id="generate-audio-button"' in html
   assert 'id="generate-video-button"' in html
   assert 'joke_picker.js' in html

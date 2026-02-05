@@ -7,8 +7,8 @@ import traceback
 from enum import Enum
 
 from agents import constants
-from common import (image_generation, joke_notes_sheet_operations, joke_operations,
-                    models, utils)
+from common import (image_generation, joke_notes_sheet_operations,
+                    joke_operations, models, utils)
 from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
@@ -95,8 +95,7 @@ def _filter_reference_images(selected_urls: list[str],
 
 
 def _parse_dialog_turn_templates(
-  script_template: object | None,
-) -> list[audio_client.DialogTurn] | None:
+  script_template: object | None, ) -> list[audio_client.DialogTurn] | None:
   """Parse dialog turn templates from request payload."""
   if script_template is None:
     return None
@@ -126,8 +125,8 @@ def _parse_dialog_turn_templates(
 
     voice_str = str(voice_raw or "").strip()
     script_str = str(script_raw or "").strip()
-    pause_after_str = str(pause_after_raw).strip(
-    ) if pause_after_raw is not None else ""
+    pause_after_str = str(
+      pause_after_raw).strip() if pause_after_raw is not None else ""
 
     if not voice_str and not script_str and not pause_after_str:
       continue
@@ -151,8 +150,7 @@ def _parse_dialog_turn_templates(
         raise ValueError(
           f"Dialog turn {idx + 1} pause_sec_after must be a number") from exc
       if pause_after < 0:
-        raise ValueError(
-          f"Dialog turn {idx + 1} pause_sec_after must be >= 0")
+        raise ValueError(f"Dialog turn {idx + 1} pause_sec_after must be >= 0")
 
     turns.append(
       audio_client.DialogTurn(
@@ -218,14 +216,14 @@ def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
       selected_setup_reference_images or None,
       save_to_firestore=False,
     )
-    if not setup_image or not getattr(setup_image, "url", None):
+    if not setup_image or not setup_image.url:
       raise ValueError(f"Generated setup image has no URL: {setup_image}")
 
     previous_image_reference = None
-    custom_temp_data = getattr(setup_image, "custom_temp_data", None)
+    custom_temp_data = setup_image.custom_temp_data
     if custom_temp_data and custom_temp_data.get("image_generation_call_id"):
       previous_image_reference = custom_temp_data["image_generation_call_id"]
-    elif getattr(setup_image, "gcs_uri", None):
+    elif setup_image.gcs_uri:
       previous_image_reference = setup_image.gcs_uri
 
     punchline_reference_images = selected_punchline_reference_images[:]
@@ -237,7 +235,7 @@ def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
       punchline_reference_images or None,
       save_to_firestore=False,
     )
-    if not punchline_image or not getattr(punchline_image, "url", None):
+    if not punchline_image or not punchline_image.url:
       raise ValueError(
         f"Generated punchline image has no URL: {punchline_image}")
 
@@ -285,7 +283,8 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  script_template = _parse_dialog_turn_templates(get_param(req, 'script_template'))
+  script_template = _parse_dialog_turn_templates(
+    get_param(req, 'script_template'))
   audio_model_value = (get_param(req, 'audio_model') or "").strip()
   audio_model = None
   if audio_model_value:
@@ -367,7 +366,8 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  script_template = _parse_dialog_turn_templates(get_param(req, 'script_template'))
+  script_template = _parse_dialog_turn_templates(
+    get_param(req, 'script_template'))
   audio_model_value = (get_param(req, 'audio_model') or "").strip()
   audio_model = None
   if audio_model_value:

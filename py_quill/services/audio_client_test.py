@@ -1,3 +1,4 @@
+import base64
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -168,3 +169,124 @@ def test_generate_multi_turn_dialog_rejects_non_gemini_voices():
         output_filename_base="out",
       )
 
+
+class _FakeElevenlabsRawClient:
+
+  def __init__(self, response):
+    self._response = response
+    self.convert_calls: list[dict] = []
+
+  def convert_with_timestamps(self, **kwargs):
+    self.convert_calls.append(kwargs)
+    return self._response
+
+
+def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
+  audio_bytes = b"fake-mp3-bytes"
+  audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+
+  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import (
+    AudioWithTimestampsAndVoiceSegmentsResponseModel,
+  )
+
+  class _FakeHttpResponse:
+
+    def __init__(self, *, headers, data):
+      self.headers = headers
+      self.data = data
+
+  response_data = AudioWithTimestampsAndVoiceSegmentsResponseModel(
+    audio_base_64=audio_b64,
+    voice_segments=[],
+  )
+  response = _FakeHttpResponse(
+    headers={
+      "x-character-count": str(len("Hello") + len("Hi")),
+      "request-id": "req_123",
+    },
+    data=response_data,
+  )
+
+  upload_mock = MagicMock()
+
+  fake_raw = _FakeElevenlabsRawClient(response)
+
+  class _FakeTextToDialogue:
+
+    def __init__(self, raw):
+      self.with_raw_response = raw
+
+  class _FakeElevenlabsClient:
+
+    def __init__(self, raw):
+      self.text_to_dialogue = _FakeTextToDialogue(raw)
+
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+  )
+
+  with patch.object(audio_client.utils, "is_emulator", return_value=False), \
+      patch.object(audio_client.ElevenlabsAudioClient,
+                   "_create_model_client",
+                   return_value=_FakeElevenlabsClient(fake_raw)), \
+      patch.object(audio_client.cloud_storage,
+                   "get_audio_gcs_uri",
+                   return_value="gs://gen_audio/out.mp3"), \
+      patch.object(audio_client.cloud_storage,
+                   "upload_bytes_to_gcs",
+                   upload_mock):
+    result = client.generate_multi_turn_dialog(
+      turns=[
+        audio_client.DialogTurn(voice="voice_1", script="Hello"),
+        audio_client.DialogTurn(voice="voice_2", script="Hi"),
+      ],
+      output_filename_base="out",
+    )
+
+  assert result.gcs_uri == "gs://gen_audio/out.mp3"
+  assert result.metadata.model_name == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
+  assert result.metadata.token_counts["characters"] == len("Hello") + len("Hi")
+  assert result.metadata.token_counts["unique_voice_ids"] == 2
+  assert result.metadata.token_counts["audio_bytes"] == len(audio_bytes)
+  assert result.metadata.cost == 0.0
+
+  assert upload_mock.call_count == 1
+  uploaded_bytes = upload_mock.call_args.args[0]
+  uploaded_uri = upload_mock.call_args.args[1]
+  uploaded_content_type = upload_mock.call_args.kwargs["content_type"]
+
+  assert uploaded_bytes == audio_bytes
+  assert uploaded_uri == "gs://gen_audio/out.mp3"
+  assert uploaded_content_type == "audio/mpeg"
+
+  assert fake_raw.convert_calls
+  call = fake_raw.convert_calls[0]
+  assert call["output_format"] == "mp3_44100_128"
+  assert call["model_id"] == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
+  assert call["inputs"] == [{
+    "text": "Hello",
+    "voice_id": "voice_1",
+  }, {
+    "text": "Hi",
+    "voice_id": "voice_2",
+  }]
+
+
+def test_elevenlabs_rejects_more_than_ten_unique_voice_ids():
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+  )
+
+  turns = [
+    audio_client.DialogTurn(voice=f"voice_{i}", script="Hi") for i in range(11)
+  ]
+  with patch.object(audio_client.utils, "is_emulator", return_value=False):
+    with pytest.raises(audio_client.AudioGenerationError, match="up to 10 unique voice IDs"):
+      client.generate_multi_turn_dialog(
+        turns=turns,
+        output_filename_base="out",
+      )

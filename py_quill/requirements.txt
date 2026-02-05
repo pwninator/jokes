@@ -1,6 +1,7 @@
 adk
 anthropic
 bs4
+elevenlabs
 firebase-functions
 Flask
 functions-framework

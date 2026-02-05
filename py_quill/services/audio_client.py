@@ -2,7 +2,6 @@
 
 Patterned after services.llm_client, but focused on audio generation.
 """
-
 from __future__ import annotations
 
 import base64
@@ -16,7 +15,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Generic, TypeVar
 
+import httpx
 from common import config, models, utils
+from elevenlabs.client import ElevenLabs
+from elevenlabs.core.api_error import ApiError
+from elevenlabs.core.http_response import HttpResponse
+from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import \
+    AudioWithTimestampsAndVoiceSegmentsResponseModel
 from firebase_functions import logger
 from google import genai
 from google.api_core.exceptions import ResourceExhausted
@@ -41,13 +46,14 @@ class AudioModel(str, Enum):
 
   GEMINI_2_5_FLASH_TTS = "gemini-2.5-flash-preview-tts"
   GEMINI_2_5_PRO_TTS = "gemini-2.5-pro-preview-tts"
+  ELEVENLABS_ELEVEN_V3 = "eleven_v3"
 
 
 @dataclass(frozen=True, kw_only=True)
 class DialogTurn:
   """A single dialog turn by one speaker/voice."""
 
-  voice: Voice
+  voice: Any
   script: str
 
 
@@ -70,6 +76,13 @@ def get_audio_client(
 
   if model in GeminiAudioClient.GENERATION_COSTS:
     return GeminiAudioClient(
+      label=label,
+      model=model,
+      max_retries=max_retries,
+      **kwargs,
+    )
+  if model in ElevenlabsAudioClient.GENERATION_COSTS:
+    return ElevenlabsAudioClient(
       label=label,
       model=model,
       max_retries=max_retries,
@@ -286,7 +299,7 @@ class _AudioInternalResult:
 class GeminiAudioClient(AudioClient[genai.Client]):
   """Gemini speech generation client (Google GenAI SDK, API-key auth)."""
 
-  _SPEAKER_NAMES = ("Alex", "Sam")
+  _SPEAKER_NAMES = ("A", "B")
 
   _AUDIO_SAMPLE_RATE_HZ = 24000
   _AUDIO_SAMPLE_WIDTH_BYTES = 2
@@ -503,6 +516,183 @@ class GeminiAudioClient(AudioClient[genai.Client]):
       # pylint: enable=no-member
 
     return buffer.getvalue()
+
+
+class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
+  """ElevenLabs audio client implementation."""
+
+  _DEFAULT_OUTPUT_FORMAT = "mp3_44100_128"
+  _DEFAULT_TIMEOUT_SEC = 300
+
+  # ElevenLabs pricing is plan/credits based; keep this as a placeholder in the
+  # same shape as LlmClient/GeminiAudioClient so we can compute cost from the
+  # "characters" token count.
+  GENERATION_COSTS: dict[AudioModel, dict[str, float]] = {
+    AudioModel.ELEVENLABS_ELEVEN_V3: {
+      "characters": 0.0,
+    },
+  }
+
+  def __init__(
+    self,
+    *,
+    label: str,
+    model: AudioModel,
+    max_retries: int,
+    output_format: str = _DEFAULT_OUTPUT_FORMAT,
+    language_code: str | None = None,
+    settings: dict[str, Any] | None = None,
+    timeout_sec: int = _DEFAULT_TIMEOUT_SEC,
+  ):
+    super().__init__(label=label, model=model, max_retries=max_retries)
+    self.output_format = (output_format
+                          or "").strip() or self._DEFAULT_OUTPUT_FORMAT
+    self.language_code = (language_code or "").strip() or None
+    self.settings = settings
+    self.timeout_sec = timeout_sec
+
+  def _create_model_client(self) -> ElevenLabs:
+    return ElevenLabs(
+      api_key=config.get_elevenlabs_api_key(),
+      timeout=float(self.timeout_sec),
+    )
+
+  def _generate_multi_turn_dialog_internal(
+    self,
+    *,
+    turns: list[DialogTurn],
+    label: str,
+  ) -> _AudioInternalResult:
+    normalized_inputs = self._normalize_inputs(turns)
+    unique_voice_ids = sorted({i["voice_id"] for i in normalized_inputs})
+    if len(unique_voice_ids) > 10:
+      raise AudioGenerationError(
+        "ElevenLabs text-to-dialogue supports up to 10 unique voice IDs")
+
+    kwargs: dict[str, Any] = {
+      "inputs": normalized_inputs,
+      "output_format": self.output_format,
+      "model_id": self.model.value,
+    }
+    if self.language_code:
+      kwargs["language_code"] = self.language_code
+    if self.settings:
+      kwargs["settings"] = self.settings
+
+    response: HttpResponse[
+      AudioWithTimestampsAndVoiceSegmentsResponseModel] = (
+        self.model_client.text_to_dialogue.with_raw_response.
+        convert_with_timestamps(**kwargs))
+
+    request_id = (response.headers.get("request-id")
+                  or response.headers.get("x-request-id") or "")
+    billed_characters_raw = (response.headers.get("x-character-count") or "")
+    billed_characters: int | None = None
+    if str(billed_characters_raw).strip():
+      try:
+        billed_characters = int(str(billed_characters_raw).strip())
+      except ValueError:
+        billed_characters = None
+
+    data = response.data
+    audio_b64 = (getattr(data, "audio_base_64", None) or "").strip()
+    if not audio_b64:
+      raise AudioGenerationError("ElevenLabs response missing audio_base_64")
+
+    try:
+      audio_bytes = base64.b64decode(audio_b64)
+    except Exception as e:
+      raise AudioGenerationError(
+        f"ElevenLabs returned non-base64 audio: {e}") from e
+
+    file_extension, content_type = self._get_output_encoding()
+
+    input_text = "\n".join(i["text"] for i in normalized_inputs).strip()
+    input_characters = sum(len(i["text"]) for i in normalized_inputs)
+    voice_segments = getattr(data, "voice_segments", None) or []
+    voice_segments_count = len(voice_segments)
+
+    return _AudioInternalResult(
+      input_text=input_text,
+      audio_bytes=audio_bytes,
+      file_extension=file_extension,
+      content_type=content_type,
+      token_counts={
+        "characters": billed_characters
+        if billed_characters is not None else input_characters,
+        "characters_input": input_characters,
+        "voice_segments": voice_segments_count,
+        "unique_voice_ids": len(unique_voice_ids),
+      },
+      extra_log_data={
+        "output_format": self.output_format,
+        "request_id": request_id,
+        "unique_voice_ids": unique_voice_ids,
+      },
+    )
+
+  def _normalize_inputs(self, turns: list[DialogTurn]) -> list[dict[str, str]]:
+    normalized: list[dict[str, str]] = []
+    for turn in turns:
+      voice_id = turn.voice
+      if not isinstance(voice_id, str):
+        raise AudioGenerationError(
+          f"ElevenLabs voice must be a voice_id string; got {type(voice_id)}")
+      voice_id = voice_id.strip()
+      if not voice_id:
+        raise AudioGenerationError("ElevenLabs voice_id must be non-empty")
+
+      text = (turn.script or "").strip()
+      if not text:
+        raise AudioGenerationError("Turn script must be non-empty")
+
+      normalized.append({
+        "text": text,
+        "voice_id": voice_id,
+      })
+
+    if not normalized:
+      raise AudioGenerationError("At least one dialog turn must be provided")
+    return normalized
+
+  def _get_output_encoding(self) -> tuple[str, str]:
+    output_format = (self.output_format or "").strip().lower()
+    if output_format.startswith("mp3_"):
+      return "mp3", "audio/mpeg"
+    if output_format.startswith("opus_"):
+      return "opus", "audio/ogg"
+    if output_format.startswith("wav_"):
+      return "wav", "audio/wav"
+    if output_format.startswith("pcm_"):
+      return "pcm", "application/octet-stream"
+    if output_format.startswith("ulaw_"):
+      return "ulaw", "application/octet-stream"
+    if output_format.startswith("alaw_"):
+      return "alaw", "application/octet-stream"
+    return "bin", "application/octet-stream"
+
+  def _get_billed_token_counts(self,
+                               token_counts: dict[str, int]) -> dict[str, int]:
+    return {"characters": int(token_counts.get("characters", 0))}
+
+  def _get_generation_costs(self) -> dict[str, float]:
+    if costs := self.GENERATION_COSTS.get(self.model):
+      return costs
+    raise ValueError(f"Unknown ElevenLabs model for pricing: {self.model}")
+
+  def _is_retryable_error(self, error: Exception) -> bool:
+    if isinstance(error, httpx.TimeoutException):
+      return True
+    if isinstance(error, httpx.TransportError):
+      return True
+
+    if isinstance(error, ApiError):
+      status = int(getattr(error, "status_code", 0) or 0)
+      if status in (408, 429):
+        return True
+      if status >= 500:
+        return True
+    return False
 
 
 def _log_audio_response(

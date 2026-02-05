@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import traceback
 from enum import Enum
 
 from agents import constants
-from common import (image_generation, joke_notes_sheet_operations,
-                    joke_operations, utils)
+from common import (image_generation, joke_notes_sheet_operations, joke_operations,
+                    models, utils)
 from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
@@ -15,7 +16,7 @@ from functions.function_utils import (AuthError, error_response,
                                       get_param, get_user_id,
                                       handle_cors_preflight,
                                       handle_health_check, success_response)
-from services import firestore, gen_audio
+from services import audio_client, firestore, gen_audio
 
 
 class JokeCreationOp(str, Enum):
@@ -93,40 +94,76 @@ def _filter_reference_images(selected_urls: list[str],
   return [url for url in selected_urls if url in allowed]
 
 
-def _parse_speaker_voice_pairs(
-  speaker_voice_pairs: str | None, ) -> dict[str, gen_audio.Voice] | None:
-  """Parse speaker/voice pairs in 'speaker:voice|speaker:voice' format."""
-  if not speaker_voice_pairs or not speaker_voice_pairs.strip():
+def _parse_dialog_turn_templates(
+  script_template: object | None,
+) -> list[audio_client.DialogTurn] | None:
+  """Parse dialog turn templates from request payload."""
+  if script_template is None:
     return None
 
-  pairs = [
-    entry.strip() for entry in speaker_voice_pairs.split("|") if entry.strip()
-  ]
-  speakers: dict[str, gen_audio.Voice] = {}
-  for entry in pairs:
-    if ":" not in entry:
+  raw = script_template
+  if isinstance(raw, str):
+    if not raw.strip():
+      return None
+    try:
+      raw = json.loads(raw)
+    except json.JSONDecodeError as exc:
       raise ValueError(
-         "Speaker/voice pairs must be formatted as speaker:voice")
-    speaker, voice = entry.split(":", 1)
-    speaker = speaker.strip()
-    voice = voice.strip()
-    if not speaker or not voice:
-      raise ValueError(
-        "Speaker/voice pairs must include both speaker and voice")
-    if speaker in speakers:
-      raise ValueError(f"Duplicate speaker name: {speaker}")
-    parsed_voice = gen_audio.Voice.from_identifier(
-      voice,
-      model=gen_audio.VoiceModel.GEMINI,
-    )
-    speakers[speaker] = parsed_voice
+        "script_template must be a JSON array of dialog turns") from exc
 
-  if not speakers:
-    raise ValueError("At least one speaker/voice pair must be provided")
-  if len(speakers) > 2:
-    raise ValueError("Speaker/voice pairs supports up to 2 speakers")
+  if not isinstance(raw, list):
+    raise ValueError("script_template must be a list of dialog turns")
 
-  return speakers
+  turns: list[audio_client.DialogTurn] = []
+  for idx, item in enumerate(raw):
+    if not isinstance(item, dict):
+      raise ValueError(f"Dialog turn {idx + 1} must be an object")
+
+    voice_raw = (item.get("voice") if isinstance(item, dict) else None)
+    script_raw = (item.get("script") if isinstance(item, dict) else None)
+    pause_after_raw = (item.get("pause_sec_after")
+                       if isinstance(item, dict) else None)
+
+    voice_str = str(voice_raw or "").strip()
+    script_str = str(script_raw or "").strip()
+    pause_after_str = str(pause_after_raw).strip(
+    ) if pause_after_raw is not None else ""
+
+    if not voice_str and not script_str and not pause_after_str:
+      continue
+
+    if not voice_str:
+      raise ValueError(f"Dialog turn {idx + 1} voice is required")
+    if not script_str:
+      raise ValueError(f"Dialog turn {idx + 1} script is required")
+
+    parsed_voice: object
+    try:
+      parsed_voice = gen_audio.Voice.from_identifier(voice_str)
+    except ValueError:
+      parsed_voice = voice_str
+
+    pause_after: float | None = None
+    if pause_after_raw is not None and pause_after_str:
+      try:
+        pause_after = float(pause_after_str)
+      except ValueError as exc:
+        raise ValueError(
+          f"Dialog turn {idx + 1} pause_sec_after must be a number") from exc
+      if pause_after < 0:
+        raise ValueError(
+          f"Dialog turn {idx + 1} pause_sec_after must be >= 0")
+
+    turns.append(
+      audio_client.DialogTurn(
+        voice=parsed_voice,
+        script=script_str,
+        pause_sec_after=pause_after,
+      ))
+
+  if not turns:
+    return None
+  return turns
 
 
 def _handle_admin_request(req: https_fn.Request) -> https_fn.Response | None:
@@ -248,9 +285,16 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  script_template = get_param(req, 'script_template')
-  speaker_voice_pairs = get_param(req, 'speaker_voice_pairs')
-  speakers = _parse_speaker_voice_pairs(speaker_voice_pairs)
+  script_template = _parse_dialog_turn_templates(get_param(req, 'script_template'))
+  audio_model_value = (get_param(req, 'audio_model') or "").strip()
+  audio_model = None
+  if audio_model_value:
+    try:
+      audio_model = audio_client.AudioModel(audio_model_value)
+    except ValueError as exc:
+      raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
+
+  allow_partial = get_bool_param(req, "allow_partial", False)
 
   try:
     (
@@ -263,17 +307,27 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       joke,
       temp_output=True,
       script_template=script_template,
-      speakers=speakers,
+      audio_model=audio_model,
+      allow_partial=allow_partial,
     ))
+
+    payload: dict[str, object] = {
+      "dialog_audio_gcs_uri": dialog_gcs_uri,
+      "setup_audio_gcs_uri": setup_gcs_uri,
+      "response_audio_gcs_uri": response_gcs_uri,
+      "punchline_audio_gcs_uri": punchline_gcs_uri,
+      "audio_generation_metadata":
+      audio_generation_metadata.as_dict if audio_generation_metadata else {},
+    }
+    if allow_partial and (not setup_gcs_uri or not response_gcs_uri
+                          or not punchline_gcs_uri):
+      payload["error"] = (
+        "Generated dialog audio but could not split on silence; returning the full dialog WAV only."
+      )
+      payload["error_stage"] = "audio_split"
+
     return success_response(
-      {
-        "dialog_audio_gcs_uri": dialog_gcs_uri,
-        "setup_audio_gcs_uri": setup_gcs_uri,
-        "response_audio_gcs_uri": response_gcs_uri,
-        "punchline_audio_gcs_uri": punchline_gcs_uri,
-        "audio_generation_metadata":
-        audio_generation_metadata.as_dict if audio_generation_metadata else {},
-      },
+      payload,
       req=req,
     )
   except ValueError as exc:
@@ -313,21 +367,93 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  script_template = get_param(req, 'script_template')
-  speaker_voice_pairs = get_param(req, 'speaker_voice_pairs')
-  speakers = _parse_speaker_voice_pairs(speaker_voice_pairs)
+  script_template = _parse_dialog_turn_templates(get_param(req, 'script_template'))
+  audio_model_value = (get_param(req, 'audio_model') or "").strip()
+  audio_model = None
+  if audio_model_value:
+    try:
+      audio_model = audio_client.AudioModel(audio_model_value)
+    except ValueError as exc:
+      raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
 
+  allow_partial = get_bool_param(req, "allow_partial", False)
+
+  audio_generation_metadata = None
+  generation_metadata = models.GenerationMetadata()
   try:
-    video_gcs_uri, generation_metadata = joke_operations.generate_joke_video(
+    (
+      dialog_gcs_uri,
+      setup_gcs_uri,
+      response_gcs_uri,
+      punchline_gcs_uri,
+      audio_generation_metadata,
+    ) = joke_operations.generate_joke_audio(
       joke,
       temp_output=True,
-      is_test=True,
       script_template=script_template,
-      speakers=speakers,
+      audio_model=audio_model,
+      allow_partial=allow_partial,
     )
+    generation_metadata.add_generation(audio_generation_metadata)
+
+    if not setup_gcs_uri or not response_gcs_uri or not punchline_gcs_uri:
+      if allow_partial:
+        return success_response(
+          {
+            "dialog_audio_gcs_uri": dialog_gcs_uri,
+            "setup_audio_gcs_uri": setup_gcs_uri,
+            "response_audio_gcs_uri": response_gcs_uri,
+            "punchline_audio_gcs_uri": punchline_gcs_uri,
+            "video_generation_metadata": generation_metadata.as_dict,
+            "error":
+            "Generated dialog audio but could not split on silence; returning the full dialog WAV only.",
+            "error_stage": "audio_split",
+          },
+          req=req,
+        )
+
+      return error_response(
+        "Audio generation did not return split clip URIs",
+        error_type="internal_error",
+        req=req,
+      )
+
+    try:
+      video_gcs_uri, generation_metadata = (
+        joke_operations.generate_joke_video_from_audio_uris(
+          joke,
+          setup_audio_gcs_uri=setup_gcs_uri,
+          response_audio_gcs_uri=response_gcs_uri,
+          punchline_audio_gcs_uri=punchline_gcs_uri,
+          audio_generation_metadata=audio_generation_metadata,
+          temp_output=True,
+          is_test=True,
+        ))
+    except Exception as exc:  # pylint: disable=broad-except
+      error_string = f"Error generating video: {exc}"
+      logger.error(f"{error_string}\n{traceback.format_exc()}")
+      if allow_partial:
+        return success_response(
+          {
+            "dialog_audio_gcs_uri": dialog_gcs_uri,
+            "setup_audio_gcs_uri": setup_gcs_uri,
+            "response_audio_gcs_uri": response_gcs_uri,
+            "punchline_audio_gcs_uri": punchline_gcs_uri,
+            "video_generation_metadata": generation_metadata.as_dict,
+            "error": error_string,
+            "error_stage": "video_generation",
+          },
+          req=req,
+        )
+      raise
+
     return success_response(
       {
         "video_gcs_uri": video_gcs_uri,
+        "dialog_audio_gcs_uri": dialog_gcs_uri,
+        "setup_audio_gcs_uri": setup_gcs_uri,
+        "response_audio_gcs_uri": response_gcs_uri,
+        "punchline_audio_gcs_uri": punchline_gcs_uri,
         "video_generation_metadata":
         generation_metadata.as_dict if generation_metadata else {},
       },
@@ -339,6 +465,18 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
                           status=400,
                           req=req)
   except Exception as exc:  # pylint: disable=broad-except
+    if allow_partial:
+      error_string = f"Error handling joke video tuning: {str(exc)}"
+      logger.error(f"{error_string}\n{traceback.format_exc()}")
+      return success_response(
+        {
+          "video_generation_metadata": generation_metadata.as_dict,
+          "error": error_string,
+          "error_stage": "internal_error",
+        },
+        req=req,
+      )
+
     error_string = (f"Error handling joke video tuning: {str(exc)}\n"
                     f"{traceback.format_exc()}")
     logger.error(error_string)

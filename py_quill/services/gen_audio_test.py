@@ -86,7 +86,7 @@ def test_generate_multi_turn_dialog_uploads_wav_bytes():
       patch.object(gen_audio.cloud_storage,
                    "upload_bytes_to_gcs",
                    upload_mock):
-    gcs_uri, metadata = gen_audio.generate_multi_turn_dialog(
+    gcs_uri, metadata = gen_audio.generate_multi_turn_dialog_old(
       script="Alice: Hello\nBob: Hi",
       speakers={
         "Alice": gen_audio.Voice.GEMINI_KORE,
@@ -119,13 +119,14 @@ def test_generate_multi_turn_dialog_uploads_wav_bytes():
   assert isinstance(call["model"], str)
   assert call["model"]
   assert call["contents"] == "Alice: Hello\nBob: Hi"
-  response_modalities = getattr(call["config"], "response_modalities", None) or []
+  response_modalities = getattr(call["config"], "response_modalities",
+                                None) or []
   assert "AUDIO" in response_modalities
 
 
 def test_generate_multi_turn_dialog_rejects_more_than_two_speakers():
   with pytest.raises(gen_audio.GenAudioError, match="up to 2 speakers"):
-    gen_audio.generate_multi_turn_dialog(
+    gen_audio.generate_multi_turn_dialog_old(
       script="A: hi",
       speakers={
         "A": gen_audio.Voice.GEMINI_KORE,
@@ -138,7 +139,7 @@ def test_generate_multi_turn_dialog_rejects_more_than_two_speakers():
 
 def test_generate_multi_turn_dialog_rejects_non_gemini_voices():
   with pytest.raises(gen_audio.GenAudioError, match="requires GEMINI voices"):
-    gen_audio.generate_multi_turn_dialog(
+    gen_audio.generate_multi_turn_dialog_old(
       script="A: hi",
       speakers={
         "A": gen_audio.Voice.EN_US_STANDARD_FEMALE_1,

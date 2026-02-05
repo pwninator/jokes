@@ -126,9 +126,54 @@ def test_generate_multi_turn_dialog_stitches_turns_and_uploads_wav_bytes():
   assert fake_client.models.generate_content_calls
   call = fake_client.models.generate_content_calls[0]
   assert call["model"] == audio_client.AudioModel.GEMINI_2_5_FLASH_TTS.value
-  assert call["contents"] == "A: Hello\nA: there\nB: Hi\nA: Ok"
+  assert call["contents"] == "Alex: Hello\nAlex: there\nSam: Hi\nAlex: Ok"
   response_modalities = getattr(call["config"], "response_modalities", None) or []
   assert "AUDIO" in response_modalities
+
+
+def test_generate_multi_turn_dialog_includes_pause_markers():
+  pcm_bytes = b"\x00\x01" * 20
+  usage_metadata = _UsageMetadata(
+    prompt_token_count=10,
+    cached_content_token_count=0,
+    candidates_token_count=20,
+  )
+  response = _Response([_Candidate(_Content([_Part(pcm_bytes)]))],
+                       usage_metadata=usage_metadata)
+  fake_client = _FakeClient(response)
+
+  client = audio_client.GeminiAudioClient(
+    label="test",
+    model=audio_client.AudioModel.GEMINI_2_5_FLASH_TTS,
+    max_retries=0,
+  )
+
+  with patch.object(audio_client.utils, "is_emulator", return_value=False), \
+      patch.object(audio_client.config, "get_gemini_api_key",
+                   return_value="fake-key"), \
+      patch.object(audio_client.genai,
+                   "Client",
+                   return_value=fake_client), \
+      patch.object(audio_client.cloud_storage,
+                   "get_audio_gcs_uri",
+                   return_value="gs://gen_audio/out.wav"), \
+      patch.object(audio_client.cloud_storage,
+                   "upload_bytes_to_gcs",
+                   MagicMock()):
+    _ = client.generate_multi_turn_dialog(
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.GEMINI_PUCK,
+          script="Hello",
+          pause_sec_before=1,
+          pause_sec_after=0.5,
+        ),
+      ],
+      output_filename_base="out",
+    )
+
+  call = fake_client.models.generate_content_calls[0]
+  assert call["contents"] == "Alex: [pause for 1 seconds] Hello [pause for 0.5 seconds]"
 
 
 def test_generate_multi_turn_dialog_rejects_more_than_two_voices():
@@ -239,7 +284,11 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
                    upload_mock):
     result = client.generate_multi_turn_dialog(
       turns=[
-        audio_client.DialogTurn(voice="voice_1", script="Hello"),
+        audio_client.DialogTurn(
+          voice="voice_1",
+          script="Hello",
+          pause_sec_before=2,
+        ),
         audio_client.DialogTurn(voice="voice_2", script="Hi"),
       ],
       output_filename_base="out",
@@ -266,7 +315,7 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   assert call["output_format"] == "mp3_44100_128"
   assert call["model_id"] == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
   assert call["inputs"] == [{
-    "text": "Hello",
+    "text": "[pause for 2 seconds] Hello",
     "voice_id": "voice_1",
   }, {
     "text": "Hi",

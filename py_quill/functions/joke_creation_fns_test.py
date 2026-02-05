@@ -807,9 +807,11 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
                           *,
                           temp_output=False,
                           script_template=None,
-                          speakers=None):
+                          audio_model=None,
+                          allow_partial=False):
     captured_audio_args["script_template"] = script_template
-    captured_audio_args["speakers"] = speakers
+    captured_audio_args["audio_model"] = audio_model
+    captured_audio_args["allow_partial"] = allow_partial
     return (
       "gs://public/audio/dialog.wav",
       "gs://public/audio/setup.wav",
@@ -836,8 +838,23 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value,
         "joke_id": "j-audio-1",
-        "script_template": "Sam: {setup_text}",
-        "speaker_voice_pairs": "Sam:GEMINI_LEDA|Riley:GEMINI_PUCK",
+        "audio_model": "gemini-2.5-flash-preview-tts",
+        "script_template": [
+          {
+            "voice": "GEMINI_LEDA",
+            "script": "{setup_text}",
+            "pause_sec_after": 1,
+          },
+          {
+            "voice": "GEMINI_PUCK",
+            "script": "what?",
+            "pause_sec_after": 1,
+          },
+          {
+            "voice": "GEMINI_LEDA",
+            "script": "{punchline_text}",
+          },
+        ],
       }))
 
   payload = resp.get_json()["data"]
@@ -851,11 +868,13 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     "prompt_tokens"] == 123
   assert payload["audio_generation_metadata"]["token_counts"][
     "output_tokens"] == 456
-  assert captured_audio_args["script_template"] == "Sam: {setup_text}"
-  assert captured_audio_args["speakers"] == {
-    "Sam": gen_audio.Voice.GEMINI_LEDA,
-    "Riley": gen_audio.Voice.GEMINI_PUCK,
-  }
+  turns = captured_audio_args["script_template"]
+  assert [(t.voice, t.script, t.pause_sec_after) for t in turns] == [
+    (gen_audio.Voice.GEMINI_LEDA, "{setup_text}", 1.0),
+    (gen_audio.Voice.GEMINI_PUCK, "what?", 1.0),
+    (gen_audio.Voice.GEMINI_LEDA, "{punchline_text}", None),
+  ]
+  assert captured_audio_args["audio_model"].value == "gemini-2.5-flash-preview-tts"
 
 
 def test_joke_creation_process_handles_joke_video_op(monkeypatch):
@@ -874,29 +893,64 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
                       lambda _joke_id: joke)
 
+  audio_metadata = models.SingleGenerationMetadata(model_name="gemini-tts")
   generation_metadata = models.GenerationMetadata()
-  generation_metadata.add_generation(
-    models.SingleGenerationMetadata(model_name="gemini-tts"))
+  generation_metadata.add_generation(audio_metadata)
   generation_metadata.add_generation(
     models.SingleGenerationMetadata(model_name="moviepy"))
 
-  captured_video_args: dict[str, str] = {}
+  captured_audio_args: dict[str, object] = {}
+  captured_video_args: dict[str, object] = {}
 
-  def fake_generate_video(_joke,
-                          *,
-                          temp_output=False,
-                          is_test=False,
-                          script_template=None,
-                          speakers=None):
-    captured_video_args["script_template"] = script_template
-    captured_video_args["speakers"] = speakers
+  def fake_generate_audio(
+    _joke,
+    *,
+    temp_output=False,
+    script_template=None,
+    audio_model=None,
+    allow_partial=False,
+  ):
+    captured_audio_args["script_template"] = script_template
+    captured_audio_args["audio_model"] = audio_model
+    captured_audio_args["temp_output"] = temp_output
+    captured_audio_args["allow_partial"] = allow_partial
+    return (
+      "gs://public/audio/dialog.wav",
+      "gs://public/audio/setup.wav",
+      "gs://public/audio/response.wav",
+      "gs://public/audio/punchline.wav",
+      audio_metadata,
+    )
+
+  def fake_generate_video_from_audio(
+    _joke,
+    *,
+    setup_audio_gcs_uri,
+    response_audio_gcs_uri,
+    punchline_audio_gcs_uri,
+    audio_generation_metadata=None,
+    temp_output=False,
+    is_test=False,
+    character_class=None,
+  ):
+    captured_video_args["setup_audio_gcs_uri"] = setup_audio_gcs_uri
+    captured_video_args["response_audio_gcs_uri"] = response_audio_gcs_uri
+    captured_video_args["punchline_audio_gcs_uri"] = punchline_audio_gcs_uri
+    captured_video_args["audio_generation_metadata"] = audio_generation_metadata
+    captured_video_args["temp_output"] = temp_output
     captured_video_args["is_test"] = is_test
+    captured_video_args["character_class"] = character_class
     return ("gs://public/video/joke.mp4", generation_metadata)
 
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
-    "generate_joke_video",
-    fake_generate_video,
+    "generate_joke_audio",
+    fake_generate_audio,
+  )
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_video_from_audio_uris",
+    fake_generate_video_from_audio,
   )
 
   resp = joke_creation_fns.joke_creation_process(
@@ -904,21 +958,174 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
         "joke_id": "j-video-1",
-        "script_template": "Sam: {setup_text}",
-        "speaker_voice_pairs": "Sam:GEMINI_LEDA|Riley:GEMINI_PUCK",
+        "audio_model": "gemini-2.5-flash-preview-tts",
+        "script_template": [
+          {
+            "voice": "GEMINI_LEDA",
+            "script": "{setup_text}",
+            "pause_sec_after": 1,
+          },
+          {
+            "voice": "GEMINI_PUCK",
+            "script": "what?",
+            "pause_sec_after": 1,
+          },
+          {
+            "voice": "GEMINI_LEDA",
+            "script": "{punchline_text}",
+          },
+        ],
       }))
 
   payload = resp.get_json()["data"]
   assert payload["video_gcs_uri"] == "gs://public/video/joke.mp4"
+  assert payload["dialog_audio_gcs_uri"] == "gs://public/audio/dialog.wav"
+  assert payload["setup_audio_gcs_uri"] == "gs://public/audio/setup.wav"
+  assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
+  assert payload["punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
   assert payload["video_generation_metadata"]["total_cost"] == 0
   assert payload["video_generation_metadata"]["costs_by_model"][
     "gemini-tts"] == 0
   assert payload["video_generation_metadata"]["costs_by_model"]["moviepy"] == 0
-  assert captured_video_args["script_template"] == "Sam: {setup_text}"
-  assert captured_video_args["speakers"] == {
-    "Sam": gen_audio.Voice.GEMINI_LEDA,
-    "Riley": gen_audio.Voice.GEMINI_PUCK,
-  }
+  turns = captured_audio_args["script_template"]
+  assert [(t.voice, t.script, t.pause_sec_after) for t in turns] == [
+    (gen_audio.Voice.GEMINI_LEDA, "{setup_text}", 1.0),
+    (gen_audio.Voice.GEMINI_PUCK, "what?", 1.0),
+    (gen_audio.Voice.GEMINI_LEDA, "{punchline_text}", None),
+  ]
+  assert captured_audio_args["audio_model"].value == "gemini-2.5-flash-preview-tts"
+  assert captured_audio_args["temp_output"] is True
+  assert captured_video_args["setup_audio_gcs_uri"] == "gs://public/audio/setup.wav"
+  assert captured_video_args[
+    "response_audio_gcs_uri"] == "gs://public/audio/response.wav"
+  assert captured_video_args[
+    "punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
+  assert captured_video_args["audio_generation_metadata"] is audio_metadata
+  assert captured_video_args["temp_output"] is True
+  assert captured_video_args["is_test"] is True
+
+
+def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_fails(
+  monkeypatch,
+):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-video-2",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  audio_metadata = models.SingleGenerationMetadata(model_name="gemini-tts")
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_audio",
+    lambda *_args, **_kwargs: (
+      "gs://public/audio/dialog.wav",
+      "gs://public/audio/setup.wav",
+      "gs://public/audio/response.wav",
+      "gs://public/audio/punchline.wav",
+      audio_metadata,
+    ),
+  )
+
+  def fail_video(*_args, **_kwargs):
+    raise RuntimeError("video boom")
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_video_from_audio_uris",
+    fail_video,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
+        "joke_id": "j-video-2",
+        "allow_partial": True,
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert "video_gcs_uri" not in payload
+  assert payload["dialog_audio_gcs_uri"] == "gs://public/audio/dialog.wav"
+  assert payload["setup_audio_gcs_uri"] == "gs://public/audio/setup.wav"
+  assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
+  assert payload["punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
+  assert payload["error_stage"] == "video_generation"
+  assert "Error generating video" in payload["error"]
+  assert payload["video_generation_metadata"]["generations"][0][
+    "model_name"] == "gemini-tts"
+
+
+def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_split_fails(
+  monkeypatch,
+):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-video-3",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  audio_metadata = models.SingleGenerationMetadata(model_name="gemini-tts")
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_audio",
+    lambda *_args, **_kwargs: (
+      "gs://public/audio/dialog.wav",
+      None,
+      None,
+      None,
+      audio_metadata,
+    ),
+  )
+
+  video_mock_called = {"called": False}
+
+  def should_not_run(*_args, **_kwargs):
+    video_mock_called["called"] = True
+    raise AssertionError("video should not run when audio split fails")
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_video_from_audio_uris",
+    should_not_run,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
+        "joke_id": "j-video-3",
+        "allow_partial": True,
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert "video_gcs_uri" not in payload
+  assert payload["dialog_audio_gcs_uri"] == "gs://public/audio/dialog.wav"
+  assert payload["setup_audio_gcs_uri"] is None
+  assert payload["response_audio_gcs_uri"] is None
+  assert payload["punchline_audio_gcs_uri"] is None
+  assert payload["error_stage"] == "audio_split"
+  assert video_mock_called["called"] is False
 
 
 def test_joke_creation_process_updates_book_page_ready(monkeypatch):

@@ -55,6 +55,8 @@ class DialogTurn:
 
   voice: Any
   script: str
+  pause_sec_before: float | None = None
+  pause_sec_after: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -71,7 +73,7 @@ def get_audio_client(
   model: AudioModel,
   max_retries: int = 3,
   **kwargs: Any,
-) -> "AudioClient[Any]":
+) -> AudioClient[Any]:
   """Get the appropriate audio client for the given model name."""
 
   if model in GeminiAudioClient.GENERATION_COSTS:
@@ -296,10 +298,28 @@ class _AudioInternalResult:
   extra_log_data: dict[str, Any] | None = None
 
 
+def _format_pause_seconds(seconds: float) -> str:
+  return f"{seconds:g}"
+
+
+def _apply_pause_markers(
+  script: str,
+  *,
+  pause_sec_before: float | None,
+  pause_sec_after: float | None,
+) -> str:
+  rendered = script
+  if pause_sec_before is not None:
+    rendered = f"[pause for {_format_pause_seconds(pause_sec_before)} seconds] {rendered}"
+  if pause_sec_after is not None:
+    rendered = f"{rendered} [pause for {_format_pause_seconds(pause_sec_after)} seconds]"
+  return rendered
+
+
 class GeminiAudioClient(AudioClient[genai.Client]):
   """Gemini speech generation client (Google GenAI SDK, API-key auth)."""
 
-  _SPEAKER_NAMES = ("A", "B")
+  _SPEAKER_NAMES = ("Alex", "Sam")
 
   _AUDIO_SAMPLE_RATE_HZ = 24000
   _AUDIO_SAMPLE_WIDTH_BYTES = 2
@@ -389,9 +409,31 @@ class GeminiAudioClient(AudioClient[genai.Client]):
         raise AudioGenerationError(
           f"Gemini multi-turn audio requires GEMINI voices; got {turn.voice.model.name}"
         )
+
+      pause_before = turn.pause_sec_before
+      if pause_before is not None:
+        if not isinstance(pause_before, (int, float)):
+          raise AudioGenerationError("pause_sec_before must be a number")
+        if pause_before < 0:
+          raise AudioGenerationError("pause_sec_before must be >= 0")
+
+      pause_after = turn.pause_sec_after
+      if pause_after is not None:
+        if not isinstance(pause_after, (int, float)):
+          raise AudioGenerationError("pause_sec_after must be a number")
+        if pause_after < 0:
+          raise AudioGenerationError("pause_sec_after must be >= 0")
+
       script = (turn.script or "").strip()
       if not script:
         raise AudioGenerationError("Turn script must be non-empty")
+      script = _apply_pause_markers(
+        script,
+        pause_sec_before=float(pause_before)
+        if pause_before is not None else None,
+        pause_sec_after=float(pause_after)
+        if pause_after is not None else None,
+      )
       normalized.append(DialogTurn(voice=turn.voice, script=script))
 
     if not normalized:
@@ -524,9 +566,6 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
   _DEFAULT_OUTPUT_FORMAT = "mp3_44100_128"
   _DEFAULT_TIMEOUT_SEC = 300
 
-  # ElevenLabs pricing is plan/credits based; keep this as a placeholder in the
-  # same shape as LlmClient/GeminiAudioClient so we can compute cost from the
-  # "characters" token count.
   GENERATION_COSTS: dict[AudioModel, dict[str, float]] = {
     AudioModel.ELEVENLABS_ELEVEN_V3: {
       "characters": 0.0,
@@ -634,17 +673,48 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
   def _normalize_inputs(self, turns: list[DialogTurn]) -> list[dict[str, str]]:
     normalized: list[dict[str, str]] = []
     for turn in turns:
-      voice_id = turn.voice
-      if not isinstance(voice_id, str):
+      voice_id_raw = turn.voice
+      if isinstance(voice_id_raw, Voice):
+        if voice_id_raw.model is not VoiceModel.ELEVENLABS:
+          raise AudioGenerationError(
+            f"ElevenLabs voice must be an ELEVENLABS Voice; got {voice_id_raw.model.name}"
+          )
+        voice_id = voice_id_raw.voice_name
+      elif isinstance(voice_id_raw, str):
+        voice_id = voice_id_raw
+      else:
         raise AudioGenerationError(
-          f"ElevenLabs voice must be a voice_id string; got {type(voice_id)}")
+          f"ElevenLabs voice must be an ELEVENLABS Voice or voice_id string; got {type(voice_id_raw)}"
+        )
+
       voice_id = voice_id.strip()
       if not voice_id:
         raise AudioGenerationError("ElevenLabs voice_id must be non-empty")
 
+      pause_before = turn.pause_sec_before
+      if pause_before is not None:
+        if not isinstance(pause_before, (int, float)):
+          raise AudioGenerationError("pause_sec_before must be a number")
+        if pause_before < 0:
+          raise AudioGenerationError("pause_sec_before must be >= 0")
+
+      pause_after = turn.pause_sec_after
+      if pause_after is not None:
+        if not isinstance(pause_after, (int, float)):
+          raise AudioGenerationError("pause_sec_after must be a number")
+        if pause_after < 0:
+          raise AudioGenerationError("pause_sec_after must be >= 0")
+
       text = (turn.script or "").strip()
       if not text:
         raise AudioGenerationError("Turn script must be non-empty")
+      text = _apply_pause_markers(
+        text,
+        pause_sec_before=float(pause_before)
+        if pause_before is not None else None,
+        pause_sec_after=float(pause_after)
+        if pause_after is not None else None,
+      )
 
       normalized.append({
         "text": text,

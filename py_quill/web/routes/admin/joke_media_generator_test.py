@@ -24,11 +24,19 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert 'Joke Media Generator' in html
-  assert 'id="script-template"' in html
-  assert 'id="speaker1-name"' in html
-  assert 'id="speaker1-voice"' in html
-  assert 'id="speaker2-name"' in html
-  assert 'id="speaker2-voice"' in html
+  assert 'id="audio-model"' in html
+  assert 'id="turn1-voice-gemini"' in html
+  assert 'id="turn1-voice-eleven"' in html
+  assert 'id="turn1-script"' in html
+  assert 'id="turn1-pause-after"' in html
+  assert 'id="turn2-voice-gemini"' in html
+  assert 'id="turn2-voice-eleven"' in html
+  assert 'id="turn2-script"' in html
+  assert 'id="turn2-pause-after"' in html
+  assert 'id="turn3-voice-gemini"' in html
+  assert 'id="turn3-voice-eleven"' in html
+  assert 'id="turn3-script"' in html
+  assert 'id="turn3-pause-after"' in html
   assert 'id="generate-audio-button"' in html
   assert 'id="generate-video-button"' in html
   assert 'joke_picker.js' in html

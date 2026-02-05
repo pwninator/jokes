@@ -227,3 +227,11 @@ class Voice(enum.Enum):
                        VoiceGender.MALE)  # Knowledgeable
   GEMINI_SULAFAT = ("Sulafat", LanguageCode.EN_US, VoiceModel.GEMINI,
                     VoiceGender.FEMALE)  # Warm
+
+  # ElevenLabs voices
+  ELEVENLABS_LULU_LOLLIPOP = ("ocZQ262SsZb9RIxcQBOj", LanguageCode.EN_US,
+                              VoiceModel.ELEVENLABS, VoiceGender.FEMALE)
+  ELEVENLABS_MINNIE = ("eppqEXVumQ3CfdndcIBd", LanguageCode.EN_US,
+                       VoiceModel.ELEVENLABS, VoiceGender.FEMALE)
+  ELEVENLABS_JERRY_B = ("rHWSYoq8UlV0YIBKMryp", LanguageCode.EN_US,
+                        VoiceModel.ELEVENLABS, VoiceGender.MALE)

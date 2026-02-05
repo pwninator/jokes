@@ -1226,10 +1226,17 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
     },
     cost=0.123,
   )
-  mock_generate_multi_turn_dialog = Mock(
-    return_value=("gs://temp/dialog.wav", generation_metadata))
-  monkeypatch.setattr(joke_operations.gen_audio, "generate_multi_turn_dialog",
-                      mock_generate_multi_turn_dialog)
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = (
+    joke_operations.audio_client.AudioGenerationResult(
+      gcs_uri="gs://temp/dialog.wav",
+      metadata=generation_metadata,
+    ))
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   dialog_uri = "gs://public/audio/dialog.wav"
@@ -1282,8 +1289,7 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert num_frames(uploaded[3][1]) == int(rate * 0.3)
 
 
-def test_generate_joke_audio_uses_template_and_speakers(
-    monkeypatch, mock_cloud_storage):
+def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage):
 
   def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
     buffer = io.BytesIO()
@@ -1307,10 +1313,17 @@ def test_generate_joke_audio_uses_template_and_speakers(
 
   generation_metadata = models.SingleGenerationMetadata(
     model_name="gemini-tts")
-  mock_generate_multi_turn_dialog = Mock(
-    return_value=("gs://temp/dialog.wav", generation_metadata))
-  monkeypatch.setattr(joke_operations.gen_audio, "generate_multi_turn_dialog",
-                      mock_generate_multi_turn_dialog)
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = (
+    joke_operations.audio_client.AudioGenerationResult(
+      gcs_uri="gs://temp/dialog.wav",
+      metadata=generation_metadata,
+    ))
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   mock_cloud_storage.get_audio_gcs_uri.side_effect = [
@@ -1327,35 +1340,97 @@ def test_generate_joke_audio_uses_template_and_speakers(
     punchline_text="Punchline text",
   )
 
-  script_template = ("A: {setup_text}\n"
-                     "[1 second silence]\n"
-                     "B: what?\n"
-                     "[1 second silence]\n"
-                     "A: {punchline_text}\n"
-                     "B: [giggles]\n")
-  speakers = {
-    "A": joke_operations.gen_audio.Voice.GEMINI_KORE,
-    "B": joke_operations.gen_audio.Voice.GEMINI_PUCK,
-  }
+  script_template = [
+    joke_operations.audio_client.DialogTurn(
+      voice=joke_operations.gen_audio.Voice.GEMINI_KORE,
+      script="{setup_text}",
+      pause_sec_after=1.0,
+    ),
+    joke_operations.audio_client.DialogTurn(
+      voice=joke_operations.gen_audio.Voice.GEMINI_PUCK,
+      script="what?",
+      pause_sec_after=1.0,
+    ),
+    joke_operations.audio_client.DialogTurn(
+      voice=joke_operations.gen_audio.Voice.GEMINI_KORE,
+      script="{punchline_text}\n[giggles]",
+    ),
+  ]
 
   _ = joke_operations.generate_joke_audio(
     joke,
     script_template=script_template,
-    speakers=speakers,
   )
 
-  mock_generate_multi_turn_dialog.assert_called_once()
-  call_kwargs = mock_generate_multi_turn_dialog.call_args.kwargs
-  assert call_kwargs["script"].strip() == ("A: Setup text\n"
-                                           "[1 second silence]\n"
-                                           "B: what?\n"
-                                           "[1 second silence]\n"
-                                           "A: Punchline text\n"
-                                           "B: [giggles]")
-  assert call_kwargs["speakers"] == {
-    "A": joke_operations.gen_audio.Voice.GEMINI_KORE,
-    "B": joke_operations.gen_audio.Voice.GEMINI_PUCK,
-  }
+  mock_client.generate_multi_turn_dialog.assert_called_once()
+  call_kwargs = mock_client.generate_multi_turn_dialog.call_args.kwargs
+  turns = call_kwargs["turns"]
+  assert [(t.voice, t.script, t.pause_sec_before, t.pause_sec_after) for t in turns] == [
+    (joke_operations.gen_audio.Voice.GEMINI_KORE, "Setup text", None, 1.0),
+    (joke_operations.gen_audio.Voice.GEMINI_PUCK, "what?", None, 1.0),
+    (joke_operations.gen_audio.Voice.GEMINI_KORE, "Punchline text\n[giggles]", None, None),
+  ]
+
+
+def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
+  monkeypatch,
+  mock_cloud_storage,
+):
+
+  def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  dialog_wav_bytes = make_wav_bytes(array.array("h", [1000] * 100).tobytes())
+
+  generation_metadata = models.SingleGenerationMetadata(model_name="gemini-tts")
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = (
+    joke_operations.audio_client.AudioGenerationResult(
+      gcs_uri="gs://temp/dialog.wav",
+      metadata=generation_metadata,
+    ))
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
+
+  monkeypatch.setattr(
+    joke_operations,
+    "_split_wav_bytes_on_two_pauses",
+    Mock(side_effect=ValueError("split failed")),
+  )
+
+  mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
+  dialog_uri = "gs://public/audio/dialog.wav"
+  mock_cloud_storage.get_audio_gcs_uri.return_value = dialog_uri
+
+  uploaded: list[tuple[str, bytes, str]] = []
+
+  def record_upload(content_bytes: bytes, gcs_uri: str, content_type: str):
+    uploaded.append((gcs_uri, content_bytes, content_type))
+    return gcs_uri
+
+  mock_cloud_storage.upload_bytes_to_gcs.side_effect = record_upload
+
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+  )
+
+  result = joke_operations.generate_joke_audio(joke, allow_partial=True)
+
+  assert result == (dialog_uri, None, None, None, generation_metadata)
+  assert [u[0] for u in uploaded] == [dialog_uri]
 
 
 def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
@@ -1510,6 +1585,35 @@ def test_generate_joke_video_uses_test_video_when_is_test_true(
   call_kwargs = create_video_mock.call_args.kwargs
   assert len(call_kwargs["character_dialogs"]) == 2
   assert call_kwargs["output_filename_base"] == "joke_video_test_joke-test"
+
+
+def test_read_wav_bytes_allows_placeholder_data_chunk_size():
+  """Some providers emit WAV headers with placeholder sizes (e.g. 0xFFFFFFFF)."""
+
+  def make_wav_bytes(duration_sec: float, *, rate: int = 1000) -> bytes:
+    frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  wav_bytes = make_wav_bytes(0.25, rate=1000)
+  marker = b"data"
+  idx = wav_bytes.find(marker)
+  assert idx != -1
+  size_offset = idx + 4
+  patched = bytearray(wav_bytes)
+  # Set data chunk size to 0xFFFFFFFF (placeholder), leaving payload intact.
+  patched[size_offset:size_offset + 4] = (0xFFFFFFFF).to_bytes(4, "little")
+
+  params, frames = joke_operations._read_wav_bytes(bytes(patched))
+  assert int(params.nframes) == len(frames) // (int(params.nchannels) *
+                                               int(params.sampwidth))
 
 
 def test_generate_joke_video_requires_images():

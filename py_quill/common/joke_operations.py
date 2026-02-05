@@ -18,8 +18,8 @@ from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
-from services import (cloud_storage, firestore, gen_audio, gen_video,
-                      image_client, image_editor)
+from services import (audio_client, cloud_storage, firestore, gen_audio,
+                      gen_video, image_client, image_editor)
 
 _IMAGE_UPSCALE_FACTOR = "x2"
 _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
@@ -49,6 +49,26 @@ DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME = "Sam"
 DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = gen_audio.Voice.GEMINI_LEDA
 DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME = "Riley"
 DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = gen_audio.Voice.GEMINI_PUCK
+
+# Preferred dialog template format (turn-based). Each script may include
+# {setup_text} and/or {punchline_text} placeholders.
+DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE: list[audio_client.DialogTurn] = [
+  audio_client.DialogTurn(
+    voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
+    script=
+    "[playfully, slightly slowly to build intrigue] Hey... want to hear a joke? {setup_text}",
+    pause_sec_after=1.0,
+  ),
+  audio_client.DialogTurn(
+    voice=DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE,
+    script="[curiously] what?",
+    pause_sec_after=1.0,
+  ),
+  audio_client.DialogTurn(
+    voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
+    script="[excitedly, holding back laughter] {punchline_text}\n[giggles]",
+  ),
+]
 
 _MIME_TYPE_CONFIG: dict[str, Tuple[str, str]] = {
   "image/png": ("PNG", "png"),
@@ -563,9 +583,10 @@ def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
 def generate_joke_audio(
   joke: models.PunnyJoke,
   temp_output: bool = False,
-  script_template: str | None = None,
-  speakers: dict[str, gen_audio.Voice] | None = None,
-) -> tuple[str, str, str, str, models.SingleGenerationMetadata]:
+  script_template: list[audio_client.DialogTurn] | None = None,
+  audio_model: audio_client.AudioModel | None = None,
+  allow_partial: bool = False,
+) -> tuple[str, str | None, str | None, str | None, models.SingleGenerationMetadata]:
   """Generate a full dialog WAV plus split clips and upload as public files.
 
   Flow:
@@ -575,32 +596,66 @@ def generate_joke_audio(
     setup, response ("what?"), punchline (including giggles).
   - Upload all 3 clips to the public audio bucket and return their GCS URIs,
     plus the generation metadata from the TTS call.
+
+  If allow_partial is True and the silence splitting fails, returns the full
+  dialog WAV (dialog_gcs_uri) and leaves the split clip URIs as None.
   """
   if not joke.setup_text or not joke.punchline_text:
     raise ValueError("Joke must have setup_text and punchline_text")
 
   joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
-  script = _render_dialog_script(joke, script_template)
-  speakers = _resolve_speakers(speakers)
+  turns_template = script_template or DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
+  dialog_turns = _render_dialog_turns_from_template(joke, turns_template)
+  resolved_audio_model = audio_model or _select_audio_model_for_turns(
+    dialog_turns)
+  _validate_audio_model_for_turns(resolved_audio_model, dialog_turns)
 
-  temp_dialog_gcs_uri, audio_generation_metadata = (
-    gen_audio.generate_multi_turn_dialog(
-      script=script,
-      speakers=speakers,
-      output_filename_base=f"joke_dialog_{joke_id_for_filename}",
-      temp_output=temp_output,
-    ))
+  audio_client_kwargs: dict[str, Any] = {}
+  if resolved_audio_model == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3:
+    # `generate_joke_audio` expects a WAV so we can split on silences.
+    audio_client_kwargs["output_format"] = "wav_24000"
+
+  client = audio_client.get_audio_client(
+    label="generate_joke_audio",
+    model=resolved_audio_model,
+    **audio_client_kwargs,
+  )
+  audio_result = client.generate_multi_turn_dialog(
+    turns=dialog_turns,
+    output_filename_base=f"joke_dialog_{joke_id_for_filename}",
+    temp_output=temp_output,
+    label="generate_joke_audio",
+    extra_log_data={
+      "joke_id":
+      joke.key,
+      "turn_voices":
+      [str(getattr(turn.voice, "name", turn.voice)) for turn in dialog_turns],
+    },
+  )
+  temp_dialog_gcs_uri = audio_result.gcs_uri
+  audio_generation_metadata = audio_result.metadata
 
   dialog_wav_bytes = cloud_storage.download_bytes_from_gcs(temp_dialog_gcs_uri)
-  setup_wav, response_wav, punchline_wav = _split_wav_bytes_on_two_pauses(
-    dialog_wav_bytes,
-    silence_duration_sec=1.0,
-  )
 
   dialog_gcs_uri = cloud_storage.get_audio_gcs_uri(
     f"joke_{joke_id_for_filename}_dialog",
     "wav",
   )
+  cloud_storage.upload_bytes_to_gcs(dialog_wav_bytes,
+                                   dialog_gcs_uri,
+                                   content_type="audio/wav")
+
+  try:
+    setup_wav, response_wav, punchline_wav = _split_wav_bytes_on_two_pauses(
+      dialog_wav_bytes,
+      silence_duration_sec=1.0,
+    )
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(f"Error splitting joke dialog WAV: {exc}")
+    if allow_partial:
+      return (dialog_gcs_uri, None, None, None, audio_generation_metadata)
+    raise
+
   setup_gcs_uri = cloud_storage.get_audio_gcs_uri(
     f"joke_{joke_id_for_filename}_setup",
     "wav",
@@ -614,32 +669,32 @@ def generate_joke_audio(
     "wav",
   )
 
-  cloud_storage.upload_bytes_to_gcs(dialog_wav_bytes,
-                                    dialog_gcs_uri,
-                                    content_type="audio/wav")
   cloud_storage.upload_bytes_to_gcs(setup_wav,
-                                    setup_gcs_uri,
-                                    content_type="audio/wav")
+                                   setup_gcs_uri,
+                                   content_type="audio/wav")
   cloud_storage.upload_bytes_to_gcs(response_wav,
-                                    response_gcs_uri,
-                                    content_type="audio/wav")
+                                   response_gcs_uri,
+                                   content_type="audio/wav")
   cloud_storage.upload_bytes_to_gcs(punchline_wav,
-                                    punchline_gcs_uri,
-                                    content_type="audio/wav")
+                                   punchline_gcs_uri,
+                                   content_type="audio/wav")
 
   return (dialog_gcs_uri, setup_gcs_uri, response_gcs_uri, punchline_gcs_uri,
           audio_generation_metadata)
 
 
-def generate_joke_video(
+def generate_joke_video_from_audio_uris(
   joke: models.PunnyJoke,
+  *,
+  setup_audio_gcs_uri: str,
+  response_audio_gcs_uri: str,
+  punchline_audio_gcs_uri: str,
+  audio_generation_metadata: models.SingleGenerationMetadata | None = None,
   temp_output: bool = False,
   is_test: bool = False,
-  script_template: str | None = None,
-  speakers: dict[str, gen_audio.Voice] | None = None,
   character_class: type[PosableCharacter] | None = PosableCat,
 ) -> tuple[str, models.GenerationMetadata]:
-  """Generate a portrait video for a joke with synced audio."""
+  """Generate a portrait video for a joke using existing audio clips."""
   if not joke.setup_text or not joke.punchline_text:
     raise ValueError("Joke must have setup_text and punchline_text")
 
@@ -656,17 +711,6 @@ def generate_joke_video(
       setup_image_url)
     punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
       punchline_image_url)
-
-  (
-    _dialog_gcs_uri,
-    setup_audio_gcs_uri,
-    response_audio_gcs_uri,
-    punchline_audio_gcs_uri,
-    audio_generation_metadata,
-  ) = generate_joke_audio(joke,
-                          temp_output=temp_output,
-                          script_template=script_template,
-                          speakers=speakers)
 
   setup_duration_sec = _get_wav_duration_sec(
     cloud_storage.download_bytes_from_gcs(setup_audio_gcs_uri))
@@ -733,23 +777,146 @@ def generate_joke_video(
   return video_gcs_uri, generation_metadata
 
 
-def _render_dialog_script(joke: models.PunnyJoke,
-                          script_template: str | None) -> str:
-  """Render the dialog script from a template."""
-  template = script_template if script_template is not None else ""
-  template = template.strip() or DEFAULT_JOKE_AUDIO_SCRIPT_TEMPLATE
+def generate_joke_video(
+  joke: models.PunnyJoke,
+  temp_output: bool = False,
+  is_test: bool = False,
+  script_template: list[audio_client.DialogTurn] | None = None,
+  audio_model: audio_client.AudioModel | None = None,
+  character_class: type[PosableCharacter] | None = PosableCat,
+) -> tuple[str, models.GenerationMetadata]:
+  """Generate a portrait video for a joke with synced audio."""
+  if not joke.setup_text or not joke.punchline_text:
+    raise ValueError("Joke must have setup_text and punchline_text")
 
-  if "{setup_text}" not in template or "{punchline_text}" not in template:
-    raise ValueError(
-      "Script template must include {setup_text} and {punchline_text} placeholders"
-    )
+  if not is_test:
+    setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
+    punchline_image_url = (joke.punchline_image_url_upscaled
+                           or joke.punchline_image_url)
+    if not setup_image_url or not punchline_image_url:
+      raise ValueError("Joke must have setup and punchline images")
 
-  try:
-    return template.format(setup_text=joke.setup_text,
-                           punchline_text=joke.punchline_text)
-  except KeyError as exc:
+  (
+    _dialog_gcs_uri,
+    setup_audio_gcs_uri,
+    response_audio_gcs_uri,
+    punchline_audio_gcs_uri,
+    audio_generation_metadata,
+  ) = generate_joke_audio(joke,
+                          temp_output=temp_output,
+                           script_template=script_template,
+                           audio_model=audio_model)
+  return generate_joke_video_from_audio_uris(
+    joke,
+    setup_audio_gcs_uri=setup_audio_gcs_uri,
+    response_audio_gcs_uri=response_audio_gcs_uri,
+    punchline_audio_gcs_uri=punchline_audio_gcs_uri,
+    audio_generation_metadata=audio_generation_metadata,
+    temp_output=temp_output,
+    is_test=is_test,
+    character_class=character_class,
+  )
+
+
+def _render_dialog_turns_from_template(
+  joke: models.PunnyJoke,
+  turns_template: list[audio_client.DialogTurn],
+) -> list[audio_client.DialogTurn]:
+  """Render dialog turns from a turn template (scripts may include placeholders)."""
+  if not turns_template:
+    raise ValueError("script_template must have at least one dialog turn")
+
+  rendered: list[audio_client.DialogTurn] = []
+  for idx, turn in enumerate(turns_template):
+    if not isinstance(turn, audio_client.DialogTurn):
+      raise ValueError(f"Dialog turn template {idx + 1} is invalid: {turn}")
+
+    template_script = (turn.script or "").strip()
+    if not template_script:
+      raise ValueError(
+        f"Dialog turn template {idx + 1} script must be non-empty")
+
+    try:
+      rendered_script = template_script.format(
+        setup_text=joke.setup_text,
+        punchline_text=joke.punchline_text,
+      )
+    except KeyError as exc:
+      raise ValueError(
+        f"Dialog turn template {idx + 1} uses unsupported placeholder: {exc}"
+      ) from exc
+
+    rendered.append(
+      audio_client.DialogTurn(
+        voice=turn.voice,
+        script=rendered_script,
+        pause_sec_before=turn.pause_sec_before,
+        pause_sec_after=turn.pause_sec_after,
+      ))
+
+  return rendered
+
+
+def _select_audio_model_for_turns(
+  turns: list[audio_client.DialogTurn], ) -> audio_client.AudioModel:
+  """Select an AudioModel based on the turn voice types."""
+  voices = [turn.voice for turn in turns]
+  if not voices:
+    raise ValueError("No dialog turns provided")
+
+  if all(isinstance(v, gen_audio.Voice) for v in voices):
+    if all(v.model is gen_audio.VoiceModel.GEMINI for v in voices):
+      return audio_client.AudioModel.GEMINI_2_5_FLASH_TTS
+    if all(v.model is gen_audio.VoiceModel.ELEVENLABS for v in voices):
+      return audio_client.AudioModel.ELEVENLABS_ELEVEN_V3
     raise ValueError(
-      f"Script template uses unsupported placeholder: {exc}") from exc
+      "All dialog turns must use the same Voice model (GEMINI or ELEVENLABS)")
+
+  if all(isinstance(v, str) for v in voices):
+    return audio_client.AudioModel.ELEVENLABS_ELEVEN_V3
+
+  if all((isinstance(v, str) or
+          (isinstance(v, gen_audio.Voice) and
+           v.model is gen_audio.VoiceModel.ELEVENLABS)) for v in voices):
+    return audio_client.AudioModel.ELEVENLABS_ELEVEN_V3
+
+  raise ValueError(
+    "All dialog turns must use the same voice type (all gen_audio.Voice or all voice_id strings)"
+  )
+
+
+def _validate_audio_model_for_turns(
+  audio_model: audio_client.AudioModel,
+  turns: list[audio_client.DialogTurn],
+) -> None:
+  voices = [turn.voice for turn in turns]
+  if audio_model in (
+      audio_client.AudioModel.GEMINI_2_5_FLASH_TTS,
+      audio_client.AudioModel.GEMINI_2_5_PRO_TTS,
+  ):
+    if not voices or not all(isinstance(v, gen_audio.Voice) for v in voices):
+      raise ValueError(
+        f"Audio model {audio_model.value} requires gen_audio.Voice turns")
+    if any(v.model is not gen_audio.VoiceModel.GEMINI for v in voices):
+      raise ValueError(
+        "generate_joke_audio currently supports GEMINI voices only for Gemini audio models"
+      )
+    return
+
+  if audio_model == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3:
+    if not voices:
+      raise ValueError(
+        f"Audio model {audio_model.value} requires at least one dialog turn")
+    if not all(
+        isinstance(v, str) or
+        (isinstance(v, gen_audio.Voice) and
+         v.model is gen_audio.VoiceModel.ELEVENLABS) for v in voices):
+      raise ValueError(
+        f"Audio model {audio_model.value} requires ELEVENLABS Voice turns or voice_id string turns"
+      )
+    return
+
+  raise ValueError(f"Unsupported audio model: {audio_model.value}")
 
 
 def _resolve_speakers(
@@ -807,8 +974,10 @@ def _split_wav_bytes_on_two_pauses(
 
   (run1_start, run1_end), (run2_start,
                            run2_end) = interior_runs[0], interior_runs[1]
-  if not (0 <= run1_start < run1_end <= run2_start < run2_end <= nframes):
-    raise ValueError("Detected silence runs are not ordered as expected")
+  silences_are_ordered = 0 <= run1_start < run1_end <= run2_start < run2_end <= nframes
+  if not silences_are_ordered:
+    raise ValueError(
+      f"Detected silence runs are not ordered as expected: {interior_runs}")
 
   setup_frames = frames[:run1_start * frame_size_bytes]
   response_frames = frames[run1_end * frame_size_bytes:run2_start *
@@ -838,12 +1007,26 @@ def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
     raise ValueError(
       f"Unsupported WAV compression: {getattr(params, 'comptype', None)}")
 
-  expected_len = int(params.nframes) * int(params.nchannels) * int(
-    params.sampwidth)
+  frame_size_bytes = int(params.nchannels) * int(params.sampwidth)
+  expected_len = int(params.nframes) * frame_size_bytes
   if expected_len and len(frames) != expected_len:
-    raise ValueError(
-      f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
-    )
+    # Some providers produce WAV headers with placeholder sizes (e.g. 0xFFFFFFFF),
+    # which makes `wave` report an absurd nframes count. If the actual payload is
+    # well-formed PCM, infer the correct nframes from the real byte length.
+    if (frame_size_bytes > 0 and expected_len > len(frames)
+        and len(frames) % frame_size_bytes == 0):
+      inferred_nframes = len(frames) // frame_size_bytes
+      if hasattr(params, "_replace"):
+        params = params._replace(nframes=inferred_nframes)
+      else:
+        try:
+          params.nframes = inferred_nframes
+        except Exception:
+          pass
+    else:
+      raise ValueError(
+        f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
+      )
   return params, frames
 
 

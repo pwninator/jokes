@@ -1422,11 +1422,11 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
     ("gs://images/punchline.png", 3.3),
   ]
   expected_setup_punchline_audio = [
-    ("gs://audio/setup.wav", 0.0),
-    ("gs://audio/punchline.wav", 3.3),
+    ("gs://audio/setup.wav", 0.0, "Hey want to hear a joke? Setup"),
+    ("gs://audio/punchline.wav", 3.3, "Punchline"),
   ]
   expected_response_audio = [
-    ("gs://audio/response.wav", 1.8),
+    ("gs://audio/response.wav", 1.8, "what?"),
   ]
 
   create_video_mock.assert_called_once()

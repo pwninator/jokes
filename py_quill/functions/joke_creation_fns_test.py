@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from common import models
 from functions import joke_creation_fns
+from services import gen_audio
 
 
 class DummyReq:
@@ -852,8 +853,8 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     "output_tokens"] == 456
   assert captured_audio_args["script_template"] == "Sam: {setup_text}"
   assert captured_audio_args["speakers"] == {
-    "Sam": joke_creation_fns.gen_audio.Voice.GEMINI_LEDA,
-    "Riley": joke_creation_fns.gen_audio.Voice.GEMINI_PUCK,
+    "Sam": gen_audio.Voice.GEMINI_LEDA,
+    "Riley": gen_audio.Voice.GEMINI_PUCK,
   }
 
 
@@ -913,8 +914,8 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert payload["video_generation_metadata"]["costs_by_model"]["moviepy"] == 0
   assert captured_video_args["script_template"] == "Sam: {setup_text}"
   assert captured_video_args["speakers"] == {
-    "Sam": joke_creation_fns.gen_audio.Voice.GEMINI_LEDA,
-    "Riley": joke_creation_fns.gen_audio.Voice.GEMINI_PUCK,
+    "Sam": gen_audio.Voice.GEMINI_LEDA,
+    "Riley": gen_audio.Voice.GEMINI_PUCK,
   }
 
 

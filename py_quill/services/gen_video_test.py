@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from services import gen_video
-from services.syllable_detection import Syllable
+from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
+from services import gen_video
 from PIL import Image
 
 
@@ -260,8 +260,8 @@ def test_create_slideshow_video_emulator_returns_test_uri():
 def test_apply_forced_closures_inserts_closed_between_same_shapes():
   """Closure inserted when gap exists between same-shape syllables."""
   syllables = [
-    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.14, end_time=0.24, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.14, end_time=0.24, mouth_shape=MouthState.OPEN),
   ]
   timeline = gen_video._apply_forced_closures(syllables)
 
@@ -274,8 +274,8 @@ def test_apply_forced_closures_inserts_closed_between_same_shapes():
 def test_apply_forced_closures_no_closure_for_different_shapes():
   """No closure between syllables with different mouth shapes."""
   syllables = [
-    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.14, end_time=0.24, mouth_shape=MouthState.O),
+    MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.14, end_time=0.24, mouth_shape=MouthState.O),
   ]
   timeline = gen_video._apply_forced_closures(syllables)
 
@@ -285,8 +285,8 @@ def test_apply_forced_closures_no_closure_for_different_shapes():
 def test_apply_forced_closures_skips_very_short_syllables():
   """No closure for syllables shorter than min_syllable_for_closure_sec."""
   syllables = [
-    Syllable(start_time=0.0, end_time=0.03, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.05, end_time=0.08, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.03, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.05, end_time=0.08, mouth_shape=MouthState.OPEN),
   ]
   timeline = gen_video._apply_forced_closures(
     syllables,
@@ -300,8 +300,8 @@ def test_apply_forced_closures_skips_very_short_syllables():
 def test_apply_forced_closures_creates_space_for_adjacent_syllables():
   """Closure created by stealing time from adjacent same-shape syllables."""
   syllables = [
-    Syllable(start_time=0.0, end_time=0.15, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.15, end_time=0.30, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.15, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.15, end_time=0.30, mouth_shape=MouthState.OPEN),
   ]
   timeline = gen_video._apply_forced_closures(syllables)
 
@@ -312,8 +312,8 @@ def test_apply_forced_closures_creates_space_for_adjacent_syllables():
 def test_apply_forced_closures_no_closure_for_large_gap():
   """No closure when gap exceeds max_gap_sec (natural silence)."""
   syllables = [
-    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.5, end_time=0.6, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.5, end_time=0.6, mouth_shape=MouthState.OPEN),
   ]
   timeline = gen_video._apply_forced_closures(
     syllables,
@@ -328,8 +328,8 @@ def test_apply_forced_closures_dynamic_duration():
   """Closure duration scales with syllable duration."""
   # Long syllables should get longer closures
   long_syllables = [
-    Syllable(start_time=0.0, end_time=0.2, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.25, end_time=0.45, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.2, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.25, end_time=0.45, mouth_shape=MouthState.OPEN),
   ]
   long_timeline = gen_video._apply_forced_closures(long_syllables)
   long_closures = [(s, e) for state, s, e in long_timeline
@@ -337,8 +337,8 @@ def test_apply_forced_closures_dynamic_duration():
 
   # Short syllables should get shorter closures
   short_syllables = [
-    Syllable(start_time=0.0, end_time=0.08, mouth_shape=MouthState.OPEN),
-    Syllable(start_time=0.12, end_time=0.20, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.08, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.12, end_time=0.20, mouth_shape=MouthState.OPEN),
   ]
   short_timeline = gen_video._apply_forced_closures(short_syllables)
   short_closures = [(s, e) for state, s, e in short_timeline
@@ -363,7 +363,7 @@ def test_apply_forced_closures_empty_input():
 def test_apply_forced_closures_single_syllable():
   """Single syllable returns timeline with just that syllable."""
   syllables = [
-    Syllable(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
+    MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
   ]
   timeline = gen_video._apply_forced_closures(syllables)
 
@@ -377,7 +377,7 @@ def test_create_portrait_character_video_uploads_mp4():
     ("gs://bucket/image2.png", 0.2),
   ]
   character_dialogs = [
-    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0)]),
+    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world")]),
   ]
   upload_mock = MagicMock()
   get_uri_mock = MagicMock(return_value="gs://files/video/portrait.mp4")

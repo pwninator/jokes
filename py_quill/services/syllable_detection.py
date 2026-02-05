@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import librosa
 import numpy as np
 import soundfile as sf
+from common.mouth_events import MouthEvent
 from common.posable_character import MouthState
 
 # Frame and hop settings
@@ -39,14 +40,11 @@ _BOUNDARY_MERGE_SEC = 0.06
 # Smoothing settings
 _CENTROID_SMOOTH_FRAMES = 3
 
-
-@dataclass(frozen=True)
-class Syllable:
-  """A syllable detected in an audio clip."""
-
-  start_time: float
-  end_time: float
-  mouth_shape: MouthState
+# Confidence scoring settings
+_CONFIDENCE_CENTROID_AMBIGUOUS_HZ = 1200.0  # Center of ambiguous zone
+_CONFIDENCE_CENTROID_CLEAR_DISTANCE_HZ = 600.0  # Distance for full confidence
+_CONFIDENCE_MIN_DURATION_SEC = 0.03  # Below this, confidence drops
+_CONFIDENCE_FULL_DURATION_SEC = 0.08  # Above this, duration doesn't help
 
 
 @dataclass
@@ -69,27 +67,23 @@ class _Thresholds:
   centroid_threshold_to_open: float
 
 
-def detect_syllables(wav_bytes: bytes) -> list[Syllable]:
-  """Detect syllables using onset detection, state transitions, and spectral analysis.
+def detect_segments_with_confidence(wav_bytes: bytes) -> list[MouthEvent]:
+  """Detect mouth events with confidence scores for transcript alignment.
 
-  Goal: Detect syllables in the audio data for use in cartoon mouth animation.
+  Returns MouthEvent objects that include confidence scores based on audio
+  characteristics. Higher confidence means we're more certain about the
+  detected mouth shape.
 
-  Requirements:
-    - Silence produces no Syllable (consumer defaults to closed mouth)
-    - Non-silence maps to either OPEN or O mouth shape
-    - Contiguous syllables with same shape have separate Syllable objects
-      (e.g. "hahaha" -> 3 separate OPEN Syllables)
-    - Vowel transitions within a syllable produce multiple Syllables
-      (e.g. "whaaa" -> O followed by OPEN)
-
-  Assumptions:
-    - Input is TTS audio with no background noise
+  Confidence is computed from:
+  - Centroid extremity: How far from the ambiguous 1200Hz zone
+  - RMS energy: Louder segments are more reliable
+  - Duration: Very short segments are less reliable
 
   Args:
     wav_bytes: WAV audio data.
 
   Returns:
-    List of Syllable objects sorted by start_time.
+    List of MouthEvent objects sorted by start_time.
   """
   y, sr = _load_audio(wav_bytes)
   if y.size == 0 or sr <= 0:
@@ -103,7 +97,38 @@ def detect_syllables(wav_bytes: bytes) -> list[Syllable]:
   frame_states = _compute_frame_states(features, thresholds)
   boundary_frames = _find_all_boundaries(features, thresholds, frame_states)
 
-  return _create_syllables(boundary_frames, frame_states, features, thresholds)
+  return _create_segments_with_confidence(boundary_frames, frame_states,
+                                          features, thresholds)
+
+
+def detect_syllables_for_lip_sync(
+  wav_bytes: bytes,
+  *,
+  transcript: str | None = None,
+) -> list[MouthEvent]:
+  """Detect syllables for lip-sync animation, optionally using a transcript.
+
+  When a transcript is provided, this uses audio timing plus transcript-based
+  alignment (dynamic programming) to refine mouth shapes.
+
+  Args:
+    wav_bytes: WAV audio data.
+    transcript: Optional transcript for the audio clip.
+
+  Returns:
+    List of MouthEvent objects sorted by start_time.
+  """
+  audio_segments = detect_segments_with_confidence(wav_bytes)
+  if not audio_segments:
+    return []
+
+  transcript = transcript.strip() if transcript else ""
+  if not transcript:
+    return audio_segments
+
+  from services import transcript_alignment
+
+  return transcript_alignment.align_with_text(transcript, audio_segments)
 
 
 def _load_audio(wav_bytes: bytes) -> tuple[np.ndarray, int]:
@@ -365,85 +390,6 @@ def _merge_boundary_frames(
   return merged
 
 
-def _create_syllables(
-  boundary_frames: list[int],
-  frame_states: np.ndarray,
-  features: _AudioFeatures,
-  thresholds: _Thresholds,
-) -> list[Syllable]:
-  """Create Syllable objects from boundary frames.
-
-  Each boundary starts a new syllable that ends at the next boundary
-  or when silence is reached.
-  """
-  if not boundary_frames:
-    return []
-
-  syllables: list[Syllable] = []
-  n_frames = features.rms.size
-
-  for i, start_frame in enumerate(boundary_frames):
-    # Skip if boundary is in silence
-    if start_frame >= n_frames:
-      continue
-    if features.rms[start_frame] < thresholds.rms_threshold:
-      continue
-
-    # Determine mouth shape at this boundary
-    mouth_shape = frame_states[start_frame]
-    if mouth_shape == MouthState.CLOSED:
-      # Shouldn't happen since we checked RMS, but be safe
-      continue
-
-    # Determine end frame
-    next_boundary = (boundary_frames[i + 1] if i +
-                     1 < len(boundary_frames) else n_frames)
-
-    # Find where silence begins or state changes
-    end_frame = start_frame
-    max_search_frames = int(
-      round(_MAX_SYLLABLE_SEC * features.sr / features.hop_length))
-
-    for j in range(start_frame,
-                   min(next_boundary, start_frame + max_search_frames)):
-      if j >= n_frames:
-        break
-      if features.rms[j] < thresholds.rms_threshold:
-        # Hit silence
-        break
-      end_frame = j + 1
-
-    # If we hit next boundary without silence, end at next boundary
-    if end_frame < next_boundary and end_frame < start_frame + max_search_frames:
-      pass  # Already set by silence detection
-    else:
-      end_frame = min(next_boundary, start_frame + max_search_frames)
-
-    # Convert to times
-    start_time = max(
-      0.0,
-      librosa.frames_to_time(
-        start_frame, sr=features.sr, hop_length=features.hop_length) -
-      _SYLLABLE_PRE_ROLL_SEC,
-    )
-    end_time = librosa.frames_to_time(end_frame,
-                                      sr=features.sr,
-                                      hop_length=features.hop_length)
-
-    # Enforce minimum duration
-    if end_time - start_time < _MIN_SYLLABLE_SEC:
-      end_time = start_time + _MIN_SYLLABLE_SEC
-
-    syllables.append(
-      Syllable(
-        start_time=start_time,
-        end_time=end_time,
-        mouth_shape=mouth_shape,
-      ))
-
-  return syllables
-
-
 def _find_runs(mask: np.ndarray) -> list[tuple[int, int]]:
   """Find contiguous runs of True values in a boolean mask.
 
@@ -462,3 +408,144 @@ def _find_runs(mask: np.ndarray) -> list[tuple[int, int]]:
       i += 1
     runs.append((start, i))
   return runs
+
+
+def _create_segments_with_confidence(
+  boundary_frames: list[int],
+  frame_states: np.ndarray,
+  features: _AudioFeatures,
+  thresholds: _Thresholds,
+) -> list[MouthEvent]:
+  """Create MouthEvent objects with confidence scores from boundary frames.
+
+  Computes confidence scores based on audio characteristics like centroid
+  extremity, RMS energy, and duration.
+  """
+  if not boundary_frames:
+    return []
+
+  segments: list[MouthEvent] = []
+  n_frames = features.rms.size
+  rms_max = float(features.rms.max())
+
+  for i, start_frame in enumerate(boundary_frames):
+    if start_frame >= n_frames:
+      continue
+    if features.rms[start_frame] < thresholds.rms_threshold:
+      continue
+
+    mouth_shape = frame_states[start_frame]
+    if mouth_shape == MouthState.CLOSED:
+      continue
+
+    # Determine end frame (same logic as _create_syllables)
+    next_boundary = (boundary_frames[i + 1] if i +
+                     1 < len(boundary_frames) else n_frames)
+    end_frame = start_frame
+    max_search_frames = int(
+      round(_MAX_SYLLABLE_SEC * features.sr / features.hop_length))
+
+    for j in range(start_frame,
+                   min(next_boundary, start_frame + max_search_frames)):
+      if j >= n_frames:
+        break
+      if features.rms[j] < thresholds.rms_threshold:
+        break
+      end_frame = j + 1
+
+    if end_frame < next_boundary and end_frame < start_frame + max_search_frames:
+      pass
+    else:
+      end_frame = min(next_boundary, start_frame + max_search_frames)
+
+    # Compute segment statistics
+    segment_centroid = features.centroid[start_frame:end_frame]
+    segment_rms = features.rms[start_frame:end_frame]
+
+    mean_centroid = (float(np.mean(segment_centroid))
+                     if segment_centroid.size > 0 else 0.0)
+    mean_rms = (float(np.mean(segment_rms)) if segment_rms.size > 0 else 0.0)
+
+    # Convert to times
+    start_time = max(
+      0.0,
+      librosa.frames_to_time(
+        start_frame, sr=features.sr, hop_length=features.hop_length) -
+      _SYLLABLE_PRE_ROLL_SEC,
+    )
+    end_time = librosa.frames_to_time(end_frame,
+                                      sr=features.sr,
+                                      hop_length=features.hop_length)
+
+    if end_time - start_time < _MIN_SYLLABLE_SEC:
+      end_time = start_time + _MIN_SYLLABLE_SEC
+
+    duration = end_time - start_time
+
+    # Compute confidence score
+    confidence = _compute_segment_confidence(
+      mean_centroid=mean_centroid,
+      mean_rms=mean_rms,
+      rms_max=rms_max,
+      duration=duration,
+    )
+
+    segments.append(
+      MouthEvent(
+        start_time=start_time,
+        end_time=end_time,
+        mouth_shape=mouth_shape,
+        confidence=confidence,
+        mean_centroid=mean_centroid,
+        mean_rms=mean_rms,
+      ))
+
+  return segments
+
+
+def _compute_segment_confidence(
+  *,
+  mean_centroid: float,
+  mean_rms: float,
+  rms_max: float,
+  duration: float,
+) -> float:
+  """Compute confidence score for a segment based on audio characteristics.
+
+  Confidence is derived from three factors:
+  1. Centroid extremity: How far from the ambiguous 1200Hz zone (0.0-1.0)
+  2. Energy: Relative loudness compared to max RMS (0.0-1.0)
+  3. Duration: Longer segments are more reliable (0.0-1.0)
+
+  Args:
+    mean_centroid: Mean spectral centroid of the segment in Hz.
+    mean_rms: Mean RMS energy of the segment.
+    rms_max: Maximum RMS in the entire audio clip (for normalization).
+    duration: Duration of the segment in seconds.
+
+  Returns:
+    Confidence score from 0.0 (low confidence) to 1.0 (high confidence).
+  """
+  # Centroid extremity: distance from ambiguous zone
+  centroid_distance = abs(mean_centroid - _CONFIDENCE_CENTROID_AMBIGUOUS_HZ)
+  centroid_score = min(
+    1.0, centroid_distance / _CONFIDENCE_CENTROID_CLEAR_DISTANCE_HZ)
+
+  # Energy: normalized RMS
+  energy_score = min(1.0, mean_rms / rms_max) if rms_max > 0 else 0.0
+
+  # Duration: short segments are less reliable
+  if duration < _CONFIDENCE_MIN_DURATION_SEC:
+    duration_score = duration / _CONFIDENCE_MIN_DURATION_SEC
+  elif duration < _CONFIDENCE_FULL_DURATION_SEC:
+    duration_score = 0.5 + 0.5 * (
+      (duration - _CONFIDENCE_MIN_DURATION_SEC) /
+      (_CONFIDENCE_FULL_DURATION_SEC - _CONFIDENCE_MIN_DURATION_SEC))
+  else:
+    duration_score = 1.0
+
+  # Weighted combination (centroid is most important for shape classification)
+  confidence = (0.5 * centroid_score + 0.3 * energy_score +
+                0.2 * duration_score)
+
+  return min(1.0, max(0.0, confidence))

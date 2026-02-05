@@ -18,8 +18,8 @@ from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip, VideoClip)
 from PIL import Image
+from common.mouth_events import MouthEvent
 from services import cloud_storage, syllable_detection
-from services.syllable_detection import Syllable
 
 _DEFAULT_VIDEO_FPS = 24
 _PORTRAIT_VIDEO_SIZE = (1080, 1920)
@@ -192,14 +192,26 @@ def create_slideshow_video(
 
 def create_portrait_character_video(
   joke_images: list[tuple[str, float]],
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
-                                                                    float]]]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]],
   footer_background_gcs_uri: str,
   total_duration_sec: float,
   output_filename_base: str,
   temp_output: bool = False,
 ) -> tuple[str, models.SingleGenerationMetadata]:
-  """Create a portrait video with animated character(s) in the footer."""
+  """Create a portrait video with animated character(s) in the footer.
+
+  Args:
+    joke_images: List of (gcs_uri, start_time_sec) for joke images.
+    character_dialogs: List of (character, [(audio_gcs_uri, start_time, transcript)]) pairs.
+    footer_background_gcs_uri: GCS URI for the footer background image.
+    total_duration_sec: Total video duration in seconds.
+    output_filename_base: Base filename for the output video.
+    temp_output: Whether to output to the temp bucket.
+
+  Returns:
+    (gcs_uri, metadata) tuple for the generated video.
+  """
   if utils.is_emulator():
     logger.info('Running in emulator mode. Returning a test video file.')
     random_suffix = f"{random.randint(1, 10):02d}"
@@ -615,74 +627,122 @@ Generation cost: ${metadata.cost:.6f}
 
 
 def _normalize_character_dialogs(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
-                                                                    float]]]]
-) -> list[tuple[PosableCharacter | None, list[tuple[str, float]]]]:
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]]
+) -> list[tuple[PosableCharacter | None, list[tuple[str, float, str]]]]:
   if character_dialogs is None:
     raise GenVideoError("character_dialogs must be provided")
 
-  normalized: list[tuple[PosableCharacter | None, list[tuple[str,
-                                                             float]]]] = []
+  normalized: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                             str]]]] = []
   for index, entry in enumerate(character_dialogs):
     try:
       character, dialogs = entry
     except (TypeError, ValueError) as exc:
       raise GenVideoError(
         f"Invalid character dialog entry at index {index}: {entry}") from exc
-    normalized_dialogs = _normalize_timed_assets(
-      dialogs,
+
+    transcript_by_key: dict[tuple[str, float], str] = {}
+    timed_audio: list[tuple[str, float]] = []
+    for dialog_index, dialog_entry in enumerate(dialogs):
+      try:
+        gcs_uri, start_time, transcript = dialog_entry
+      except (TypeError, ValueError) as exc:
+        raise GenVideoError(
+          "Invalid dialog entry for character at index "
+          f"{index} (dialog {dialog_index}): {dialog_entry}") from exc
+      if transcript is None:
+        raise GenVideoError(
+          "Transcript must be provided for character dialog "
+          f"{gcs_uri} @ {start_time} (character index {index})")
+      transcript_str = str(transcript)
+      key = (gcs_uri, start_time)
+      if key in transcript_by_key and transcript_by_key[key] != transcript_str:
+        raise GenVideoError(
+          "Duplicate (gcs_uri, start_time) with different transcripts for "
+          f"{gcs_uri} @ {start_time} (character index {index})")
+      transcript_by_key[key] = transcript_str
+      timed_audio.append((gcs_uri, start_time))
+
+    normalized_timed_audio = _normalize_timed_assets(
+      timed_audio,
       label="character audio",
       allow_empty=True,
     )
-    normalized.append((character, normalized_dialogs))
+    normalized_dialogs_with_transcripts = [
+      (gcs_uri, start_time, transcript_by_key[(gcs_uri, start_time)])
+      for (gcs_uri, start_time) in normalized_timed_audio
+    ]
+    normalized.append((character, normalized_dialogs_with_transcripts))
   return normalized
 
 
 def _flatten_character_audio(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
-                                                                    float]]]]
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]]
 ) -> list[tuple[str, float]]:
   flattened: list[tuple[str, float]] = []
   for _, dialogs in character_dialogs:
-    flattened.extend(dialogs)
+    flattened.extend(
+      (gcs_uri, start_time) for gcs_uri, start_time, _ in dialogs)
   return flattened
 
 
 def _build_character_syllable_data(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
-                                                                    float]]]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]],
   audio_path_by_key: dict[tuple[str, float], str],
-) -> list[list[Syllable]]:
+) -> list[list[MouthEvent]]:
+  """Build syllable data for each character's dialog audio.
 
-  syllable_data: list[list[Syllable]] = []
+  Args:
+    character_dialogs: List of (character, [(audio_gcs_uri, start_time, transcript)]).
+    audio_path_by_key: Map from (gcs_uri, start_time) to local file path.
+
+  Returns:
+    List of MouthEvent lists, one per character dialog entry.
+  """
+  syllable_data: list[list[MouthEvent]] = []
+
   for character, dialogs in character_dialogs:
     if character is None:
       syllable_data.append([])
       continue
-    character_syllables: list[Syllable] = []
-    for gcs_uri, start_time in dialogs:
+
+    character_syllables: list[MouthEvent] = []
+    for gcs_uri, start_time, transcript in dialogs:
       audio_path = audio_path_by_key.get((gcs_uri, start_time))
       if not audio_path:
         raise GenVideoError("Missing audio path for character dialog "
                             f"{gcs_uri} @ {start_time}")
       with open(audio_path, "rb") as audio_handle:
         wav_bytes = audio_handle.read()
-      logger.info(f"Detecting syllable timing for {gcs_uri} @ {start_time}")
-      clip_syllables = syllable_detection.detect_syllables(wav_bytes)
+
+      logger.info(f"Detecting syllables for {gcs_uri} @ {start_time}")
+      clip_syllables = syllable_detection.detect_syllables_for_lip_sync(
+        wav_bytes,
+        transcript=transcript,
+      )
+
       for syllable in clip_syllables:
         character_syllables.append(
-          Syllable(
+          MouthEvent(
             start_time=syllable.start_time + start_time,
             end_time=syllable.end_time + start_time,
             mouth_shape=syllable.mouth_shape,
+            confidence=syllable.confidence,
+            mean_centroid=syllable.mean_centroid,
+            mean_rms=syllable.mean_rms,
           ))
+
     character_syllables.sort(key=lambda entry: entry.start_time)
     syllable_data.append(character_syllables)
+
   return syllable_data
 
 
 def _apply_forced_closures(
-  syllables: list["Syllable"],
+  syllables: list[MouthEvent],
   *,
   min_syllable_for_closure_sec: float = 0.05,
   closure_fraction: float = 0.25,
@@ -802,8 +862,8 @@ def _resize_image(image: Image.Image, target_size: tuple[int,
 
 
 def _prepare_character_renders(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str,
-                                                                    float]]]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]],
   *,
   footer_height: int,
   footer_width: int,

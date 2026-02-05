@@ -679,13 +679,19 @@ def generate_joke_video(
     (setup_image_gcs_uri, 0.0),
     (punchline_image_gcs_uri, punchline_start_sec),
   ]
+  setup_transcript = f"Hey want to hear a joke? {joke.setup_text}"
+  response_transcript = "what?"
+  # Note: Punchline transcript excludes laughter which is handled by audio fallback.
+  punchline_transcript = joke.punchline_text
+
   setup_punchline_audio = [
-    (setup_audio_gcs_uri, 0.0),
-    (punchline_audio_gcs_uri, punchline_start_sec),
+    (setup_audio_gcs_uri, 0.0, setup_transcript),
+    (punchline_audio_gcs_uri, punchline_start_sec, punchline_transcript),
   ]
   response_audio = [
-    (response_audio_gcs_uri, response_start_sec),
+    (response_audio_gcs_uri, response_start_sec, response_transcript),
   ]
+
   if character_class is None:
     character_dialogs = [(None, setup_punchline_audio + response_audio)]
   else:
@@ -731,8 +737,7 @@ def _render_dialog_script(joke: models.PunnyJoke,
 
 
 def _resolve_speakers(
-  speakers: dict[str, gen_audio.Voice] | None,
-) -> dict[str, gen_audio.Voice]:
+  speakers: dict[str, gen_audio.Voice] | None, ) -> dict[str, gen_audio.Voice]:
   """Resolve speakers from input or defaults."""
   if not speakers:
     return {

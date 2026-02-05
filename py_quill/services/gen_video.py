@@ -224,7 +224,23 @@ def create_portrait_character_video(
     allow_empty=False,
   )
   normalized_dialogs = _normalize_character_dialogs(character_dialogs)
-  flattened_audio = _flatten_character_audio(normalized_dialogs)
+  primary_dialog = _find_first_character_dialog(normalized_dialogs)
+
+  # Side-by-side compare mode: render two instances of the first character,
+  # one driven by librosa-based detection and one by parselmouth-based
+  # detection. Audio is only included once.
+  render_dialogs = normalized_dialogs
+  flattened_audio: list[tuple[str, float]] = _flatten_character_audio(
+    normalized_dialogs)
+  if primary_dialog is not None:
+    primary_character, primary_clips = primary_dialog
+    render_dialogs = [
+      (primary_character, primary_clips),
+      (primary_character, primary_clips),
+    ]
+    flattened_audio = [(gcs_uri, start_time)
+                       for gcs_uri, start_time, _ in primary_clips]
+
   normalized_audio = _normalize_timed_assets(
     flattened_audio,
     label="audio",
@@ -245,7 +261,7 @@ def create_portrait_character_video(
   logger.info(
     "Starting portrait video generation: "
     f"{len(normalized_images)} images, {len(normalized_audio)} audio files, "
-    f"{len([c for c, _ in normalized_dialogs if c is not None])} characters, "
+    f"{len([c for c, _ in render_dialogs if c is not None])} characters, "
     f"duration={total_duration_sec}s, output={output_gcs_uri}")
 
   video_clip = None
@@ -315,7 +331,7 @@ def create_portrait_character_video(
       )
       render_prep_start = time.perf_counter()
       character_renders = _prepare_character_renders(
-        normalized_dialogs,
+        render_dialogs,
         footer_height=_PORTRAIT_FOOTER_SIZE[1],
         footer_width=_PORTRAIT_FOOTER_SIZE[0],
       )
@@ -372,7 +388,7 @@ def create_portrait_character_video(
           "num_audio_files":
           len(normalized_audio),
           "num_characters":
-          len([character for character, _ in normalized_dialogs if character]),
+          len([character for character, _ in render_dialogs if character]),
           "video_duration_sec":
           int(total_duration_sec),
           "output_file_size_bytes":
@@ -688,57 +704,80 @@ def _flatten_character_audio(
   return flattened
 
 
+def _find_first_character_dialog(
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]]
+) -> tuple[PosableCharacter, list[tuple[str, float, str]]] | None:
+  for character, dialogs in character_dialogs:
+    if character is None:
+      continue
+    return character, dialogs
+  return None
+
+
 def _build_character_syllable_data(
   character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
                                                                     str]]]],
   audio_path_by_key: dict[tuple[str, float], str],
 ) -> list[list[MouthEvent]]:
-  """Build syllable data for each character's dialog audio.
+  """Build syllable data for side-by-side compare of the first character.
 
   Args:
     character_dialogs: List of (character, [(audio_gcs_uri, start_time, transcript)]).
     audio_path_by_key: Map from (gcs_uri, start_time) to local file path.
 
   Returns:
-    List of MouthEvent lists, one per character dialog entry.
+    Two MouthEvent lists: [librosa_events, parselmouth_events].
   """
-  syllable_data: list[list[MouthEvent]] = []
+  primary = _find_first_character_dialog(character_dialogs)
+  if primary is None:
+    return [[], []]
 
-  for character, dialogs in character_dialogs:
-    if character is None:
-      syllable_data.append([])
-      continue
+  _character, dialogs = primary
 
-    character_syllables: list[MouthEvent] = []
-    for gcs_uri, start_time, transcript in dialogs:
-      audio_path = audio_path_by_key.get((gcs_uri, start_time))
-      if not audio_path:
-        raise GenVideoError("Missing audio path for character dialog "
-                            f"{gcs_uri} @ {start_time}")
-      with open(audio_path, "rb") as audio_handle:
-        wav_bytes = audio_handle.read()
+  librosa_syllables: list[MouthEvent] = []
+  parselmouth_syllables: list[MouthEvent] = []
 
-      logger.info(f"Detecting syllables for {gcs_uri} @ {start_time}")
-      clip_syllables = syllable_detection.detect_syllables_for_lip_sync(
-        wav_bytes,
-        transcript=transcript,
-      )
+  for gcs_uri, start_time, transcript in dialogs:
+    audio_path = audio_path_by_key.get((gcs_uri, start_time))
+    if not audio_path:
+      raise GenVideoError("Missing audio path for character dialog "
+                          f"{gcs_uri} @ {start_time}")
+    with open(audio_path, "rb") as audio_handle:
+      wav_bytes = audio_handle.read()
 
-      for syllable in clip_syllables:
-        character_syllables.append(
-          MouthEvent(
-            start_time=syllable.start_time + start_time,
-            end_time=syllable.end_time + start_time,
-            mouth_shape=syllable.mouth_shape,
-            confidence=syllable.confidence,
-            mean_centroid=syllable.mean_centroid,
-            mean_rms=syllable.mean_rms,
-          ))
+    logger.info(f"Detecting syllables (librosa + parselmouth) for {gcs_uri} @ {start_time}")
+    librosa_clip, parselmouth_clip = syllable_detection.detect_syllables_for_lip_sync(
+      wav_bytes,
+      transcript=transcript,
+    )
 
-    character_syllables.sort(key=lambda entry: entry.start_time)
-    syllable_data.append(character_syllables)
+    for syllable in librosa_clip:
+      librosa_syllables.append(
+        MouthEvent(
+          start_time=syllable.start_time + start_time,
+          end_time=syllable.end_time + start_time,
+          mouth_shape=syllable.mouth_shape,
+          confidence=syllable.confidence,
+          mean_centroid=syllable.mean_centroid,
+          mean_rms=syllable.mean_rms,
+        ))
 
-  return syllable_data
+    for syllable in parselmouth_clip:
+      parselmouth_syllables.append(
+        MouthEvent(
+          start_time=syllable.start_time + start_time,
+          end_time=syllable.end_time + start_time,
+          mouth_shape=syllable.mouth_shape,
+          confidence=syllable.confidence,
+          mean_centroid=syllable.mean_centroid,
+          mean_rms=syllable.mean_rms,
+        ))
+
+  librosa_syllables.sort(key=lambda entry: entry.start_time)
+  parselmouth_syllables.sort(key=lambda entry: entry.start_time)
+
+  return [librosa_syllables, parselmouth_syllables]
 
 
 def _apply_forced_closures(

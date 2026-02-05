@@ -28,6 +28,7 @@ opencv-python-headless
 openai
 pandas
 Pillow
+praat-parselmouth
 pytest
 pytest-cov
 pytest-asyncio

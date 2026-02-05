@@ -396,6 +396,9 @@ def test_create_portrait_character_video_uploads_mp4():
                    side_effect=download_bytes), \
       patch.object(gen_video.cloud_storage, "download_image_from_gcs",
                    side_effect=download_image), \
+      patch.object(gen_video.syllable_detection,
+                   "detect_syllables_for_lip_sync",
+                   return_value=([], [])), \
       patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
                    upload_mock), \
       patch.object(gen_video, "VideoClip", _FakeVideoClip), \
@@ -414,7 +417,7 @@ def test_create_portrait_character_video_uploads_mp4():
   assert metadata.model_name == "moviepy"
   assert metadata.token_counts["num_images"] == 2
   assert metadata.token_counts["num_audio_files"] == 1
-  assert metadata.token_counts["num_characters"] == 1
+  assert metadata.token_counts["num_characters"] == 2
 
   get_uri_mock.assert_called_once()
   assert get_uri_mock.call_args.kwargs["temp"] is True

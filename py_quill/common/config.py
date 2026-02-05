@@ -67,6 +67,11 @@ def get_gemini_api_key() -> str:
   return _get_secret("GEMINI_API_KEY")
 
 
+def get_elevenlabs_api_key() -> str:
+  """Gets the ElevenLabs API key from the secret manager."""
+  return _get_secret("ELEVENLABS_API_KEY")
+
+
 def get_google_analytics_api_key() -> str:
   """Gets the GA4 Measurement Protocol API secret from the secret manager."""
   return _get_secret("GOOGLE_ANALYTICS_API_KEY")

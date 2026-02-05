@@ -20,7 +20,7 @@ from services.syllable_detection import (
   _detect_state_transitions,
   _find_runs,
   _merge_boundary_frames,
-  detect_syllables_for_lip_sync,
+  detect_mouth_events,
 )
 
 
@@ -69,7 +69,7 @@ class TestDetectSyllablesIntegration:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
     wav_bytes = _make_wav_bytes(segments=[
@@ -77,7 +77,7 @@ class TestDetectSyllablesIntegration:
       (0.4, 0.08, 440.0),
       (0.7, 0.08, 440.0),
     ], )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       wav_bytes, transcript=None)
 
     assert len(syllables) >= 3
@@ -91,12 +91,12 @@ class TestDetectSyllablesIntegration:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
     buffer = io.BytesIO()
     sf.write(buffer, np.zeros(8000, dtype=np.float32), 8000, format="WAV")
-    syllables, parselmouth = detect_syllables_for_lip_sync(
+    syllables, parselmouth = detect_mouth_events(
       buffer.getvalue(), transcript=None)
 
     assert syllables == []
@@ -107,12 +107,12 @@ class TestDetectSyllablesIntegration:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
     buffer = io.BytesIO()
     sf.write(buffer, np.zeros(0, dtype=np.float32), 8000, format="WAV")
-    syllables, parselmouth = detect_syllables_for_lip_sync(
+    syllables, parselmouth = detect_mouth_events(
       buffer.getvalue(), transcript=None)
 
     assert syllables == []
@@ -123,7 +123,7 @@ class TestDetectSyllablesIntegration:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
     wav_bytes = _make_wav_bytes(segments=[
@@ -135,7 +135,7 @@ class TestDetectSyllablesIntegration:
 
     monkeypatch.setattr(syllable_detection.librosa.onset, "onset_detect",
                         fake_onset_detect)
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       wav_bytes, transcript=None)
 
     assert len(syllables) >= 2
@@ -145,14 +145,14 @@ class TestDetectSyllablesIntegration:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
     wav_bytes = _make_wav_bytes(segments=[
       (0.1, 0.08, 440.0),
       (0.4, 0.08, 880.0),
     ], )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       wav_bytes, transcript=None)
 
     for s in syllables:
@@ -163,14 +163,26 @@ class TestDetectSyllablesIntegration:
 
 class TestDetectSegmentsWithConfidenceParselmouth:
   def test_parselmouth_detects_o_and_open_from_f2(self, monkeypatch):
-    import sys
     import types
 
     class _FakeFormant:
 
       def get_value_at_time(self, formant_number, time_sec):
-        assert formant_number == 2
-        return 900.0 if float(time_sec) < 0.11 else 2200.0
+        if formant_number == 1:
+          return 400.0 if float(time_sec) < 0.11 else 900.0
+        if formant_number == 2:
+          return 900.0 if float(time_sec) < 0.11 else 2200.0
+        raise AssertionError(f"Unexpected formant_number={formant_number}")
+
+    class _FakeIntensity:
+
+      def get_value_at_time(self, _time_sec):
+        return 70.0
+
+    class _FakePitch:
+
+      def get_value_at_time(self, _time_sec):
+        return 170.0
 
     class _FakeSound:
 
@@ -181,19 +193,81 @@ class TestDetectSegmentsWithConfidenceParselmouth:
         assert time_step == pytest.approx(0.01, rel=1e-6)
         return _FakeFormant()
 
+      def to_intensity(self, time_step):
+        assert time_step == pytest.approx(0.01, rel=1e-6)
+        return _FakeIntensity()
+
+      def to_pitch(self, time_step):
+        assert time_step == pytest.approx(0.01, rel=1e-6)
+        return _FakePitch()
+
     fake_parselmouth = types.SimpleNamespace(Sound=_FakeSound)
-    monkeypatch.setitem(sys.modules, "parselmouth", fake_parselmouth)
+    monkeypatch.setattr(syllable_detection, "parselmouth", fake_parselmouth)
 
     wav_bytes = _make_wav_bytes(
       sample_rate=1000,
       duration_sec=0.2,
       segments=[(0.0, 0.2, 200.0)],
     )
-    segments = syllable_detection.detect_segments_with_confidence_parselmouth(
+    segments = syllable_detection._detect_segments_with_confidence_parselmouth(
       wav_bytes)
 
     shapes = {segment.mouth_shape for segment in segments}
     assert MouthState.O in shapes
+    assert MouthState.OPEN in shapes
+
+  def test_parselmouth_open_wins_when_f1_high_even_if_f2_low(self, monkeypatch):
+    import types
+
+    class _FakeFormant:
+
+      def get_value_at_time(self, formant_number, _time_sec):
+        if formant_number == 1:
+          return 900.0
+        if formant_number == 2:
+          return 900.0
+        raise AssertionError(f"Unexpected formant_number={formant_number}")
+
+    class _FakeIntensity:
+
+      def get_value_at_time(self, _time_sec):
+        return 70.0
+
+    class _FakePitch:
+
+      def get_value_at_time(self, _time_sec):
+        return 170.0
+
+    class _FakeSound:
+
+      def __init__(self, _values, sampling_frequency):
+        self.sampling_frequency = sampling_frequency
+
+      def to_formant_burg(self, time_step):
+        assert time_step == pytest.approx(0.01, rel=1e-6)
+        return _FakeFormant()
+
+      def to_intensity(self, time_step):
+        assert time_step == pytest.approx(0.01, rel=1e-6)
+        return _FakeIntensity()
+
+      def to_pitch(self, time_step):
+        assert time_step == pytest.approx(0.01, rel=1e-6)
+        return _FakePitch()
+
+    fake_parselmouth = types.SimpleNamespace(Sound=_FakeSound)
+    monkeypatch.setattr(syllable_detection, "parselmouth", fake_parselmouth)
+
+    wav_bytes = _make_wav_bytes(
+      sample_rate=1000,
+      duration_sec=0.2,
+      segments=[(0.0, 0.2, 200.0)],
+    )
+    segments = syllable_detection._detect_segments_with_confidence_parselmouth(
+      wav_bytes)
+
+    shapes = {segment.mouth_shape for segment in segments}
+    assert MouthState.O not in shapes
     assert MouthState.OPEN in shapes
 
 
@@ -253,10 +327,10 @@ class TestMouthShapeClassification:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       b"dummy", transcript=None)
 
     assert len(syllables) == 2
@@ -303,10 +377,10 @@ class TestMouthShapeClassification:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       b"dummy", transcript=None)
 
     assert len(syllables) == 1
@@ -352,10 +426,10 @@ class TestMouthShapeClassification:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       b"dummy", transcript=None)
 
     assert len(syllables) == 1
@@ -418,10 +492,10 @@ class TestStateTransitions:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       b"dummy", transcript=None)
 
     # Should have 2 syllables: O then OPEN (transition at ~frame 35)
@@ -475,10 +549,10 @@ class TestStateTransitions:
     monkeypatch.setattr(
       syllable_detection,
       "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection.detect_segments_with_confidence(
+      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_syllables_for_lip_sync(
+    syllables, _parselmouth = detect_mouth_events(
       b"dummy", transcript=None)
 
     assert len(syllables) == 2
@@ -776,14 +850,14 @@ class TestDetectSegmentsWithConfidence:
   def test_returns_audio_segments(self):
     """Should return AudioSegment objects with confidence scores."""
     from services.syllable_detection import (
-      detect_segments_with_confidence,
+      _detect_segments_with_confidence,
     )
 
     wav_bytes = _make_wav_bytes(segments=[
       (0.1, 0.08, 440.0),
       (0.4, 0.08, 880.0),
     ])
-    segments = detect_segments_with_confidence(wav_bytes)
+    segments = _detect_segments_with_confidence(wav_bytes)
 
     assert len(segments) >= 2
     for seg in segments:
@@ -794,11 +868,11 @@ class TestDetectSegmentsWithConfidence:
 
   def test_silence_returns_empty(self):
     """Silent audio should return empty list."""
-    from services.syllable_detection import detect_segments_with_confidence
+    from services.syllable_detection import _detect_segments_with_confidence
 
     buffer = io.BytesIO()
     sf.write(buffer, np.zeros(8000, dtype=np.float32), 8000, format="WAV")
-    segments = detect_segments_with_confidence(buffer.getvalue())
+    segments = _detect_segments_with_confidence(buffer.getvalue())
 
     assert segments == []
 
@@ -938,7 +1012,7 @@ class TestDetectSyllablesForLipSync:
                         "detect_segments_with_confidence_parselmouth",
                         fake_detect_segments_parselmouth)
 
-    librosa_result, parselmouth_result = syllable_detection.detect_syllables_for_lip_sync(
+    librosa_result, parselmouth_result = syllable_detection.detect_mouth_events(
       b"noop",
       transcript=None,
     )
@@ -1005,7 +1079,7 @@ class TestDetectSyllablesForLipSync:
     monkeypatch.setattr(transcript_alignment, "align_with_text",
                         fake_align_with_text)
 
-    librosa_result, parselmouth_result = syllable_detection.detect_syllables_for_lip_sync(
+    librosa_result, parselmouth_result = syllable_detection.detect_mouth_events(
       b"noop",
       transcript="hello",
     )

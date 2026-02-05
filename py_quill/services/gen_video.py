@@ -13,12 +13,12 @@ from typing import Any
 
 import numpy as np
 from common import models, utils
+from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
 from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip, VideoClip)
-from PIL import Image
-from common.mouth_events import MouthEvent
+from PIL import Image, ImageDraw, ImageFont
 from services import cloud_storage, syllable_detection
 
 _DEFAULT_VIDEO_FPS = 24
@@ -432,6 +432,209 @@ def create_portrait_character_video(
         pass
 
 
+def create_portrait_character_test_video(
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
+                                                                    str]]]],
+  footer_background_gcs_uri: str,
+  total_duration_sec: float,
+  output_filename_base: str,
+  temp_output: bool = False,
+) -> tuple[str, models.SingleGenerationMetadata]:
+  """Create a portrait test video comparing lip-sync params across 8 rows.
+
+  This renders the portrait footer as 8 stacked rows. Each row contains one
+  character per entry in `character_dialogs`. Rows correspond to the 8
+  combinations of:
+    1) librosa vs parselmouth syllable detection
+    2) transcript alignment on/off
+    3) forced mouth closures on/off
+
+  The footer labels each row with its parameter set.
+  """
+  if utils.is_emulator():
+    logger.info('Running in emulator mode. Returning a test video file.')
+    random_suffix = f"{random.randint(1, 10):02d}"
+    test_uri = f"gs://test_story_video_data/test_portrait_params_{random_suffix}.mp4"
+    return test_uri, models.SingleGenerationMetadata()
+
+  normalized_dialogs = _normalize_character_dialogs(character_dialogs)
+  characters = [
+    character for character, _ in normalized_dialogs if character is not None
+  ]
+  if not characters:
+    raise GenVideoError(
+      "At least one character must be provided for test video")
+
+  flattened_audio = _flatten_character_audio(normalized_dialogs)
+  normalized_audio = _normalize_timed_assets(
+    flattened_audio,
+    label="audio",
+    allow_empty=True,
+  )
+  _validate_video_duration(total_duration_sec)
+  _validate_output_filename(output_filename_base)
+  _validate_audio_timing(normalized_audio, total_duration_sec)
+
+  start_time = time.perf_counter()
+  output_gcs_uri = cloud_storage.get_video_gcs_uri(
+    output_filename_base,
+    "mp4",
+    temp=temp_output,
+  )
+
+  num_rows = 8
+  logger.info(
+    "Starting portrait test video generation: "
+    f"{len(normalized_audio)} audio files, {len(characters)} characters/row, "
+    f"{num_rows} rows, duration={total_duration_sec}s, output={output_gcs_uri}"
+  )
+
+  video_clip = None
+  audio_composite = None
+  audio_clips: list[AudioFileClip] = []
+
+  try:
+    with tempfile.TemporaryDirectory() as temp_dir:
+      audio_download_start = time.perf_counter()
+      audio_paths = _download_assets_to_temp(
+        normalized_audio,
+        temp_dir,
+        prefix="audio",
+        default_extension=".wav",
+      )
+      audio_download_time = time.perf_counter() - audio_download_start
+      logger.info(
+        f"Downloaded {len(audio_paths)} audio files in {audio_download_time:.2f}s"
+      )
+
+      audio_path_by_key = {
+        (gcs_uri, start_time): path
+        for (gcs_uri, start_time), path in zip(normalized_audio, audio_paths)
+      }
+
+      footer_background = _load_resized_image(
+        footer_background_gcs_uri,
+        target_size=_PORTRAIT_FOOTER_SIZE,
+      )
+
+      row_variants = _build_test_row_variants()
+      mouth_timelines = _build_test_mouth_timelines(
+        normalized_dialogs=normalized_dialogs,
+        audio_path_by_key=audio_path_by_key,
+        row_variants=row_variants,
+      )
+
+      num_characters_per_row = len(characters)
+      row_labels: list[str] = []
+      for row_index, variant in enumerate(row_variants):
+        base_label = str(variant["label"])
+        start = row_index * num_characters_per_row
+        end = start + num_characters_per_row
+        row_timelines = mouth_timelines[start:end]
+        num_events = sum(len(timeline) for timeline in row_timelines)
+        num_closed = sum(1 for timeline in row_timelines
+                         for state, _, _ in timeline
+                         if state == MouthState.CLOSED)
+        row_labels.append(
+          f"{base_label} | events={num_events} closed={num_closed}")
+
+      background = _build_test_background(
+        footer_background=footer_background,
+        row_labels=row_labels,
+        target_size=_PORTRAIT_VIDEO_SIZE,
+      )
+
+      character_renders = _prepare_character_renders_grid(
+        normalized_dialogs=normalized_dialogs,
+        num_rows=num_rows,
+        footer_height=_PORTRAIT_VIDEO_SIZE[1],
+        footer_width=_PORTRAIT_VIDEO_SIZE[0],
+      )
+
+      total_frames = int(math.ceil(total_duration_sec * _DEFAULT_VIDEO_FPS))
+      logger.info(f"Creating VideoClip renderer for {total_frames} frames")
+      make_frame = _build_static_character_frame_renderer(
+        background=background,
+        character_renders=character_renders,
+        mouth_timelines=mouth_timelines,
+        fps=_DEFAULT_VIDEO_FPS,
+        total_duration_sec=total_duration_sec,
+      )
+
+      encode_start = time.perf_counter()
+      video_clip = VideoClip(make_frame, duration=total_duration_sec)
+      if audio_paths:
+        audio_clips = _create_audio_clips(normalized_audio, audio_paths)
+        audio_composite = CompositeAudioClip(audio_clips)
+        video_clip = video_clip.with_audio(audio_composite)
+
+      output_path = os.path.join(temp_dir, "portrait_test.mp4")
+      logger.info(f"Writing video clip to {output_path}")
+      video_clip.write_videofile(
+        output_path,
+        codec="libx264",
+        audio_codec="aac",
+        fps=_DEFAULT_VIDEO_FPS,
+        logger=None,
+      )
+      encode_time = time.perf_counter() - encode_start
+      logger.info(f"Encoded video in {encode_time:.2f}s")
+
+      logger.info(f"Uploading video clip to {output_gcs_uri}")
+      cloud_storage.upload_file_to_gcs(
+        output_path,
+        output_gcs_uri,
+        content_type="video/mp4",
+      )
+
+      file_size_bytes = os.path.getsize(output_path)
+      generation_time_sec = time.perf_counter() - start_time
+
+      metadata = models.SingleGenerationMetadata(
+        label="create_portrait_character_test_video",
+        model_name="moviepy",
+        token_counts={
+          "num_images": 0,
+          "num_audio_files": len(normalized_audio),
+          "num_characters": len(characters) * num_rows,
+          "num_rows": num_rows,
+          "video_duration_sec": int(total_duration_sec),
+          "output_file_size_bytes": file_size_bytes,
+        },
+        generation_time_sec=generation_time_sec,
+        cost=0.0,
+      )
+
+      _log_video_response(
+        images=[],
+        audio_files=normalized_audio,
+        gcs_uri=output_gcs_uri,
+        metadata=metadata,
+      )
+      return output_gcs_uri, metadata
+
+  except Exception as e:
+    logger.error("Portrait test video generation failed:\n"
+                 f"{traceback.format_exc()}")
+    raise GenVideoError(f"Portrait test video generation failed: {e}") from e
+  finally:
+    for clip in audio_clips:
+      try:
+        clip.close()
+      except Exception:
+        pass
+    if audio_composite is not None:
+      try:
+        audio_composite.close()
+      except Exception:
+        pass
+    if video_clip is not None:
+      try:
+        video_clip.close()
+      except Exception:
+        pass
+
+
 def _normalize_timed_assets(
   assets: list[tuple[str, float]] | None,
   *,
@@ -746,8 +949,10 @@ def _build_character_syllable_data(
     with open(audio_path, "rb") as audio_handle:
       wav_bytes = audio_handle.read()
 
-    logger.info(f"Detecting syllables (librosa + parselmouth) for {gcs_uri} @ {start_time}")
-    librosa_clip, parselmouth_clip = syllable_detection.detect_syllables_for_lip_sync(
+    logger.info(
+      f"Detecting syllables (librosa + parselmouth) for {gcs_uri} @ {start_time}"
+    )
+    librosa_clip, parselmouth_clip = syllable_detection.detect_mouth_events(
       wav_bytes,
       transcript=transcript,
     )
@@ -778,6 +983,280 @@ def _build_character_syllable_data(
   parselmouth_syllables.sort(key=lambda entry: entry.start_time)
 
   return [librosa_syllables, parselmouth_syllables]
+
+
+def _build_test_row_variants() -> list[dict[str, object]]:
+  variants: list[dict[str, object]] = []
+  for engine in ("librosa", "parselmouth"):
+    for align_transcript in (False, True):
+      for forced_closures in (False, True):
+        label = (f"{engine} | align={'on' if align_transcript else 'off'} "
+                 f"| forced={'on' if forced_closures else 'off'}")
+        variants.append({
+          "engine": engine,
+          "align_transcript": align_transcript,
+          "forced_closures": forced_closures,
+          "label": label,
+        })
+  return variants
+
+
+def _syllables_to_timeline(
+  syllables: list[MouthEvent], ) -> list[tuple[MouthState, float, float]]:
+  return [(s.mouth_shape, s.start_time, s.end_time) for s in syllables]
+
+
+def _build_test_mouth_timelines(
+  *,
+  normalized_dialogs: list[tuple[PosableCharacter | None,
+                                 list[tuple[str, float, str]]]],
+  audio_path_by_key: dict[tuple[str, float], str],
+  row_variants: list[dict[str, object]],
+) -> list[list[tuple[MouthState, float, float]]]:
+  """Build mouth timelines for each (row, character) render."""
+  characters_with_dialogs = [
+    dialogs for character, dialogs in normalized_dialogs
+    if character is not None
+  ]
+
+  cache: dict[tuple[str, float], dict[str, tuple[list[MouthEvent],
+                                                 list[MouthEvent]]]] = {}
+
+  def _get_clip_syllables(
+    *,
+    gcs_uri: str,
+    start_time: float,
+    transcript: str,
+    align_transcript: bool,
+  ) -> tuple[list[MouthEvent], list[MouthEvent]]:
+    key = (gcs_uri, start_time)
+    per_key = cache.setdefault(key, {})
+    mode = "aligned" if align_transcript else "raw"
+    if mode in per_key:
+      return per_key[mode]
+
+    audio_path = audio_path_by_key.get(key)
+    if not audio_path:
+      raise GenVideoError("Missing audio path for character dialog "
+                          f"{gcs_uri} @ {start_time}")
+    with open(audio_path, "rb") as audio_handle:
+      wav_bytes = audio_handle.read()
+
+    detected = syllable_detection.detect_mouth_events(
+      wav_bytes,
+      transcript=transcript if align_transcript else None,
+    )
+    per_key[mode] = detected
+    return detected
+
+  timelines: list[list[tuple[MouthState, float, float]]] = []
+  for variant in row_variants:
+    engine = str(variant["engine"])
+    align_transcript = bool(variant["align_transcript"])
+    forced_closures = bool(variant["forced_closures"])
+
+    for dialogs in characters_with_dialogs:
+      syllables: list[MouthEvent] = []
+      for gcs_uri, start_time, transcript in dialogs:
+        librosa_clip, parselmouth_clip = _get_clip_syllables(
+          gcs_uri=gcs_uri,
+          start_time=start_time,
+          transcript=transcript,
+          align_transcript=align_transcript,
+        )
+        selected = librosa_clip if engine == "librosa" else parselmouth_clip
+        for syllable in selected:
+          syllables.append(
+            MouthEvent(
+              start_time=syllable.start_time + start_time,
+              end_time=syllable.end_time + start_time,
+              mouth_shape=syllable.mouth_shape,
+              confidence=syllable.confidence,
+              mean_centroid=syllable.mean_centroid,
+              mean_rms=syllable.mean_rms,
+            ))
+
+      syllables.sort(key=lambda entry: entry.start_time)
+      if forced_closures:
+        timelines.append(_apply_forced_closures(syllables))
+      else:
+        timelines.append(_syllables_to_timeline(syllables))
+
+  return timelines
+
+
+def _load_font(*, size: int) -> ImageFont.ImageFont:
+  try:
+    return ImageFont.truetype("DejaVuSans.ttf", size=size)
+  except Exception:
+    return ImageFont.load_default()
+
+
+def _draw_text_with_outline(
+  draw: ImageDraw.ImageDraw,
+  *,
+  xy: tuple[int, int],
+  text: str,
+  font: ImageFont.ImageFont,
+  fill: tuple[int, int, int, int],
+  outline: tuple[int, int, int, int],
+) -> None:
+  x, y = xy
+  for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1),
+                 (1, -1)):
+    draw.text((x + dx, y + dy), text, font=font, fill=outline)
+  draw.text((x, y), text, font=font, fill=fill)
+
+
+def _render_test_row_labels(
+  footer_background: Image.Image,
+  *,
+  row_labels: list[str],
+) -> Image.Image:
+  labeled = footer_background.copy().convert("RGBA")
+  draw = ImageDraw.Draw(labeled)
+  font = _load_font(size=22)
+  small_font = _load_font(size=18)
+  footer_width, footer_height = labeled.size
+  num_rows = len(row_labels)
+  row_height = footer_height / float(num_rows)
+
+  label_pad_x = 12
+  title = "Rows: engine | transcript align | forced closures"
+  _draw_text_with_outline(
+    draw,
+    xy=(label_pad_x, 10),
+    text=title,
+    font=small_font,
+    fill=(255, 255, 255, 255),
+    outline=(0, 0, 0, 255),
+  )
+
+  for row_index, label in enumerate(row_labels):
+    top = int(round(row_index * row_height))
+    bottom = int(round((row_index + 1) * row_height))
+    y_center = int(round((top + bottom) / 2))
+
+    # Divider line
+    if row_index > 0:
+      draw.line((0, top, footer_width, top), fill=(0, 0, 0, 110), width=2)
+
+    row_text = f"{row_index + 1}. {label}"
+    _draw_text_with_outline(
+      draw,
+      xy=(label_pad_x, max(0, y_center - 12)),
+      text=row_text,
+      font=font,
+      fill=(255, 255, 255, 255),
+      outline=(0, 0, 0, 255),
+    )
+
+  return labeled
+
+
+def _build_test_background(
+  *,
+  footer_background: Image.Image,
+  row_labels: list[str],
+  target_size: tuple[int, int],
+) -> Image.Image:
+  tiled = Image.new("RGBA", target_size, (0, 0, 0, 255))
+  y = 0
+  while y < target_size[1]:
+    tiled.paste(footer_background, (0, y))
+    y += footer_background.size[1]
+  return _render_test_row_labels(tiled, row_labels=row_labels)
+
+
+def _build_static_character_frame_renderer(
+  *,
+  background: Image.Image,
+  character_renders: list[dict[str, Any]],
+  mouth_timelines: list[list[tuple[MouthState, float, float]]],
+  fps: int,
+  total_duration_sec: float,
+) -> callable:
+  if fps <= 0:
+    raise GenVideoError("FPS must be positive")
+  timing_index = _build_mouth_timeline_index(mouth_timelines)
+  total_frames = int(math.ceil(total_duration_sec * fps))
+  progress_interval = 50
+  last_logged = {"frame": -1}
+
+  def make_frame(time_sec: float) -> np.ndarray:
+    base = background.copy()
+
+    for render in character_renders:
+      dialog_index = render["dialog_index"]
+      starts, ends, states = timing_index[dialog_index]
+      mouth_state = MouthState.CLOSED
+      if starts:
+        idx = bisect_right(starts, time_sec) - 1
+        if idx >= 0 and time_sec <= ends[idx]:
+          mouth_state = states[idx]
+      image = render["mouth_images"].get(mouth_state)
+      if image is None:
+        image = render["mouth_images"][MouthState.CLOSED]
+      x, y = render["position"]
+      base.paste(image, (x, y), image)
+
+    frame_index = int(time_sec * fps)
+    if frame_index >= 0 and frame_index - last_logged[
+        "frame"] >= progress_interval:
+      last_logged["frame"] = frame_index
+      logger.info(
+        f"Rendered {min(frame_index + 1, total_frames)}/{total_frames} frames "
+        f"({min(frame_index + 1, total_frames) / total_frames:.0%})")
+
+    return np.asarray(base.convert("RGB"))
+
+  return make_frame
+
+
+def _prepare_character_renders_grid(
+  *,
+  normalized_dialogs: list[tuple[PosableCharacter | None,
+                                 list[tuple[str, float, str]]]],
+  num_rows: int,
+  footer_height: int,
+  footer_width: int,
+) -> list[dict[str, Any]]:
+  characters = [
+    character for character, _ in normalized_dialogs if character is not None
+  ]
+  if not characters:
+    return []
+
+  label_width = 360
+  usable_width = max(1, footer_width - label_width)
+  spacing = usable_width / (len(characters) + 1)
+  centers = [
+    label_width + spacing * (index + 1) for index in range(len(characters))
+  ]
+  row_height = footer_height / float(num_rows)
+  char_max_height = max(10, int(row_height - 8))
+
+  mouth_images_by_index: list[dict[MouthState, Image.Image]] = [
+    _build_character_images(character, max_height=char_max_height)
+    for character in characters
+  ]
+
+  renders: list[dict[str, Any]] = []
+  timeline_index = 0
+  for row_index in range(num_rows):
+    row_top = row_index * row_height
+    for character_index, mouth_images in enumerate(mouth_images_by_index):
+      width, height = mouth_images[MouthState.OPEN].size
+      x = int(round(centers[character_index] - (width / 2)))
+      y = int(round(row_top + (row_height - height) / 2))
+      renders.append({
+        "character": characters[character_index],
+        "mouth_images": mouth_images,
+        "position": (x, y),
+        "dialog_index": timeline_index,
+      })
+      timeline_index += 1
+  return renders
 
 
 def _apply_forced_closures(

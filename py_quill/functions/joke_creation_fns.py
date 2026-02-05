@@ -321,6 +321,7 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
     video_gcs_uri, generation_metadata = joke_operations.generate_joke_video(
       joke,
       temp_output=True,
+      is_test=True,
       script_template=script_template,
       speakers=speakers,
     )

@@ -1445,6 +1445,73 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
   assert call_kwargs["temp_output"] is False
 
 
+def test_generate_joke_video_uses_test_video_when_is_test_true(
+  monkeypatch,
+  mock_cloud_storage,
+):
+
+  def make_wav_bytes(duration_sec: float, *, rate: int = 10) -> bytes:
+    frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  joke = models.PunnyJoke(
+    key="joke-test",
+    setup_text="Setup",
+    punchline_text="Punchline",
+  )
+
+  audio_metadata = models.SingleGenerationMetadata(model_name="audio-model")
+  video_metadata = models.SingleGenerationMetadata(model_name="video-model")
+  monkeypatch.setattr(
+    joke_operations,
+    "generate_joke_audio",
+    Mock(return_value=(
+      "gs://audio/dialog.wav",
+      "gs://audio/setup.wav",
+      "gs://audio/response.wav",
+      "gs://audio/punchline.wav",
+      audio_metadata,
+    )),
+  )
+
+  create_video_mock = Mock(return_value=("gs://videos/joke_test.mp4",
+                                         video_metadata))
+  monkeypatch.setattr(joke_operations.gen_video,
+                      "create_portrait_character_test_video", create_video_mock)
+  monkeypatch.setattr(joke_operations.gen_video,
+                      "create_portrait_character_video", Mock())
+
+  mock_cloud_storage.download_bytes_from_gcs.side_effect = [
+    make_wav_bytes(1.0),
+    make_wav_bytes(0.5),
+    make_wav_bytes(2.0),
+  ]
+
+  video_uri, metadata = joke_operations.generate_joke_video(joke, is_test=True)
+
+  assert video_uri == "gs://videos/joke_test.mp4"
+  assert [gen.model_name for gen in metadata.generations] == [
+    "audio-model",
+    "video-model",
+  ]
+
+  # No images required in test mode.
+  mock_cloud_storage.extract_gcs_uri_from_image_url.assert_not_called()
+
+  create_video_mock.assert_called_once()
+  call_kwargs = create_video_mock.call_args.kwargs
+  assert len(call_kwargs["character_dialogs"]) == 2
+  assert call_kwargs["output_filename_base"] == "joke_video_test_joke-test"
+
+
 def test_generate_joke_video_requires_images():
   joke = models.PunnyJoke(
     setup_text="Setup",

@@ -8,9 +8,11 @@ from dataclasses import dataclass
 
 import librosa
 import numpy as np
+import parselmouth
 import soundfile as sf
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState
+from services import transcript_alignment
 
 # Frame and hop settings
 _FRAME_MS = 25
@@ -33,6 +35,12 @@ _SYLLABLE_PRE_ROLL_SEC = 0.02
 
 # Voice detection settings
 _MIN_RMS_PERCENTILE = 20
+
+# Praat formant thresholds (mouth-shape classification)
+_F1_OPEN_THRESHOLD_HZ = 650.0
+_F2_O_THRESHOLD_HZ = 1400.0
+_F0_MEDIAN_BASE_HZ = 170.0
+_F1_OPEN_PITCH_SCALE_MAX = 1.5
 
 # Fallback and merging settings
 _FALLBACK_FLAP_SEC = 0.12
@@ -68,7 +76,7 @@ class _Thresholds:
   centroid_threshold_to_open: float
 
 
-def detect_segments_with_confidence(wav_bytes: bytes) -> list[MouthEvent]:
+def _detect_segments_with_confidence(wav_bytes: bytes) -> list[MouthEvent]:
   """Detect mouth events with confidence scores for transcript alignment.
 
   Returns MouthEvent objects that include confidence scores based on audio
@@ -102,25 +110,21 @@ def detect_segments_with_confidence(wav_bytes: bytes) -> list[MouthEvent]:
                                           features, thresholds)
 
 
-def detect_segments_with_confidence_parselmouth(
-  wav_bytes: bytes,
-) -> list[MouthEvent]:
+def _detect_segments_with_confidence_parselmouth(
+  wav_bytes: bytes, ) -> list[MouthEvent]:
   """Detect mouth events with confidence scores using praat-parselmouth.
 
-  This mirrors detect_segments_with_confidence() but uses Praat-style speech
-  analysis. It classifies O vs OPEN primarily using the second formant (F2).
+  This mirrors _detect_segments_with_confidence() but uses Praat-style speech
+  analysis. It classifies mouth shapes using a prioritized decision tree:
+
+  1) High F1 (jaw openness) -> OPEN
+  2) Low F2 (lip rounding) -> O
 
   Notes:
     - start_time/end_time semantics match the librosa implementation.
     - mean_centroid is populated with mean F2 (Hz) for debugging.
       (The MouthEvent field name is historical.)
   """
-  try:
-    import parselmouth  # type: ignore
-  except Exception as exc:  # pragma: no cover
-    raise ImportError(
-      "praat-parselmouth is required for parselmouth-based lip sync"
-    ) from exc
 
   y, sr = _load_audio(wav_bytes)
   if y.size == 0 or sr <= 0:
@@ -129,17 +133,15 @@ def detect_segments_with_confidence_parselmouth(
   frame_length = max(1, int(round(sr * (_FRAME_MS / 1000.0))))
   hop_length = max(1, int(round(sr * (_HOP_MS / 1000.0))))
 
-  rms = _frame_rms(y, frame_length=frame_length, hop_length=hop_length)
-  if float(rms.max()) <= 1e-6:
-    return []
-
-  rms_threshold = _compute_rms_threshold(rms)
-  voiced_mask = rms >= rms_threshold
-  if not np.any(voiced_mask):
-    return []
-
   hop_sec = hop_length / float(sr)
-  n_frames = int(rms.size)
+  n_samples = int(y.size)
+  if n_samples <= 0:
+    return []
+  if n_samples < frame_length:
+    n_frames = 1
+  else:
+    n_frames = 1 + (n_samples - frame_length) // hop_length
+
   frame_times = _frame_times(
     n_frames,
     hop_sec=hop_sec,
@@ -151,47 +153,109 @@ def detect_segments_with_confidence_parselmouth(
     y.astype(np.float64),
     sampling_frequency=float(sr),
   )
-  formant = sound.to_formant_burg(time_step=hop_sec)
 
-  f2 = np.full(n_frames, np.nan, dtype=np.float64)
+  intensity = sound.to_intensity(time_step=hop_sec)
+  rms = np.zeros(n_frames, dtype=np.float64)
   for i, t in enumerate(frame_times):
-    value = formant.get_value_at_time(2, float(t))
+    value_db = intensity.get_value_at_time(float(t))
+    if value_db is None:
+      continue
+    try:
+      db = float(value_db)
+    except Exception:
+      continue
+    if not math.isfinite(db):
+      continue
+    # Convert dB-like intensity to an amplitude-like scale for percentile gating.
+    rms[i] = 10.0**(db / 20.0)
+
+  if float(rms.max()) <= 1e-12:
+    return []
+
+  rms_threshold = _compute_rms_threshold(rms)
+  voiced_mask = rms >= rms_threshold
+  if not np.any(voiced_mask):
+    return []
+
+  pitch = sound.to_pitch(time_step=hop_sec)
+  f0 = np.full(n_frames, np.nan, dtype=np.float64)
+  for i, t in enumerate(frame_times):
+    value = pitch.get_value_at_time(float(t))
     if value is None:
       continue
     try:
-      f2[i] = float(value)
+      hz = float(value)
     except Exception:
       continue
+    if hz > 0.0 and math.isfinite(hz):
+      f0[i] = hz
 
+  f1_open_threshold = _compute_f1_open_threshold_hz(
+    f0,
+    voiced_mask=voiced_mask,
+  )
+
+  formant = sound.to_formant_burg(time_step=hop_sec)
+
+  f1 = np.full(n_frames, np.nan, dtype=np.float64)
+  f2 = np.full(n_frames, np.nan, dtype=np.float64)
+  for i, t in enumerate(frame_times):
+    value_f1 = formant.get_value_at_time(1, float(t))
+    if value_f1 is not None:
+      try:
+        f1[i] = float(value_f1)
+      except Exception:
+        pass
+
+    value_f2 = formant.get_value_at_time(2, float(t))
+    if value_f2 is not None:
+      try:
+        f2[i] = float(value_f2)
+      except Exception:
+        pass
+
+  f1 = _fill_nans_with_median(f1, mask=voiced_mask)
   f2 = _fill_nans_with_median(f2, mask=voiced_mask)
-  f2_thresholds = _compute_f2_thresholds(f2, voiced_mask=voiced_mask)
-  frame_states = _compute_frame_states_f2(
+
+  frame_states = _compute_frame_states_formants(
+    f1=f1,
     f2=f2,
     rms=rms,
     rms_threshold=rms_threshold,
-    threshold_to_o=f2_thresholds.threshold_to_o,
-    threshold_to_open=f2_thresholds.threshold_to_open,
+    f1_open_threshold=f1_open_threshold,
+    f2_o_threshold=_F2_O_THRESHOLD_HZ,
   )
 
-  boundary_frames = _find_all_boundaries_f2(
+  boundary_frames = _find_all_boundaries_parselmouth(
     voiced_mask=voiced_mask,
     frame_states=frame_states,
     sr=sr,
     hop_length=hop_length,
   )
 
-  return _create_segments_with_confidence_f2(
+  return _create_segments_with_confidence_formants(
     boundary_frames=boundary_frames,
     frame_states=frame_states,
+    f1=f1,
     f2=f2,
     rms=rms,
     sr=sr,
     hop_length=hop_length,
     rms_threshold=rms_threshold,
+    f1_open_threshold=f1_open_threshold,
+    f2_o_threshold=_F2_O_THRESHOLD_HZ,
   )
 
 
-def detect_syllables_for_lip_sync(
+def detect_segments_with_confidence(wav_bytes: bytes) -> list[MouthEvent]:
+  return _detect_segments_with_confidence(wav_bytes)
+
+
+def detect_segments_with_confidence_parselmouth(wav_bytes: bytes) -> list[MouthEvent]:
+  return _detect_segments_with_confidence_parselmouth(wav_bytes)
+
+
+def detect_mouth_events(
   wav_bytes: bytes,
   *,
   transcript: str | None = None,
@@ -217,8 +281,6 @@ def detect_syllables_for_lip_sync(
   transcript = transcript.strip() if transcript else ""
   if not transcript:
     return librosa_segments, parselmouth_segments
-
-  from services import transcript_alignment
 
   return (
     transcript_alignment.align_with_text(transcript, librosa_segments),
@@ -646,13 +708,6 @@ def _compute_segment_confidence(
   return min(1.0, max(0.0, confidence))
 
 
-@dataclass(frozen=True)
-class _F2Thresholds:
-  threshold_to_o: float
-  threshold_to_open: float
-  midpoint: float
-
-
 def _compute_rms_threshold(rms: np.ndarray) -> float:
   rms_percentile = float(np.percentile(rms, _MIN_RMS_PERCENTILE))
   rms_max = float(rms.max())
@@ -717,70 +772,59 @@ def _fill_nans_with_median(
   return filled
 
 
-def _compute_f2_thresholds(
-  f2: np.ndarray,
+def _compute_f1_open_threshold_hz(
+  f0: np.ndarray,
   *,
   voiced_mask: np.ndarray,
-) -> _F2Thresholds:
-  source = f2[voiced_mask] if np.any(voiced_mask) else f2
-  source = source[np.isfinite(source)]
-  if source.size == 0:
-    base = 0.0
-  else:
-    low = np.percentile(source, 10)
-    high = np.percentile(source, 90)
-    if (high - low) < _MIN_CENTROID_SPREAD_HZ:
-      median = float(np.median(source))
-      base = float("inf") if median < 1400.0 else -1.0
-    else:
-      base = float(np.percentile(source, _O_CENTROID_PERCENTILE))
+) -> float:
+  voiced_f0 = f0[voiced_mask] if np.any(voiced_mask) else f0
+  voiced_f0 = voiced_f0[np.isfinite(voiced_f0) & (voiced_f0 > 0.0)]
+  if voiced_f0.size == 0:
+    return _F1_OPEN_THRESHOLD_HZ
 
-  half_hysteresis = _HYSTERESIS_HZ / 2.0
-  threshold_to_o = base - half_hysteresis
-  threshold_to_open = base + half_hysteresis
-  midpoint = (threshold_to_o + threshold_to_open) / 2.0
-  return _F2Thresholds(
-    threshold_to_o=threshold_to_o,
-    threshold_to_open=threshold_to_open,
-    midpoint=midpoint,
-  )
+  median_f0 = float(np.median(voiced_f0))
+  if median_f0 <= _F0_MEDIAN_BASE_HZ:
+    return _F1_OPEN_THRESHOLD_HZ
+
+  scale = math.sqrt(median_f0 / _F0_MEDIAN_BASE_HZ)
+  scale = min(_F1_OPEN_PITCH_SCALE_MAX, max(1.0, float(scale)))
+  return _F1_OPEN_THRESHOLD_HZ * scale
 
 
-def _compute_frame_states_f2(
+def _compute_frame_states_formants(
   *,
+  f1: np.ndarray,
   f2: np.ndarray,
   rms: np.ndarray,
   rms_threshold: float,
-  threshold_to_o: float,
-  threshold_to_open: float,
+  f1_open_threshold: float,
+  f2_o_threshold: float,
 ) -> np.ndarray:
   n_frames = int(rms.size)
   states = np.empty(n_frames, dtype=object)
-  midpoint = (threshold_to_o + threshold_to_open) / 2.0
 
-  current_state = MouthState.CLOSED
   for i in range(n_frames):
     if rms[i] < rms_threshold:
       states[i] = MouthState.CLOSED
-      current_state = MouthState.CLOSED
       continue
 
+    # Prioritized decision tree:
+    #   1) High F1 => OPEN (jaw dropped)
+    #   2) Low F2 => O (lip rounding)
+    f1_val = float(f1[i])
     f2_val = float(f2[i])
-    if current_state == MouthState.CLOSED:
-      current_state = MouthState.O if f2_val <= midpoint else MouthState.OPEN
-    elif current_state == MouthState.OPEN:
-      if f2_val <= threshold_to_o:
-        current_state = MouthState.O
-    else:
-      if f2_val >= threshold_to_open:
-        current_state = MouthState.OPEN
 
-    states[i] = current_state
+    if f1_val >= f1_open_threshold:
+      states[i] = MouthState.OPEN
+    elif f2_val <= f2_o_threshold:
+      states[i] = MouthState.O
+    else:
+      states[i] = MouthState.OPEN
 
   return states
 
 
-def _find_all_boundaries_f2(
+def _find_all_boundaries_parselmouth(
   *,
   voiced_mask: np.ndarray,
   frame_states: np.ndarray,
@@ -840,15 +884,18 @@ def _merge_boundary_candidates(
   return merged
 
 
-def _create_segments_with_confidence_f2(
+def _create_segments_with_confidence_formants(
   *,
   boundary_frames: list[int],
   frame_states: np.ndarray,
+  f1: np.ndarray,
   f2: np.ndarray,
   rms: np.ndarray,
   sr: int,
   hop_length: int,
   rms_threshold: float,
+  f1_open_threshold: float,
+  f2_o_threshold: float,
 ) -> list[MouthEvent]:
   if not boundary_frames:
     return []
@@ -857,10 +904,8 @@ def _create_segments_with_confidence_f2(
   n_frames = int(rms.size)
   rms_max = float(rms.max())
   hop_sec = hop_length / float(sr)
-
-  voiced_f2 = f2[(rms >= rms_threshold) & np.isfinite(f2)]
-  f2_ambiguous = float(np.median(voiced_f2)) if voiced_f2.size else 1500.0
-  f2_clear_distance = 800.0
+  f1_clear_distance = 350.0
+  f2_clear_distance = 600.0
 
   for i, start_frame in enumerate(boundary_frames):
     if start_frame >= n_frames:
@@ -879,10 +924,11 @@ def _create_segments_with_confidence_f2(
     if end_frame <= start_frame:
       continue
 
+    segment_f1 = f1[start_frame:end_frame]
     segment_f2 = f2[start_frame:end_frame]
     segment_rms = rms[start_frame:end_frame]
-    mean_f2 = (float(np.mean(segment_f2))
-               if segment_f2.size > 0 else 0.0)
+    mean_f1 = (float(np.mean(segment_f1)) if segment_f1.size > 0 else 0.0)
+    mean_f2 = (float(np.mean(segment_f2)) if segment_f2.size > 0 else 0.0)
     mean_rms = (float(np.mean(segment_rms)) if segment_rms.size > 0 else 0.0)
 
     start_time = max(0.0, (start_frame * hop_sec) - _SYLLABLE_PRE_ROLL_SEC)
@@ -891,12 +937,21 @@ def _create_segments_with_confidence_f2(
       end_time = start_time + _MIN_SYLLABLE_SEC
     duration = end_time - start_time
 
-    f2_distance = abs(mean_f2 - f2_ambiguous)
-    f2_score = min(1.0, f2_distance / f2_clear_distance)
+    if mouth_shape == MouthState.OPEN:
+      if mean_f1 >= f1_open_threshold:
+        formant_score = min(1.0, (mean_f1 - f1_open_threshold) / f1_clear_distance)
+      else:
+        formant_score = min(1.0, max(0.0, (mean_f2 - f2_o_threshold) / f2_clear_distance))
+    else:
+      formant_score = min(1.0, (f2_o_threshold - mean_f2) / f2_clear_distance)
+
     energy_score = min(1.0, mean_rms / rms_max) if rms_max > 0 else 0.0
-    duration_score = min(1.0, duration / _CONFIDENCE_FULL_DURATION_SEC
-                         ) if _CONFIDENCE_FULL_DURATION_SEC > 0 else 1.0
-    confidence = (0.5 * f2_score + 0.3 * energy_score + 0.2 * duration_score)
+    duration_score = min(
+      1.0,
+      duration / _CONFIDENCE_FULL_DURATION_SEC,
+    ) if _CONFIDENCE_FULL_DURATION_SEC > 0 else 1.0
+    confidence = (0.5 * formant_score + 0.3 * energy_score +
+                  0.2 * duration_score)
     confidence = min(1.0, max(0.0, float(confidence)))
 
     segments.append(

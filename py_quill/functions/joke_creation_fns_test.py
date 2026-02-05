@@ -885,10 +885,12 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   def fake_generate_video(_joke,
                           *,
                           temp_output=False,
+                          is_test=False,
                           script_template=None,
                           speakers=None):
     captured_video_args["script_template"] = script_template
     captured_video_args["speakers"] = speakers
+    captured_video_args["is_test"] = is_test
     return ("gs://public/video/joke.mp4", generation_metadata)
 
   monkeypatch.setattr(

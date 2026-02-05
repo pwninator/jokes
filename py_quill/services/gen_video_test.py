@@ -397,7 +397,7 @@ def test_create_portrait_character_video_uploads_mp4():
       patch.object(gen_video.cloud_storage, "download_image_from_gcs",
                    side_effect=download_image), \
       patch.object(gen_video.syllable_detection,
-                   "detect_syllables_for_lip_sync",
+                   "detect_mouth_events",
                    return_value=([], [])), \
       patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
                    upload_mock), \
@@ -428,3 +428,76 @@ def test_create_portrait_character_video_uploads_mp4():
   assert uploaded_uri == "gs://files/video/portrait.mp4"
   assert uploaded_content_type == "video/mp4"
   assert uploaded_path.endswith("portrait.mp4")
+
+
+def test_create_portrait_character_test_video_uploads_mp4():
+  character_dialogs = [
+    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world")]),
+    (_DummyCharacter(), [("gs://bucket/audio2.wav", 0.0, "hi there")]),
+  ]
+  upload_mock = MagicMock()
+  get_uri_mock = MagicMock(return_value="gs://files/video/portrait_test.mp4")
+
+  def download_bytes(uri):
+    if uri.endswith(".wav"):
+      return _make_wav_bytes(duration_sec=0.4)
+    return b"data"
+
+  def download_image(_uri):
+    return Image.new("RGBA", (32, 32), color=(0, 255, 0, 255))
+
+  detect_calls: list[object] = []
+
+  def detect_stub(_wav_bytes, *, transcript=None):
+    detect_calls.append(transcript)
+    librosa_events = [
+      MouthEvent(start_time=0.0,
+                 end_time=0.1,
+                 mouth_shape=MouthState.OPEN),
+    ]
+    parselmouth_events = [
+      MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.O),
+    ]
+    return librosa_events, parselmouth_events
+
+  with patch.object(gen_video.utils, "is_emulator", return_value=False), \
+      patch.object(gen_video.cloud_storage, "get_video_gcs_uri", get_uri_mock), \
+      patch.object(gen_video.cloud_storage, "download_bytes_from_gcs",
+                   side_effect=download_bytes), \
+      patch.object(gen_video.cloud_storage, "download_image_from_gcs",
+                   side_effect=download_image), \
+      patch.object(gen_video.syllable_detection,
+                   "detect_mouth_events",
+                   side_effect=detect_stub), \
+      patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
+                   upload_mock), \
+      patch.object(gen_video, "VideoClip", _FakeVideoClip), \
+      patch.object(gen_video, "AudioFileClip", _FakeAudioFileClip), \
+      patch.object(gen_video, "CompositeAudioClip", _FakeCompositeAudioClip):
+    gcs_uri, metadata = gen_video.create_portrait_character_test_video(
+      character_dialogs=character_dialogs,
+      footer_background_gcs_uri="gs://bucket/footer.png",
+      total_duration_sec=0.4,
+      output_filename_base="portrait_test",
+      temp_output=True,
+    )
+
+  assert gcs_uri == "gs://files/video/portrait_test.mp4"
+  assert metadata.model_name == "moviepy"
+  assert metadata.token_counts["num_rows"] == 8
+  assert metadata.token_counts["num_characters"] == 16
+
+  # Each clip should be analyzed twice: raw + transcript-aligned.
+  assert len(detect_calls) == 4
+  assert any(call is None for call in detect_calls)
+  assert any(isinstance(call, str) and call for call in detect_calls)
+
+  get_uri_mock.assert_called_once()
+  assert get_uri_mock.call_args.kwargs["temp"] is True
+  upload_mock.assert_called_once()
+  uploaded_path = upload_mock.call_args.args[0]
+  uploaded_uri = upload_mock.call_args.args[1]
+  uploaded_content_type = upload_mock.call_args.kwargs["content_type"]
+  assert uploaded_uri == "gs://files/video/portrait_test.mp4"
+  assert uploaded_content_type == "video/mp4"
+  assert uploaded_path.endswith("portrait_test.mp4")

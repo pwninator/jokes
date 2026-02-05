@@ -438,7 +438,7 @@ def generate_multi_turn_dialog(
   speakers: dict[str, Voice],
   output_filename_base: str,
   temp_output: bool = False,
-  model: GeminiTtsModel = GeminiTtsModel.GEMINI_2_5_FLASH_TTS,
+  model: GeminiTtsModel = GeminiTtsModel.GEMINI_2_5_PRO_TTS,
 ) -> tuple[str, models.SingleGenerationMetadata]:
   """Generate a multi-speaker dialog audio file using Gemini speech generation.
 

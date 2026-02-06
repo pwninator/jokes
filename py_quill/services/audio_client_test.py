@@ -376,7 +376,10 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   assert result.metadata.token_counts["characters"] == len("Hello") + len("Hi")
   assert result.metadata.token_counts["unique_voice_ids"] == 2
   assert result.metadata.token_counts["audio_bytes"] == len(audio_bytes)
-  assert result.metadata.cost == 0.0
+  expected_cost = (
+    (len("Hello") + len("Hi")) * audio_client.ElevenlabsAudioClient.GENERATION_COSTS[
+      audio_client.AudioModel.ELEVENLABS_ELEVEN_V3]["characters"])
+  assert result.metadata.cost == pytest.approx(expected_cost, rel=1e-9)
 
   assert upload_mock.call_count == 1
   uploaded_bytes = upload_mock.call_args.args[0]

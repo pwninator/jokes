@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import random
 import tempfile
 import time
@@ -17,6 +18,9 @@ from enum import Enum
 from typing import Any, Callable, Generic, TypeVar
 
 import httpx
+import librosa
+import numpy as np
+import soundfile as sf
 from common import audio_timing, config, models, utils
 from elevenlabs.client import ElevenLabs
 from elevenlabs.core.api_error import ApiError
@@ -343,13 +347,11 @@ def _apply_pause_markers(
   if pause_sec_before is not None:
     rendered = (
       f"{_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_before)}"
-      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX} {rendered}"
-    )
+      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX} {rendered}")
   if pause_sec_after is not None:
     rendered = (
       f"{rendered} {_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_after)}"
-      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX}"
-    )
+      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX}")
   return rendered
 
 
@@ -601,7 +603,8 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
 
   GENERATION_COSTS: dict[AudioModel, dict[str, float]] = {
     AudioModel.ELEVENLABS_ELEVEN_V3: {
-      "characters": 0.0,
+      # $5 for 30,000 tokens
+      "characters": 5.0 / 30_000,
     },
   }
 
@@ -870,25 +873,20 @@ def _try_decode_audio_bytes_to_mono_float32(
   if not audio_bytes:
     return None
 
-  try:
-    import numpy as np
-    import soundfile as sf
-
-    with sf.SoundFile(io.BytesIO(audio_bytes)) as sound_file:
-      y = sound_file.read(dtype="float32", always_2d=True)
-      sr = int(sound_file.samplerate)
-    if y.size == 0 or sr <= 0:
-      return None
-    if y.shape[1] > 1:
-      y = np.mean(y, axis=1, keepdims=True)
-    return y[:, 0], sr
-  except Exception:
-    pass
+  if sf is not None:
+    try:
+      with sf.SoundFile(io.BytesIO(audio_bytes)) as sound_file:
+        y = sound_file.read(dtype="float32", always_2d=True)
+        sr = int(sound_file.samplerate)
+      if y.size == 0 or sr <= 0:
+        return None
+      if y.shape[1] > 1:
+        y = np.mean(y, axis=1, keepdims=True)
+      return y[:, 0], sr
+    except Exception:
+      pass
 
   try:
-    import librosa
-    import numpy as np
-    import os
 
     suffix = f".{str(file_extension or '').strip('.')}" if file_extension else ""
     fd, path = tempfile.mkstemp(suffix=suffix)
@@ -920,11 +918,6 @@ def _compute_rms_db_envelope(
   if y is None or sr <= 0:
     return None
 
-  try:
-    import numpy as np
-  except Exception:
-    return None
-
   y = np.asarray(y, dtype=np.float32)
   if y.size == 0:
     return None
@@ -953,8 +946,8 @@ def _compute_rms_db_envelope(
 
   eps = 1e-12
   rms_db = 20.0 * np.log10(rms.astype(np.float64) + eps)
-  frame_centers_sec = (np.arange(n_frames, dtype=np.float64) * float(hop_length)
-                       ) / float(sr)
+  frame_centers_sec = (np.arange(n_frames, dtype=np.float64) *
+                       float(hop_length)) / float(sr)
   frame_half_width_sec = (float(frame_length) / 2.0) / float(sr)
   return _RmsDbEnvelope(
     rms_db=rms_db,
@@ -965,11 +958,6 @@ def _compute_rms_db_envelope(
 
 def _find_true_runs(mask: Any) -> list[tuple[int, int]]:
   """Return (start, end_exclusive) runs for truthy values in a 1D mask."""
-  try:
-    import numpy as np
-  except Exception:
-    return []
-
   arr = np.asarray(mask, dtype=bool)
   runs: list[tuple[int, int]] = []
   i = 0
@@ -992,11 +980,6 @@ def _compute_turn_trim_thresholds(
   turn_start_sec: float,
   turn_end_sec: float,
 ) -> _TurnTrimThresholds | None:
-  try:
-    import numpy as np
-  except Exception:
-    return None
-
   t0 = float(turn_start_sec)
   t1 = float(turn_end_sec)
   if t1 <= t0:
@@ -1017,7 +1000,8 @@ def _compute_turn_trim_thresholds(
     return None
 
   finite_values = turn_values[finite]
-  noise_floor_db = float(np.percentile(finite_values, _TRIM_NOISE_FLOOR_PERCENTILE))
+  noise_floor_db = float(
+    np.percentile(finite_values, _TRIM_NOISE_FLOOR_PERCENTILE))
   peak_db = float(np.percentile(finite_values, _TRIM_PEAK_PERCENTILE))
   if (peak_db - noise_floor_db) < _TRIM_MIN_DYNAMIC_RANGE_DB:
     return None
@@ -1045,13 +1029,6 @@ def _trim_window_by_energy(
   Returns a new `(start, end)` window. If no voiced frames are detected inside
   the window, returns a collapsed window `(t0, t0)`.
   """
-  try:
-    import numpy as np
-  except Exception:
-    t0 = float(window_start_sec)
-    t1 = float(window_end_sec)
-    return (t0, t1) if t1 >= t0 else (t0, t0)
-
   t0 = float(window_start_sec)
   t1 = float(window_end_sec)
   if t1 <= t0:
@@ -1075,8 +1052,9 @@ def _trim_window_by_energy(
   strong = window_values >= float(thresholds.on_db)
   weak = window_values >= float(thresholds.off_db)
 
-  strong_runs = [r for r in _find_true_runs(strong)
-                 if (r[1] - r[0]) >= _TRIM_MIN_ON_FRAMES]
+  strong_runs = [
+    r for r in _find_true_runs(strong) if (r[1] - r[0]) >= _TRIM_MIN_ON_FRAMES
+  ]
   if not strong_runs:
     return t0, t0
 
@@ -1192,9 +1170,8 @@ def _extract_turn_word_timings_from_char_alignment(
     tag_start, tag_end, tag_text = _consume_bracket_tag(chars, i)
     if not _is_pause_tag(tag_text):
       t0 = float(starts[tag_start])
-      leading_tag_start_time = (
-        t0 if leading_tag_start_time is None else min(float(leading_tag_start_time), t0)
-      )
+      leading_tag_start_time = (t0 if leading_tag_start_time is None else min(
+        float(leading_tag_start_time), t0))
     i = max(tag_end, i + 1)
 
   def _attached_left_punct_start(word_start: int) -> float | None:
@@ -1207,7 +1184,8 @@ def _extract_turn_word_timings_from_char_alignment(
       ch = chars[k]
       if _is_whitespace_char(ch) or ch.isalnum() or ch in ("[", "]"):
         break
-      min_t0 = float(starts[k]) if min_t0 is None else min(min_t0, float(starts[k]))
+      min_t0 = float(starts[k]) if min_t0 is None else min(
+        min_t0, float(starts[k]))
       k -= 1
     if min_t0 is None:
       return None
@@ -1226,7 +1204,8 @@ def _extract_turn_word_timings_from_char_alignment(
       ch = chars[k]
       if _is_whitespace_char(ch) or ch.isalnum() or ch == "[":
         break
-      max_t1 = float(ends[k]) if max_t1 is None else max(max_t1, float(ends[k]))
+      max_t1 = float(ends[k]) if max_t1 is None else max(
+        max_t1, float(ends[k]))
       k += 1
     return max_t1
 
@@ -1369,7 +1348,9 @@ def _sanitize_elevenlabs_alignment(
 
     turn_words = _extract_turn_word_timings_from_char_alignment(
       chars=[str(c) for c in alignment.characters[c0:c1]],
-      starts=[float(t) for t in alignment.character_start_times_seconds[c0:c1]],
+      starts=[
+        float(t) for t in alignment.character_start_times_seconds[c0:c1]
+      ],
       ends=[float(t) for t in alignment.character_end_times_seconds[c0:c1]],
       trim_window=trim_window,
     )
@@ -1440,7 +1421,8 @@ def _extract_elevenlabs_timing(
         end_time_seconds=float(segment.end_time_seconds),
         char_start_index=_clamp_boundary(int(segment.character_start_index),
                                          n_chars),
-        char_end_index=_clamp_boundary(int(segment.character_end_index), n_chars),
+        char_end_index=_clamp_boundary(int(segment.character_end_index),
+                                       n_chars),
         dialogue_input_index=int(segment.dialogue_input_index),
       ))
 

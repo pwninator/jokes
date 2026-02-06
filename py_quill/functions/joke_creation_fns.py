@@ -373,6 +373,7 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
 
   allow_partial = get_bool_param(req, "allow_partial", False)
+  is_test_video = get_bool_param(req, "is_test_video", False)
 
   audio_generation_metadata = None
   generation_metadata = models.GenerationMetadata()
@@ -423,7 +424,7 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
           clip_timing=audio_result.clip_timing,
           audio_generation_metadata=audio_generation_metadata,
           temp_output=True,
-          is_test=True,
+          is_test=is_test_video,
         ))
     except Exception as exc:  # pylint: disable=broad-except
       error_string = f"Error generating video: {exc}"

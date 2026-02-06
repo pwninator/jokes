@@ -1,4 +1,6 @@
 import base64
+import io
+import wave
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -419,3 +421,143 @@ def test_elevenlabs_rejects_more_than_ten_unique_voice_ids():
     ]
     with pytest.raises(audio_client.AudioGenerationError, match="up to 10 unique voice IDs"):
       client._generate_multi_turn_dialog_internal(turns=turns, label="test")
+
+
+def test_elevenlabs_timing_trims_trailing_silence_using_audio_energy():
+  import math
+  import struct
+
+  # Build a WAV with a short burst of sound, then trailing silence.
+  sr = 1000
+  duration_sec = 4.0
+  n = int(sr * duration_sec)
+  samples: list[int] = []
+  for i in range(n):
+    t = float(i) / float(sr)
+    if 2.60 <= t < 2.75:
+      samples.append(int(12000 * math.sin(2.0 * math.pi * 50.0 * t)))
+    else:
+      samples.append(0)
+
+  buffer = io.BytesIO()
+  with wave.open(buffer, "wb") as wf:
+    # pylint: disable=no-member
+    wf.setnchannels(1)
+    wf.setsampwidth(2)
+    wf.setframerate(sr)
+    wf.writeframes(struct.pack("<" + ("h" * len(samples)), *samples))
+    # pylint: enable=no-member
+  audio_bytes = buffer.getvalue()
+  audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+
+  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import (
+    AudioWithTimestampsAndVoiceSegmentsResponseModel,
+  )
+  from elevenlabs.types.character_alignment_response_model import (
+    CharacterAlignmentResponseModel,
+  )
+  from elevenlabs.types.voice_segment import VoiceSegment
+
+  class _FakeHttpResponse:
+
+    def __init__(self, *, headers, data):
+      self.headers = headers
+      self.data = data
+
+  # "What" is (incorrectly) spread over ~0.9s by the alignment.
+  normalized_alignment = CharacterAlignmentResponseModel(
+    characters=["W", "h", "a", "t"],
+    character_start_times_seconds=[2.604, 2.828, 3.052, 3.276],
+    character_end_times_seconds=[2.828, 3.052, 3.276, 3.500],
+  )
+  voice_segments = [
+    VoiceSegment(
+      voice_id="fake_voice",
+      start_time_seconds=0.0,
+      end_time_seconds=4.0,
+      character_start_index=0,
+      character_end_index=4,
+      dialogue_input_index=0,
+    )
+  ]
+  response_data = AudioWithTimestampsAndVoiceSegmentsResponseModel(
+    audio_base_64=audio_b64,
+    voice_segments=voice_segments,
+    normalized_alignment=normalized_alignment,
+  )
+  response = _FakeHttpResponse(
+    headers={
+      "x-character-count": "4",
+      "request-id": "req_123",
+    },
+    data=response_data,
+  )
+
+  upload_mock = MagicMock()
+  fake_raw = _FakeElevenlabsRawClient(response)
+
+  class _FakeTextToDialogue:
+
+    def __init__(self, raw):
+      self.with_raw_response = raw
+
+  class _FakeElevenlabsClient:
+
+    def __init__(self, raw):
+      self.text_to_dialogue = _FakeTextToDialogue(raw)
+
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+    output_format="wav_1000",
+  )
+
+  with patch.object(audio_client.utils, "is_emulator", return_value=False), \
+      patch.object(audio_client.ElevenlabsAudioClient,
+                   "_create_model_client",
+                   return_value=_FakeElevenlabsClient(fake_raw)), \
+      patch.object(audio_client.cloud_storage,
+                   "get_audio_gcs_uri",
+                   return_value="gs://gen_audio/out.wav"), \
+      patch.object(audio_client.cloud_storage,
+                   "upload_bytes_to_gcs",
+                   upload_mock):
+    result = client.generate_multi_turn_dialog(
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+          script="What",
+        ),
+      ],
+      output_filename_base="out",
+    )
+
+  assert result.timing is not None
+  assert result.timing.normalized_alignment is not None
+  assert [w.word for w in result.timing.normalized_alignment] == ["What"]
+  word = result.timing.normalized_alignment[0]
+  assert word.start_time == pytest.approx(2.604, rel=1e-6)
+  # Trailing silence should be trimmed well before the raw 3.5s end.
+  assert word.end_time < 3.2
+  assert word.end_time > 2.7
+  assert word.char_timings[-1].end_time == pytest.approx(word.end_time, rel=1e-6)
+
+  assert result.timing.voice_segments == [
+    audio_timing.VoiceSegment(
+      voice_id="fake_voice",
+      start_time_seconds=0.0,
+      end_time_seconds=4.0,
+      word_start_index=0,
+      word_end_index=1,
+      dialogue_input_index=0,
+    )
+  ]
+
+  assert upload_mock.call_count == 1
+  uploaded_bytes = upload_mock.call_args.args[0]
+  uploaded_uri = upload_mock.call_args.args[1]
+  uploaded_content_type = upload_mock.call_args.kwargs["content_type"]
+  assert uploaded_bytes == audio_bytes
+  assert uploaded_uri == "gs://gen_audio/out.wav"
+  assert uploaded_content_type == "audio/wav"

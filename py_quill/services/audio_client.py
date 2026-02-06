@@ -7,13 +7,14 @@ from __future__ import annotations
 import base64
 import io
 import random
+import tempfile
 import time
 import traceback
 import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 import httpx
 from common import audio_timing, config, models, utils
@@ -33,6 +34,17 @@ from services import cloud_storage
 from services.audio_voices import Voice, VoiceModel
 
 _T = TypeVar("_T")
+
+_TRIM_FRAME_MS = 25
+_TRIM_HOP_MS = 10
+_TRIM_MIN_DYNAMIC_RANGE_DB = 12.0
+_TRIM_NOISE_FLOOR_PERCENTILE = 20
+_TRIM_PEAK_PERCENTILE = 98
+_TRIM_NOISE_FLOOR_PAD_DB = 8.0
+_TRIM_PEAK_PAD_DB = 35.0
+_TRIM_HYSTERESIS_DB = 3.0
+_TRIM_MIN_ON_FRAMES = 2
+_TRIM_PAD_SEC = 0.03
 
 
 class Error(Exception):
@@ -671,7 +683,11 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
     input_characters = sum(len(i["text"]) for i in normalized_inputs)
     voice_segments = data.voice_segments or []
     voice_segments_count = len(voice_segments)
-    timing = _extract_elevenlabs_timing(data)
+    timing = _extract_elevenlabs_timing(
+      data,
+      audio_bytes=audio_bytes,
+      file_extension=file_extension,
+    )
 
     return _AudioInternalResult(
       input_text=input_text,
@@ -827,6 +843,264 @@ def _is_pause_tag(tag_text: str) -> bool:
   return normalized.startswith(_PAUSE_TAG_TEXT_PREFIX)
 
 
+@dataclass(frozen=True)
+class _RmsDbEnvelope:
+  rms_db: Any
+  frame_centers_sec: Any
+  frame_half_width_sec: float
+
+
+@dataclass(frozen=True)
+class _TurnTrimThresholds:
+  on_db: float
+  off_db: float
+
+
+def _try_decode_audio_bytes_to_mono_float32(
+  audio_bytes: bytes,
+  *,
+  file_extension: str,
+) -> tuple[Any, int] | None:
+  """Best-effort decode into mono float32 samples.
+
+  Prefers `soundfile` (fast, reliable for WAV). Falls back to `librosa` by
+  writing to a temp file (supports more codecs if the environment has backend
+  support).
+  """
+  if not audio_bytes:
+    return None
+
+  try:
+    import numpy as np
+    import soundfile as sf
+
+    with sf.SoundFile(io.BytesIO(audio_bytes)) as sound_file:
+      y = sound_file.read(dtype="float32", always_2d=True)
+      sr = int(sound_file.samplerate)
+    if y.size == 0 or sr <= 0:
+      return None
+    if y.shape[1] > 1:
+      y = np.mean(y, axis=1, keepdims=True)
+    return y[:, 0], sr
+  except Exception:
+    pass
+
+  try:
+    import librosa
+    import numpy as np
+    import os
+
+    suffix = f".{str(file_extension or '').strip('.')}" if file_extension else ""
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    try:
+      with os.fdopen(fd, "wb") as handle:
+        handle.write(audio_bytes)
+        handle.flush()
+      y, sr = librosa.load(path, sr=None, mono=True)
+    finally:
+      try:
+        os.remove(path)
+      except Exception:
+        pass
+    if y is None:
+      return None
+    y = np.asarray(y, dtype=np.float32)
+    if y.size == 0 or int(sr) <= 0:
+      return None
+    return y, int(sr)
+  except Exception:
+    return None
+
+
+def _compute_rms_db_envelope(
+  y: Any,
+  *,
+  sr: int,
+) -> _RmsDbEnvelope | None:
+  if y is None or sr <= 0:
+    return None
+
+  try:
+    import numpy as np
+  except Exception:
+    return None
+
+  y = np.asarray(y, dtype=np.float32)
+  if y.size == 0:
+    return None
+
+  frame_length = max(1, int(round(float(sr) * (_TRIM_FRAME_MS / 1000.0))))
+  hop_length = max(1, int(round(float(sr) * (_TRIM_HOP_MS / 1000.0))))
+  pad = frame_length // 2
+
+  y_padded = np.pad(y, (pad, pad), mode="constant")
+  n_samples = int(y_padded.size)
+  if n_samples <= 0:
+    return None
+
+  n_frames = 1
+  if n_samples > frame_length:
+    n_frames = 1 + int((n_samples - frame_length) // hop_length)
+
+  rms = np.empty((n_frames, ), dtype=np.float32)
+  for i in range(n_frames):
+    start = int(i * hop_length)
+    frame = y_padded[start:start + frame_length]
+    if frame.size == 0:
+      rms[i] = 0.0
+    else:
+      rms[i] = float(np.sqrt(np.mean(frame * frame)))
+
+  eps = 1e-12
+  rms_db = 20.0 * np.log10(rms.astype(np.float64) + eps)
+  frame_centers_sec = (np.arange(n_frames, dtype=np.float64) * float(hop_length)
+                       ) / float(sr)
+  frame_half_width_sec = (float(frame_length) / 2.0) / float(sr)
+  return _RmsDbEnvelope(
+    rms_db=rms_db,
+    frame_centers_sec=frame_centers_sec,
+    frame_half_width_sec=float(frame_half_width_sec),
+  )
+
+
+def _find_true_runs(mask: Any) -> list[tuple[int, int]]:
+  """Return (start, end_exclusive) runs for truthy values in a 1D mask."""
+  try:
+    import numpy as np
+  except Exception:
+    return []
+
+  arr = np.asarray(mask, dtype=bool)
+  runs: list[tuple[int, int]] = []
+  i = 0
+  n = int(arr.size)
+  while i < n:
+    if not bool(arr[i]):
+      i += 1
+      continue
+    start = i
+    i += 1
+    while i < n and bool(arr[i]):
+      i += 1
+    runs.append((start, i))
+  return runs
+
+
+def _compute_turn_trim_thresholds(
+  envelope: _RmsDbEnvelope,
+  *,
+  turn_start_sec: float,
+  turn_end_sec: float,
+) -> _TurnTrimThresholds | None:
+  try:
+    import numpy as np
+  except Exception:
+    return None
+
+  t0 = float(turn_start_sec)
+  t1 = float(turn_end_sec)
+  if t1 <= t0:
+    return None
+
+  centers = np.asarray(envelope.frame_centers_sec, dtype=np.float64)
+  values = np.asarray(envelope.rms_db, dtype=np.float64)
+  if centers.size == 0 or values.size != centers.size:
+    return None
+
+  in_turn = (centers >= t0) & (centers <= t1)
+  if not np.any(in_turn):
+    return None
+
+  turn_values = values[in_turn]
+  finite = np.isfinite(turn_values)
+  if int(np.sum(finite)) < 10:
+    return None
+
+  finite_values = turn_values[finite]
+  noise_floor_db = float(np.percentile(finite_values, _TRIM_NOISE_FLOOR_PERCENTILE))
+  peak_db = float(np.percentile(finite_values, _TRIM_PEAK_PERCENTILE))
+  if (peak_db - noise_floor_db) < _TRIM_MIN_DYNAMIC_RANGE_DB:
+    return None
+
+  off_db = max(
+    noise_floor_db + _TRIM_NOISE_FLOOR_PAD_DB,
+    peak_db - _TRIM_PEAK_PAD_DB,
+  )
+  if off_db >= (peak_db - 1.0):
+    return None
+
+  on_db = off_db + _TRIM_HYSTERESIS_DB
+  return _TurnTrimThresholds(on_db=float(on_db), off_db=float(off_db))
+
+
+def _trim_window_by_energy(
+  *,
+  envelope: _RmsDbEnvelope,
+  thresholds: _TurnTrimThresholds,
+  window_start_sec: float,
+  window_end_sec: float,
+) -> tuple[float, float]:
+  """Trim leading/trailing low-energy parts of `[window_start_sec, window_end_sec]`.
+
+  Returns a new `(start, end)` window. If no voiced frames are detected inside
+  the window, returns a collapsed window `(t0, t0)`.
+  """
+  try:
+    import numpy as np
+  except Exception:
+    t0 = float(window_start_sec)
+    t1 = float(window_end_sec)
+    return (t0, t1) if t1 >= t0 else (t0, t0)
+
+  t0 = float(window_start_sec)
+  t1 = float(window_end_sec)
+  if t1 <= t0:
+    return t0, t0
+
+  centers = np.asarray(envelope.frame_centers_sec, dtype=np.float64)
+  values = np.asarray(envelope.rms_db, dtype=np.float64)
+  if centers.size == 0 or values.size != centers.size:
+    return t0, t1
+
+  half = float(envelope.frame_half_width_sec)
+  overlaps = (centers + half >= t0) & (centers - half <= t1)
+  if not np.any(overlaps):
+    return t0, t1
+
+  idx = np.nonzero(overlaps)[0]
+  w0 = int(idx[0])
+  w1 = int(idx[-1]) + 1
+
+  window_values = values[w0:w1]
+  strong = window_values >= float(thresholds.on_db)
+  weak = window_values >= float(thresholds.off_db)
+
+  strong_runs = [r for r in _find_true_runs(strong)
+                 if (r[1] - r[0]) >= _TRIM_MIN_ON_FRAMES]
+  if not strong_runs:
+    return t0, t0
+
+  active_start = int(strong_runs[0][0])
+  active_end_excl = int(strong_runs[-1][1])
+
+  while active_start > 0 and bool(weak[active_start - 1]):
+    active_start -= 1
+  while active_end_excl < int(weak.size) and bool(weak[active_end_excl]):
+    active_end_excl += 1
+
+  global_start = w0 + active_start
+  global_end = w0 + max(active_start, active_end_excl - 1)
+
+  trimmed_start = float(centers[global_start] - half) - _TRIM_PAD_SEC
+  trimmed_end = float(centers[global_end] + half) + _TRIM_PAD_SEC
+
+  trimmed_start = max(t0, trimmed_start)
+  trimmed_end = min(t1, trimmed_end)
+  if trimmed_end < trimmed_start:
+    return t0, t0
+  return trimmed_start, trimmed_end
+
+
 def _redistribute_char_timings(
   *,
   chars: list[str],
@@ -884,6 +1158,7 @@ def _extract_turn_word_timings_from_char_alignment(
   chars: list[str],
   starts: list[float],
   ends: list[float],
+  trim_window: Callable[[float, float], tuple[float, float]] | None = None,
 ) -> list[audio_timing.WordTiming]:
   """Convert a turn's raw character alignment into sanitized word timings."""
   n = len(chars)
@@ -1000,6 +1275,13 @@ def _extract_turn_word_timings_from_char_alignment(
     if right_t1 is not None:
       word_t1 = max(word_t1, float(right_t1))
 
+    if trim_window is not None:
+      trimmed_t0, trimmed_t1 = trim_window(float(word_t0), float(word_t1))
+      word_t0 = float(trimmed_t0)
+      word_t1 = float(trimmed_t1)
+      if word_t1 < word_t0:
+        word_t1 = float(word_t0)
+
     char_timings = _redistribute_char_timings(
       chars=chars,
       starts=starts,
@@ -1038,6 +1320,7 @@ def _sanitize_elevenlabs_alignment(
   alignment: CharacterAlignmentResponseModel,
   *,
   voice_segments: list[_ElevenlabsVoiceSegmentCharRange],
+  envelope: _RmsDbEnvelope | None = None,
 ) -> tuple[list[audio_timing.WordTiming], list[audio_timing.VoiceSegment]]:
   """Sanitize an alignment into word timings and rebuild segment word indices."""
   n_chars = len(alignment.characters)
@@ -1067,10 +1350,28 @@ def _sanitize_elevenlabs_alignment(
     if c1 < c0:
       c0, c1 = c1, c0
 
+    trim_window: Callable[[float, float], tuple[float, float]] | None = None
+    if envelope is not None:
+      turn_start_sec = min(float(s.start_time_seconds) for s in segs)
+      turn_end_sec = max(float(s.end_time_seconds) for s in segs)
+      thresholds = _compute_turn_trim_thresholds(
+        envelope,
+        turn_start_sec=turn_start_sec,
+        turn_end_sec=turn_end_sec,
+      )
+      if thresholds is not None:
+        trim_window = lambda a, b, _t=thresholds: _trim_window_by_energy(
+          envelope=envelope,
+          thresholds=_t,
+          window_start_sec=a,
+          window_end_sec=b,
+        )
+
     turn_words = _extract_turn_word_timings_from_char_alignment(
       chars=[str(c) for c in alignment.characters[c0:c1]],
       starts=[float(t) for t in alignment.character_start_times_seconds[c0:c1]],
       ends=[float(t) for t in alignment.character_end_times_seconds[c0:c1]],
+      trim_window=trim_window,
     )
     out_words.extend(turn_words)
 
@@ -1093,6 +1394,9 @@ def _sanitize_elevenlabs_alignment(
 
 def _extract_elevenlabs_timing(
   data: AudioWithTimestampsAndVoiceSegmentsResponseModel,
+  *,
+  audio_bytes: bytes,
+  file_extension: str,
 ) -> audio_timing.TtsTiming:
   """Extract timing metadata from an ElevenLabs TTS response.
 
@@ -1109,6 +1413,15 @@ def _extract_elevenlabs_timing(
       normalized_alignment=None,
       voice_segments=[],
     )
+
+  envelope: _RmsDbEnvelope | None = None
+  decoded = _try_decode_audio_bytes_to_mono_float32(
+    audio_bytes,
+    file_extension=str(file_extension),
+  )
+  if decoded is not None:
+    y, sr = decoded
+    envelope = _compute_rms_db_envelope(y, sr=int(sr))
 
   def _clamp_boundary(index: int, n_chars: int) -> int:
     if index < 0:
@@ -1134,6 +1447,7 @@ def _extract_elevenlabs_timing(
   sanitized_words, sanitized_voice_segments = _sanitize_elevenlabs_alignment(
     base_alignment,
     voice_segments=voice_segments_in,
+    envelope=envelope,
   )
 
   return audio_timing.TtsTiming(

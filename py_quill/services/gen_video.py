@@ -12,14 +12,14 @@ from bisect import bisect_right
 from typing import Any
 
 import numpy as np
-from common import models, utils
+from common import audio_timing, models, utils
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
 from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip, VideoClip)
 from PIL import Image, ImageDraw, ImageFont
-from services import cloud_storage, syllable_detection
+from services import cloud_storage, mouth_event_detection
 
 _DEFAULT_VIDEO_FPS = 24
 _PORTRAIT_VIDEO_SIZE = (1080, 1920)
@@ -192,8 +192,12 @@ def create_slideshow_video(
 
 def create_portrait_character_video(
   joke_images: list[tuple[str, float]],
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                                    str]]]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]],
   footer_background_gcs_uri: str,
   total_duration_sec: float,
   output_filename_base: str,
@@ -239,7 +243,7 @@ def create_portrait_character_video(
       (primary_character, primary_clips),
     ]
     flattened_audio = [(gcs_uri, start_time)
-                       for gcs_uri, start_time, _ in primary_clips]
+                       for gcs_uri, start_time, _, _ in primary_clips]
 
   normalized_audio = _normalize_timed_assets(
     flattened_audio,
@@ -433,21 +437,28 @@ def create_portrait_character_video(
 
 
 def create_portrait_character_test_video(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                                    str]]]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]],
   footer_background_gcs_uri: str,
   total_duration_sec: float,
   output_filename_base: str,
   temp_output: bool = False,
 ) -> tuple[str, models.SingleGenerationMetadata]:
-  """Create a portrait test video comparing lip-sync params across 8 rows.
+  """Create a portrait test video comparing lip-sync params across rows.
 
-  This renders the portrait footer as 8 stacked rows. Each row contains one
+  This renders the portrait footer as stacked rows. Each row contains one
   character per entry in `character_dialogs`. Rows correspond to the 8
   combinations of:
     1) librosa vs parselmouth syllable detection
     2) transcript alignment on/off
     3) forced mouth closures on/off
+
+  Two additional rows use character-level timing alignment (if provided),
+  with forced closures on/off.
 
   The footer labels each row with its parameter set.
   """
@@ -482,7 +493,8 @@ def create_portrait_character_test_video(
     temp=temp_output,
   )
 
-  num_rows = 8
+  row_variants = _build_test_row_variants()
+  num_rows = len(row_variants)
   logger.info(
     "Starting portrait test video generation: "
     f"{len(normalized_audio)} audio files, {len(characters)} characters/row, "
@@ -517,7 +529,6 @@ def create_portrait_character_test_video(
         target_size=_PORTRAIT_FOOTER_SIZE,
       )
 
-      row_variants = _build_test_row_variants()
       mouth_timelines = _build_test_mouth_timelines(
         normalized_dialogs=normalized_dialogs,
         audio_path_by_key=audio_path_by_key,
@@ -846,14 +857,37 @@ Generation cost: ${metadata.cost:.6f}
 
 
 def _normalize_character_dialogs(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                                    str]]]]
-) -> list[tuple[PosableCharacter | None, list[tuple[str, float, str]]]]:
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]],
+) -> list[tuple[PosableCharacter | None, list[tuple[
+  str,
+  float,
+  str,
+  audio_timing.CharacterAlignment | None,
+]]]]:
+  """Normalize character dialog entries.
+
+  Ensures each dialog entry is shaped as:
+    (audio_gcs_uri, start_time_sec, transcript, timing_alignment|None)
+
+  Also:
+  - normalizes ordering by `(gcs_uri, start_time)` via `_normalize_timed_assets`
+  - enforces that transcripts are present and consistent for duplicate keys
+  - preserves any provided per-clip timing alignment for timing-based lip-sync
+  """
   if character_dialogs is None:
     raise GenVideoError("character_dialogs must be provided")
 
-  normalized: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                             str]]]] = []
+  normalized: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]] = []
   for index, entry in enumerate(character_dialogs):
     try:
       character, dialogs = entry
@@ -862,10 +896,12 @@ def _normalize_character_dialogs(
         f"Invalid character dialog entry at index {index}: {entry}") from exc
 
     transcript_by_key: dict[tuple[str, float], str] = {}
+    timing_by_key: dict[tuple[str, float], audio_timing.CharacterAlignment
+                        | None] = {}
     timed_audio: list[tuple[str, float]] = []
     for dialog_index, dialog_entry in enumerate(dialogs):
       try:
-        gcs_uri, start_time, transcript = dialog_entry
+        gcs_uri, start_time, transcript, timing = dialog_entry
       except (TypeError, ValueError) as exc:
         raise GenVideoError(
           "Invalid dialog entry for character at index "
@@ -881,6 +917,7 @@ def _normalize_character_dialogs(
           "Duplicate (gcs_uri, start_time) with different transcripts for "
           f"{gcs_uri} @ {start_time} (character index {index})")
       transcript_by_key[key] = transcript_str
+      timing_by_key[key] = timing
       timed_audio.append((gcs_uri, start_time))
 
     normalized_timed_audio = _normalize_timed_assets(
@@ -889,7 +926,8 @@ def _normalize_character_dialogs(
       allow_empty=True,
     )
     normalized_dialogs_with_transcripts = [
-      (gcs_uri, start_time, transcript_by_key[(gcs_uri, start_time)])
+      (gcs_uri, start_time, transcript_by_key[(gcs_uri, start_time)],
+       timing_by_key[(gcs_uri, start_time)])
       for (gcs_uri, start_time) in normalized_timed_audio
     ]
     normalized.append((character, normalized_dialogs_with_transcripts))
@@ -897,20 +935,32 @@ def _normalize_character_dialogs(
 
 
 def _flatten_character_audio(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                                    str]]]]
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]],
 ) -> list[tuple[str, float]]:
+  """Flatten `(character, dialogs)` into `[(gcs_uri, start_time), ...]`."""
   flattened: list[tuple[str, float]] = []
   for _, dialogs in character_dialogs:
     flattened.extend(
-      (gcs_uri, start_time) for gcs_uri, start_time, _ in dialogs)
+      (gcs_uri, start_time) for gcs_uri, start_time, _, _ in dialogs)
   return flattened
 
 
 def _find_first_character_dialog(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                                    str]]]]
-) -> tuple[PosableCharacter, list[tuple[str, float, str]]] | None:
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]],
+) -> tuple[PosableCharacter, list[tuple[str, float, str,
+                                       audio_timing.CharacterAlignment
+                                       | None]]] | None:
+  """Return the first dialog list whose character is not None."""
   for character, dialogs in character_dialogs:
     if character is None:
       continue
@@ -919,8 +969,12 @@ def _find_first_character_dialog(
 
 
 def _build_character_syllable_data(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[str, float,
-                                                                    str]]]],
+  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
+    str,
+    float,
+    str,
+    audio_timing.CharacterAlignment | None,
+  ]]]],
   audio_path_by_key: dict[tuple[str, float], str],
 ) -> list[list[MouthEvent]]:
   """Build syllable data for side-by-side compare of the first character.
@@ -941,7 +995,7 @@ def _build_character_syllable_data(
   librosa_syllables: list[MouthEvent] = []
   parselmouth_syllables: list[MouthEvent] = []
 
-  for gcs_uri, start_time, transcript in dialogs:
+  for gcs_uri, start_time, transcript, _timing in dialogs:
     audio_path = audio_path_by_key.get((gcs_uri, start_time))
     if not audio_path:
       raise GenVideoError("Missing audio path for character dialog "
@@ -952,8 +1006,14 @@ def _build_character_syllable_data(
     logger.info(
       f"Detecting syllables (librosa + parselmouth) for {gcs_uri} @ {start_time}"
     )
-    librosa_clip, parselmouth_clip = syllable_detection.detect_mouth_events(
+    librosa_clip = mouth_event_detection.detect_mouth_events(
       wav_bytes,
+      mode="librosa",
+      transcript=transcript,
+    )
+    parselmouth_clip = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="parselmouth",
       transcript=transcript,
     )
 
@@ -986,6 +1046,14 @@ def _build_character_syllable_data(
 
 
 def _build_test_row_variants() -> list[dict[str, object]]:
+  """Return all row variants for the portrait test video grid.
+
+  Each entry encodes:
+  - `engine`: mouth detection engine ("librosa", "parselmouth", "timing")
+  - `align_transcript`: whether to run transcript alignment (audio engines only)
+  - `forced_closures`: whether to synthesize CLOSED events between segments
+  - `label`: a human-readable row label
+  """
   variants: list[dict[str, object]] = []
   for engine in ("librosa", "parselmouth"):
     for align_transcript in (False, True):
@@ -998,6 +1066,15 @@ def _build_test_row_variants() -> list[dict[str, object]]:
           "forced_closures": forced_closures,
           "label": label,
         })
+
+  for forced_closures in (False, True):
+    label = f"timing | align=na | forced={'on' if forced_closures else 'off'}"
+    variants.append({
+      "engine": "timing",
+      "align_transcript": False,
+      "forced_closures": forced_closures,
+      "label": label,
+    })
   return variants
 
 
@@ -1009,7 +1086,9 @@ def _syllables_to_timeline(
 def _build_test_mouth_timelines(
   *,
   normalized_dialogs: list[tuple[PosableCharacter | None,
-                                 list[tuple[str, float, str]]]],
+                                 list[tuple[str, float, str,
+                                            audio_timing.CharacterAlignment
+                                            | None]]]],
   audio_path_by_key: dict[tuple[str, float], str],
   row_variants: list[dict[str, object]],
 ) -> list[list[tuple[MouthState, float, float]]]:
@@ -1019,34 +1098,35 @@ def _build_test_mouth_timelines(
     if character is not None
   ]
 
-  cache: dict[tuple[str, float], dict[str, tuple[list[MouthEvent],
-                                                 list[MouthEvent]]]] = {}
+  cache: dict[tuple[str, float, str, bool], list[MouthEvent]] = {}
 
-  def _get_clip_syllables(
+  def _get_clip_events(
     *,
     gcs_uri: str,
     start_time: float,
     transcript: str,
+    timing: audio_timing.CharacterAlignment | None,
+    engine: str,
     align_transcript: bool,
-  ) -> tuple[list[MouthEvent], list[MouthEvent]]:
-    key = (gcs_uri, start_time)
-    per_key = cache.setdefault(key, {})
-    mode = "aligned" if align_transcript else "raw"
-    if mode in per_key:
-      return per_key[mode]
+  ) -> list[MouthEvent]:
+    key = (gcs_uri, start_time, engine, bool(align_transcript))
+    if key in cache:
+      return cache[key]
 
-    audio_path = audio_path_by_key.get(key)
+    audio_path = audio_path_by_key.get((gcs_uri, start_time))
     if not audio_path:
       raise GenVideoError("Missing audio path for character dialog "
                           f"{gcs_uri} @ {start_time}")
     with open(audio_path, "rb") as audio_handle:
       wav_bytes = audio_handle.read()
 
-    detected = syllable_detection.detect_mouth_events(
+    detected = mouth_event_detection.detect_mouth_events(
       wav_bytes,
+      mode=engine,
       transcript=transcript if align_transcript else None,
+      timing=timing,
     )
-    per_key[mode] = detected
+    cache[key] = detected
     return detected
 
   timelines: list[list[tuple[MouthState, float, float]]] = []
@@ -1057,15 +1137,16 @@ def _build_test_mouth_timelines(
 
     for dialogs in characters_with_dialogs:
       syllables: list[MouthEvent] = []
-      for gcs_uri, start_time, transcript in dialogs:
-        librosa_clip, parselmouth_clip = _get_clip_syllables(
+      for gcs_uri, start_time, transcript, timing in dialogs:
+        clip = _get_clip_events(
           gcs_uri=gcs_uri,
           start_time=start_time,
           transcript=transcript,
+          timing=timing,
+          engine=engine,
           align_transcript=align_transcript,
         )
-        selected = librosa_clip if engine == "librosa" else parselmouth_clip
-        for syllable in selected:
+        for syllable in clip:
           syllables.append(
             MouthEvent(
               start_time=syllable.start_time + start_time,
@@ -1216,7 +1297,9 @@ def _build_static_character_frame_renderer(
 def _prepare_character_renders_grid(
   *,
   normalized_dialogs: list[tuple[PosableCharacter | None,
-                                 list[tuple[str, float, str]]]],
+                                 list[tuple[str, float, str,
+                                            audio_timing.CharacterAlignment
+                                            | None]]]],
   num_rows: int,
   footer_height: int,
   footer_width: int,

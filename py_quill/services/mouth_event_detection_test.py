@@ -1,4 +1,4 @@
-"""Tests for syllable detection."""
+"""Tests for mouth event detection."""
 
 from __future__ import annotations
 
@@ -10,8 +10,10 @@ import soundfile as sf
 
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState
-from services import syllable_detection
-from services.syllable_detection import (
+from services import mouth_event_detection
+from services import mouth_event_detection_librosa
+from services import mouth_event_detection_parselmouth
+from services.mouth_event_detection_librosa import (
   _AudioFeatures,
   _Thresholds,
   _compute_features,
@@ -20,7 +22,6 @@ from services.syllable_detection import (
   _detect_state_transitions,
   _find_runs,
   _merge_boundary_frames,
-  detect_mouth_events,
 )
 
 
@@ -66,19 +67,16 @@ class TestDetectSyllablesIntegration:
 
   def test_finds_multiple_onsets(self, monkeypatch):
     """Detects separate syllables from distinct sound bursts."""
-    monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
-        wav_bytes),
-    )
     wav_bytes = _make_wav_bytes(segments=[
       (0.1, 0.08, 440.0),
       (0.4, 0.08, 440.0),
       (0.7, 0.08, 440.0),
     ], )
-    syllables, _parselmouth = detect_mouth_events(
-      wav_bytes, transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="librosa",
+      transcript=None,
+    )
 
     assert len(syllables) >= 3
     starts = [s.start_time for s in syllables]
@@ -88,44 +86,50 @@ class TestDetectSyllablesIntegration:
 
   def test_handles_silence(self, monkeypatch):
     """Returns empty list for silent audio."""
-    monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
-        wav_bytes),
-    )
     buffer = io.BytesIO()
     sf.write(buffer, np.zeros(8000, dtype=np.float32), 8000, format="WAV")
-    syllables, parselmouth = detect_mouth_events(
-      buffer.getvalue(), transcript=None)
+    wav_bytes = buffer.getvalue()
+    monkeypatch.setattr(mouth_event_detection_parselmouth,
+                        "_detect_segments_with_confidence_parselmouth",
+                        lambda _wav_bytes: [])
+    syllables = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="librosa",
+      transcript=None,
+    )
+    parselmouth = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="parselmouth",
+      transcript=None,
+    )
 
     assert syllables == []
     assert parselmouth == []
 
   def test_handles_empty_audio(self, monkeypatch):
     """Returns empty list for empty audio."""
-    monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
-        wav_bytes),
-    )
     buffer = io.BytesIO()
     sf.write(buffer, np.zeros(0, dtype=np.float32), 8000, format="WAV")
-    syllables, parselmouth = detect_mouth_events(
-      buffer.getvalue(), transcript=None)
+    wav_bytes = buffer.getvalue()
+    monkeypatch.setattr(mouth_event_detection_parselmouth,
+                        "_detect_segments_with_confidence_parselmouth",
+                        lambda _wav_bytes: [])
+    syllables = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="librosa",
+      transcript=None,
+    )
+    parselmouth = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="parselmouth",
+      transcript=None,
+    )
 
     assert syllables == []
     assert parselmouth == []
 
   def test_falls_back_when_onsets_missing(self, monkeypatch):
     """Uses rhythmic fallback for sustained sounds without clear onsets."""
-    monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
-        wav_bytes),
-    )
     wav_bytes = _make_wav_bytes(segments=[
       (0.0, 0.5, 440.0),
     ], )
@@ -133,27 +137,27 @@ class TestDetectSyllablesIntegration:
     def fake_onset_detect(*_args, **_kwargs):
       return np.array([], dtype=int)
 
-    monkeypatch.setattr(syllable_detection.librosa.onset, "onset_detect",
+    monkeypatch.setattr(mouth_event_detection_librosa.librosa.onset, "onset_detect",
                         fake_onset_detect)
-    syllables, _parselmouth = detect_mouth_events(
-      wav_bytes, transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="librosa",
+      transcript=None,
+    )
 
     assert len(syllables) >= 2
 
   def test_syllables_have_valid_times(self, monkeypatch):
     """All syllables have positive duration and valid times."""
-    monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
-        wav_bytes),
-    )
     wav_bytes = _make_wav_bytes(segments=[
       (0.1, 0.08, 440.0),
       (0.4, 0.08, 880.0),
     ], )
-    syllables, _parselmouth = detect_mouth_events(
-      wav_bytes, transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      wav_bytes,
+      mode="librosa",
+      transcript=None,
+    )
 
     for s in syllables:
       assert s.start_time >= 0
@@ -162,6 +166,7 @@ class TestDetectSyllablesIntegration:
 
 
 class TestDetectSegmentsWithConfidenceParselmouth:
+
   def test_parselmouth_detects_o_and_open_from_f2(self, monkeypatch):
     import types
 
@@ -176,7 +181,7 @@ class TestDetectSegmentsWithConfidenceParselmouth:
 
     class _FakeIntensity:
 
-      def get_value_at_time(self, _time_sec):
+      def get_value(self, _time_sec):
         return 70.0
 
     class _FakePitch:
@@ -202,21 +207,22 @@ class TestDetectSegmentsWithConfidenceParselmouth:
         return _FakePitch()
 
     fake_parselmouth = types.SimpleNamespace(Sound=_FakeSound)
-    monkeypatch.setattr(syllable_detection, "parselmouth", fake_parselmouth)
+    monkeypatch.setattr(mouth_event_detection_parselmouth, "parselmouth", fake_parselmouth)
 
     wav_bytes = _make_wav_bytes(
       sample_rate=1000,
       duration_sec=0.2,
       segments=[(0.0, 0.2, 200.0)],
     )
-    segments = syllable_detection._detect_segments_with_confidence_parselmouth(
+    segments = mouth_event_detection_parselmouth._detect_segments_with_confidence_parselmouth(
       wav_bytes)
 
     shapes = {segment.mouth_shape for segment in segments}
     assert MouthState.O in shapes
     assert MouthState.OPEN in shapes
 
-  def test_parselmouth_open_wins_when_f1_high_even_if_f2_low(self, monkeypatch):
+  def test_parselmouth_open_wins_when_f1_high_even_if_f2_low(
+      self, monkeypatch):
     import types
 
     class _FakeFormant:
@@ -230,7 +236,7 @@ class TestDetectSegmentsWithConfidenceParselmouth:
 
     class _FakeIntensity:
 
-      def get_value_at_time(self, _time_sec):
+      def get_value(self, _time_sec):
         return 70.0
 
     class _FakePitch:
@@ -256,19 +262,45 @@ class TestDetectSegmentsWithConfidenceParselmouth:
         return _FakePitch()
 
     fake_parselmouth = types.SimpleNamespace(Sound=_FakeSound)
-    monkeypatch.setattr(syllable_detection, "parselmouth", fake_parselmouth)
+    monkeypatch.setattr(mouth_event_detection_parselmouth, "parselmouth", fake_parselmouth)
 
     wav_bytes = _make_wav_bytes(
       sample_rate=1000,
       duration_sec=0.2,
       segments=[(0.0, 0.2, 200.0)],
     )
-    segments = syllable_detection._detect_segments_with_confidence_parselmouth(
+    segments = mouth_event_detection_parselmouth._detect_segments_with_confidence_parselmouth(
       wav_bytes)
 
     shapes = {segment.mouth_shape for segment in segments}
     assert MouthState.O not in shapes
     assert MouthState.OPEN in shapes
+
+
+class TestTimingMode:
+
+  def test_detect_mouth_events_timing_uses_character_alignment(
+      self, monkeypatch):
+    from common import audio_timing
+    from services import transcript_alignment
+
+    monkeypatch.setattr(transcript_alignment, "text_to_shapes",
+                        lambda _word: [MouthState.O])
+
+    timing = audio_timing.CharacterAlignment(
+      characters=["H", "i"],
+      character_start_times_seconds=[0.0, 0.1],
+      character_end_times_seconds=[0.1, 0.2],
+    )
+
+    events = mouth_event_detection.detect_mouth_events(
+      b"noop",
+      mode="timing",
+      timing=timing,
+    )
+
+    assert events
+    assert all(isinstance(e, MouthEvent) for e in events)
 
 
 # =============================================================================
@@ -298,40 +330,43 @@ class TestMouthShapeClassification:
     onset_env[10] = 1.0
     onset_env[40] = 1.0
 
-    monkeypatch.setattr(syllable_detection, "_load_audio", lambda _:
+    monkeypatch.setattr(mouth_event_detection_librosa, "_load_audio", lambda _:
                         (np.zeros(sr), sr))
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "spectral_centroid",
       lambda **kwargs: centroid.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "rms",
       lambda **kwargs: rms.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_strength",
       lambda **kwargs: onset_env,
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_detect",
       lambda **kwargs: np.array([10, 40]),
     )
     # Disable rhythmic fallback to test only onset-based detection
-    monkeypatch.setattr(syllable_detection, "_build_rhythmic_frames",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_build_rhythmic_frames",
                         lambda *a, **k: [])
 
     monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
+      mouth_event_detection_parselmouth,
+      "_detect_segments_with_confidence_parselmouth",
+      lambda wav_bytes: mouth_event_detection_librosa._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_mouth_events(
-      b"dummy", transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      b"dummy",
+      mode="librosa",
+      transcript=None,
+    )
 
     assert len(syllables) == 2
     assert syllables[0].mouth_shape == MouthState.O
@@ -348,40 +383,43 @@ class TestMouthShapeClassification:
     onset_env = np.zeros(frame_count)
     onset_env[10] = 1.0
 
-    monkeypatch.setattr(syllable_detection, "_load_audio", lambda _:
+    monkeypatch.setattr(mouth_event_detection_librosa, "_load_audio", lambda _:
                         (np.zeros(sr), sr))
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "spectral_centroid",
       lambda **kwargs: centroid.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "rms",
       lambda **kwargs: rms.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_strength",
       lambda **kwargs: onset_env,
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_detect",
       lambda **kwargs: np.array([10]),
     )
     # Disable rhythmic fallback
-    monkeypatch.setattr(syllable_detection, "_build_rhythmic_frames",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_build_rhythmic_frames",
                         lambda *a, **k: [])
 
     monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
+      mouth_event_detection_parselmouth,
+      "_detect_segments_with_confidence_parselmouth",
+      lambda wav_bytes: mouth_event_detection_librosa._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_mouth_events(
-      b"dummy", transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      b"dummy",
+      mode="librosa",
+      transcript=None,
+    )
 
     assert len(syllables) == 1
     assert syllables[0].mouth_shape == MouthState.OPEN
@@ -397,40 +435,43 @@ class TestMouthShapeClassification:
     onset_env = np.zeros(frame_count)
     onset_env[10] = 1.0
 
-    monkeypatch.setattr(syllable_detection, "_load_audio", lambda _:
+    monkeypatch.setattr(mouth_event_detection_librosa, "_load_audio", lambda _:
                         (np.zeros(sr), sr))
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "spectral_centroid",
       lambda **kwargs: centroid.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "rms",
       lambda **kwargs: rms.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_strength",
       lambda **kwargs: onset_env,
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_detect",
       lambda **kwargs: np.array([10]),
     )
     # Disable rhythmic fallback
-    monkeypatch.setattr(syllable_detection, "_build_rhythmic_frames",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_build_rhythmic_frames",
                         lambda *a, **k: [])
 
     monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
+      mouth_event_detection_parselmouth,
+      "_detect_segments_with_confidence_parselmouth",
+      lambda wav_bytes: mouth_event_detection_librosa._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_mouth_events(
-      b"dummy", transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      b"dummy",
+      mode="librosa",
+      transcript=None,
+    )
 
     assert len(syllables) == 1
     assert syllables[0].mouth_shape == MouthState.O
@@ -463,40 +504,43 @@ class TestStateTransitions:
     onset_env = np.zeros(frame_count)
     onset_env[10] = 1.0  # Only one onset at start
 
-    monkeypatch.setattr(syllable_detection, "_load_audio", lambda _:
+    monkeypatch.setattr(mouth_event_detection_librosa, "_load_audio", lambda _:
                         (np.zeros(sr), sr))
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "spectral_centroid",
       lambda **kwargs: centroid.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "rms",
       lambda **kwargs: rms.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_strength",
       lambda **kwargs: onset_env,
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_detect",
       lambda **kwargs: np.array([10]),
     )
     # Disable rhythmic fallback to test only onset + transition detection
-    monkeypatch.setattr(syllable_detection, "_build_rhythmic_frames",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_build_rhythmic_frames",
                         lambda *a, **k: [])
 
     monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
+      mouth_event_detection_parselmouth,
+      "_detect_segments_with_confidence_parselmouth",
+      lambda wav_bytes: mouth_event_detection_librosa._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_mouth_events(
-      b"dummy", transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      b"dummy",
+      mode="librosa",
+      transcript=None,
+    )
 
     # Should have 2 syllables: O then OPEN (transition at ~frame 35)
     assert len(syllables) == 2
@@ -520,40 +564,43 @@ class TestStateTransitions:
     onset_env = np.zeros(frame_count)
     onset_env[10] = 1.0
 
-    monkeypatch.setattr(syllable_detection, "_load_audio", lambda _:
+    monkeypatch.setattr(mouth_event_detection_librosa, "_load_audio", lambda _:
                         (np.zeros(sr), sr))
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "spectral_centroid",
       lambda **kwargs: centroid.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.feature,
+      mouth_event_detection_librosa.librosa.feature,
       "rms",
       lambda **kwargs: rms.reshape(1, -1),
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_strength",
       lambda **kwargs: onset_env,
     )
     monkeypatch.setattr(
-      syllable_detection.librosa.onset,
+      mouth_event_detection_librosa.librosa.onset,
       "onset_detect",
       lambda **kwargs: np.array([10]),
     )
     # Disable rhythmic fallback to test only onset + transition detection
-    monkeypatch.setattr(syllable_detection, "_build_rhythmic_frames",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_build_rhythmic_frames",
                         lambda *a, **k: [])
 
     monkeypatch.setattr(
-      syllable_detection,
-      "detect_segments_with_confidence_parselmouth",
-      lambda wav_bytes: syllable_detection._detect_segments_with_confidence(
+      mouth_event_detection_parselmouth,
+      "_detect_segments_with_confidence_parselmouth",
+      lambda wav_bytes: mouth_event_detection_librosa._detect_segments_with_confidence(
         wav_bytes),
     )
-    syllables, _parselmouth = detect_mouth_events(
-      b"dummy", transcript=None)
+    syllables = mouth_event_detection.detect_mouth_events(
+      b"dummy",
+      mode="librosa",
+      transcript=None,
+    )
 
     assert len(syllables) == 2
     assert syllables[0].mouth_shape == MouthState.OPEN
@@ -791,7 +838,7 @@ class TestComputeThresholds:
     assert thresholds.centroid_threshold_to_o < thresholds.centroid_threshold_to_open
     # Difference should be hysteresis value
     diff = thresholds.centroid_threshold_to_open - thresholds.centroid_threshold_to_o
-    assert diff == pytest.approx(syllable_detection._HYSTERESIS_HZ, rel=0.01)
+    assert diff == pytest.approx(mouth_event_detection_librosa._HYSTERESIS_HZ, rel=0.01)
 
 
 class TestComputeFrameStates:
@@ -849,9 +896,8 @@ class TestDetectSegmentsWithConfidence:
 
   def test_returns_audio_segments(self):
     """Should return AudioSegment objects with confidence scores."""
-    from services.syllable_detection import (
-      _detect_segments_with_confidence,
-    )
+    from services.mouth_event_detection_librosa import (
+      _detect_segments_with_confidence, )
 
     wav_bytes = _make_wav_bytes(segments=[
       (0.1, 0.08, 440.0),
@@ -868,7 +914,7 @@ class TestDetectSegmentsWithConfidence:
 
   def test_silence_returns_empty(self):
     """Silent audio should return empty list."""
-    from services.syllable_detection import _detect_segments_with_confidence
+    from services.mouth_event_detection_librosa import _detect_segments_with_confidence
 
     buffer = io.BytesIO()
     sf.write(buffer, np.zeros(8000, dtype=np.float32), 8000, format="WAV")
@@ -878,7 +924,7 @@ class TestDetectSegmentsWithConfidence:
 
   def test_high_centroid_has_higher_confidence(self):
     """Extreme centroid values should have higher confidence than ambiguous ones."""
-    from services.syllable_detection import (
+    from services.mouth_event_detection_librosa import (
       _compute_segment_confidence, )
 
     # Extreme centroid (far from 1200Hz)
@@ -901,7 +947,7 @@ class TestDetectSegmentsWithConfidence:
 
   def test_longer_duration_has_higher_confidence(self):
     """Longer segments should have higher confidence."""
-    from services.syllable_detection import (
+    from services.mouth_event_detection_librosa import (
       _compute_segment_confidence, )
 
     short_conf = _compute_segment_confidence(
@@ -922,7 +968,7 @@ class TestDetectSegmentsWithConfidence:
 
   def test_higher_energy_has_higher_confidence(self):
     """Louder segments should have higher confidence."""
-    from services.syllable_detection import (
+    from services.mouth_event_detection_librosa import (
       _compute_segment_confidence, )
 
     quiet_conf = _compute_segment_confidence(
@@ -943,7 +989,7 @@ class TestDetectSegmentsWithConfidence:
 
   def test_confidence_bounded_zero_to_one(self):
     """Confidence should always be between 0 and 1."""
-    from services.syllable_detection import (
+    from services.mouth_event_detection_librosa import (
       _compute_segment_confidence, )
 
     # Edge cases
@@ -982,6 +1028,7 @@ class TestDetectSyllablesForLipSync:
   """Tests for detect_syllables_for_lip_sync public API."""
 
   def test_without_transcript_maps_segments_to_syllables(self, monkeypatch):
+
     def fake_detect_segments_librosa(_wav_bytes: bytes):
       return [
         MouthEvent(
@@ -1006,24 +1053,38 @@ class TestDetectSyllablesForLipSync:
         ),
       ]
 
-    monkeypatch.setattr(syllable_detection, "detect_segments_with_confidence",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_detect_segments_with_confidence",
                         fake_detect_segments_librosa)
-    monkeypatch.setattr(syllable_detection,
-                        "detect_segments_with_confidence_parselmouth",
+    monkeypatch.setattr(mouth_event_detection_parselmouth,
+                        "_detect_segments_with_confidence_parselmouth",
                         fake_detect_segments_parselmouth)
 
-    librosa_result, parselmouth_result = syllable_detection.detect_mouth_events(
+    librosa_result = mouth_event_detection.detect_mouth_events(
       b"noop",
+      mode="librosa",
+      transcript=None,
+    )
+    parselmouth_result = mouth_event_detection.detect_mouth_events(
+      b"noop",
+      mode="parselmouth",
       transcript=None,
     )
 
     assert librosa_result == [
-      MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.O,
-                 confidence=0.9, mean_centroid=900.0, mean_rms=0.5),
+      MouthEvent(start_time=0.0,
+                 end_time=0.1,
+                 mouth_shape=MouthState.O,
+                 confidence=0.9,
+                 mean_centroid=900.0,
+                 mean_rms=0.5),
     ]
     assert parselmouth_result == [
-      MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN,
-                 confidence=0.8, mean_centroid=2000.0, mean_rms=0.4),
+      MouthEvent(start_time=0.0,
+                 end_time=0.1,
+                 mouth_shape=MouthState.OPEN,
+                 confidence=0.8,
+                 mean_centroid=2000.0,
+                 mean_rms=0.4),
     ]
 
   def test_with_transcript_uses_alignment_pipeline(self, monkeypatch):
@@ -1071,16 +1132,22 @@ class TestDetectSyllablesForLipSync:
         ),
       ]
 
-    monkeypatch.setattr(syllable_detection, "detect_segments_with_confidence",
+    monkeypatch.setattr(mouth_event_detection_librosa, "_detect_segments_with_confidence",
                         fake_detect_segments_librosa)
-    monkeypatch.setattr(syllable_detection,
-                        "detect_segments_with_confidence_parselmouth",
+    monkeypatch.setattr(mouth_event_detection_parselmouth,
+                        "_detect_segments_with_confidence_parselmouth",
                         fake_detect_segments_parselmouth)
     monkeypatch.setattr(transcript_alignment, "align_with_text",
                         fake_align_with_text)
 
-    librosa_result, parselmouth_result = syllable_detection.detect_mouth_events(
+    librosa_result = mouth_event_detection.detect_mouth_events(
       b"noop",
+      mode="librosa",
+      transcript="hello",
+    )
+    parselmouth_result = mouth_event_detection.detect_mouth_events(
+      b"noop",
+      mode="parselmouth",
       transcript="hello",
     )
 
@@ -1091,10 +1158,18 @@ class TestDetectSyllablesForLipSync:
     assert calls[1][0] == "hello"
 
     assert librosa_result == [
-      MouthEvent(start_time=0.0, end_time=0.12, mouth_shape=MouthState.O,
-                 confidence=0.25, mean_centroid=1500.0, mean_rms=0.5),
+      MouthEvent(start_time=0.0,
+                 end_time=0.12,
+                 mouth_shape=MouthState.O,
+                 confidence=0.25,
+                 mean_centroid=1500.0,
+                 mean_rms=0.5),
     ]
     assert parselmouth_result == [
-      MouthEvent(start_time=0.0, end_time=0.12, mouth_shape=MouthState.OPEN,
-                 confidence=0.45, mean_centroid=900.0, mean_rms=0.4),
+      MouthEvent(start_time=0.0,
+                 end_time=0.12,
+                 mouth_shape=MouthState.OPEN,
+                 confidence=0.45,
+                 mean_centroid=900.0,
+                 mean_rms=0.4),
     ]

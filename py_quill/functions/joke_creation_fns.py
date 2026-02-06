@@ -296,30 +296,26 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
   allow_partial = get_bool_param(req, "allow_partial", False)
 
   try:
-    (
-      dialog_gcs_uri,
-      setup_gcs_uri,
-      response_gcs_uri,
-      punchline_gcs_uri,
-      audio_generation_metadata,
-    ) = (joke_operations.generate_joke_audio(
+    audio_result = joke_operations.generate_joke_audio(
       joke,
       temp_output=True,
       script_template=script_template,
       audio_model=audio_model,
       allow_partial=allow_partial,
-    ))
+    )
 
     payload: dict[str, object] = {
-      "dialog_audio_gcs_uri": dialog_gcs_uri,
-      "setup_audio_gcs_uri": setup_gcs_uri,
-      "response_audio_gcs_uri": response_gcs_uri,
-      "punchline_audio_gcs_uri": punchline_gcs_uri,
+      "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
+      "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
+      "response_audio_gcs_uri": audio_result.response_gcs_uri,
+      "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
       "audio_generation_metadata":
-      audio_generation_metadata.as_dict if audio_generation_metadata else {},
+      audio_result.generation_metadata.as_dict
+      if audio_result.generation_metadata else {},
     }
-    if allow_partial and (not setup_gcs_uri or not response_gcs_uri
-                          or not punchline_gcs_uri):
+    if allow_partial and (not audio_result.setup_gcs_uri
+                          or not audio_result.response_gcs_uri
+                          or not audio_result.punchline_gcs_uri):
       payload["error"] = (
         "Generated dialog audio but could not split on silence; returning the full dialog WAV only."
       )
@@ -381,29 +377,25 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
   audio_generation_metadata = None
   generation_metadata = models.GenerationMetadata()
   try:
-    (
-      dialog_gcs_uri,
-      setup_gcs_uri,
-      response_gcs_uri,
-      punchline_gcs_uri,
-      audio_generation_metadata,
-    ) = joke_operations.generate_joke_audio(
+    audio_result = joke_operations.generate_joke_audio(
       joke,
       temp_output=True,
       script_template=script_template,
       audio_model=audio_model,
       allow_partial=allow_partial,
     )
-    generation_metadata.add_generation(audio_generation_metadata)
+    audio_generation_metadata = audio_result.generation_metadata
+    generation_metadata.add_generation(audio_result.generation_metadata)
 
-    if not setup_gcs_uri or not response_gcs_uri or not punchline_gcs_uri:
+    if (not audio_result.setup_gcs_uri or not audio_result.response_gcs_uri
+        or not audio_result.punchline_gcs_uri):
       if allow_partial:
         return success_response(
           {
-            "dialog_audio_gcs_uri": dialog_gcs_uri,
-            "setup_audio_gcs_uri": setup_gcs_uri,
-            "response_audio_gcs_uri": response_gcs_uri,
-            "punchline_audio_gcs_uri": punchline_gcs_uri,
+            "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
+            "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
+            "response_audio_gcs_uri": audio_result.response_gcs_uri,
+            "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
             "video_generation_metadata": generation_metadata.as_dict,
             "error":
             "Generated dialog audio but could not split on silence; returning the full dialog WAV only.",
@@ -422,9 +414,10 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       video_gcs_uri, generation_metadata = (
         joke_operations.generate_joke_video_from_audio_uris(
           joke,
-          setup_audio_gcs_uri=setup_gcs_uri,
-          response_audio_gcs_uri=response_gcs_uri,
-          punchline_audio_gcs_uri=punchline_gcs_uri,
+          setup_audio_gcs_uri=audio_result.setup_gcs_uri,
+          response_audio_gcs_uri=audio_result.response_gcs_uri,
+          punchline_audio_gcs_uri=audio_result.punchline_gcs_uri,
+          clip_timing=audio_result.clip_timing,
           audio_generation_metadata=audio_generation_metadata,
           temp_output=True,
           is_test=True,
@@ -435,10 +428,10 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       if allow_partial:
         return success_response(
           {
-            "dialog_audio_gcs_uri": dialog_gcs_uri,
-            "setup_audio_gcs_uri": setup_gcs_uri,
-            "response_audio_gcs_uri": response_gcs_uri,
-            "punchline_audio_gcs_uri": punchline_gcs_uri,
+            "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
+            "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
+            "response_audio_gcs_uri": audio_result.response_gcs_uri,
+            "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
             "video_generation_metadata": generation_metadata.as_dict,
             "error": error_string,
             "error_stage": "video_generation",
@@ -450,10 +443,10 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
     return success_response(
       {
         "video_gcs_uri": video_gcs_uri,
-        "dialog_audio_gcs_uri": dialog_gcs_uri,
-        "setup_audio_gcs_uri": setup_gcs_uri,
-        "response_audio_gcs_uri": response_gcs_uri,
-        "punchline_audio_gcs_uri": punchline_gcs_uri,
+        "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
+        "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
+        "response_audio_gcs_uri": audio_result.response_gcs_uri,
+        "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
         "video_generation_metadata":
         generation_metadata.as_dict if generation_metadata else {},
       },

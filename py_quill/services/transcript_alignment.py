@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from typing import Sequence
 
+import nltk
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState
 from g2p_en import G2p
@@ -26,11 +27,6 @@ _g2p: G2p | None = None
 def _ensure_nltk_data_path() -> None:
   nltk_data_dir = os.environ.get("NLTK_DATA")
   if not nltk_data_dir:
-    return
-
-  try:
-    import nltk
-  except ImportError:
     return
 
   if nltk_data_dir not in nltk.data.path:

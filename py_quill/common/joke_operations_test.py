@@ -1231,6 +1231,7 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
     joke_operations.audio_client.AudioGenerationResult(
       gcs_uri="gs://temp/dialog.wav",
       metadata=generation_metadata,
+      timing=None,
     ))
   monkeypatch.setattr(
     joke_operations.audio_client,
@@ -1266,8 +1267,12 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
 
   result = joke_operations.generate_joke_audio(joke)
 
-  assert result == (dialog_uri, setup_uri, response_uri, punchline_uri,
-                    generation_metadata)
+  assert result.dialog_gcs_uri == dialog_uri
+  assert result.setup_gcs_uri == setup_uri
+  assert result.response_gcs_uri == response_uri
+  assert result.punchline_gcs_uri == punchline_uri
+  assert result.generation_metadata == generation_metadata
+  assert result.clip_timing is None
   assert [u[0] for u in uploaded] == [
     dialog_uri,
     setup_uri,
@@ -1318,6 +1323,7 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage
     joke_operations.audio_client.AudioGenerationResult(
       gcs_uri="gs://temp/dialog.wav",
       metadata=generation_metadata,
+      timing=None,
     ))
   monkeypatch.setattr(
     joke_operations.audio_client,
@@ -1396,6 +1402,7 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
     joke_operations.audio_client.AudioGenerationResult(
       gcs_uri="gs://temp/dialog.wav",
       metadata=generation_metadata,
+      timing=None,
     ))
   monkeypatch.setattr(
     joke_operations.audio_client,
@@ -1429,7 +1436,12 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
 
   result = joke_operations.generate_joke_audio(joke, allow_partial=True)
 
-  assert result == (dialog_uri, None, None, None, generation_metadata)
+  assert result.dialog_gcs_uri == dialog_uri
+  assert result.setup_gcs_uri is None
+  assert result.response_gcs_uri is None
+  assert result.punchline_gcs_uri is None
+  assert result.generation_metadata == generation_metadata
+  assert result.clip_timing is None
   assert [u[0] for u in uploaded] == [dialog_uri]
 
 
@@ -1460,13 +1472,15 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
   monkeypatch.setattr(
     joke_operations,
     "generate_joke_audio",
-    Mock(return_value=(
-      "gs://audio/dialog.wav",
-      "gs://audio/setup.wav",
-      "gs://audio/response.wav",
-      "gs://audio/punchline.wav",
-      audio_metadata,
-    )),
+    Mock(
+      return_value=joke_operations.JokeAudioResult(
+        dialog_gcs_uri="gs://audio/dialog.wav",
+        setup_gcs_uri="gs://audio/setup.wav",
+        response_gcs_uri="gs://audio/response.wav",
+        punchline_gcs_uri="gs://audio/punchline.wav",
+        generation_metadata=audio_metadata,
+        clip_timing=None,
+      )),
   )
 
   create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
@@ -1497,11 +1511,11 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
     ("gs://images/punchline.png", 3.3),
   ]
   expected_setup_punchline_audio = [
-    ("gs://audio/setup.wav", 0.0, "Hey want to hear a joke? Setup"),
-    ("gs://audio/punchline.wav", 3.3, "Punchline"),
+    ("gs://audio/setup.wav", 0.0, "Hey want to hear a joke? Setup", None),
+    ("gs://audio/punchline.wav", 3.3, "Punchline", None),
   ]
   expected_response_audio = [
-    ("gs://audio/response.wav", 1.8, "what?"),
+    ("gs://audio/response.wav", 1.8, "what?", None),
   ]
 
   create_video_mock.assert_called_once()
@@ -1548,13 +1562,15 @@ def test_generate_joke_video_uses_test_video_when_is_test_true(
   monkeypatch.setattr(
     joke_operations,
     "generate_joke_audio",
-    Mock(return_value=(
-      "gs://audio/dialog.wav",
-      "gs://audio/setup.wav",
-      "gs://audio/response.wav",
-      "gs://audio/punchline.wav",
-      audio_metadata,
-    )),
+    Mock(
+      return_value=joke_operations.JokeAudioResult(
+        dialog_gcs_uri="gs://audio/dialog.wav",
+        setup_gcs_uri="gs://audio/setup.wav",
+        response_gcs_uri="gs://audio/response.wav",
+        punchline_gcs_uri="gs://audio/punchline.wav",
+        generation_metadata=audio_metadata,
+        clip_timing=None,
+      )),
   )
 
   create_video_mock = Mock(return_value=("gs://videos/joke_test.mp4",

@@ -16,12 +16,14 @@ from enum import Enum
 from typing import Any, Generic, TypeVar
 
 import httpx
-from common import config, models, utils
+from common import audio_timing, config, models, utils
 from elevenlabs.client import ElevenLabs
 from elevenlabs.core.api_error import ApiError
 from elevenlabs.core.http_response import HttpResponse
 from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import \
     AudioWithTimestampsAndVoiceSegmentsResponseModel
+from elevenlabs.types.character_alignment_response_model import \
+    CharacterAlignmentResponseModel
 from firebase_functions import logger
 from google import genai
 from google.api_core.exceptions import ResourceExhausted
@@ -53,7 +55,7 @@ class AudioModel(str, Enum):
 class DialogTurn:
   """A single dialog turn by one speaker/voice."""
 
-  voice: Any
+  voice: Voice
   script: str
   pause_sec_before: float | None = None
   pause_sec_after: float | None = None
@@ -65,6 +67,7 @@ class AudioGenerationResult:
 
   gcs_uri: str
   metadata: models.SingleGenerationMetadata
+  timing: audio_timing.TtsTiming | None = None
 
 
 def get_audio_client(
@@ -144,6 +147,7 @@ class AudioClient(ABC, Generic[_T]):
       return AudioGenerationResult(
         gcs_uri=test_uri,
         metadata=models.SingleGenerationMetadata(),
+        timing=None,
       )
 
     if not turns:
@@ -207,7 +211,11 @@ class AudioClient(ABC, Generic[_T]):
           merged_extra_log_data,
         )
 
-        return AudioGenerationResult(gcs_uri=output_gcs_uri, metadata=metadata)
+        return AudioGenerationResult(
+          gcs_uri=output_gcs_uri,
+          metadata=metadata,
+          timing=internal.timing,
+        )
       except Exception as e:  # pylint: disable=broad-except
         last_error = e
         retryable_str = "retryable" if self._is_retryable_error(
@@ -296,10 +304,16 @@ class _AudioInternalResult:
   content_type: str
   token_counts: dict[str, int]
   extra_log_data: dict[str, Any] | None = None
+  timing: audio_timing.TtsTiming | None = None
 
 
 def _format_pause_seconds(seconds: float) -> str:
   return f"{seconds:g}"
+
+
+_PAUSE_TAG_TEXT_PREFIX = "pause for "
+_PAUSE_TAG_DIRECTIVE_PREFIX = f"[{_PAUSE_TAG_TEXT_PREFIX}"
+_PAUSE_TAG_DIRECTIVE_SUFFIX = " seconds]"
 
 
 def _apply_pause_markers(
@@ -308,11 +322,22 @@ def _apply_pause_markers(
   pause_sec_before: float | None,
   pause_sec_after: float | None,
 ) -> str:
+  """Render a script with provider-readable pause markers.
+
+  This is used to hint TTS pacing for multi-turn dialog by inserting explicit
+  pauses before/after a turn.
+  """
   rendered = script
   if pause_sec_before is not None:
-    rendered = f"[pause for {_format_pause_seconds(pause_sec_before)} seconds] {rendered}"
+    rendered = (
+      f"{_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_before)}"
+      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX} {rendered}"
+    )
   if pause_sec_after is not None:
-    rendered = f"{rendered} [pause for {_format_pause_seconds(pause_sec_after)} seconds]"
+    rendered = (
+      f"{rendered} {_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_after)}"
+      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX}"
+    )
   return rendered
 
 
@@ -401,10 +426,6 @@ class GeminiAudioClient(AudioClient[genai.Client]):
   def _normalize_turns(self, turns: list[DialogTurn]) -> list[DialogTurn]:
     normalized: list[DialogTurn] = []
     for turn in turns:
-      if not isinstance(turn, DialogTurn):
-        raise AudioGenerationError(f"Invalid dialog turn: {turn}")
-      if not isinstance(turn.voice, Voice):
-        raise AudioGenerationError(f"Turn voice must be a Voice: {turn.voice}")
       if turn.voice.model is not VoiceModel.GEMINI:
         raise AudioGenerationError(
           f"Gemini multi-turn audio requires GEMINI voices; got {turn.voice.model.name}"
@@ -650,6 +671,7 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
     input_characters = sum(len(i["text"]) for i in normalized_inputs)
     voice_segments = getattr(data, "voice_segments", None) or []
     voice_segments_count = len(voice_segments)
+    timing = _extract_elevenlabs_timing(data)
 
     return _AudioInternalResult(
       input_text=input_text,
@@ -668,26 +690,18 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
         "request_id": request_id,
         "unique_voice_ids": unique_voice_ids,
       },
+      timing=timing,
     )
 
   def _normalize_inputs(self, turns: list[DialogTurn]) -> list[dict[str, str]]:
     normalized: list[dict[str, str]] = []
     for turn in turns:
-      voice_id_raw = turn.voice
-      if isinstance(voice_id_raw, Voice):
-        if voice_id_raw.model is not VoiceModel.ELEVENLABS:
-          raise AudioGenerationError(
-            f"ElevenLabs voice must be an ELEVENLABS Voice; got {voice_id_raw.model.name}"
-          )
-        voice_id = voice_id_raw.voice_name
-      elif isinstance(voice_id_raw, str):
-        voice_id = voice_id_raw
-      else:
+      turn_voice = turn.voice
+      if turn_voice.model is not VoiceModel.ELEVENLABS:
         raise AudioGenerationError(
-          f"ElevenLabs voice must be an ELEVENLABS Voice or voice_id string; got {type(voice_id_raw)}"
+          f"ElevenLabs voice must be an ELEVENLABS Voice; got {turn_voice.model.name}"
         )
-
-      voice_id = voice_id.strip()
+      voice_id = turn_voice.voice_name
       if not voice_id:
         raise AudioGenerationError("ElevenLabs voice_id must be non-empty")
 
@@ -763,6 +777,413 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       if status >= 500:
         return True
     return False
+
+
+def _convert_character_alignment(
+  alignment_response: CharacterAlignmentResponseModel | None
+) -> audio_timing.CharacterAlignment | None:
+  """Convert an ElevenLabs alignment response into internal timing dataclasses."""
+  if alignment_response is None:
+    return None
+
+  return audio_timing.CharacterAlignment(
+    characters=[c for c in alignment_response.characters],
+    character_start_times_seconds=[
+      t for t in alignment_response.character_start_times_seconds
+    ],
+    character_end_times_seconds=[
+      t for t in alignment_response.character_end_times_seconds
+    ],
+  )
+
+
+_IN_WORD_PUNCTUATION = {"'", "-"}
+
+
+def _is_whitespace_char(ch: str) -> bool:
+  return (not ch) or str(ch).isspace()
+
+
+def _is_in_word_punctuation(
+  chars: list[str],
+  index: int,
+) -> bool:
+  if index <= 0:
+    return False
+  if index + 1 >= len(chars):
+    return False
+  ch = chars[index]
+  if ch not in _IN_WORD_PUNCTUATION:
+    return False
+  return chars[index - 1].isalnum() and chars[index + 1].isalnum()
+
+
+def _consume_bracket_tag(
+  chars: list[str],
+  start_index: int,
+) -> tuple[int, int, str]:
+  """Consume a bracket tag starting at '[' and return (start, end_exclusive, text)."""
+  n = len(chars)
+  i = start_index
+  if i >= n or chars[i] != "[":
+    return start_index, start_index + 1, ""
+  i += 1
+  inner: list[str] = []
+  while i < n and chars[i] != "]":
+    inner.append(chars[i])
+    i += 1
+  if i < n and chars[i] == "]":
+    i += 1
+  return start_index, i, "".join(inner).strip()
+
+
+def _is_pause_tag(tag_text: str) -> bool:
+  normalized = (tag_text or "").strip().lower()
+  return normalized.startswith(_PAUSE_TAG_TEXT_PREFIX)
+
+
+def _redistribute_char_timings(
+  *,
+  chars: list[str],
+  starts: list[float],
+  ends: list[float],
+  keep_indices: list[int],
+  new_t0: float,
+  new_t1: float,
+) -> audio_timing.CharacterAlignment:
+  """Return a new CharacterAlignment for kept chars, redistributed into [new_t0, new_t1]."""
+  kept_chars = [chars[i] for i in keep_indices]
+  old_durations = [
+    max(
+      0.0,
+      float(ends[i]) - float(starts[i]),
+    ) for i in keep_indices
+  ]
+  total_old = float(sum(old_durations))
+  if total_old <= 0.0:
+    weights = [1.0 for _ in keep_indices]
+    total_old = float(len(weights))
+  else:
+    weights = old_durations
+
+  new_t0 = float(new_t0)
+  new_t1 = float(new_t1)
+  duration = max(0.0, new_t1 - new_t0)
+
+  out_starts: list[float] = []
+  out_ends: list[float] = []
+  cursor = new_t0
+  for weight in weights:
+    part = (duration * float(weight) / total_old) if total_old > 0 else 0.0
+    out_starts.append(float(cursor))
+    cursor = float(cursor) + float(part)
+    out_ends.append(float(cursor))
+
+  # Ensure last boundary is exact (avoid cumulative float error).
+  if out_ends:
+    out_ends[-1] = float(new_t1)
+
+  return audio_timing.CharacterAlignment(
+    characters=kept_chars,
+    character_start_times_seconds=out_starts,
+    character_end_times_seconds=out_ends,
+  )
+
+
+def _sanitize_elevenlabs_alignment_turn(
+  alignment: audio_timing.CharacterAlignment,
+) -> audio_timing.CharacterAlignment:
+  """Sanitize a single turn's alignment.
+
+  Output contains only:
+  - alphanumeric characters
+  - apostrophes/hyphens that are between two alphanumeric characters
+
+  Leading bracket tags at the beginning of the turn extend the first word's
+  timing. Punctuation attached to a word extends that word window but is not
+  included in the output characters.
+  """
+  chars = alignment.characters
+  starts = alignment.character_start_times_seconds
+  ends = alignment.character_end_times_seconds
+  n = len(chars)
+
+  if n == 0 or (len(starts) != n) or (len(ends) != n):
+    return audio_timing.CharacterAlignment(
+      characters=[],
+      character_start_times_seconds=[],
+      character_end_times_seconds=[],
+    )
+
+  # Find the first alphanumeric char outside of brackets.
+  first_word_start: int | None = None
+  i = 0
+  while i < n:
+    ch = chars[i]
+    if ch == "[":
+      _tag_start, tag_end, _tag_text = _consume_bracket_tag(chars, i)
+      i = max(tag_end, i + 1)
+      continue
+    if ch.isalnum():
+      first_word_start = i
+      break
+    i += 1
+
+  if first_word_start is None:
+    return audio_timing.CharacterAlignment(
+      characters=[],
+      character_start_times_seconds=[],
+      character_end_times_seconds=[],
+    )
+
+  # Attribute leading non-pause tags (at start of turn) to the first word.
+  leading_tag_start_time: float | None = None
+  i = 0
+  while i < first_word_start:
+    if chars[i] != "[":
+      i += 1
+      continue
+    tag_start, tag_end, tag_text = _consume_bracket_tag(chars, i)
+    if not _is_pause_tag(tag_text):
+      t0 = float(starts[tag_start])
+      leading_tag_start_time = (t0 if leading_tag_start_time is None else min(
+        float(leading_tag_start_time), t0))
+    i = max(tag_end, i + 1)
+
+  out_chars: list[str] = []
+  out_starts: list[float] = []
+  out_ends: list[float] = []
+
+  i = 0
+  word_index = 0
+  while i < n:
+    ch = chars[i]
+    if ch == "[":
+      _tag_start, tag_end, _tag_text = _consume_bracket_tag(chars, i)
+      i = max(tag_end, i + 1)
+      continue
+
+    if not ch.isalnum():
+      i += 1
+      continue
+
+    word_start = i
+    keep_indices: list[int] = []
+    while i < n:
+      ch_i = chars[i]
+      if ch_i.isalnum():
+        keep_indices.append(i)
+        i += 1
+        continue
+      if _is_in_word_punctuation(chars, i):
+        keep_indices.append(i)
+        i += 1
+        continue
+      break
+
+    word_end = i
+    if not keep_indices:
+      continue
+
+    core_t0 = min(float(starts[idx]) for idx in keep_indices)
+    core_t1 = max(float(ends[idx]) for idx in keep_indices)
+    word_t0 = core_t0
+    word_t1 = core_t1
+
+    # Attached punctuation to the left (e.g. opening quotes), no whitespace.
+    j = word_start - 1
+    while j >= 0:
+      ch_j = chars[j]
+      if ch_j in ("[", "]"):
+        break
+      if _is_whitespace_char(ch_j):
+        break
+      if ch_j.isalnum():
+        break
+      word_t0 = min(word_t0, float(starts[j]))
+      j -= 1
+
+    # Leading bracket tags extend only the first word.
+    if word_index == 0 and leading_tag_start_time is not None:
+      word_t0 = min(word_t0, float(leading_tag_start_time))
+
+    # Attached punctuation to the right (e.g. "hey..."), contiguous and without
+    # whitespace. Stop before a bracket tag or next word.
+    j = word_end
+    while j < n:
+      ch_j = chars[j]
+      if ch_j == "[":
+        break
+      if _is_whitespace_char(ch_j):
+        break
+      if ch_j.isalnum():
+        break
+      word_t1 = max(word_t1, float(ends[j]))
+      j += 1
+
+    redistributed = _redistribute_char_timings(
+      chars=chars,
+      starts=starts,
+      ends=ends,
+      keep_indices=keep_indices,
+      new_t0=word_t0,
+      new_t1=word_t1,
+    )
+    out_chars.extend(redistributed.characters)
+    out_starts.extend(redistributed.character_start_times_seconds)
+    out_ends.extend(redistributed.character_end_times_seconds)
+    word_index += 1
+
+  return audio_timing.CharacterAlignment(
+    characters=out_chars,
+    character_start_times_seconds=out_starts,
+    character_end_times_seconds=out_ends,
+  )
+
+
+def _sanitize_elevenlabs_alignment(
+  alignment: audio_timing.CharacterAlignment,
+  *,
+  voice_segments: list[audio_timing.VoiceSegment],
+) -> tuple[audio_timing.CharacterAlignment, list[audio_timing.VoiceSegment]]:
+  """Sanitize an alignment and rebuild voice segment char indices.
+
+  We sanitize each dialog turn independently (based on `dialogue_input_index`)
+  and then concatenate the sanitized turns back into a single alignment.
+  """
+  n_chars = len(alignment.characters)
+  segments_by_turn: dict[int, list[audio_timing.VoiceSegment]] = {}
+  for seg in voice_segments:
+    segments_by_turn.setdefault(int(seg.dialogue_input_index), []).append(seg)
+
+  turn_indices = sorted(segments_by_turn.keys())
+  if not turn_indices:
+    sanitized = _sanitize_elevenlabs_alignment_turn(alignment)
+    return sanitized, []
+
+  out_chars: list[str] = []
+  out_starts: list[float] = []
+  out_ends: list[float] = []
+  out_segments: list[audio_timing.VoiceSegment] = []
+
+  cursor = 0
+  for turn_index in turn_indices:
+    segs = segments_by_turn.get(turn_index) or []
+    c0 = min(int(s.character_start_index) for s in segs)
+    c1 = max(int(s.character_end_index) for s in segs)
+    c0 = max(0, min(c0, n_chars))
+    c1 = max(0, min(c1, n_chars))
+    if c1 < c0:
+      c0, c1 = c1, c0
+
+    slice_alignment = audio_timing.CharacterAlignment(
+      characters=list(alignment.characters[c0:c1]),
+      character_start_times_seconds=[
+        float(t) for t in alignment.character_start_times_seconds[c0:c1]
+      ],
+      character_end_times_seconds=[
+        float(t) for t in alignment.character_end_times_seconds[c0:c1]
+      ],
+    )
+    sanitized_turn = _sanitize_elevenlabs_alignment_turn(slice_alignment)
+
+    out_chars.extend(sanitized_turn.characters)
+    out_starts.extend(sanitized_turn.character_start_times_seconds)
+    out_ends.extend(sanitized_turn.character_end_times_seconds)
+
+    start_sec = min(float(s.start_time_seconds) for s in segs)
+    end_sec = max(float(s.end_time_seconds) for s in segs)
+    voice_id = str(segs[0].voice_id) if segs else ""
+    turn_len = len(sanitized_turn.characters)
+    out_segments.append(
+      audio_timing.VoiceSegment(
+        voice_id=voice_id,
+        start_time_seconds=start_sec,
+        end_time_seconds=end_sec,
+        character_start_index=int(cursor),
+        character_end_index=int(cursor + turn_len),
+        dialogue_input_index=int(turn_index),
+      ))
+    cursor += turn_len
+
+  return (
+    audio_timing.CharacterAlignment(
+      characters=out_chars,
+      character_start_times_seconds=out_starts,
+      character_end_times_seconds=out_ends,
+    ),
+    out_segments,
+  )
+
+
+def _extract_elevenlabs_timing(
+  data: AudioWithTimestampsAndVoiceSegmentsResponseModel,
+) -> audio_timing.TtsTiming:
+  """Extract timing metadata from an ElevenLabs TTS response.
+
+  The response can include both raw `alignment` and `normalized_alignment`, plus
+  `voice_segments` that map contiguous voiced regions to dialogue turns.
+  """
+  _log_response("Alignment", data.alignment)
+  _log_response("Normalized Alignment", data.normalized_alignment)
+
+  raw_alignment = _convert_character_alignment(data.alignment)
+  raw_normalized_alignment = _convert_character_alignment(
+    data.normalized_alignment)
+
+  base_alignment = raw_normalized_alignment or raw_alignment
+  if base_alignment is None:
+    return audio_timing.TtsTiming(
+      alignment=None,
+      normalized_alignment=None,
+      voice_segments=[],
+    )
+
+  def _clamp_boundary(index: int, n_chars: int) -> int:
+    if index < 0:
+      return 0
+    if index > n_chars:
+      return n_chars
+    return index
+
+  n_chars = len(base_alignment.characters)
+  voice_segments_in = [
+    audio_timing.VoiceSegment(
+      voice_id=segment.voice_id,
+      start_time_seconds=segment.start_time_seconds,
+      end_time_seconds=segment.end_time_seconds,
+      character_start_index=_clamp_boundary(int(segment.character_start_index),
+                                           n_chars),
+      character_end_index=_clamp_boundary(int(segment.character_end_index),
+                                          n_chars),
+      dialogue_input_index=segment.dialogue_input_index,
+    ) for segment in data.voice_segments
+  ]
+
+  sanitized_alignment, sanitized_voice_segments = _sanitize_elevenlabs_alignment(
+    base_alignment,
+    voice_segments=voice_segments_in,
+  )
+
+  return audio_timing.TtsTiming(
+    alignment=None,
+    normalized_alignment=sanitized_alignment,
+    voice_segments=sanitized_voice_segments,
+  )
+
+
+def _log_response(label: str,
+                  response: CharacterAlignmentResponseModel | None) -> None:
+  if response is None:
+    return
+  lines: list[str] = [label]
+
+  for i, char in enumerate(response.characters):
+    start_time = response.character_start_times_seconds[i]
+    end_time = response.character_end_times_seconds[i]
+    lines.append(f"{char} @ {start_time:.3f}s - {end_time:.3f}s")
+
+  logger.info("\n".join(lines))
 
 
 def _log_audio_response(

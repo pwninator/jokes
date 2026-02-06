@@ -8,10 +8,11 @@ import io
 import random
 import sys
 import wave
+from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Literal, Tuple
 
-from common import image_generation, models
+from common import audio_timing, image_generation, models
 from common.posable_character import PosableCharacter
 from common.posable_characters import PosableCat
 from firebase_functions import logger
@@ -66,7 +67,7 @@ DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE: list[audio_client.DialogTurn] = [
   ),
   audio_client.DialogTurn(
     voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
-    script="[excitedly, holding back laughter] {punchline_text}\n[giggles]",
+    script="[excitedly, holding back laughter] {punchline_text}",
   ),
 ]
 
@@ -74,6 +75,27 @@ _MIME_TYPE_CONFIG: dict[str, Tuple[str, str]] = {
   "image/png": ("PNG", "png"),
   "image/jpeg": ("JPEG", "jpg"),
 }
+
+
+@dataclass(frozen=True)
+class JokeAudioTiming:
+  """Optional per-clip timing metadata for mouth animation."""
+
+  setup: audio_timing.CharacterAlignment | None = None
+  response: audio_timing.CharacterAlignment | None = None
+  punchline: audio_timing.CharacterAlignment | None = None
+
+
+@dataclass(frozen=True)
+class JokeAudioResult:
+  """Result of generating joke audio (full dialog + split clips)."""
+
+  dialog_gcs_uri: str
+  setup_gcs_uri: str | None
+  response_gcs_uri: str | None
+  punchline_gcs_uri: str | None
+  generation_metadata: models.SingleGenerationMetadata
+  clip_timing: JokeAudioTiming | None = None
 
 
 class JokeOperationsError(Exception):
@@ -586,7 +608,7 @@ def generate_joke_audio(
   script_template: list[audio_client.DialogTurn] | None = None,
   audio_model: audio_client.AudioModel | None = None,
   allow_partial: bool = False,
-) -> tuple[str, str | None, str | None, str | None, models.SingleGenerationMetadata]:
+) -> JokeAudioResult:
   """Generate a full dialog WAV plus split clips and upload as public files.
 
   Flow:
@@ -642,19 +664,46 @@ def generate_joke_audio(
     "wav",
   )
   cloud_storage.upload_bytes_to_gcs(dialog_wav_bytes,
-                                   dialog_gcs_uri,
-                                   content_type="audio/wav")
+                                    dialog_gcs_uri,
+                                    content_type="audio/wav")
 
-  try:
-    setup_wav, response_wav, punchline_wav = _split_wav_bytes_on_two_pauses(
-      dialog_wav_bytes,
-      silence_duration_sec=1.0,
-    )
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(f"Error splitting joke dialog WAV: {exc}")
-    if allow_partial:
-      return (dialog_gcs_uri, None, None, None, audio_generation_metadata)
-    raise
+  timing: JokeAudioTiming | None = None
+  setup_wav: bytes | None = None
+  response_wav: bytes | None = None
+  punchline_wav: bytes | None = None
+
+  if audio_result.timing:
+    try:
+      setup_wav, response_wav, punchline_wav, timing = _split_joke_dialog_wav_by_timing(
+        dialog_wav_bytes,
+        audio_result.timing,
+      )
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(f"Error splitting joke dialog WAV by timing: {exc}")
+      setup_wav = None
+      response_wav = None
+      punchline_wav = None
+      timing = None
+
+  if setup_wav is None or response_wav is None or punchline_wav is None:
+    try:
+      setup_wav, response_wav, punchline_wav = _split_wav_bytes_on_two_pauses(
+        dialog_wav_bytes,
+        silence_duration_sec=1.0,
+      )
+      timing = None
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(f"Error splitting joke dialog WAV: {exc}")
+      if allow_partial:
+        return JokeAudioResult(
+          dialog_gcs_uri=dialog_gcs_uri,
+          setup_gcs_uri=None,
+          response_gcs_uri=None,
+          punchline_gcs_uri=None,
+          generation_metadata=audio_generation_metadata,
+          clip_timing=None,
+        )
+      raise
 
   setup_gcs_uri = cloud_storage.get_audio_gcs_uri(
     f"joke_{joke_id_for_filename}_setup",
@@ -670,17 +719,133 @@ def generate_joke_audio(
   )
 
   cloud_storage.upload_bytes_to_gcs(setup_wav,
-                                   setup_gcs_uri,
-                                   content_type="audio/wav")
+                                    setup_gcs_uri,
+                                    content_type="audio/wav")
   cloud_storage.upload_bytes_to_gcs(response_wav,
-                                   response_gcs_uri,
-                                   content_type="audio/wav")
+                                    response_gcs_uri,
+                                    content_type="audio/wav")
   cloud_storage.upload_bytes_to_gcs(punchline_wav,
-                                   punchline_gcs_uri,
-                                   content_type="audio/wav")
+                                    punchline_gcs_uri,
+                                    content_type="audio/wav")
 
-  return (dialog_gcs_uri, setup_gcs_uri, response_gcs_uri, punchline_gcs_uri,
-          audio_generation_metadata)
+  return JokeAudioResult(
+    dialog_gcs_uri=dialog_gcs_uri,
+    setup_gcs_uri=setup_gcs_uri,
+    response_gcs_uri=response_gcs_uri,
+    punchline_gcs_uri=punchline_gcs_uri,
+    generation_metadata=audio_generation_metadata,
+    clip_timing=timing,
+  )
+
+
+def _slice_wav_bytes(
+  wav_bytes: bytes,
+  *,
+  start_time_sec: float,
+  end_time_sec: float,
+) -> bytes:
+  """Return a WAV byte slice for the given time range (preserving WAV headers)."""
+  with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+    # pylint: disable=no-member
+    n_channels = wf.getnchannels()
+    sampwidth = wf.getsampwidth()
+    framerate = wf.getframerate()
+    n_frames = wf.getnframes()
+    # pylint: enable=no-member
+
+    start_frame = max(0, int(round(float(start_time_sec) * framerate)))
+    end_frame = max(start_frame, int(round(float(end_time_sec) * framerate)))
+    end_frame = min(end_frame, int(n_frames))
+
+    wf.setpos(start_frame)
+    frames = wf.readframes(end_frame - start_frame)
+
+  buffer = io.BytesIO()
+  with wave.open(buffer, "wb") as out:
+    # pylint: disable=no-member
+    out.setnchannels(int(n_channels))
+    out.setsampwidth(int(sampwidth))
+    out.setframerate(int(framerate))
+    out.writeframes(frames)
+    # pylint: enable=no-member
+  return buffer.getvalue()
+
+
+def _split_joke_dialog_wav_by_timing(
+  dialog_wav_bytes: bytes,
+  timing: audio_timing.TtsTiming,
+) -> tuple[bytes, bytes, bytes, JokeAudioTiming | None]:
+  """Split the 3-turn joke dialog WAV using provider timing data.
+
+  Uses `timing.voice_segments` to find the time bounds for each dialogue turn
+  (setup, response, punchline). Also slices the corresponding character timing
+  alignment into per-clip `CharacterAlignment`, shifted to clip-local time.
+  """
+  alignment = timing.normalized_alignment or timing.alignment
+  if alignment is None or not timing.voice_segments:
+    raise ValueError("timing missing alignment or voice_segments")
+
+  segments_by_turn: dict[int, list[audio_timing.VoiceSegment]] = {}
+  for seg in timing.voice_segments:
+    segments_by_turn.setdefault(int(seg.dialogue_input_index), []).append(seg)
+
+  def _turn_bounds(turn_index: int) -> tuple[float, float, int, int]:
+    segs = segments_by_turn.get(turn_index) or []
+    if not segs:
+      raise ValueError(f"missing voice segments for turn {turn_index}")
+    start_sec = min(float(s.start_time_seconds) for s in segs)
+    end_sec = max(float(s.end_time_seconds) for s in segs)
+    char_start = min(int(s.character_start_index) for s in segs)
+    char_end = max(int(s.character_end_index) for s in segs)
+    return start_sec, end_sec, char_start, char_end
+
+  setup_start, setup_end, setup_c0, setup_c1 = _turn_bounds(0)
+  response_start, response_end, response_c0, response_c1 = _turn_bounds(1)
+  punch_start, punch_end, punch_c0, punch_c1 = _turn_bounds(2)
+
+  setup_wav = _slice_wav_bytes(
+    dialog_wav_bytes,
+    start_time_sec=setup_start,
+    end_time_sec=setup_end,
+  )
+  response_wav = _slice_wav_bytes(
+    dialog_wav_bytes,
+    start_time_sec=response_start,
+    end_time_sec=response_end,
+  )
+  punchline_wav = _slice_wav_bytes(
+    dialog_wav_bytes,
+    start_time_sec=punch_start,
+    end_time_sec=punch_end,
+  )
+
+  def _slice_alignment(
+    c0: int,
+    c1: int,
+    *,
+    offset_sec: float,
+  ) -> audio_timing.CharacterAlignment:
+    chars = alignment.characters[c0:c1]
+    starts = alignment.character_start_times_seconds[c0:c1]
+    ends = alignment.character_end_times_seconds[c0:c1]
+    return audio_timing.CharacterAlignment(
+      characters=list(chars),
+      character_start_times_seconds=[float(t) - offset_sec for t in starts],
+      character_end_times_seconds=[float(t) - offset_sec for t in ends],
+    )
+
+  return (
+    setup_wav,
+    response_wav,
+    punchline_wav,
+    JokeAudioTiming(
+      setup=_slice_alignment(setup_c0, setup_c1, offset_sec=setup_start),
+      response=_slice_alignment(response_c0,
+                                response_c1,
+                                offset_sec=response_start),
+      punchline=_slice_alignment(punch_c0, punch_c1, offset_sec=punch_start),
+    ),
+  )
 
 
 def generate_joke_video_from_audio_uris(
@@ -689,6 +854,7 @@ def generate_joke_video_from_audio_uris(
   setup_audio_gcs_uri: str,
   response_audio_gcs_uri: str,
   punchline_audio_gcs_uri: str,
+  clip_timing: JokeAudioTiming | None = None,
   audio_generation_metadata: models.SingleGenerationMetadata | None = None,
   temp_output: bool = False,
   is_test: bool = False,
@@ -729,11 +895,14 @@ def generate_joke_video_from_audio_uris(
   punchline_transcript = joke.punchline_text
 
   setup_punchline_audio = [
-    (setup_audio_gcs_uri, 0.0, setup_transcript),
-    (punchline_audio_gcs_uri, punchline_start_sec, punchline_transcript),
+    (setup_audio_gcs_uri, 0.0, setup_transcript,
+     clip_timing.setup if clip_timing else None),
+    (punchline_audio_gcs_uri, punchline_start_sec, punchline_transcript,
+     clip_timing.punchline if clip_timing else None),
   ]
   response_audio = [
-    (response_audio_gcs_uri, response_start_sec, response_transcript),
+    (response_audio_gcs_uri, response_start_sec, response_transcript,
+     clip_timing.response if clip_timing else None),
   ]
 
   if character_class is None:
@@ -796,22 +965,19 @@ def generate_joke_video(
     if not setup_image_url or not punchline_image_url:
       raise ValueError("Joke must have setup and punchline images")
 
-  (
-    _dialog_gcs_uri,
-    setup_audio_gcs_uri,
-    response_audio_gcs_uri,
-    punchline_audio_gcs_uri,
-    audio_generation_metadata,
-  ) = generate_joke_audio(joke,
-                          temp_output=temp_output,
-                           script_template=script_template,
-                           audio_model=audio_model)
+  audio_result = generate_joke_audio(
+    joke,
+    temp_output=temp_output,
+    script_template=script_template,
+    audio_model=audio_model,
+  )
   return generate_joke_video_from_audio_uris(
     joke,
-    setup_audio_gcs_uri=setup_audio_gcs_uri,
-    response_audio_gcs_uri=response_audio_gcs_uri,
-    punchline_audio_gcs_uri=punchline_audio_gcs_uri,
-    audio_generation_metadata=audio_generation_metadata,
+    setup_audio_gcs_uri=audio_result.setup_gcs_uri,
+    response_audio_gcs_uri=audio_result.response_gcs_uri,
+    punchline_audio_gcs_uri=audio_result.punchline_gcs_uri,
+    clip_timing=audio_result.clip_timing,
+    audio_generation_metadata=audio_result.generation_metadata,
     temp_output=temp_output,
     is_test=is_test,
     character_class=character_class,
@@ -875,9 +1041,10 @@ def _select_audio_model_for_turns(
   if all(isinstance(v, str) for v in voices):
     return audio_client.AudioModel.ELEVENLABS_ELEVEN_V3
 
-  if all((isinstance(v, str) or
-          (isinstance(v, gen_audio.Voice) and
-           v.model is gen_audio.VoiceModel.ELEVENLABS)) for v in voices):
+  if all(
+    (isinstance(v, str) or (isinstance(v, gen_audio.Voice)
+                            and v.model is gen_audio.VoiceModel.ELEVENLABS))
+      for v in voices):
     return audio_client.AudioModel.ELEVENLABS_ELEVEN_V3
 
   raise ValueError(
@@ -908,9 +1075,9 @@ def _validate_audio_model_for_turns(
       raise ValueError(
         f"Audio model {audio_model.value} requires at least one dialog turn")
     if not all(
-        isinstance(v, str) or
-        (isinstance(v, gen_audio.Voice) and
-         v.model is gen_audio.VoiceModel.ELEVENLABS) for v in voices):
+        isinstance(v, str) or (isinstance(v, gen_audio.Voice)
+                               and v.model is gen_audio.VoiceModel.ELEVENLABS)
+        for v in voices):
       raise ValueError(
         f"Audio model {audio_model.value} requires ELEVENLABS Voice turns or voice_id string turns"
       )

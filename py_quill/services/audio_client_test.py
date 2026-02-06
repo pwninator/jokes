@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from common import audio_timing
 from services import audio_client, gen_audio
 
 
@@ -105,6 +106,7 @@ def test_generate_multi_turn_dialog_stitches_turns_and_uploads_wav_bytes():
     )
 
   assert result.gcs_uri == "gs://gen_audio/out.wav"
+  assert result.timing is None
   assert result.metadata.token_counts["characters"] > 0
   assert result.metadata.token_counts["prompt_tokens"] == 100
   assert result.metadata.token_counts["output_tokens"] == 3200
@@ -233,6 +235,10 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import (
     AudioWithTimestampsAndVoiceSegmentsResponseModel,
   )
+  from elevenlabs.types.character_alignment_response_model import (
+    CharacterAlignmentResponseModel,
+  )
+  from elevenlabs.types.voice_segment import VoiceSegment
 
   class _FakeHttpResponse:
 
@@ -240,9 +246,49 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
       self.headers = headers
       self.data = data
 
+  normalized_alignment = CharacterAlignmentResponseModel(
+    characters=["[", "g", "i", "g", "g", "l", "e", "s", "]", "H", "i"],
+    character_start_times_seconds=[
+      0.00,
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05,
+      0.06,
+      0.07,
+      0.08,
+      0.09,
+      0.10,
+    ],
+    character_end_times_seconds=[
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05,
+      0.06,
+      0.07,
+      0.08,
+      0.09,
+      0.10,
+      0.11,
+    ],
+  )
+  voice_segments = [
+    VoiceSegment(
+      voice_id="fake_voice",
+      start_time_seconds=0.0,
+      end_time_seconds=0.2,
+      character_start_index=0,
+      character_end_index=11,
+      dialogue_input_index=0,
+    )
+  ]
   response_data = AudioWithTimestampsAndVoiceSegmentsResponseModel(
     audio_base_64=audio_b64,
-    voice_segments=[],
+    voice_segments=voice_segments,
+    normalized_alignment=normalized_alignment,
   )
   response = _FakeHttpResponse(
     headers={
@@ -285,16 +331,41 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
     result = client.generate_multi_turn_dialog(
       turns=[
         audio_client.DialogTurn(
-          voice="voice_1",
+          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
           script="Hello",
           pause_sec_before=2,
         ),
-        audio_client.DialogTurn(voice="voice_2", script="Hi"),
+        audio_client.DialogTurn(voice=gen_audio.Voice.ELEVENLABS_MINNIE,
+                                script="Hi"),
       ],
       output_filename_base="out",
     )
 
   assert result.gcs_uri == "gs://gen_audio/out.mp3"
+  assert result.timing is not None
+  assert result.timing.normalized_alignment is not None
+  assert result.timing.normalized_alignment.characters == [
+    "H",
+    "i",
+  ]
+  assert result.timing.normalized_alignment.character_start_times_seconds == pytest.approx(
+    [0.00, 0.055],
+    rel=1e-6,
+  )
+  assert result.timing.normalized_alignment.character_end_times_seconds == pytest.approx(
+    [0.055, 0.11],
+    rel=1e-6,
+  )
+  assert result.timing.voice_segments == [
+    audio_timing.VoiceSegment(
+      voice_id="fake_voice",
+      start_time_seconds=0.0,
+      end_time_seconds=0.2,
+      character_start_index=0,
+      character_end_index=2,
+      dialogue_input_index=0,
+    )
+  ]
   assert result.metadata.model_name == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
   assert result.metadata.token_counts["characters"] == len("Hello") + len("Hi")
   assert result.metadata.token_counts["unique_voice_ids"] == 2
@@ -316,10 +387,10 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   assert call["model_id"] == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
   assert call["inputs"] == [{
     "text": "[pause for 2 seconds] Hello",
-    "voice_id": "voice_1",
+    "voice_id": gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.voice_name,
   }, {
     "text": "Hi",
-    "voice_id": "voice_2",
+    "voice_id": gen_audio.Voice.ELEVENLABS_MINNIE.voice_name,
   }]
 
 
@@ -330,12 +401,17 @@ def test_elevenlabs_rejects_more_than_ten_unique_voice_ids():
     max_retries=0,
   )
 
-  turns = [
-    audio_client.DialogTurn(voice=f"voice_{i}", script="Hi") for i in range(11)
-  ]
   with patch.object(audio_client.utils, "is_emulator", return_value=False):
+    turns = [
+      audio_client.DialogTurn(voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+                              script="Hi")
+      for _ in range(11)
+    ]
+    client._normalize_inputs = lambda _turns: [  # type: ignore[method-assign]
+      {
+        "text": "Hi",
+        "voice_id": f"voice_{i}",
+      } for i in range(11)
+    ]
     with pytest.raises(audio_client.AudioGenerationError, match="up to 10 unique voice IDs"):
-      client.generate_multi_turn_dialog(
-        turns=turns,
-        output_filename_base="out",
-      )
+      client._generate_multi_turn_dialog_internal(turns=turns, label="test")

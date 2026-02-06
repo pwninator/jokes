@@ -812,12 +812,12 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     captured_audio_args["script_template"] = script_template
     captured_audio_args["audio_model"] = audio_model
     captured_audio_args["allow_partial"] = allow_partial
-    return (
-      "gs://public/audio/dialog.wav",
-      "gs://public/audio/setup.wav",
-      "gs://public/audio/response.wav",
-      "gs://public/audio/punchline.wav",
-      models.SingleGenerationMetadata(
+    return joke_creation_fns.joke_operations.JokeAudioResult(
+      dialog_gcs_uri="gs://public/audio/dialog.wav",
+      setup_gcs_uri="gs://public/audio/setup.wav",
+      response_gcs_uri="gs://public/audio/response.wav",
+      punchline_gcs_uri="gs://public/audio/punchline.wav",
+      generation_metadata=models.SingleGenerationMetadata(
         model_name="gemini-tts",
         token_counts={
           "prompt_tokens": 123,
@@ -825,6 +825,7 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
         },
         cost=0.0123,
       ),
+      clip_timing=None,
     )
 
   monkeypatch.setattr(
@@ -914,12 +915,13 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     captured_audio_args["audio_model"] = audio_model
     captured_audio_args["temp_output"] = temp_output
     captured_audio_args["allow_partial"] = allow_partial
-    return (
-      "gs://public/audio/dialog.wav",
-      "gs://public/audio/setup.wav",
-      "gs://public/audio/response.wav",
-      "gs://public/audio/punchline.wav",
-      audio_metadata,
+    return joke_creation_fns.joke_operations.JokeAudioResult(
+      dialog_gcs_uri="gs://public/audio/dialog.wav",
+      setup_gcs_uri="gs://public/audio/setup.wav",
+      response_gcs_uri="gs://public/audio/response.wav",
+      punchline_gcs_uri="gs://public/audio/punchline.wav",
+      generation_metadata=audio_metadata,
+      clip_timing=None,
     )
 
   def fake_generate_video_from_audio(
@@ -928,6 +930,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     setup_audio_gcs_uri,
     response_audio_gcs_uri,
     punchline_audio_gcs_uri,
+    clip_timing=None,
     audio_generation_metadata=None,
     temp_output=False,
     is_test=False,
@@ -937,6 +940,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     captured_video_args["response_audio_gcs_uri"] = response_audio_gcs_uri
     captured_video_args["punchline_audio_gcs_uri"] = punchline_audio_gcs_uri
     captured_video_args["audio_generation_metadata"] = audio_generation_metadata
+    captured_video_args["clip_timing"] = clip_timing
     captured_video_args["temp_output"] = temp_output
     captured_video_args["is_test"] = is_test
     captured_video_args["character_class"] = character_class
@@ -1001,6 +1005,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert captured_video_args[
     "punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
   assert captured_video_args["audio_generation_metadata"] is audio_metadata
+  assert captured_video_args["clip_timing"] is None
   assert captured_video_args["temp_output"] is True
   assert captured_video_args["is_test"] is True
 
@@ -1027,12 +1032,13 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
     "generate_joke_audio",
-    lambda *_args, **_kwargs: (
-      "gs://public/audio/dialog.wav",
-      "gs://public/audio/setup.wav",
-      "gs://public/audio/response.wav",
-      "gs://public/audio/punchline.wav",
-      audio_metadata,
+    lambda *_args, **_kwargs: joke_creation_fns.joke_operations.JokeAudioResult(
+      dialog_gcs_uri="gs://public/audio/dialog.wav",
+      setup_gcs_uri="gs://public/audio/setup.wav",
+      response_gcs_uri="gs://public/audio/response.wav",
+      punchline_gcs_uri="gs://public/audio/punchline.wav",
+      generation_metadata=audio_metadata,
+      clip_timing=None,
     ),
   )
 
@@ -1088,12 +1094,13 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
     "generate_joke_audio",
-    lambda *_args, **_kwargs: (
-      "gs://public/audio/dialog.wav",
-      None,
-      None,
-      None,
-      audio_metadata,
+    lambda *_args, **_kwargs: joke_creation_fns.joke_operations.JokeAudioResult(
+      dialog_gcs_uri="gs://public/audio/dialog.wav",
+      setup_gcs_uri=None,
+      response_gcs_uri=None,
+      punchline_gcs_uri=None,
+      generation_metadata=audio_metadata,
+      clip_timing=None,
     ),
   )
 

@@ -377,7 +377,8 @@ def test_create_portrait_character_video_uploads_mp4():
     ("gs://bucket/image2.png", 0.2),
   ]
   character_dialogs = [
-    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world")]),
+    (_DummyCharacter(),
+     [("gs://bucket/audio1.wav", 0.0, "hello world", None)]),
   ]
   upload_mock = MagicMock()
   get_uri_mock = MagicMock(return_value="gs://files/video/portrait.mp4")
@@ -396,9 +397,9 @@ def test_create_portrait_character_video_uploads_mp4():
                    side_effect=download_bytes), \
       patch.object(gen_video.cloud_storage, "download_image_from_gcs",
                    side_effect=download_image), \
-      patch.object(gen_video.syllable_detection,
+      patch.object(gen_video.mouth_event_detection,
                    "detect_mouth_events",
-                   return_value=([], [])), \
+                   side_effect=lambda *_args, **_kwargs: []), \
       patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
                    upload_mock), \
       patch.object(gen_video, "VideoClip", _FakeVideoClip), \
@@ -432,8 +433,9 @@ def test_create_portrait_character_video_uploads_mp4():
 
 def test_create_portrait_character_test_video_uploads_mp4():
   character_dialogs = [
-    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world")]),
-    (_DummyCharacter(), [("gs://bucket/audio2.wav", 0.0, "hi there")]),
+    (_DummyCharacter(),
+     [("gs://bucket/audio1.wav", 0.0, "hello world", None)]),
+    (_DummyCharacter(), [("gs://bucket/audio2.wav", 0.0, "hi there", None)]),
   ]
   upload_mock = MagicMock()
   get_uri_mock = MagicMock(return_value="gs://files/video/portrait_test.mp4")
@@ -448,17 +450,21 @@ def test_create_portrait_character_test_video_uploads_mp4():
 
   detect_calls: list[object] = []
 
-  def detect_stub(_wav_bytes, *, transcript=None):
-    detect_calls.append(transcript)
-    librosa_events = [
-      MouthEvent(start_time=0.0,
-                 end_time=0.1,
-                 mouth_shape=MouthState.OPEN),
-    ]
-    parselmouth_events = [
-      MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.O),
-    ]
-    return librosa_events, parselmouth_events
+  def detect_stub(_wav_bytes, *, mode: str, transcript=None, timing=None):
+    detect_calls.append((mode, transcript, timing is not None))
+    if mode == "librosa":
+      return [
+        MouthEvent(start_time=0.0,
+                   end_time=0.1,
+                   mouth_shape=MouthState.OPEN),
+      ]
+    if mode == "parselmouth":
+      return [
+        MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.O),
+      ]
+    if mode == "timing":
+      return []
+    raise ValueError(mode)
 
   with patch.object(gen_video.utils, "is_emulator", return_value=False), \
       patch.object(gen_video.cloud_storage, "get_video_gcs_uri", get_uri_mock), \
@@ -466,7 +472,7 @@ def test_create_portrait_character_test_video_uploads_mp4():
                    side_effect=download_bytes), \
       patch.object(gen_video.cloud_storage, "download_image_from_gcs",
                    side_effect=download_image), \
-      patch.object(gen_video.syllable_detection,
+      patch.object(gen_video.mouth_event_detection,
                    "detect_mouth_events",
                    side_effect=detect_stub), \
       patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
@@ -484,13 +490,16 @@ def test_create_portrait_character_test_video_uploads_mp4():
 
   assert gcs_uri == "gs://files/video/portrait_test.mp4"
   assert metadata.model_name == "moviepy"
-  assert metadata.token_counts["num_rows"] == 8
-  assert metadata.token_counts["num_characters"] == 16
+  assert metadata.token_counts["num_rows"] == 10
+  assert metadata.token_counts["num_characters"] == 20
 
-  # Each clip should be analyzed twice: raw + transcript-aligned.
-  assert len(detect_calls) == 4
-  assert any(call is None for call in detect_calls)
-  assert any(isinstance(call, str) and call for call in detect_calls)
+  # Each clip should be analyzed per engine and transcript-alignment mode,
+  # plus timing-mode rows.
+  assert len(detect_calls) == 10
+  assert any(mode == "timing" for mode, _transcript, _has_timing in detect_calls)
+  assert any(transcript is None for _mode, transcript, _has_timing in detect_calls)
+  assert any(isinstance(transcript, str) and transcript
+             for _mode, transcript, _has_timing in detect_calls)
 
   get_uri_mock.assert_called_once()
   assert get_uri_mock.call_args.kwargs["temp"] is True

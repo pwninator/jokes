@@ -228,22 +228,9 @@ def create_portrait_character_video(
     allow_empty=False,
   )
   normalized_dialogs = _normalize_character_dialogs(character_dialogs)
-  primary_dialog = _find_first_character_dialog(normalized_dialogs)
-
-  # Side-by-side compare mode: render two instances of the first character,
-  # one driven by librosa-based detection and one by parselmouth-based
-  # detection. Audio is only included once.
   render_dialogs = normalized_dialogs
   flattened_audio: list[tuple[str, float]] = _flatten_character_audio(
     normalized_dialogs)
-  if primary_dialog is not None:
-    primary_character, primary_clips = primary_dialog
-    render_dialogs = [
-      (primary_character, primary_clips),
-      (primary_character, primary_clips),
-    ]
-    flattened_audio = [(gcs_uri, start_time)
-                       for gcs_uri, start_time, _, _ in primary_clips]
 
   normalized_audio = _normalize_timed_assets(
     flattened_audio,
@@ -297,18 +284,36 @@ def create_portrait_character_video(
         f"Downloaded {len(audio_paths)} audio files in {audio_download_time:.2f}s"
       )
 
-      audio_path_by_key = {
-        (gcs_uri, start_time): path
-        for (gcs_uri, start_time), path in zip(normalized_audio, audio_paths)
-      }
       syllable_start = time.perf_counter()
-      syllable_data = _build_character_syllable_data(
-        normalized_dialogs,
-        audio_path_by_key,
-      )
-      mouth_timelines = [
-        _apply_forced_closures(syllables) for syllables in syllable_data
-      ]
+      mouth_timelines: list[list[tuple[MouthState, float, float]]] = []
+      for character, dialogs in render_dialogs:
+        if character is None:
+          mouth_timelines.append([])
+          continue
+
+        syllables: list[MouthEvent] = []
+        for _gcs_uri, start_time, transcript, timing in dialogs:
+          if not timing:
+            continue
+          clip = mouth_event_detection.detect_mouth_events(
+            b"",
+            mode="timing",
+            transcript=transcript,
+            timing=timing,
+          )
+          for event in clip:
+            syllables.append(
+              MouthEvent(
+                start_time=float(event.start_time) + float(start_time),
+                end_time=float(event.end_time) + float(start_time),
+                mouth_shape=event.mouth_shape,
+                confidence=event.confidence,
+                mean_centroid=event.mean_centroid,
+                mean_rms=event.mean_rms,
+              ))
+
+        syllables.sort(key=lambda entry: entry.start_time)
+        mouth_timelines.append(_apply_forced_closures(syllables))
       syllable_time = time.perf_counter() - syllable_start
       logger.info(
         f"Built syllable timing for {len(mouth_timelines)} dialogs in {syllable_time:.2f}s"
@@ -947,101 +952,6 @@ def _flatten_character_audio(
     flattened.extend(
       (gcs_uri, start_time) for gcs_uri, start_time, _, _ in dialogs)
   return flattened
-
-
-def _find_first_character_dialog(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]],
-) -> tuple[PosableCharacter, list[tuple[str, float, str,
-                                       list[audio_timing.WordTiming]
-                                       | None]]] | None:
-  """Return the first dialog list whose character is not None."""
-  for character, dialogs in character_dialogs:
-    if character is None:
-      continue
-    return character, dialogs
-  return None
-
-
-def _build_character_syllable_data(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]],
-  audio_path_by_key: dict[tuple[str, float], str],
-) -> list[list[MouthEvent]]:
-  """Build syllable data for side-by-side compare of the first character.
-
-  Args:
-    character_dialogs: List of (character, [(audio_gcs_uri, start_time, transcript)]).
-    audio_path_by_key: Map from (gcs_uri, start_time) to local file path.
-
-  Returns:
-    Two MouthEvent lists: [librosa_events, parselmouth_events].
-  """
-  primary = _find_first_character_dialog(character_dialogs)
-  if primary is None:
-    return [[], []]
-
-  _character, dialogs = primary
-
-  librosa_syllables: list[MouthEvent] = []
-  parselmouth_syllables: list[MouthEvent] = []
-
-  for gcs_uri, start_time, transcript, _timing in dialogs:
-    audio_path = audio_path_by_key.get((gcs_uri, start_time))
-    if not audio_path:
-      raise GenVideoError("Missing audio path for character dialog "
-                          f"{gcs_uri} @ {start_time}")
-    with open(audio_path, "rb") as audio_handle:
-      wav_bytes = audio_handle.read()
-
-    logger.info(
-      f"Detecting syllables (librosa + parselmouth) for {gcs_uri} @ {start_time}"
-    )
-    librosa_clip = mouth_event_detection.detect_mouth_events(
-      wav_bytes,
-      mode="librosa",
-      transcript=transcript,
-    )
-    parselmouth_clip = mouth_event_detection.detect_mouth_events(
-      wav_bytes,
-      mode="parselmouth",
-      transcript=transcript,
-    )
-
-    for syllable in librosa_clip:
-      librosa_syllables.append(
-        MouthEvent(
-          start_time=syllable.start_time + start_time,
-          end_time=syllable.end_time + start_time,
-          mouth_shape=syllable.mouth_shape,
-          confidence=syllable.confidence,
-          mean_centroid=syllable.mean_centroid,
-          mean_rms=syllable.mean_rms,
-        ))
-
-    for syllable in parselmouth_clip:
-      parselmouth_syllables.append(
-        MouthEvent(
-          start_time=syllable.start_time + start_time,
-          end_time=syllable.end_time + start_time,
-          mouth_shape=syllable.mouth_shape,
-          confidence=syllable.confidence,
-          mean_centroid=syllable.mean_centroid,
-          mean_rms=syllable.mean_rms,
-        ))
-
-  librosa_syllables.sort(key=lambda entry: entry.start_time)
-  parselmouth_syllables.sort(key=lambda entry: entry.start_time)
-
-  return [librosa_syllables, parselmouth_syllables]
 
 
 def _build_test_row_variants() -> list[dict[str, object]]:

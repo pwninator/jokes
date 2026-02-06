@@ -987,6 +987,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert payload["setup_audio_gcs_uri"] == "gs://public/audio/setup.wav"
   assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
   assert payload["punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
+  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
   assert payload["video_generation_metadata"]["total_cost"] == 0
   assert payload["video_generation_metadata"]["costs_by_model"][
     "gemini-tts"] == 0
@@ -1066,6 +1067,7 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_
   assert payload["setup_audio_gcs_uri"] == "gs://public/audio/setup.wav"
   assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
   assert payload["punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
+  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
   assert payload["error_stage"] == "video_generation"
   assert "Error generating video" in payload["error"]
   assert payload["video_generation_metadata"]["generations"][0][
@@ -1131,6 +1133,7 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_
   assert payload["setup_audio_gcs_uri"] is None
   assert payload["response_audio_gcs_uri"] is None
   assert payload["punchline_audio_gcs_uri"] is None
+  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
   assert payload["error_stage"] == "audio_split"
   assert video_mock_called["called"] is False
 

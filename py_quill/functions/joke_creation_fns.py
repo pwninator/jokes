@@ -396,6 +396,9 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
             "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
             "response_audio_gcs_uri": audio_result.response_gcs_uri,
             "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
+            "audio_generation_metadata":
+            audio_result.generation_metadata.as_dict
+            if audio_result.generation_metadata else {},
             "video_generation_metadata": generation_metadata.as_dict,
             "error":
             "Generated dialog audio but could not split on silence; returning the full dialog WAV only.",
@@ -432,6 +435,9 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
             "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
             "response_audio_gcs_uri": audio_result.response_gcs_uri,
             "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
+            "audio_generation_metadata":
+            audio_result.generation_metadata.as_dict
+            if audio_result.generation_metadata else {},
             "video_generation_metadata": generation_metadata.as_dict,
             "error": error_string,
             "error_stage": "video_generation",
@@ -447,6 +453,9 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
         "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
         "response_audio_gcs_uri": audio_result.response_gcs_uri,
         "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
+        "audio_generation_metadata":
+        audio_result.generation_metadata.as_dict
+        if audio_result.generation_metadata else {},
         "video_generation_metadata":
         generation_metadata.as_dict if generation_metadata else {},
       },

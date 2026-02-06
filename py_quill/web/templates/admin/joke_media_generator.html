@@ -578,10 +578,21 @@
     function extractAudioGeneration(meta) {
       if (!meta) return null;
       const generations = Array.isArray(meta.generations) ? meta.generations : [];
-      return generations.find((gen) => {
+      const candidates = generations.filter((gen) => gen && typeof gen === 'object');
+
+      const withTokenCounts = candidates.find((gen) => {
         const tokenCounts = gen?.token_counts || {};
         return tokenCounts.prompt_tokens || tokenCounts.output_tokens;
-      }) || null;
+      });
+      if (withTokenCounts) return withTokenCounts;
+
+      const withCost = candidates.find((gen) => {
+        const cost = gen?.cost;
+        return typeof cost === 'number' && Number.isFinite(cost) && cost !== 0;
+      });
+      if (withCost) return withCost;
+
+      return candidates.find((gen) => Boolean(gen?.model_name)) || candidates[0] || null;
     }
 
     generateVideoButton.addEventListener('click', async function () {
@@ -609,7 +620,7 @@
         const meta = data.video_generation_metadata || {};
         const hasAnyAudio = populateAudioResults(data);
 
-        const audioMeta = extractAudioGeneration(meta);
+        const audioMeta = data.audio_generation_metadata || extractAudioGeneration(meta);
         if (audioMeta) {
           populateAudioMeta(audioMeta);
         }

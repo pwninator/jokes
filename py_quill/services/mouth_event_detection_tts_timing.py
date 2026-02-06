@@ -18,8 +18,7 @@ _MIN_EVENT_SEC = 0.03
 
 
 def detect_mouth_events_tts_timing(
-  word_timings: list[audio_timing.WordTiming],
-) -> list[MouthEvent]:
+  word_timings: list[audio_timing.WordTiming], ) -> list[MouthEvent]:
   """Generate mouth events from word timings."""
   events: list[tuple[MouthState, float, float]] = []
 
@@ -73,22 +72,14 @@ def _split_window_even(
 def _postprocess(
   events: list[tuple[MouthState, float, float]],
 ) -> list[tuple[MouthState, float, float]]:
-  """Merge adjacent same-state events and fill gaps with CLOSED events."""
+  """Fill gaps with CLOSED events."""
   if not events:
     return []
 
   events_sorted = sorted(events, key=lambda e: (e[1], e[2]))
 
-  merged: list[tuple[MouthState, float, float]] = [events_sorted[0]]
-  for state, t0, t1 in events_sorted[1:]:
-    prev_state, prev_t0, prev_t1 = merged[-1]
-    if t0 <= prev_t1 and state == prev_state:
-      merged[-1] = (prev_state, prev_t0, max(prev_t1, t1))
-      continue
-    merged.append((state, t0, t1))
-
   filled: list[tuple[MouthState, float, float]] = []
-  for state, t0, t1 in merged:
+  for state, t0, t1 in events_sorted:
     if filled:
       prev_state, prev_t0, prev_t1 = filled[-1]
       gap = t0 - prev_t1

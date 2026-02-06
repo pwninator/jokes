@@ -308,6 +308,41 @@ class TestTimingMode:
     assert events
     assert all(isinstance(e, MouthEvent) for e in events)
 
+  def test_detect_mouth_events_timing_does_not_merge_adjacent_same_shape_events(
+    self,
+    monkeypatch,
+  ):
+    from common import audio_timing
+    from services import transcript_alignment
+
+    monkeypatch.setattr(
+      transcript_alignment,
+      "text_to_shapes",
+      lambda _word: [MouthState.OPEN, MouthState.OPEN],
+    )
+
+    timing = [
+      audio_timing.WordTiming(
+        word="Hi",
+        start_time=0.0,
+        end_time=1.0,
+        char_timings=[
+          audio_timing.CharTiming(char="H", start_time=0.0, end_time=0.5),
+          audio_timing.CharTiming(char="i", start_time=0.5, end_time=1.0),
+        ],
+      ),
+    ]
+
+    events = mouth_event_detection.detect_mouth_events(
+      b"noop",
+      mode="timing",
+      timing=timing,
+    )
+
+    # The two OPEN phonemes should remain separate after post-processing.
+    open_events = [e for e in events if e.mouth_shape == MouthState.OPEN]
+    assert len(open_events) == 2
+
 
 # =============================================================================
 # Mouth Shape Classification Tests

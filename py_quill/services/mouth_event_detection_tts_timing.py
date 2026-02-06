@@ -1,12 +1,7 @@
-"""Mouth event detection using character-level timing data.
+"""Mouth event detection using TTS word timings.
 
-This implementation uses provider-supplied character timings to derive word
-windows, then evenly distributes g2p-derived mouth shapes across each word
-window.
-
-Expected input:
-- Alignment characters should already be sanitized (no bracket directives, and
-  only in-word punctuation like apostrophes/hyphens when applicable).
+This implementation expects a word-timed alignment (already sanitized), then
+evenly distributes g2p-derived mouth shapes across each word window.
 """
 
 from __future__ import annotations
@@ -23,28 +18,18 @@ _MIN_EVENT_SEC = 0.03
 
 
 def detect_mouth_events_tts_timing(
-  timing: audio_timing.CharacterAlignment, ) -> list[MouthEvent]:
-  """Generate mouth events from character alignment timings."""
-  chars = timing.characters
-  starts = timing.character_start_times_seconds
-  ends = timing.character_end_times_seconds
-
-  if (len(chars) != len(starts)) or (len(chars) != len(ends)):
-    return []
-
+  word_timings: list[audio_timing.WordTiming],
+) -> list[MouthEvent]:
+  """Generate mouth events from word timings."""
   events: list[tuple[MouthState, float, float]] = []
 
-  word_spans = _iter_word_spans(chars)
-  if not word_spans:
-    return _to_mouth_events(_postprocess(events))
-
-  for word_start, word_end in word_spans:
-    word = "".join(chars[word_start:word_end]).strip()
+  for timing in word_timings:
+    word = (timing.word or "").strip()
     if not word:
       continue
 
-    word_t0 = float(starts[word_start])
-    word_t1 = float(ends[word_end - 1])
+    word_t0 = float(timing.start_time)
+    word_t1 = float(timing.end_time)
 
     shapes = transcript_alignment.text_to_shapes(word.replace("-", " "))
     if not shapes:
@@ -57,42 +42,6 @@ def detect_mouth_events_tts_timing(
     events.extend(word_events)
 
   return _to_mouth_events(_postprocess(events))
-
-def _iter_word_spans(characters: list[str]) -> list[tuple[int, int]]:
-  """Return `(start, end)` character index spans for word-like runs.
-
-  A "word" here is a contiguous run of `isalnum()` characters, apostrophes, and
-  hyphens. Leading/trailing punctuation is trimmed off the span.
-  """
-  spans: list[tuple[int, int]] = []
-  n = len(characters)
-  i = 0
-  while i < n:
-    if not _is_word_char(characters[i]):
-      i += 1
-      continue
-
-    start = i
-    while i < n and _is_word_char(characters[i]):
-      i += 1
-    end = i
-
-    while start < end and characters[start] in ("'", "-"):
-      start += 1
-    while start < end and characters[end - 1] in ("'", "-"):
-      end -= 1
-    if start < end:
-      spans.append((start, end))
-
-  return spans
-
-
-def _is_word_char(ch: str) -> bool:
-  if not ch:
-    return False
-  if ch.isalnum():
-    return True
-  return ch in ("'", "-")
 
 
 def _split_window_even(

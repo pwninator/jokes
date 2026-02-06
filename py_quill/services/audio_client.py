@@ -655,7 +655,7 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
         billed_characters = None
 
     data = response.data
-    audio_b64 = (getattr(data, "audio_base_64", None) or "").strip()
+    audio_b64 = str(data.audio_base_64 or "").strip()
     if not audio_b64:
       raise AudioGenerationError("ElevenLabs response missing audio_base_64")
 
@@ -669,7 +669,7 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
 
     input_text = "\n".join(i["text"] for i in normalized_inputs).strip()
     input_characters = sum(len(i["text"]) for i in normalized_inputs)
-    voice_segments = getattr(data, "voice_segments", None) or []
+    voice_segments = data.voice_segments or []
     voice_segments_count = len(voice_segments)
     timing = _extract_elevenlabs_timing(data)
 
@@ -771,30 +771,15 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       return True
 
     if isinstance(error, ApiError):
-      status = int(getattr(error, "status_code", 0) or 0)
+      try:
+        status = int(error.status_code or 0)
+      except Exception:
+        status = 0
       if status in (408, 429):
         return True
       if status >= 500:
         return True
     return False
-
-
-def _convert_character_alignment(
-  alignment_response: CharacterAlignmentResponseModel | None
-) -> audio_timing.CharacterAlignment | None:
-  """Convert an ElevenLabs alignment response into internal timing dataclasses."""
-  if alignment_response is None:
-    return None
-
-  return audio_timing.CharacterAlignment(
-    characters=[c for c in alignment_response.characters],
-    character_start_times_seconds=[
-      t for t in alignment_response.character_start_times_seconds
-    ],
-    character_end_times_seconds=[
-      t for t in alignment_response.character_end_times_seconds
-    ],
-  )
 
 
 _IN_WORD_PUNCTUATION = {"'", "-"}
@@ -850,8 +835,8 @@ def _redistribute_char_timings(
   keep_indices: list[int],
   new_t0: float,
   new_t1: float,
-) -> audio_timing.CharacterAlignment:
-  """Return a new CharacterAlignment for kept chars, redistributed into [new_t0, new_t1]."""
+) -> list[audio_timing.CharTiming]:
+  """Return kept character timings redistributed into `[new_t0, new_t1]`."""
   kept_chars = [chars[i] for i in keep_indices]
   old_durations = [
     max(
@@ -883,39 +868,29 @@ def _redistribute_char_timings(
   if out_ends:
     out_ends[-1] = float(new_t1)
 
-  return audio_timing.CharacterAlignment(
-    characters=kept_chars,
-    character_start_times_seconds=out_starts,
-    character_end_times_seconds=out_ends,
-  )
+  out: list[audio_timing.CharTiming] = []
+  for ch, t0, t1 in zip(kept_chars, out_starts, out_ends):
+    out.append(
+      audio_timing.CharTiming(
+        char=str(ch),
+        start_time=float(t0),
+        end_time=float(t1),
+      ))
+  return out
 
 
-def _sanitize_elevenlabs_alignment_turn(
-  alignment: audio_timing.CharacterAlignment,
-) -> audio_timing.CharacterAlignment:
-  """Sanitize a single turn's alignment.
-
-  Output contains only:
-  - alphanumeric characters
-  - apostrophes/hyphens that are between two alphanumeric characters
-
-  Leading bracket tags at the beginning of the turn extend the first word's
-  timing. Punctuation attached to a word extends that word window but is not
-  included in the output characters.
-  """
-  chars = alignment.characters
-  starts = alignment.character_start_times_seconds
-  ends = alignment.character_end_times_seconds
+def _extract_turn_word_timings_from_char_alignment(
+  *,
+  chars: list[str],
+  starts: list[float],
+  ends: list[float],
+) -> list[audio_timing.WordTiming]:
+  """Convert a turn's raw character alignment into sanitized word timings."""
   n = len(chars)
-
   if n == 0 or (len(starts) != n) or (len(ends) != n):
-    return audio_timing.CharacterAlignment(
-      characters=[],
-      character_start_times_seconds=[],
-      character_end_times_seconds=[],
-    )
+    return []
 
-  # Find the first alphanumeric char outside of brackets.
+  # Find the first alphanumeric char outside of bracket directives.
   first_word_start: int | None = None
   i = 0
   while i < n:
@@ -930,11 +905,7 @@ def _sanitize_elevenlabs_alignment_turn(
     i += 1
 
   if first_word_start is None:
-    return audio_timing.CharacterAlignment(
-      characters=[],
-      character_start_times_seconds=[],
-      character_end_times_seconds=[],
-    )
+    return []
 
   # Attribute leading non-pause tags (at start of turn) to the first word.
   leading_tag_start_time: float | None = None
@@ -946,14 +917,45 @@ def _sanitize_elevenlabs_alignment_turn(
     tag_start, tag_end, tag_text = _consume_bracket_tag(chars, i)
     if not _is_pause_tag(tag_text):
       t0 = float(starts[tag_start])
-      leading_tag_start_time = (t0 if leading_tag_start_time is None else min(
-        float(leading_tag_start_time), t0))
+      leading_tag_start_time = (
+        t0 if leading_tag_start_time is None else min(float(leading_tag_start_time), t0)
+      )
     i = max(tag_end, i + 1)
 
-  out_chars: list[str] = []
-  out_starts: list[float] = []
-  out_ends: list[float] = []
+  def _attached_left_punct_start(word_start: int) -> float | None:
+    j = word_start - 1
+    if j < 0:
+      return None
+    min_t0: float | None = None
+    k = j
+    while k >= 0:
+      ch = chars[k]
+      if _is_whitespace_char(ch) or ch.isalnum() or ch in ("[", "]"):
+        break
+      min_t0 = float(starts[k]) if min_t0 is None else min(min_t0, float(starts[k]))
+      k -= 1
+    if min_t0 is None:
+      return None
+    punct_run_start = k + 1
+    if punct_run_start <= 0:
+      return min_t0
+    prev = chars[punct_run_start - 1]
+    if _is_whitespace_char(prev) or prev == "]":
+      return min_t0
+    return None
 
+  def _attached_right_punct_end(word_end: int) -> float | None:
+    k = word_end
+    max_t1: float | None = None
+    while k < n:
+      ch = chars[k]
+      if _is_whitespace_char(ch) or ch.isalnum() or ch == "[":
+        break
+      max_t1 = float(ends[k]) if max_t1 is None else max(max_t1, float(ends[k]))
+      k += 1
+    return max_t1
+
+  out: list[audio_timing.WordTiming] = []
   i = 0
   word_index = 0
   while i < n:
@@ -980,48 +982,25 @@ def _sanitize_elevenlabs_alignment_turn(
         i += 1
         continue
       break
-
     word_end = i
+
     if not keep_indices:
       continue
 
-    core_t0 = min(float(starts[idx]) for idx in keep_indices)
-    core_t1 = max(float(ends[idx]) for idx in keep_indices)
-    word_t0 = core_t0
-    word_t1 = core_t1
+    word_t0 = min(float(starts[idx]) for idx in keep_indices)
+    word_t1 = max(float(ends[idx]) for idx in keep_indices)
 
-    # Attached punctuation to the left (e.g. opening quotes), no whitespace.
-    j = word_start - 1
-    while j >= 0:
-      ch_j = chars[j]
-      if ch_j in ("[", "]"):
-        break
-      if _is_whitespace_char(ch_j):
-        break
-      if ch_j.isalnum():
-        break
-      word_t0 = min(word_t0, float(starts[j]))
-      j -= 1
-
-    # Leading bracket tags extend only the first word.
     if word_index == 0 and leading_tag_start_time is not None:
       word_t0 = min(word_t0, float(leading_tag_start_time))
 
-    # Attached punctuation to the right (e.g. "hey..."), contiguous and without
-    # whitespace. Stop before a bracket tag or next word.
-    j = word_end
-    while j < n:
-      ch_j = chars[j]
-      if ch_j == "[":
-        break
-      if _is_whitespace_char(ch_j):
-        break
-      if ch_j.isalnum():
-        break
-      word_t1 = max(word_t1, float(ends[j]))
-      j += 1
+    left_t0 = _attached_left_punct_start(word_start)
+    if left_t0 is not None:
+      word_t0 = min(word_t0, float(left_t0))
+    right_t1 = _attached_right_punct_end(word_end)
+    if right_t1 is not None:
+      word_t1 = max(word_t1, float(right_t1))
 
-    redistributed = _redistribute_char_timings(
+    char_timings = _redistribute_char_timings(
       chars=chars,
       starts=starts,
       ends=ends,
@@ -1029,91 +1008,87 @@ def _sanitize_elevenlabs_alignment_turn(
       new_t0=word_t0,
       new_t1=word_t1,
     )
-    out_chars.extend(redistributed.characters)
-    out_starts.extend(redistributed.character_start_times_seconds)
-    out_ends.extend(redistributed.character_end_times_seconds)
+    word_text = "".join(t.char for t in char_timings).strip()
+    if not word_text:
+      continue
+
+    out.append(
+      audio_timing.WordTiming(
+        word=word_text,
+        start_time=float(word_t0),
+        end_time=float(word_t1),
+        char_timings=char_timings,
+      ))
     word_index += 1
 
-  return audio_timing.CharacterAlignment(
-    characters=out_chars,
-    character_start_times_seconds=out_starts,
-    character_end_times_seconds=out_ends,
-  )
+  return out
+
+
+@dataclass(frozen=True)
+class _ElevenlabsVoiceSegmentCharRange:
+  voice_id: str
+  start_time_seconds: float
+  end_time_seconds: float
+  char_start_index: int
+  char_end_index: int
+  dialogue_input_index: int
 
 
 def _sanitize_elevenlabs_alignment(
-  alignment: audio_timing.CharacterAlignment,
+  alignment: CharacterAlignmentResponseModel,
   *,
-  voice_segments: list[audio_timing.VoiceSegment],
-) -> tuple[audio_timing.CharacterAlignment, list[audio_timing.VoiceSegment]]:
-  """Sanitize an alignment and rebuild voice segment char indices.
-
-  We sanitize each dialog turn independently (based on `dialogue_input_index`)
-  and then concatenate the sanitized turns back into a single alignment.
-  """
+  voice_segments: list[_ElevenlabsVoiceSegmentCharRange],
+) -> tuple[list[audio_timing.WordTiming], list[audio_timing.VoiceSegment]]:
+  """Sanitize an alignment into word timings and rebuild segment word indices."""
   n_chars = len(alignment.characters)
-  segments_by_turn: dict[int, list[audio_timing.VoiceSegment]] = {}
+  segments_by_turn: dict[int, list[_ElevenlabsVoiceSegmentCharRange]] = {}
   for seg in voice_segments:
     segments_by_turn.setdefault(int(seg.dialogue_input_index), []).append(seg)
 
   turn_indices = sorted(segments_by_turn.keys())
   if not turn_indices:
-    sanitized = _sanitize_elevenlabs_alignment_turn(alignment)
-    return sanitized, []
+    words = _extract_turn_word_timings_from_char_alignment(
+      chars=[str(c) for c in alignment.characters],
+      starts=[float(t) for t in alignment.character_start_times_seconds],
+      ends=[float(t) for t in alignment.character_end_times_seconds],
+    )
+    return words, []
 
-  out_chars: list[str] = []
-  out_starts: list[float] = []
-  out_ends: list[float] = []
+  out_words: list[audio_timing.WordTiming] = []
   out_segments: list[audio_timing.VoiceSegment] = []
 
   cursor = 0
   for turn_index in turn_indices:
     segs = segments_by_turn.get(turn_index) or []
-    c0 = min(int(s.character_start_index) for s in segs)
-    c1 = max(int(s.character_end_index) for s in segs)
+    c0 = min(int(s.char_start_index) for s in segs)
+    c1 = max(int(s.char_end_index) for s in segs)
     c0 = max(0, min(c0, n_chars))
     c1 = max(0, min(c1, n_chars))
     if c1 < c0:
       c0, c1 = c1, c0
 
-    slice_alignment = audio_timing.CharacterAlignment(
-      characters=list(alignment.characters[c0:c1]),
-      character_start_times_seconds=[
-        float(t) for t in alignment.character_start_times_seconds[c0:c1]
-      ],
-      character_end_times_seconds=[
-        float(t) for t in alignment.character_end_times_seconds[c0:c1]
-      ],
+    turn_words = _extract_turn_word_timings_from_char_alignment(
+      chars=[str(c) for c in alignment.characters[c0:c1]],
+      starts=[float(t) for t in alignment.character_start_times_seconds[c0:c1]],
+      ends=[float(t) for t in alignment.character_end_times_seconds[c0:c1]],
     )
-    sanitized_turn = _sanitize_elevenlabs_alignment_turn(slice_alignment)
-
-    out_chars.extend(sanitized_turn.characters)
-    out_starts.extend(sanitized_turn.character_start_times_seconds)
-    out_ends.extend(sanitized_turn.character_end_times_seconds)
+    out_words.extend(turn_words)
 
     start_sec = min(float(s.start_time_seconds) for s in segs)
     end_sec = max(float(s.end_time_seconds) for s in segs)
     voice_id = str(segs[0].voice_id) if segs else ""
-    turn_len = len(sanitized_turn.characters)
     out_segments.append(
       audio_timing.VoiceSegment(
         voice_id=voice_id,
-        start_time_seconds=start_sec,
-        end_time_seconds=end_sec,
-        character_start_index=int(cursor),
-        character_end_index=int(cursor + turn_len),
+        start_time_seconds=float(start_sec),
+        end_time_seconds=float(end_sec),
+        word_start_index=int(cursor),
+        word_end_index=int(cursor + len(turn_words)),
         dialogue_input_index=int(turn_index),
       ))
-    cursor += turn_len
+    cursor += len(turn_words)
 
-  return (
-    audio_timing.CharacterAlignment(
-      characters=out_chars,
-      character_start_times_seconds=out_starts,
-      character_end_times_seconds=out_ends,
-    ),
-    out_segments,
-  )
+  return out_words, out_segments
 
 
 def _extract_elevenlabs_timing(
@@ -1127,11 +1102,7 @@ def _extract_elevenlabs_timing(
   _log_response("Alignment", data.alignment)
   _log_response("Normalized Alignment", data.normalized_alignment)
 
-  raw_alignment = _convert_character_alignment(data.alignment)
-  raw_normalized_alignment = _convert_character_alignment(
-    data.normalized_alignment)
-
-  base_alignment = raw_normalized_alignment or raw_alignment
+  base_alignment = data.normalized_alignment or data.alignment
   if base_alignment is None:
     return audio_timing.TtsTiming(
       alignment=None,
@@ -1147,27 +1118,27 @@ def _extract_elevenlabs_timing(
     return index
 
   n_chars = len(base_alignment.characters)
-  voice_segments_in = [
-    audio_timing.VoiceSegment(
-      voice_id=segment.voice_id,
-      start_time_seconds=segment.start_time_seconds,
-      end_time_seconds=segment.end_time_seconds,
-      character_start_index=_clamp_boundary(int(segment.character_start_index),
-                                           n_chars),
-      character_end_index=_clamp_boundary(int(segment.character_end_index),
-                                          n_chars),
-      dialogue_input_index=segment.dialogue_input_index,
-    ) for segment in data.voice_segments
-  ]
+  voice_segments_in: list[_ElevenlabsVoiceSegmentCharRange] = []
+  for segment in (data.voice_segments or []):
+    voice_segments_in.append(
+      _ElevenlabsVoiceSegmentCharRange(
+        voice_id=str(segment.voice_id),
+        start_time_seconds=float(segment.start_time_seconds),
+        end_time_seconds=float(segment.end_time_seconds),
+        char_start_index=_clamp_boundary(int(segment.character_start_index),
+                                         n_chars),
+        char_end_index=_clamp_boundary(int(segment.character_end_index), n_chars),
+        dialogue_input_index=int(segment.dialogue_input_index),
+      ))
 
-  sanitized_alignment, sanitized_voice_segments = _sanitize_elevenlabs_alignment(
+  sanitized_words, sanitized_voice_segments = _sanitize_elevenlabs_alignment(
     base_alignment,
     voice_segments=voice_segments_in,
   )
 
   return audio_timing.TtsTiming(
     alignment=None,
-    normalized_alignment=sanitized_alignment,
+    normalized_alignment=sanitized_words,
     voice_segments=sanitized_voice_segments,
   )
 

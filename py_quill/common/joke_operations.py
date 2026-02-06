@@ -81,9 +81,9 @@ _MIME_TYPE_CONFIG: dict[str, Tuple[str, str]] = {
 class JokeAudioTiming:
   """Optional per-clip timing metadata for mouth animation."""
 
-  setup: audio_timing.CharacterAlignment | None = None
-  response: audio_timing.CharacterAlignment | None = None
-  punchline: audio_timing.CharacterAlignment | None = None
+  setup: list[audio_timing.WordTiming] | None = None
+  response: list[audio_timing.WordTiming] | None = None
+  punchline: list[audio_timing.WordTiming] | None = None
 
 
 @dataclass(frozen=True)
@@ -651,7 +651,7 @@ def generate_joke_audio(
       "joke_id":
       joke.key,
       "turn_voices":
-      [str(getattr(turn.voice, "name", turn.voice)) for turn in dialog_turns],
+      [str(turn.voice.name) for turn in dialog_turns],
     },
   )
   temp_dialog_gcs_uri = audio_result.gcs_uri
@@ -779,7 +779,7 @@ def _split_joke_dialog_wav_by_timing(
 
   Uses `timing.voice_segments` to find the time bounds for each dialogue turn
   (setup, response, punchline). Also slices the corresponding character timing
-  alignment into per-clip `CharacterAlignment`, shifted to clip-local time.
+  alignment into per-clip word timings, shifted to clip-local time.
   """
   alignment = timing.normalized_alignment or timing.alignment
   if alignment is None or not timing.voice_segments:
@@ -795,13 +795,13 @@ def _split_joke_dialog_wav_by_timing(
       raise ValueError(f"missing voice segments for turn {turn_index}")
     start_sec = min(float(s.start_time_seconds) for s in segs)
     end_sec = max(float(s.end_time_seconds) for s in segs)
-    char_start = min(int(s.character_start_index) for s in segs)
-    char_end = max(int(s.character_end_index) for s in segs)
-    return start_sec, end_sec, char_start, char_end
+    word_start = min(int(s.word_start_index) for s in segs)
+    word_end = max(int(s.word_end_index) for s in segs)
+    return start_sec, end_sec, word_start, word_end
 
-  setup_start, setup_end, setup_c0, setup_c1 = _turn_bounds(0)
-  response_start, response_end, response_c0, response_c1 = _turn_bounds(1)
-  punch_start, punch_end, punch_c0, punch_c1 = _turn_bounds(2)
+  setup_start, setup_end, setup_w0, setup_w1 = _turn_bounds(0)
+  response_start, response_end, response_w0, response_w1 = _turn_bounds(1)
+  punch_start, punch_end, punch_w0, punch_w1 = _turn_bounds(2)
 
   setup_wav = _slice_wav_bytes(
     dialog_wav_bytes,
@@ -819,31 +819,38 @@ def _split_joke_dialog_wav_by_timing(
     end_time_sec=punch_end,
   )
 
-  def _slice_alignment(
-    c0: int,
-    c1: int,
+  def _shift_words(
+    words: list[audio_timing.WordTiming],
     *,
     offset_sec: float,
-  ) -> audio_timing.CharacterAlignment:
-    chars = alignment.characters[c0:c1]
-    starts = alignment.character_start_times_seconds[c0:c1]
-    ends = alignment.character_end_times_seconds[c0:c1]
-    return audio_timing.CharacterAlignment(
-      characters=list(chars),
-      character_start_times_seconds=[float(t) - offset_sec for t in starts],
-      character_end_times_seconds=[float(t) - offset_sec for t in ends],
-    )
+  ) -> list[audio_timing.WordTiming]:
+    offset_sec = float(offset_sec)
+    out: list[audio_timing.WordTiming] = []
+    for word in words:
+      out.append(
+        audio_timing.WordTiming(
+          word=str(word.word),
+          start_time=float(word.start_time) - offset_sec,
+          end_time=float(word.end_time) - offset_sec,
+          char_timings=[
+            audio_timing.CharTiming(
+              char=str(ch.char),
+              start_time=float(ch.start_time) - offset_sec,
+              end_time=float(ch.end_time) - offset_sec,
+            ) for ch in (word.char_timings or [])
+          ],
+        ))
+    return out
 
   return (
     setup_wav,
     response_wav,
     punchline_wav,
     JokeAudioTiming(
-      setup=_slice_alignment(setup_c0, setup_c1, offset_sec=setup_start),
-      response=_slice_alignment(response_c0,
-                                response_c1,
-                                offset_sec=response_start),
-      punchline=_slice_alignment(punch_c0, punch_c1, offset_sec=punch_start),
+      setup=_shift_words(alignment[setup_w0:setup_w1], offset_sec=setup_start),
+      response=_shift_words(alignment[response_w0:response_w1],
+                            offset_sec=response_start),
+      punchline=_shift_words(alignment[punch_w0:punch_w1], offset_sec=punch_start),
     ),
   )
 
@@ -1170,9 +1177,8 @@ def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
     frames = wf.readframes(nframes)
     # pylint: enable=no-member
 
-  if getattr(params, "comptype", None) != "NONE":
-    raise ValueError(
-      f"Unsupported WAV compression: {getattr(params, 'comptype', None)}")
+  if params.comptype != "NONE":
+    raise ValueError(f"Unsupported WAV compression: {params.comptype}")
 
   frame_size_bytes = int(params.nchannels) * int(params.sampwidth)
   expected_len = int(params.nframes) * frame_size_bytes

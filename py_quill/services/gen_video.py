@@ -196,7 +196,7 @@ def create_portrait_character_video(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]],
   footer_background_gcs_uri: str,
   total_duration_sec: float,
@@ -441,7 +441,7 @@ def create_portrait_character_test_video(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]],
   footer_background_gcs_uri: str,
   total_duration_sec: float,
@@ -861,13 +861,13 @@ def _normalize_character_dialogs(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]],
 ) -> list[tuple[PosableCharacter | None, list[tuple[
   str,
   float,
   str,
-  audio_timing.CharacterAlignment | None,
+  list[audio_timing.WordTiming] | None,
 ]]]]:
   """Normalize character dialog entries.
 
@@ -886,7 +886,7 @@ def _normalize_character_dialogs(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]] = []
   for index, entry in enumerate(character_dialogs):
     try:
@@ -896,8 +896,7 @@ def _normalize_character_dialogs(
         f"Invalid character dialog entry at index {index}: {entry}") from exc
 
     transcript_by_key: dict[tuple[str, float], str] = {}
-    timing_by_key: dict[tuple[str, float], audio_timing.CharacterAlignment
-                        | None] = {}
+    timing_by_key: dict[tuple[str, float], list[audio_timing.WordTiming] | None] = {}
     timed_audio: list[tuple[str, float]] = []
     for dialog_index, dialog_entry in enumerate(dialogs):
       try:
@@ -939,7 +938,7 @@ def _flatten_character_audio(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]],
 ) -> list[tuple[str, float]]:
   """Flatten `(character, dialogs)` into `[(gcs_uri, start_time), ...]`."""
@@ -955,10 +954,10 @@ def _find_first_character_dialog(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]],
 ) -> tuple[PosableCharacter, list[tuple[str, float, str,
-                                       audio_timing.CharacterAlignment
+                                       list[audio_timing.WordTiming]
                                        | None]]] | None:
   """Return the first dialog list whose character is not None."""
   for character, dialogs in character_dialogs:
@@ -973,7 +972,7 @@ def _build_character_syllable_data(
     str,
     float,
     str,
-    audio_timing.CharacterAlignment | None,
+    list[audio_timing.WordTiming] | None,
   ]]]],
   audio_path_by_key: dict[tuple[str, float], str],
 ) -> list[list[MouthEvent]]:
@@ -1087,7 +1086,7 @@ def _build_test_mouth_timelines(
   *,
   normalized_dialogs: list[tuple[PosableCharacter | None,
                                  list[tuple[str, float, str,
-                                            audio_timing.CharacterAlignment
+                                            list[audio_timing.WordTiming]
                                             | None]]]],
   audio_path_by_key: dict[tuple[str, float], str],
   row_variants: list[dict[str, object]],
@@ -1105,7 +1104,7 @@ def _build_test_mouth_timelines(
     gcs_uri: str,
     start_time: float,
     transcript: str,
-    timing: audio_timing.CharacterAlignment | None,
+    timing: list[audio_timing.WordTiming] | None,
     engine: str,
     align_transcript: bool,
   ) -> list[MouthEvent]:
@@ -1298,7 +1297,7 @@ def _prepare_character_renders_grid(
   *,
   normalized_dialogs: list[tuple[PosableCharacter | None,
                                  list[tuple[str, float, str,
-                                            audio_timing.CharacterAlignment
+                                            list[audio_timing.WordTiming]
                                             | None]]]],
   num_rows: int,
   footer_height: int,

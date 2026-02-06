@@ -279,7 +279,7 @@ class TestDetectSegmentsWithConfidenceParselmouth:
 
 class TestTimingMode:
 
-  def test_detect_mouth_events_timing_uses_character_alignment(
+  def test_detect_mouth_events_timing_uses_word_timing(
       self, monkeypatch):
     from common import audio_timing
     from services import transcript_alignment
@@ -287,11 +287,17 @@ class TestTimingMode:
     monkeypatch.setattr(transcript_alignment, "text_to_shapes",
                         lambda _word: [MouthState.O])
 
-    timing = audio_timing.CharacterAlignment(
-      characters=["H", "i"],
-      character_start_times_seconds=[0.0, 0.1],
-      character_end_times_seconds=[0.1, 0.2],
-    )
+    timing = [
+      audio_timing.WordTiming(
+        word="Hi",
+        start_time=0.0,
+        end_time=0.2,
+        char_timings=[
+          audio_timing.CharTiming(char="H", start_time=0.0, end_time=0.1),
+          audio_timing.CharTiming(char="i", start_time=0.1, end_time=0.2),
+        ],
+      ),
+    ]
 
     events = mouth_event_detection.detect_mouth_events(
       b"noop",

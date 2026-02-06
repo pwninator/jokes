@@ -344,25 +344,29 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   assert result.gcs_uri == "gs://gen_audio/out.mp3"
   assert result.timing is not None
   assert result.timing.normalized_alignment is not None
-  assert result.timing.normalized_alignment.characters == [
-    "H",
-    "i",
+  assert [w.word for w in result.timing.normalized_alignment] == ["Hi"]
+  assert result.timing.normalized_alignment[0].start_time == pytest.approx(
+    0.00,
+    rel=1e-6,
+  )
+  assert result.timing.normalized_alignment[0].end_time == pytest.approx(
+    0.11,
+    rel=1e-6,
+  )
+  assert [
+    (c.char, c.start_time, c.end_time)
+    for c in result.timing.normalized_alignment[0].char_timings
+  ] == [
+    ("H", pytest.approx(0.00, rel=1e-6), pytest.approx(0.055, rel=1e-6)),
+    ("i", pytest.approx(0.055, rel=1e-6), pytest.approx(0.11, rel=1e-6)),
   ]
-  assert result.timing.normalized_alignment.character_start_times_seconds == pytest.approx(
-    [0.00, 0.055],
-    rel=1e-6,
-  )
-  assert result.timing.normalized_alignment.character_end_times_seconds == pytest.approx(
-    [0.055, 0.11],
-    rel=1e-6,
-  )
   assert result.timing.voice_segments == [
     audio_timing.VoiceSegment(
       voice_id="fake_voice",
       start_time_seconds=0.0,
       end_time_seconds=0.2,
-      character_start_index=0,
-      character_end_index=2,
+      word_start_index=0,
+      word_end_index=1,
       dialogue_input_index=0,
     )
   ]

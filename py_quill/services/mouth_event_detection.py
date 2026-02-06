@@ -21,7 +21,7 @@ def detect_mouth_events(
   *,
   mode: str,
   transcript: str | None = None,
-  timing: audio_timing.CharacterAlignment | None = None,
+  timing: list[audio_timing.WordTiming] | None = None,
 ) -> list[MouthEvent]:
   """Detect mouth events for lip-sync animation.
 
@@ -29,7 +29,7 @@ def detect_mouth_events(
     wav_bytes: WAV audio data (required for audio-based modes).
     mode: One of: "librosa", "parselmouth", "timing".
     transcript: Optional transcript for audio-to-text refinement.
-    timing: Optional character-level timing alignment (required for "timing").
+    timing: Optional word timings (required for "timing").
 
   Returns:
     List of MouthEvent objects sorted by start_time.

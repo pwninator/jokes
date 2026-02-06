@@ -14,7 +14,8 @@ from services import transcript_alignment
 
 _CLOSE_GAP_SEC = 0.08
 _SMALL_GAP_HOLD_SEC = 0.035
-_MIN_EVENT_SEC = 0.03
+_MIN_EVENT_SEC = 0.04
+_MIN_SHAPE_SEC = 0.04
 
 
 def detect_mouth_events_tts_timing(
@@ -30,42 +31,85 @@ def detect_mouth_events_tts_timing(
     word_t0 = float(timing.start_time)
     word_t1 = float(timing.end_time)
 
-    shapes = transcript_alignment.text_to_shapes(word.replace("-", " "))
-    if not shapes:
+    shape_tokens = transcript_alignment.text_to_weighted_shapes(
+      word.replace("-", " "))
+    if not shape_tokens:
       continue
 
-    windows = _split_window_even(word_t0, word_t1, len(shapes))
+    tokens_with_windows = _allocate_weighted_windows(
+      word_t0,
+      word_t1,
+      shape_tokens,
+      min_shape_sec=_MIN_SHAPE_SEC,
+    )
     word_events = [(shape, float(t0), float(t1))
-                   for shape, (t0, t1) in zip(shapes, windows) if t1 > t0]
+                   for (shape, _w), (t0, t1) in tokens_with_windows if t1 > t0]
     logger.info(f"Events for word: {word}: {word_events}")
     events.extend(word_events)
 
   return _to_mouth_events(_postprocess(events))
 
 
-def _split_window_even(
+def _allocate_weighted_windows(
   t0: float,
   t1: float,
-  parts: int,
-) -> list[tuple[float, float]]:
-  if parts <= 0:
-    return []
+  tokens: list[tuple[MouthState, float]],
+  *,
+  min_shape_sec: float,
+) -> list[tuple[tuple[MouthState, float], tuple[float, float]]]:
+  """Allocate contiguous windows for weighted shape tokens.
 
+  Enforces a minimum duration per token by dropping lowest-weight tokens when
+  needed.
+  """
   t0 = float(t0)
   t1 = float(t1)
-  if parts == 1:
-    return [(t0, t1)]
-
-  duration = max(0.0, t1 - t0)
+  min_shape_sec = float(min_shape_sec)
+  duration = float(t1 - t0)
   if duration <= 0.0:
-    return [(t0, t1) for _ in range(parts)]
+    return []
+  if duration < min_shape_sec:
+    return []
 
-  step = duration / float(parts)
-  out: list[tuple[float, float]] = []
-  for i in range(parts):
-    a = t0 + (i * step)
-    b = t0 + ((i + 1) * step)
-    out.append((float(a), float(b)))
+  normalized = [(shape, float(weight)) for shape, weight in tokens
+                if float(weight) > 0.0]
+  if not normalized:
+    return []
+
+  def _drop_one(entries: list[tuple[MouthState, float]]) -> None:
+    drop_index = min(
+      range(len(entries)),
+      key=lambda idx: (float(entries[idx][1]), -int(idx)),
+    )
+    entries.pop(drop_index)
+
+  while normalized and duration < (len(normalized) * min_shape_sec):
+    _drop_one(normalized)
+
+  if not normalized:
+    return []
+
+  base = float(len(normalized)) * min_shape_sec
+  remaining = max(0.0, duration - base)
+  total_weight = float(sum(w for _, w in normalized))
+  if total_weight <= 0.0:
+    total_weight = float(len(normalized))
+
+  cursor = float(t0)
+  out: list[tuple[tuple[MouthState, float], tuple[float, float]]] = []
+  for shape, weight in normalized:
+    w = float(weight)
+    portion = (remaining * (w / total_weight)) if total_weight > 0 else 0.0
+    seg = min_shape_sec + float(portion)
+    start = float(cursor)
+    end = float(cursor) + float(seg)
+    out.append(((shape, weight), (start, end)))
+    cursor = end
+
+  # Ensure last boundary is exact.
+  if out:
+    last_token, (start, _end) = out[-1]
+    out[-1] = (last_token, (float(start), float(t1)))
   return out
 
 

@@ -284,8 +284,8 @@ class TestTimingMode:
     from common import audio_timing
     from services import transcript_alignment
 
-    monkeypatch.setattr(transcript_alignment, "text_to_shapes",
-                        lambda _word: [MouthState.O])
+    monkeypatch.setattr(transcript_alignment, "text_to_weighted_shapes",
+                        lambda _word: [(MouthState.O, 1.0)])
 
     timing = [
       audio_timing.WordTiming(
@@ -317,8 +317,8 @@ class TestTimingMode:
 
     monkeypatch.setattr(
       transcript_alignment,
-      "text_to_shapes",
-      lambda _word: [MouthState.OPEN, MouthState.OPEN],
+      "text_to_weighted_shapes",
+      lambda _word: [(MouthState.OPEN, 1.0), (MouthState.OPEN, 1.0)],
     )
 
     timing = [

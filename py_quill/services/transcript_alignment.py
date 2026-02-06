@@ -84,18 +84,30 @@ def _get_confidence(segment: MouthEvent) -> float:
   return float(confidence)
 
 
-def text_to_shapes(text: str) -> list[MouthState]:
-  """Convert text to a sequence of expected mouth shapes.
+_ROUNDED_CONSONANT_TO_SHAPE: dict[str, MouthState] = {
+  "W": MouthState.O,
+  "SH": MouthState.O,
+  "CH": MouthState.O,
+  "JH": MouthState.O,
+  "ZH": MouthState.O,
+  "R": MouthState.O,
+}
 
-  Uses grapheme-to-phoneme conversion to extract vowels, then maps each vowel
-  to its corresponding mouth shape(s). Diphthongs are expanded into their
-  component shapes.
+_CLOSURE_CONSONANTS: set[str] = {"P", "B", "M", "F", "V"}
+_END_CLOSURE_CONSONANTS: set[str] = {"T", "D"}
 
-  Args:
-    text: Input text to convert.
+_ROUNDED_CONSONANT_WEIGHT = 0.25
+_CLOSURE_CONSONANT_WEIGHT = 0.15
+_VOWEL_WEIGHT = 1.0
+
+
+def text_to_weighted_shapes(text: str) -> list[tuple[MouthState, float]]:
+  """Convert text to weighted mouth shapes (timing-mode visemes).
+
+  Includes some consonant-driven mouth postures in addition to vowels.
 
   Returns:
-    List of MouthState values representing expected mouth shapes in order.
+    List of (MouthState, weight) tuples in order.
   """
   if not text or not text.strip():
     return []
@@ -103,14 +115,33 @@ def text_to_shapes(text: str) -> list[MouthState]:
   g2p = _get_g2p()
   phonemes = g2p(text)
 
-  shapes: list[MouthState] = []
-  for phoneme in phonemes:
-    # Strip stress markers (0, 1, 2) from vowels
-    base_phoneme = phoneme.rstrip("012")
-    if base_phoneme in _VOWEL_TO_SHAPES:
-      shapes.extend(_VOWEL_TO_SHAPES[base_phoneme])
+  tokens: list[tuple[MouthState, float]] = []
+  last_base_phoneme: str | None = None
 
-  return shapes
+  for phoneme in phonemes:
+    if not phoneme or not str(phoneme).strip():
+      continue
+
+    base_phoneme = str(phoneme).rstrip("012")
+    last_base_phoneme = base_phoneme
+
+    if base_phoneme in _VOWEL_TO_SHAPES:
+      for shape in _VOWEL_TO_SHAPES[base_phoneme]:
+        tokens.append((shape, _VOWEL_WEIGHT))
+      continue
+
+    rounded_shape = _ROUNDED_CONSONANT_TO_SHAPE.get(base_phoneme)
+    if rounded_shape is not None:
+      tokens.append((rounded_shape, _ROUNDED_CONSONANT_WEIGHT))
+      continue
+
+    if base_phoneme in _CLOSURE_CONSONANTS:
+      tokens.append((MouthState.CLOSED, _CLOSURE_CONSONANT_WEIGHT))
+
+  if last_base_phoneme in _END_CLOSURE_CONSONANTS:
+    tokens.append((MouthState.CLOSED, _CLOSURE_CONSONANT_WEIGHT))
+
+  return tokens
 
 
 def align_shapes(
@@ -291,7 +322,7 @@ def align_with_text(
 ) -> list[MouthEvent]:
   """Convenience function to align text directly with audio segments.
 
-  Combines text_to_shapes() and align_shapes() into a single call.
+  Combines `text_to_weighted_shapes()` (dropping weights) and `align_shapes()`.
 
   Args:
     text: Input text (e.g., "Hey, want to hear a joke?").
@@ -300,7 +331,7 @@ def align_with_text(
   Returns:
     List of MouthEvent objects with refined mouth shapes.
   """
-  text_shapes = text_to_shapes(text)
+  text_shapes = [s for s, _w in text_to_weighted_shapes(text)]
   return _align_shapes_with_text_list(text_shapes, list(audio_segments))
 
 

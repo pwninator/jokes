@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
-import math
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Iterator
 
 from PIL import Image
 

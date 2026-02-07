@@ -10,6 +10,33 @@ import librosa
 import numpy as np
 import soundfile as sf
 
+# --- Tuning Constants ---
+
+# Frame length for RMS energy calculation in find_best_split_point.
+# Larger values smooth the energy curve but reduce temporal resolution.
+# 2048 samples is ~85ms at 24kHz.
+RMS_FRAME_LENGTH = 2048
+
+# Hop length for RMS energy calculation.
+# Smaller values increase temporal resolution.
+# 512 samples is ~21ms at 24kHz.
+RMS_HOP_LENGTH = 512
+
+# Frame length for librosa.effects.trim in trim_silence.
+# Default is 2048. Matches RMS_FRAME_LENGTH for consistency.
+SILENCE_TRIM_FRAME_LENGTH = 2048
+
+# Hop length for librosa.effects.trim in trim_silence.
+# Default is 512. Matches RMS_HOP_LENGTH for consistency.
+SILENCE_TRIM_HOP_LENGTH = 512
+
+# Absolute amplitude threshold for silence detection in split_wav_on_silence (fallback).
+# This is for raw 16-bit PCM samples (range -32768 to 32767).
+# 250 is roughly -42dB relative to full scale.
+# Increasing this makes it less sensitive to noise (might cut off quiet speech).
+# Decreasing this makes it more sensitive (might treat noise as speech).
+SILENCE_ABS_AMPLITUDE_THRESHOLD = 250
+
 
 def find_best_split_point(
     wav_bytes: bytes,
@@ -32,8 +59,11 @@ def find_best_split_point(
 
   # Calculate RMS energy.
   # We use a small hop_length for higher temporal resolution.
-  hop_length = 512
-  rms = librosa.feature.rms(y=segment, frame_length=2048, hop_length=hop_length)[0]
+  rms = librosa.feature.rms(
+      y=segment,
+      frame_length=RMS_FRAME_LENGTH,
+      hop_length=RMS_HOP_LENGTH,
+  )[0]
 
   if len(rms) == 0:
     return (start_sample + end_sample) / 2 / sr
@@ -42,7 +72,7 @@ def find_best_split_point(
 
   # Convert frame index to time relative to segment start
   split_time_relative = librosa.frames_to_time(
-      min_rms_index, sr=sr, hop_length=hop_length
+      min_rms_index, sr=sr, hop_length=RMS_HOP_LENGTH
   )
 
   return float(search_start_sec + split_time_relative)
@@ -55,7 +85,11 @@ def trim_silence(wav_bytes: bytes) -> tuple[bytes, float]:
     A tuple of (trimmed_wav_bytes, leading_silence_duration_sec).
   """
   y, sr = sf.read(io.BytesIO(wav_bytes))
-  trimmed_y, index = librosa.effects.trim(y)
+  trimmed_y, index = librosa.effects.trim(
+      y,
+      frame_length=SILENCE_TRIM_FRAME_LENGTH,
+      hop_length=SILENCE_TRIM_HOP_LENGTH,
+  )
   # index is [start_sample, end_sample] (exclusive)
   start_sample = index[0]
 
@@ -108,7 +142,7 @@ def split_wav_on_silence(
   silent_frames_mask = _compute_silent_frame_mask(
       frames,
       params=params,
-      silence_abs_amplitude_threshold=250,
+      silence_abs_amplitude_threshold=SILENCE_ABS_AMPLITUDE_THRESHOLD,
   )
   runs = _find_silent_runs(silent_frames_mask, min_run_frames=silence_frames)
 

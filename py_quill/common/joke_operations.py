@@ -23,6 +23,7 @@ _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
 
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
+_SPLIT_SEARCH_WINDOW_RADIUS_SEC = 0.2
 _JOKE_VIDEO_FOOTER_BACKGROUND_GCS_URI = (
   "gs://images.quillsstorybook.com/_joke_assets/blank_paper.png")
 
@@ -770,16 +771,16 @@ def _split_joke_dialog_wav_by_timing(
   gap1_center = (setup_end + response_start) / 2
   split_point_1 = audio_operations.find_best_split_point(
     dialog_wav_bytes,
-    gap1_center - 0.2,
-    gap1_center + 0.2,
+    gap1_center - _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
+    gap1_center + _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
   )
 
   # Gap 2: between Response end and Punchline start
   gap2_center = (response_end + punch_start) / 2
   split_point_2 = audio_operations.find_best_split_point(
     dialog_wav_bytes,
-    gap2_center - 0.2,
-    gap2_center + 0.2,
+    gap2_center - _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
+    gap2_center + _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
   )
 
   # Ensure split points are ordered

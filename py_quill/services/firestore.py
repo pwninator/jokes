@@ -1359,6 +1359,64 @@ def delete_character(character_id: str) -> bool:
   return True
 
 
+def create_posable_character(
+  character: models.PosableCharacter,
+) -> models.PosableCharacter:
+  """Create a posable character."""
+  character_data = character.to_dict(include_key=False)
+  character_data['creation_time'] = SERVER_TIMESTAMP
+  character_data['last_modification_time'] = SERVER_TIMESTAMP
+
+  # Generate custom ID: [timestamp]_[name_prefix] if name is available
+  name_part = character.name if character.name else "posable"
+  custom_id = utils.create_timestamped_firestore_key(name_part)
+
+  char_ref = db().collection('posable_characters').document(custom_id)
+  char_ref.set(character_data)
+  character.key = custom_id
+  return character
+
+
+def get_posable_character(
+  character_id: str,
+) -> models.PosableCharacter | None:
+  """Get a posable character."""
+  if not character_id:
+    return None
+  doc = db().collection('posable_characters').document(character_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+
+  return models.PosableCharacter.from_firestore_dict(
+    doc.to_dict() or {}, key=doc.id)
+
+
+def get_posable_characters() -> list[models.PosableCharacter]:
+  """Get all posable characters."""
+  docs = db().collection('posable_characters').stream()
+  return [
+    models.PosableCharacter.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists
+  ]
+
+
+def update_posable_character(
+  character: models.PosableCharacter,
+) -> bool:
+  """Update a posable character."""
+  if not character.key:
+    return False
+
+  char_ref = db().collection('posable_characters').document(character.key)
+  if not char_ref.get().exists:
+    return False
+
+  character_data = character.to_dict(include_key=False)
+  character_data['last_modification_time'] = SERVER_TIMESTAMP
+  char_ref.update(character_data)
+  return True
+
+
 def create_image(image: models.Image) -> models.Image:
   """Create a new image in Firestore.
 

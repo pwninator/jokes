@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from common import models
 from common.posable_character import MouthState, PosableCharacter, Transform
 from PIL import Image
 
@@ -184,6 +185,34 @@ class PosableCharacterTest(unittest.TestCase):
     image_two = character.get_image()
 
     self.assertIsNot(image_one, image_two)
+
+  def test_init_from_model(self):
+    model = models.PosableCharacter(
+      width=10,
+      height=20,
+      head_gcs_uri="gs://test/model_head.png",
+      left_hand_gcs_uri="gs://test/model_left_hand.png",
+      right_hand_gcs_uri="gs://test/model_right_hand.png",
+      mouth_open_gcs_uri="gs://test/model_mouth_open.png",
+      mouth_closed_gcs_uri="gs://test/model_mouth_closed.png",
+      mouth_o_gcs_uri="gs://test/model_mouth_o.png",
+      left_eye_open_gcs_uri="gs://test/model_left_eye_open.png",
+      left_eye_closed_gcs_uri="gs://test/model_left_eye_closed.png",
+      right_eye_open_gcs_uri="gs://test/model_right_eye_open.png",
+      right_eye_closed_gcs_uri="gs://test/model_right_eye_closed.png",
+    )
+    character = PosableCharacter(data=model)
+    self.assertEqual(character.width, 10)
+    self.assertEqual(character.height, 20)
+    self.assertEqual(character.head_gcs_uri, "gs://test/model_head.png")
+
+    # Verify it works with get_image (mocking download)
+    with patch(
+        "common.posable_character.cloud_storage.download_image_from_gcs"
+    ) as mock_download:
+      mock_download.return_value = _make_image((255, 0, 0, 255), size=(10, 20))
+      character.get_image()
+      mock_download.assert_any_call("gs://test/model_head.png")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from PIL import Image
+from common import models
 from services import cloud_storage
 
 
@@ -62,7 +63,7 @@ class PosableCharacter:
   right_eye_open_gcs_uri: str = ""
   right_eye_closed_gcs_uri: str = ""
 
-  def __init__(self):
+  def __init__(self, data: models.PosableCharacter | None = None):
     self.left_eye_open = True
     self.right_eye_open = True
     self.mouth_state = MouthState.OPEN
@@ -73,6 +74,20 @@ class PosableCharacter:
     self.head_transform = Transform()
     self._image_cache: dict[tuple[object, ...], Image.Image] = {}
     self._component_cache: dict[str, Image.Image] = {}
+
+    if data:
+      self.width = data.width
+      self.height = data.height
+      self.head_gcs_uri = data.head_gcs_uri
+      self.left_hand_gcs_uri = data.left_hand_gcs_uri
+      self.right_hand_gcs_uri = data.right_hand_gcs_uri
+      self.mouth_open_gcs_uri = data.mouth_open_gcs_uri
+      self.mouth_closed_gcs_uri = data.mouth_closed_gcs_uri
+      self.mouth_o_gcs_uri = data.mouth_o_gcs_uri
+      self.left_eye_open_gcs_uri = data.left_eye_open_gcs_uri
+      self.left_eye_closed_gcs_uri = data.left_eye_closed_gcs_uri
+      self.right_eye_open_gcs_uri = data.right_eye_open_gcs_uri
+      self.right_eye_closed_gcs_uri = data.right_eye_closed_gcs_uri
 
   def set_pose(
     self,

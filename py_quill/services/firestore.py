@@ -5,13 +5,8 @@ import pprint
 from typing import Any, Collection
 from zoneinfo import ZoneInfo
 
-from typing import TYPE_CHECKING
-
 from common import models, utils
 from firebase_admin import firestore, firestore_async
-
-if TYPE_CHECKING:
-  from common.posable_character import PosableCharacter
 from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
                                     FieldFilter, Query, Transaction,
@@ -1364,64 +1359,61 @@ def delete_character(character_id: str) -> bool:
   return True
 
 
-def create_posable_character(
-  character: "PosableCharacter",
-) -> "PosableCharacter":
-  """Create a posable character."""
-  character_data = character.to_dict(include_key=False)
-  character_data['creation_time'] = SERVER_TIMESTAMP
-  character_data['last_modification_time'] = SERVER_TIMESTAMP
+def create_posable_character_def(
+  character_def: models.PosableCharacterDef,
+) -> models.PosableCharacterDef:
+  """Create a posable character definition."""
+  def_data = character_def.to_dict(include_key=False)
+  def_data['creation_time'] = SERVER_TIMESTAMP
+  def_data['last_modification_time'] = SERVER_TIMESTAMP
 
   # Generate custom ID: [timestamp]_[name_prefix] if name is available
-  name_part = character.name if character.name else "posable"
+  name_part = character_def.name if character_def.name else "posable"
   custom_id = utils.create_timestamped_firestore_key(name_part)
 
-  char_ref = db().collection('posable_characters').document(custom_id)
-  char_ref.set(character_data)
-  character.key = custom_id
-  return character
+  def_ref = db().collection('posable_characters').document(custom_id)
+  def_ref.set(def_data)
+  character_def.key = custom_id
+  return character_def
 
 
-def get_posable_character(
-  character_id: str,
-) -> "PosableCharacter | None":
-  """Get a posable character."""
-  from common.posable_character import PosableCharacter  # pylint: disable=import-outside-toplevel
-
-  if not character_id:
+def get_posable_character_def(
+  character_def_id: str,
+) -> models.PosableCharacterDef | None:
+  """Get a posable character definition."""
+  if not character_def_id:
     return None
-  doc = db().collection('posable_characters').document(character_id).get()
+  doc = db().collection('posable_characters').document(character_def_id).get()
   if not getattr(doc, 'exists', False):
     return None
 
-  return PosableCharacter.from_firestore_dict(doc.to_dict() or {}, key=doc.id)
+  return models.PosableCharacterDef.from_firestore_dict(
+    doc.to_dict() or {}, key=doc.id)
 
 
-def get_posable_characters() -> list["PosableCharacter"]:
-  """Get all posable characters."""
-  from common.posable_character import PosableCharacter  # pylint: disable=import-outside-toplevel
-
+def get_posable_character_defs() -> list[models.PosableCharacterDef]:
+  """Get all posable character definitions."""
   docs = db().collection('posable_characters').stream()
   return [
-    PosableCharacter.from_firestore_dict(doc.to_dict(), key=doc.id)
-    for doc in docs if doc.exists
+    models.PosableCharacterDef.from_firestore_dict(
+      doc.to_dict(), key=doc.id) for doc in docs if doc.exists
   ]
 
 
-def update_posable_character(
-  character: "PosableCharacter",
+def update_posable_character_def(
+  character_def: models.PosableCharacterDef,
 ) -> bool:
-  """Update a posable character."""
-  if not character.key:
+  """Update a posable character definition."""
+  if not character_def.key:
     return False
 
-  char_ref = db().collection('posable_characters').document(character.key)
-  if not char_ref.get().exists:
+  def_ref = db().collection('posable_characters').document(character_def.key)
+  if not def_ref.get().exists:
     return False
 
-  character_data = character.to_dict(include_key=False)
-  character_data['last_modification_time'] = SERVER_TIMESTAMP
-  char_ref.update(character_data)
+  def_data = character_def.to_dict(include_key=False)
+  def_data['last_modification_time'] = SERVER_TIMESTAMP
+  def_ref.update(def_data)
   return True
 
 

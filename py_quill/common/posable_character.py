@@ -7,8 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from PIL import Image
-from common import utils
-from common.models import _parse_int_field
+from common import models
 from services import cloud_storage
 
 
@@ -48,124 +47,46 @@ class Transform:
     raise ValueError("Transform tuple must have 2 or 4 values")
 
 
-@dataclass(kw_only=True)
 class PosableCharacter:
-  """Base class for sprite-based characters with posable components."""
+  """Runtime class for a posable character state, using a shared definition."""
 
-  key: str | None = None
-  name: str | None = None
+  def __init__(self, definition: models.PosableCharacterDef | None = None):
+    if definition:
+      self.definition = definition
+    else:
+      # Legacy support: if no definition provided, try to build one from
+      # class attributes (used by subclasses like PosableCat)
+      self.definition = models.PosableCharacterDef(
+        width=getattr(self, 'width', 0),
+        height=getattr(self, 'height', 0),
+        head_gcs_uri=getattr(self, 'head_gcs_uri', ''),
+        left_hand_gcs_uri=getattr(self, 'left_hand_gcs_uri', ''),
+        right_hand_gcs_uri=getattr(self, 'right_hand_gcs_uri', ''),
+        mouth_open_gcs_uri=getattr(self, 'mouth_open_gcs_uri', ''),
+        mouth_closed_gcs_uri=getattr(self, 'mouth_closed_gcs_uri', ''),
+        mouth_o_gcs_uri=getattr(self, 'mouth_o_gcs_uri', ''),
+        left_eye_open_gcs_uri=getattr(self, 'left_eye_open_gcs_uri', ''),
+        left_eye_closed_gcs_uri=getattr(self, 'left_eye_closed_gcs_uri', ''),
+        right_eye_open_gcs_uri=getattr(self, 'right_eye_open_gcs_uri', ''),
+        right_eye_closed_gcs_uri=getattr(self, 'right_eye_closed_gcs_uri',
+                                         ''),
+      )
 
-  width: int = 0
-  height: int = 0
-
-  head_gcs_uri: str = ""
-  left_hand_gcs_uri: str = ""
-  right_hand_gcs_uri: str = ""
-  mouth_open_gcs_uri: str = ""
-  mouth_closed_gcs_uri: str = ""
-  mouth_o_gcs_uri: str = ""
-  left_eye_open_gcs_uri: str = ""
-  left_eye_closed_gcs_uri: str = ""
-  right_eye_open_gcs_uri: str = ""
-  right_eye_closed_gcs_uri: str = ""
-
-  # Transient state (not stored in Firestore)
-  left_eye_open: bool = field(default=True, init=False)
-  right_eye_open: bool = field(default=True, init=False)
-  mouth_state: MouthState = field(default=MouthState.OPEN, init=False)
-  left_hand_visible: bool = field(default=True, init=False)
-  right_hand_visible: bool = field(default=True, init=False)
-  left_hand_transform: Transform = field(default_factory=Transform, init=False)
-  right_hand_transform: Transform = field(default_factory=Transform,
-                                          init=False)
-  head_transform: Transform = field(default_factory=Transform, init=False)
-  _image_cache: dict[tuple[object, ...], Image.Image] = field(
-    default_factory=dict, init=False)
-  _component_cache: dict[str, Image.Image] = field(
-    default_factory=dict, init=False)
-
-  def __post_init__(self):
-    """Initialize transient state fields if they weren't set."""
-    # Support legacy subclasses that define config as class attributes
-    # If the instance value is default (0/empty), check if the class has a value.
-    for field_name in [
-      'width',
-      'height',
-      'head_gcs_uri',
-      'left_hand_gcs_uri',
-      'right_hand_gcs_uri',
-      'mouth_open_gcs_uri',
-      'mouth_closed_gcs_uri',
-      'mouth_o_gcs_uri',
-      'left_eye_open_gcs_uri',
-      'left_eye_closed_gcs_uri',
-      'right_eye_open_gcs_uri',
-      'right_eye_closed_gcs_uri',
-    ]:
-      val = getattr(self, field_name)
-      if not val:  # 0 or empty string
-        class_val = getattr(type(self), field_name, None)
-        # Only overwrite if the class value is "truthy" (actually set)
-        # This handles cases where subclasses don't define it but inherit defaults
-        if class_val:
-          setattr(self, field_name, class_val)
-
-    # Ensure transient fields are initialized even if subclasses override __init__
-    if not hasattr(self, 'left_eye_open'):
-      self.left_eye_open = True
-    if not hasattr(self, 'right_eye_open'):
-      self.right_eye_open = True
-    if not hasattr(self, 'mouth_state'):
-      self.mouth_state = MouthState.OPEN
-    if not hasattr(self, 'left_hand_visible'):
-      self.left_hand_visible = True
-    if not hasattr(self, 'right_hand_visible'):
-      self.right_hand_visible = True
-    if not hasattr(self, 'left_hand_transform'):
-      self.left_hand_transform = Transform()
-    if not hasattr(self, 'right_hand_transform'):
-      self.right_hand_transform = Transform()
-    if not hasattr(self, 'head_transform'):
-      self.head_transform = Transform()
-    if not hasattr(self, '_image_cache'):
-      self._image_cache = {}
-    if not hasattr(self, '_component_cache'):
-      self._component_cache = {}
-
-  def to_dict(self, include_key: bool = False) -> dict:
-    """Convert to dictionary for Firestore storage."""
-    data = dataclasses.asdict(self)
-    # Remove transient fields
-    transient_fields = {
-      'left_eye_open', 'right_eye_open', 'mouth_state', 'left_hand_visible',
-      'right_hand_visible', 'left_hand_transform', 'right_hand_transform',
-      'head_transform', '_image_cache', '_component_cache'
-    }
-    for field_name in transient_fields:
-      data.pop(field_name, None)
-
-    if not include_key:
-      data.pop('key', None)
-    return data
+    self.left_eye_open = True
+    self.right_eye_open = True
+    self.mouth_state = MouthState.OPEN
+    self.left_hand_visible = True
+    self.right_hand_visible = True
+    self.left_hand_transform = Transform()
+    self.right_hand_transform = Transform()
+    self.head_transform = Transform()
+    self._image_cache: dict[tuple[object, ...], Image.Image] = {}
+    self._component_cache: dict[str, Image.Image] = {}
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> 'PosableCharacter':
-    """Create a PosableCharacter from a Firestore dictionary."""
-    if not data:
-      data = {}
-    else:
-      data = dict(data)
-
-    data['key'] = key
-
-    _parse_int_field(data, 'width', 0)
-    _parse_int_field(data, 'height', 0)
-
-    # Filter to dataclass fields
-    allowed = {f.name for f in dataclasses.fields(cls) if f.init}
-    filtered = {k: v for k, v in data.items() if k in allowed}
-
-    return cls(**filtered)
+  def from_def(cls, definition: models.PosableCharacterDef) -> PosableCharacter:
+    """Create a PosableCharacter instance from a definition."""
+    return cls(definition=definition)
 
   def set_pose(
     self,
@@ -208,15 +129,16 @@ class PosableCharacter:
     if cached is not None:
       return cached
 
-    canvas = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+    def_ = self.definition
+    canvas = Image.new("RGBA", (def_.width, def_.height), (0, 0, 0, 0))
 
-    head_image = self._load_component(self.head_gcs_uri)
+    head_image = self._load_component(def_.head_gcs_uri)
     self._paste_component(canvas, head_image, self.head_transform)
 
-    left_eye_uri = (self.left_eye_open_gcs_uri
-                    if self.left_eye_open else self.left_eye_closed_gcs_uri)
-    right_eye_uri = (self.right_eye_open_gcs_uri
-                     if self.right_eye_open else self.right_eye_closed_gcs_uri)
+    left_eye_uri = (def_.left_eye_open_gcs_uri
+                    if self.left_eye_open else def_.left_eye_closed_gcs_uri)
+    right_eye_uri = (def_.right_eye_open_gcs_uri
+                     if self.right_eye_open else def_.right_eye_closed_gcs_uri)
     mouth_uri = _get_mouth_gcs_uri(self)
 
     left_eye_image = self._load_component(left_eye_uri)
@@ -228,10 +150,10 @@ class PosableCharacter:
     self._paste_component(canvas, mouth_image, self.head_transform)
 
     if self.left_hand_visible:
-      left_hand_image = self._load_component(self.left_hand_gcs_uri)
+      left_hand_image = self._load_component(def_.left_hand_gcs_uri)
       self._paste_component(canvas, left_hand_image, self.left_hand_transform)
     if self.right_hand_visible:
-      right_hand_image = self._load_component(self.right_hand_gcs_uri)
+      right_hand_image = self._load_component(def_.right_hand_gcs_uri)
       self._paste_component(canvas, right_hand_image,
                             self.right_hand_transform)
 
@@ -285,23 +207,24 @@ class PosableCharacter:
     return resized, x, y
 
   def _validate_assets(self) -> None:
+    d = self.definition
     required = {
-      "width": self.width,
-      "height": self.height,
-      "head_gcs_uri": self.head_gcs_uri,
-      "left_hand_gcs_uri": self.left_hand_gcs_uri,
-      "right_hand_gcs_uri": self.right_hand_gcs_uri,
-      "mouth_open_gcs_uri": self.mouth_open_gcs_uri,
-      "mouth_closed_gcs_uri": self.mouth_closed_gcs_uri,
-      "mouth_o_gcs_uri": self.mouth_o_gcs_uri,
-      "left_eye_open_gcs_uri": self.left_eye_open_gcs_uri,
-      "left_eye_closed_gcs_uri": self.left_eye_closed_gcs_uri,
-      "right_eye_open_gcs_uri": self.right_eye_open_gcs_uri,
-      "right_eye_closed_gcs_uri": self.right_eye_closed_gcs_uri,
+      "width": d.width,
+      "height": d.height,
+      "head_gcs_uri": d.head_gcs_uri,
+      "left_hand_gcs_uri": d.left_hand_gcs_uri,
+      "right_hand_gcs_uri": d.right_hand_gcs_uri,
+      "mouth_open_gcs_uri": d.mouth_open_gcs_uri,
+      "mouth_closed_gcs_uri": d.mouth_closed_gcs_uri,
+      "mouth_o_gcs_uri": d.mouth_o_gcs_uri,
+      "left_eye_open_gcs_uri": d.left_eye_open_gcs_uri,
+      "left_eye_closed_gcs_uri": d.left_eye_closed_gcs_uri,
+      "right_eye_open_gcs_uri": d.right_eye_open_gcs_uri,
+      "right_eye_closed_gcs_uri": d.right_eye_closed_gcs_uri,
     }
     missing = [name for name, value in required.items() if not value]
     if missing:
-      raise ValueError("PosableCharacter subclass must define: " +
+      raise ValueError("PosableCharacter definition must have: " +
                        ", ".join(missing))
 
 
@@ -316,7 +239,7 @@ def _coerce_transform(
 
 def _get_mouth_gcs_uri(character: PosableCharacter) -> str:
   if character.mouth_state == MouthState.OPEN:
-    return character.mouth_open_gcs_uri
+    return character.definition.mouth_open_gcs_uri
   if character.mouth_state == MouthState.O:
-    return character.mouth_o_gcs_uri
-  return character.mouth_closed_gcs_uri
+    return character.definition.mouth_o_gcs_uri
+  return character.definition.mouth_closed_gcs_uri

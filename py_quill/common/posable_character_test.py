@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from common import models
 from common.posable_character import MouthState, PosableCharacter, Transform
 from PIL import Image
 
@@ -185,8 +186,8 @@ class PosableCharacterTest(unittest.TestCase):
 
     self.assertIsNot(image_one, image_two)
 
-  def test_dataclass_initialization(self):
-    character = PosableCharacter(
+  def test_initialization_with_definition(self):
+    definition = models.PosableCharacterDef(
       width=10,
       height=20,
       head_gcs_uri="gs://test/model_head.png",
@@ -200,26 +201,16 @@ class PosableCharacterTest(unittest.TestCase):
       right_eye_open_gcs_uri="gs://test/model_right_eye_open.png",
       right_eye_closed_gcs_uri="gs://test/model_right_eye_closed.png",
     )
-    self.assertEqual(character.width, 10)
-    self.assertEqual(character.height, 20)
-    self.assertEqual(character.head_gcs_uri, "gs://test/model_head.png")
+    character = PosableCharacter.from_def(definition)
+    self.assertEqual(character.definition.width, 10)
+    self.assertEqual(character.definition.height, 20)
+    self.assertEqual(character.definition.head_gcs_uri,
+                     "gs://test/model_head.png")
 
     # Verify transient fields are initialized
     self.assertTrue(character.left_eye_open)
     self.assertEqual(character.mouth_state, MouthState.OPEN)
     self.assertIsInstance(character._image_cache, dict)
-
-    # Verify serialization
-    data = character.to_dict()
-    self.assertEqual(data["width"], 10)
-    self.assertNotIn("left_eye_open", data)
-    self.assertNotIn("_image_cache", data)
-
-    # Verify deserialization
-    reconstructed = PosableCharacter.from_firestore_dict(data, key="char1")
-    self.assertEqual(reconstructed.width, 10)
-    self.assertEqual(reconstructed.key, "char1")
-    self.assertTrue(reconstructed.left_eye_open)  # Transient field re-inited
 
     # Verify it works with get_image (mocking download)
     with patch(

@@ -1371,7 +1371,7 @@ def create_posable_character_def(
   name_part = character_def.name if character_def.name else "posable"
   custom_id = utils.create_timestamped_firestore_key(name_part)
 
-  def_ref = db().collection('posable_characters').document(custom_id)
+  def_ref = db().collection('posable_character_defs').document(custom_id)
   def_ref.set(def_data)
   character_def.key = custom_id
   return character_def
@@ -1383,7 +1383,7 @@ def get_posable_character_def(
   """Get a posable character definition."""
   if not character_def_id:
     return None
-  doc = db().collection('posable_characters').document(character_def_id).get()
+  doc = db().collection('posable_character_defs').document(character_def_id).get()
   if not getattr(doc, 'exists', False):
     return None
 
@@ -1393,7 +1393,7 @@ def get_posable_character_def(
 
 def get_posable_character_defs() -> list[models.PosableCharacterDef]:
   """Get all posable character definitions."""
-  docs = db().collection('posable_characters').stream()
+  docs = db().collection('posable_character_defs').stream()
   return [
     models.PosableCharacterDef.from_firestore_dict(
       doc.to_dict(), key=doc.id) for doc in docs if doc.exists
@@ -1407,7 +1407,7 @@ def update_posable_character_def(
   if not character_def.key:
     return False
 
-  def_ref = db().collection('posable_characters').document(character_def.key)
+  def_ref = db().collection('posable_character_defs').document(character_def.key)
   if not def_ref.get().exists:
     return False
 

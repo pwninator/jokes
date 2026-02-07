@@ -50,28 +50,8 @@ class Transform:
 class PosableCharacter:
   """Runtime class for a posable character state, using a shared definition."""
 
-  def __init__(self, definition: models.PosableCharacterDef | None = None):
-    if definition:
-      self.definition = definition
-    else:
-      # Legacy support: if no definition provided, try to build one from
-      # class attributes (used by subclasses like PosableCat)
-      self.definition = models.PosableCharacterDef(
-        width=getattr(self, 'width', 0),
-        height=getattr(self, 'height', 0),
-        head_gcs_uri=getattr(self, 'head_gcs_uri', ''),
-        left_hand_gcs_uri=getattr(self, 'left_hand_gcs_uri', ''),
-        right_hand_gcs_uri=getattr(self, 'right_hand_gcs_uri', ''),
-        mouth_open_gcs_uri=getattr(self, 'mouth_open_gcs_uri', ''),
-        mouth_closed_gcs_uri=getattr(self, 'mouth_closed_gcs_uri', ''),
-        mouth_o_gcs_uri=getattr(self, 'mouth_o_gcs_uri', ''),
-        left_eye_open_gcs_uri=getattr(self, 'left_eye_open_gcs_uri', ''),
-        left_eye_closed_gcs_uri=getattr(self, 'left_eye_closed_gcs_uri', ''),
-        right_eye_open_gcs_uri=getattr(self, 'right_eye_open_gcs_uri', ''),
-        right_eye_closed_gcs_uri=getattr(self, 'right_eye_closed_gcs_uri',
-                                         ''),
-      )
-
+  def __init__(self, definition: models.PosableCharacterDef):
+    self.definition = definition
     self.left_eye_open = True
     self.right_eye_open = True
     self.mouth_state = MouthState.OPEN

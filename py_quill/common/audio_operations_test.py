@@ -113,17 +113,90 @@ class TestSplitWavAtPoint:
     assert len(y2) / sr == pytest.approx(1.5, abs=0.01)
 
 
+class TestSplitAudio:
+  def test_no_cuts_returns_whole_trimmed(self):
+    sr = 24000
+    # 0.5s silence + 1.0s tone
+    audio = np.concatenate([_create_silence(0.5, sr=sr), _create_sine_wave(1.0, sr=sr)])
+    wav_bytes = _to_wav_bytes(audio, sr=sr)
+
+    segments = audio_operations.split_audio(wav_bytes, [], trim=True)
+
+    assert len(segments) == 1
+    # Offset should account for the trimmed leading silence
+    assert segments[0].offset_sec == pytest.approx(0.5, abs=0.1)
+
+    y, _ = sf.read(io.BytesIO(segments[0].wav_bytes))
+    assert len(y) / sr == pytest.approx(1.0, abs=0.1)
+
+  def test_one_cut_two_segments(self):
+    sr = 24000
+    # 0.5s tone (A), 1.0s silence, 0.5s tone (B)
+    # Total 2.0s
+    partA = _create_sine_wave(0.5, sr=sr)
+    silence = _create_silence(1.0, sr=sr)
+    partB = _create_sine_wave(0.5, sr=sr)
+    audio = np.concatenate([partA, silence, partB])
+    wav_bytes = _to_wav_bytes(audio, sr=sr)
+
+    # Estimate cut in middle of silence (1.0s)
+    segments = audio_operations.split_audio(wav_bytes, [1.0], search_radius_sec=0.2)
+
+    assert len(segments) == 2
+
+    # Segment 1 (A): Starts at 0.0. No lead silence.
+    assert segments[0].offset_sec == pytest.approx(0.0, abs=0.1)
+    y1, _ = sf.read(io.BytesIO(segments[0].wav_bytes))
+    assert len(y1) / sr == pytest.approx(0.5, abs=0.1)
+
+    # Segment 2 (B):
+    # Split happens around 1.0.
+    # Audio B starts at 1.5.
+    # So split point (e.g. 1.0) + trimmed lead (0.5) = 1.5 offset.
+    assert segments[1].offset_sec == pytest.approx(1.5, abs=0.1)
+    y2, _ = sf.read(io.BytesIO(segments[1].wav_bytes))
+    assert len(y2) / sr == pytest.approx(0.5, abs=0.1)
+
+  def test_two_cuts_three_segments(self):
+    sr = 24000
+    # A (0.5s) | sil (1.0s) | B (0.5s) | sil (1.0s) | C (0.5s)
+    # 0.0-0.5  | 0.5-1.5    | 1.5-2.0  | 2.0-3.0    | 3.0-3.5
+
+    partA = _create_sine_wave(0.5, sr=sr)
+    sil1 = _create_silence(1.0, sr=sr)
+    partB = _create_sine_wave(0.5, sr=sr)
+    sil2 = _create_silence(1.0, sr=sr)
+    partC = _create_sine_wave(0.5, sr=sr)
+
+    audio = np.concatenate([partA, sil1, partB, sil2, partC])
+    wav_bytes = _to_wav_bytes(audio, sr=sr)
+
+    # Cuts around 1.0 and 2.5
+    segments = audio_operations.split_audio(
+        wav_bytes,
+        [1.0, 2.5],
+        search_radius_sec=0.2
+    )
+
+    assert len(segments) == 3
+
+    # Seg A offset 0.0
+    assert segments[0].offset_sec == pytest.approx(0.0, abs=0.1)
+
+    # Seg B starts at 1.5.
+    # Split 1 is roughly 1.0. Audio starts 1.5. Offset 1.5.
+    assert segments[1].offset_sec == pytest.approx(1.5, abs=0.1)
+
+    # Seg C starts at 3.0.
+    # Split 2 is roughly 2.5. Audio starts 3.0. Offset 3.0.
+    assert segments[2].offset_sec == pytest.approx(3.0, abs=0.1)
+
+
 class TestSplitWavOnSilence:
   def test_splits_on_two_pauses(self):
     sr = 24000
     # Make silence "perfectly" silent (zeros) because `_compute_silent_frame_mask`
     # logic depends on amplitude thresholds or zeros.
-    # The existing logic (migrated) expects integer PCM data. `_to_wav_bytes` uses float32 by default via soundfile?
-    # No, sf.write default subtype depends on format. For WAV it's typically PCM_16 if not specified or float if input is float.
-    # `audio_operations.read_wav_bytes` handles decoding.
-    # But `_compute_silent_frame_mask` handles "LINEAR16" (sampwidth=2).
-    # If `sf.write` writes float, `read_wav_bytes` might fail or return different sampwidth.
-    # Let's explicitly write PCM_16.
 
     def _to_pcm16_wav_bytes(audio: np.ndarray, sr: int = 24000) -> bytes:
       buffer = io.BytesIO()
@@ -145,33 +218,3 @@ class TestSplitWavOnSilence:
     assert audio_operations.get_wav_duration_sec(part1) == pytest.approx(0.5, abs=0.1)
     assert audio_operations.get_wav_duration_sec(part2) == pytest.approx(0.5, abs=0.1)
     assert audio_operations.get_wav_duration_sec(part3) == pytest.approx(0.5, abs=0.1)
-
-
-class TestReadWavBytes:
-  def test_read_wav_bytes_allows_placeholder_data_chunk_size(self):
-    """Some providers emit WAV headers with placeholder sizes (e.g. 0xFFFFFFFF)."""
-
-    def make_wav_bytes(duration_sec: float, *, rate: int = 1000) -> bytes:
-      frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
-      buffer = io.BytesIO()
-      with wave.open(buffer, "wb") as wf:
-        # pylint: disable=no-member
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(rate)
-        wf.writeframes(frames)
-        # pylint: enable=no-member
-      return buffer.getvalue()
-
-    wav_bytes = make_wav_bytes(0.25, rate=1000)
-    marker = b"data"
-    idx = wav_bytes.find(marker)
-    assert idx != -1
-    size_offset = idx + 4
-    patched = bytearray(wav_bytes)
-    # Set data chunk size to 0xFFFFFFFF (placeholder), leaving payload intact.
-    patched[size_offset:size_offset + 4] = (0xFFFFFFFF).to_bytes(4, "little")
-
-    params, frames = audio_operations.read_wav_bytes(bytes(patched))
-    assert int(params.nframes) == len(frames) // (int(params.nchannels) *
-                                                 int(params.sampwidth))

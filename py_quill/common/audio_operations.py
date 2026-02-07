@@ -4,6 +4,7 @@ import array
 import io
 import sys
 import wave
+from dataclasses import dataclass
 from typing import Any, Tuple
 
 import librosa
@@ -36,6 +37,96 @@ SILENCE_TRIM_HOP_LENGTH = 512
 # Increasing this makes it less sensitive to noise (might cut off quiet speech).
 # Decreasing this makes it more sensitive (might treat noise as speech).
 SILENCE_ABS_AMPLITUDE_THRESHOLD = 250
+
+
+@dataclass(frozen=True)
+class SplitAudioSegment:
+  """A segment of split audio with timing offset information."""
+  wav_bytes: bytes
+  offset_sec: float
+
+
+def split_audio(
+    wav_bytes: bytes,
+    estimated_cut_points: list[float],
+    search_radius_sec: float = 0.2,
+    trim: bool = True,
+) -> list[SplitAudioSegment]:
+  """Split audio at refined points near the estimated cuts.
+
+  Args:
+    wav_bytes: The original audio WAV bytes.
+    estimated_cut_points: List of timestamps (seconds) where cuts should happen.
+    search_radius_sec: How far to search around each cut point for silence.
+    trim: Whether to trim silence from the start/end of each resulting segment.
+
+  Returns:
+    A list of SplitAudioSegment objects. The size will be len(estimated_cut_points) + 1.
+  """
+  if not estimated_cut_points:
+    # No cuts, just return the whole file (optionally trimmed).
+    if trim:
+      trimmed, lead = trim_silence(wav_bytes)
+      return [SplitAudioSegment(trimmed, lead)]
+    return [SplitAudioSegment(wav_bytes, 0.0)]
+
+  # 1. Refine all cut points.
+  refined_points: list[float] = []
+  last_point = 0.0
+  for cut in estimated_cut_points:
+    # Ensure search window is valid and ordered
+    search_start = max(last_point, cut - search_radius_sec)
+    search_end = cut + search_radius_sec
+
+    refined = find_best_split_point(wav_bytes, search_start, search_end)
+
+    # Ensure strictly increasing split points to avoid empty or negative slices
+    # If the refined point is <= last_point, push it forward slightly.
+    if refined <= last_point:
+      refined = last_point + 0.01  # Minimal increment
+
+    refined_points.append(refined)
+    last_point = refined
+
+  # 2. Slice audio based on refined points.
+  # We do this iteratively.
+  segments: list[SplitAudioSegment] = []
+  current_bytes = wav_bytes
+  cumulative_time_base = 0.0
+
+  for i, split_pt in enumerate(refined_points):
+    # Calculate split point relative to the *current* clip.
+    # split_pt is absolute time in the original file.
+    # The current clip starts at cumulative_time_base.
+    relative_split = split_pt - cumulative_time_base
+
+    # Sanity check: if relative_split is negative or near zero, handle it?
+    # split_wav_at_point handles bounds clamping.
+
+    part1, remainder = split_wav_at_point(current_bytes, relative_split)
+
+    # Process part1
+    offset = cumulative_time_base
+    if trim:
+      part1, lead_silence = trim_silence(part1)
+      offset += lead_silence
+
+    segments.append(SplitAudioSegment(part1, offset))
+
+    # Prepare for next iteration
+    current_bytes = remainder
+    cumulative_time_base = split_pt
+
+  # 3. Handle the final segment
+  final_offset = cumulative_time_base
+  final_bytes = current_bytes
+  if trim:
+    final_bytes, lead_silence = trim_silence(final_bytes)
+    final_offset += lead_silence
+
+  segments.append(SplitAudioSegment(final_bytes, final_offset))
+
+  return segments
 
 
 def find_best_split_point(

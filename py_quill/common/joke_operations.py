@@ -769,39 +769,21 @@ def _split_joke_dialog_wav_by_timing(
 
   # Gap 1: between Setup end and Response start
   gap1_center = (setup_end + response_start) / 2
-  split_point_1 = audio_operations.find_best_split_point(
-    dialog_wav_bytes,
-    gap1_center - _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
-    gap1_center + _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
-  )
 
   # Gap 2: between Response end and Punchline start
   gap2_center = (response_end + punch_start) / 2
-  split_point_2 = audio_operations.find_best_split_point(
-    dialog_wav_bytes,
-    gap2_center - _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
-    gap2_center + _SPLIT_SEARCH_WINDOW_RADIUS_SEC,
+
+  segments = audio_operations.split_audio(
+    wav_bytes=dialog_wav_bytes,
+    estimated_cut_points=[gap1_center, gap2_center],
+    search_radius_sec=_SPLIT_SEARCH_WINDOW_RADIUS_SEC,
+    trim=True,
   )
 
-  # Ensure split points are ordered
-  if split_point_2 <= split_point_1:
-    split_point_2 = split_point_1 + 0.1
+  if len(segments) != 3:
+    raise ValueError(f"Expected 3 audio segments, got {len(segments)}")
 
-  # Split the WAV
-  part1_bytes, remainder_bytes = audio_operations.split_wav_at_point(
-    dialog_wav_bytes, split_point_1)
-
-  # Calculate split_point_2 relative to remainder (since remainder starts at split_point_1)
-  split_point_2_relative = split_point_2 - split_point_1
-
-  part2_bytes, part3_bytes = audio_operations.split_wav_at_point(
-    remainder_bytes, split_point_2_relative)
-
-  setup_wav, setup_lead_trimmed = audio_operations.trim_silence(part1_bytes)
-  response_wav, response_lead_trimmed = audio_operations.trim_silence(
-    part2_bytes)
-  punchline_wav, punchline_lead_trimmed = audio_operations.trim_silence(
-    part3_bytes)
+  setup_seg, response_seg, punchline_seg = segments[0], segments[1], segments[2]
 
   def _shift_words(
     words: list[audio_timing.WordTiming],
@@ -827,20 +809,16 @@ def _split_joke_dialog_wav_by_timing(
     return out
 
   return (
-    setup_wav,
-    response_wav,
-    punchline_wav,
+    setup_seg.wav_bytes,
+    response_seg.wav_bytes,
+    punchline_seg.wav_bytes,
     JokeAudioTiming(
       setup=_shift_words(alignment[setup_w0:setup_w1],
-                         offset_sec=setup_lead_trimmed),
-      response=_shift_words(
-        alignment[response_w0:response_w1],
-        offset_sec=split_point_1 + response_lead_trimmed,
-      ),
-      punchline=_shift_words(
-        alignment[punch_w0:punch_w1],
-        offset_sec=split_point_2 + punchline_lead_trimmed,
-      ),
+                         offset_sec=setup_seg.offset_sec),
+      response=_shift_words(alignment[response_w0:response_w1],
+                            offset_sec=response_seg.offset_sec),
+      punchline=_shift_words(alignment[punch_w0:punch_w1],
+                             offset_sec=punchline_seg.offset_sec),
     ),
   )
 

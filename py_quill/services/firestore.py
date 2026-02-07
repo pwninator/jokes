@@ -5,8 +5,13 @@ import pprint
 from typing import Any, Collection
 from zoneinfo import ZoneInfo
 
+from typing import TYPE_CHECKING
+
 from common import models, utils
 from firebase_admin import firestore, firestore_async
+
+if TYPE_CHECKING:
+  from common.posable_character import PosableCharacter
 from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
                                     FieldFilter, Query, Transaction,
@@ -1360,8 +1365,8 @@ def delete_character(character_id: str) -> bool:
 
 
 def create_posable_character(
-  character: models.PosableCharacter,
-) -> models.PosableCharacter:
+  character: "PosableCharacter",
+) -> "PosableCharacter":
   """Create a posable character."""
   character_data = character.to_dict(include_key=False)
   character_data['creation_time'] = SERVER_TIMESTAMP
@@ -1379,29 +1384,32 @@ def create_posable_character(
 
 def get_posable_character(
   character_id: str,
-) -> models.PosableCharacter | None:
+) -> "PosableCharacter | None":
   """Get a posable character."""
+  from common.posable_character import PosableCharacter  # pylint: disable=import-outside-toplevel
+
   if not character_id:
     return None
   doc = db().collection('posable_characters').document(character_id).get()
   if not getattr(doc, 'exists', False):
     return None
 
-  return models.PosableCharacter.from_firestore_dict(
-    doc.to_dict() or {}, key=doc.id)
+  return PosableCharacter.from_firestore_dict(doc.to_dict() or {}, key=doc.id)
 
 
-def get_posable_characters() -> list[models.PosableCharacter]:
+def get_posable_characters() -> list["PosableCharacter"]:
   """Get all posable characters."""
+  from common.posable_character import PosableCharacter  # pylint: disable=import-outside-toplevel
+
   docs = db().collection('posable_characters').stream()
   return [
-    models.PosableCharacter.from_firestore_dict(doc.to_dict(), key=doc.id)
+    PosableCharacter.from_firestore_dict(doc.to_dict(), key=doc.id)
     for doc in docs if doc.exists
   ]
 
 
 def update_posable_character(
-  character: models.PosableCharacter,
+  character: "PosableCharacter",
 ) -> bool:
   """Update a posable character."""
   if not character.key:

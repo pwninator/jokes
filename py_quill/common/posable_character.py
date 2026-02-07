@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import dataclasses
+from dataclasses import dataclass, field
 from enum import Enum
 
 from PIL import Image
-from common import models
+from common import utils
+from common.models import _parse_int_field
 from services import cloud_storage
 
 
@@ -46,8 +48,12 @@ class Transform:
     raise ValueError("Transform tuple must have 2 or 4 values")
 
 
+@dataclass(kw_only=True)
 class PosableCharacter:
   """Base class for sprite-based characters with posable components."""
+
+  key: str | None = None
+  name: str | None = None
 
   width: int = 0
   height: int = 0
@@ -63,31 +69,103 @@ class PosableCharacter:
   right_eye_open_gcs_uri: str = ""
   right_eye_closed_gcs_uri: str = ""
 
-  def __init__(self, data: models.PosableCharacter | None = None):
-    self.left_eye_open = True
-    self.right_eye_open = True
-    self.mouth_state = MouthState.OPEN
-    self.left_hand_visible = True
-    self.right_hand_visible = True
-    self.left_hand_transform = Transform()
-    self.right_hand_transform = Transform()
-    self.head_transform = Transform()
-    self._image_cache: dict[tuple[object, ...], Image.Image] = {}
-    self._component_cache: dict[str, Image.Image] = {}
+  # Transient state (not stored in Firestore)
+  left_eye_open: bool = field(default=True, init=False)
+  right_eye_open: bool = field(default=True, init=False)
+  mouth_state: MouthState = field(default=MouthState.OPEN, init=False)
+  left_hand_visible: bool = field(default=True, init=False)
+  right_hand_visible: bool = field(default=True, init=False)
+  left_hand_transform: Transform = field(default_factory=Transform, init=False)
+  right_hand_transform: Transform = field(default_factory=Transform,
+                                          init=False)
+  head_transform: Transform = field(default_factory=Transform, init=False)
+  _image_cache: dict[tuple[object, ...], Image.Image] = field(
+    default_factory=dict, init=False)
+  _component_cache: dict[str, Image.Image] = field(
+    default_factory=dict, init=False)
 
-    if data:
-      self.width = data.width
-      self.height = data.height
-      self.head_gcs_uri = data.head_gcs_uri
-      self.left_hand_gcs_uri = data.left_hand_gcs_uri
-      self.right_hand_gcs_uri = data.right_hand_gcs_uri
-      self.mouth_open_gcs_uri = data.mouth_open_gcs_uri
-      self.mouth_closed_gcs_uri = data.mouth_closed_gcs_uri
-      self.mouth_o_gcs_uri = data.mouth_o_gcs_uri
-      self.left_eye_open_gcs_uri = data.left_eye_open_gcs_uri
-      self.left_eye_closed_gcs_uri = data.left_eye_closed_gcs_uri
-      self.right_eye_open_gcs_uri = data.right_eye_open_gcs_uri
-      self.right_eye_closed_gcs_uri = data.right_eye_closed_gcs_uri
+  def __post_init__(self):
+    """Initialize transient state fields if they weren't set."""
+    # Support legacy subclasses that define config as class attributes
+    # If the instance value is default (0/empty), check if the class has a value.
+    for field_name in [
+      'width',
+      'height',
+      'head_gcs_uri',
+      'left_hand_gcs_uri',
+      'right_hand_gcs_uri',
+      'mouth_open_gcs_uri',
+      'mouth_closed_gcs_uri',
+      'mouth_o_gcs_uri',
+      'left_eye_open_gcs_uri',
+      'left_eye_closed_gcs_uri',
+      'right_eye_open_gcs_uri',
+      'right_eye_closed_gcs_uri',
+    ]:
+      val = getattr(self, field_name)
+      if not val:  # 0 or empty string
+        class_val = getattr(type(self), field_name, None)
+        # Only overwrite if the class value is "truthy" (actually set)
+        # This handles cases where subclasses don't define it but inherit defaults
+        if class_val:
+          setattr(self, field_name, class_val)
+
+    # Ensure transient fields are initialized even if subclasses override __init__
+    if not hasattr(self, 'left_eye_open'):
+      self.left_eye_open = True
+    if not hasattr(self, 'right_eye_open'):
+      self.right_eye_open = True
+    if not hasattr(self, 'mouth_state'):
+      self.mouth_state = MouthState.OPEN
+    if not hasattr(self, 'left_hand_visible'):
+      self.left_hand_visible = True
+    if not hasattr(self, 'right_hand_visible'):
+      self.right_hand_visible = True
+    if not hasattr(self, 'left_hand_transform'):
+      self.left_hand_transform = Transform()
+    if not hasattr(self, 'right_hand_transform'):
+      self.right_hand_transform = Transform()
+    if not hasattr(self, 'head_transform'):
+      self.head_transform = Transform()
+    if not hasattr(self, '_image_cache'):
+      self._image_cache = {}
+    if not hasattr(self, '_component_cache'):
+      self._component_cache = {}
+
+  def to_dict(self, include_key: bool = False) -> dict:
+    """Convert to dictionary for Firestore storage."""
+    data = dataclasses.asdict(self)
+    # Remove transient fields
+    transient_fields = {
+      'left_eye_open', 'right_eye_open', 'mouth_state', 'left_hand_visible',
+      'right_hand_visible', 'left_hand_transform', 'right_hand_transform',
+      'head_transform', '_image_cache', '_component_cache'
+    }
+    for field_name in transient_fields:
+      data.pop(field_name, None)
+
+    if not include_key:
+      data.pop('key', None)
+    return data
+
+  @classmethod
+  def from_firestore_dict(cls, data: dict, key: str) -> 'PosableCharacter':
+    """Create a PosableCharacter from a Firestore dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    data['key'] = key
+
+    _parse_int_field(data, 'width', 0)
+    _parse_int_field(data, 'height', 0)
+
+    # Filter to dataclass fields
+    allowed = {f.name for f in dataclasses.fields(cls) if f.init}
+    filtered = {k: v for k, v in data.items() if k in allowed}
+
+    return cls(**filtered)
 
   def set_pose(
     self,

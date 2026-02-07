@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import dataclasses
+from dataclasses import dataclass, field
 from enum import Enum
 
 from PIL import Image
+from common import models
 from services import cloud_storage
 
 
@@ -46,23 +48,10 @@ class Transform:
 
 
 class PosableCharacter:
-  """Base class for sprite-based characters with posable components."""
+  """Runtime class for a posable character state, using a shared definition."""
 
-  width: int = 0
-  height: int = 0
-
-  head_gcs_uri: str = ""
-  left_hand_gcs_uri: str = ""
-  right_hand_gcs_uri: str = ""
-  mouth_open_gcs_uri: str = ""
-  mouth_closed_gcs_uri: str = ""
-  mouth_o_gcs_uri: str = ""
-  left_eye_open_gcs_uri: str = ""
-  left_eye_closed_gcs_uri: str = ""
-  right_eye_open_gcs_uri: str = ""
-  right_eye_closed_gcs_uri: str = ""
-
-  def __init__(self):
+  def __init__(self, definition: models.PosableCharacterDef):
+    self.definition = definition
     self.left_eye_open = True
     self.right_eye_open = True
     self.mouth_state = MouthState.OPEN
@@ -73,6 +62,11 @@ class PosableCharacter:
     self.head_transform = Transform()
     self._image_cache: dict[tuple[object, ...], Image.Image] = {}
     self._component_cache: dict[str, Image.Image] = {}
+
+  @classmethod
+  def from_def(cls, definition: models.PosableCharacterDef) -> PosableCharacter:
+    """Create a PosableCharacter instance from a definition."""
+    return cls(definition=definition)
 
   def set_pose(
     self,
@@ -115,15 +109,16 @@ class PosableCharacter:
     if cached is not None:
       return cached
 
-    canvas = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+    def_ = self.definition
+    canvas = Image.new("RGBA", (def_.width, def_.height), (0, 0, 0, 0))
 
-    head_image = self._load_component(self.head_gcs_uri)
+    head_image = self._load_component(def_.head_gcs_uri)
     self._paste_component(canvas, head_image, self.head_transform)
 
-    left_eye_uri = (self.left_eye_open_gcs_uri
-                    if self.left_eye_open else self.left_eye_closed_gcs_uri)
-    right_eye_uri = (self.right_eye_open_gcs_uri
-                     if self.right_eye_open else self.right_eye_closed_gcs_uri)
+    left_eye_uri = (def_.left_eye_open_gcs_uri
+                    if self.left_eye_open else def_.left_eye_closed_gcs_uri)
+    right_eye_uri = (def_.right_eye_open_gcs_uri
+                     if self.right_eye_open else def_.right_eye_closed_gcs_uri)
     mouth_uri = _get_mouth_gcs_uri(self)
 
     left_eye_image = self._load_component(left_eye_uri)
@@ -135,10 +130,10 @@ class PosableCharacter:
     self._paste_component(canvas, mouth_image, self.head_transform)
 
     if self.left_hand_visible:
-      left_hand_image = self._load_component(self.left_hand_gcs_uri)
+      left_hand_image = self._load_component(def_.left_hand_gcs_uri)
       self._paste_component(canvas, left_hand_image, self.left_hand_transform)
     if self.right_hand_visible:
-      right_hand_image = self._load_component(self.right_hand_gcs_uri)
+      right_hand_image = self._load_component(def_.right_hand_gcs_uri)
       self._paste_component(canvas, right_hand_image,
                             self.right_hand_transform)
 
@@ -192,23 +187,24 @@ class PosableCharacter:
     return resized, x, y
 
   def _validate_assets(self) -> None:
+    d = self.definition
     required = {
-      "width": self.width,
-      "height": self.height,
-      "head_gcs_uri": self.head_gcs_uri,
-      "left_hand_gcs_uri": self.left_hand_gcs_uri,
-      "right_hand_gcs_uri": self.right_hand_gcs_uri,
-      "mouth_open_gcs_uri": self.mouth_open_gcs_uri,
-      "mouth_closed_gcs_uri": self.mouth_closed_gcs_uri,
-      "mouth_o_gcs_uri": self.mouth_o_gcs_uri,
-      "left_eye_open_gcs_uri": self.left_eye_open_gcs_uri,
-      "left_eye_closed_gcs_uri": self.left_eye_closed_gcs_uri,
-      "right_eye_open_gcs_uri": self.right_eye_open_gcs_uri,
-      "right_eye_closed_gcs_uri": self.right_eye_closed_gcs_uri,
+      "width": d.width,
+      "height": d.height,
+      "head_gcs_uri": d.head_gcs_uri,
+      "left_hand_gcs_uri": d.left_hand_gcs_uri,
+      "right_hand_gcs_uri": d.right_hand_gcs_uri,
+      "mouth_open_gcs_uri": d.mouth_open_gcs_uri,
+      "mouth_closed_gcs_uri": d.mouth_closed_gcs_uri,
+      "mouth_o_gcs_uri": d.mouth_o_gcs_uri,
+      "left_eye_open_gcs_uri": d.left_eye_open_gcs_uri,
+      "left_eye_closed_gcs_uri": d.left_eye_closed_gcs_uri,
+      "right_eye_open_gcs_uri": d.right_eye_open_gcs_uri,
+      "right_eye_closed_gcs_uri": d.right_eye_closed_gcs_uri,
     }
     missing = [name for name, value in required.items() if not value]
     if missing:
-      raise ValueError("PosableCharacter subclass must define: " +
+      raise ValueError("PosableCharacter definition must have: " +
                        ", ".join(missing))
 
 
@@ -223,7 +219,7 @@ def _coerce_transform(
 
 def _get_mouth_gcs_uri(character: PosableCharacter) -> str:
   if character.mouth_state == MouthState.OPEN:
-    return character.mouth_open_gcs_uri
+    return character.definition.mouth_open_gcs_uri
   if character.mouth_state == MouthState.O:
-    return character.mouth_o_gcs_uri
-  return character.mouth_closed_gcs_uri
+    return character.definition.mouth_o_gcs_uri
+  return character.definition.mouth_closed_gcs_uri

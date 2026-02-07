@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from common import models
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
 from services import gen_video
@@ -127,20 +128,26 @@ class _FakeVideoClip:
     pass
 
 
-class _DummyCharacter(PosableCharacter):
-  width = 100
-  height = 80
+_DUMMY_CHAR_DEF = models.PosableCharacterDef(
+  width=100,
+  height=80,
+  head_gcs_uri="gs://test/head.png",
+  left_hand_gcs_uri="gs://test/left_hand.png",
+  right_hand_gcs_uri="gs://test/right_hand.png",
+  mouth_open_gcs_uri="gs://test/mouth_open.png",
+  mouth_closed_gcs_uri="gs://test/mouth_closed.png",
+  mouth_o_gcs_uri="gs://test/mouth_o.png",
+  left_eye_open_gcs_uri="gs://test/left_eye_open.png",
+  left_eye_closed_gcs_uri="gs://test/left_eye_closed.png",
+  right_eye_open_gcs_uri="gs://test/right_eye_open.png",
+  right_eye_closed_gcs_uri="gs://test/right_eye_closed.png",
+)
 
-  head_gcs_uri = "gs://test/head.png"
-  left_hand_gcs_uri = "gs://test/left_hand.png"
-  right_hand_gcs_uri = "gs://test/right_hand.png"
-  mouth_open_gcs_uri = "gs://test/mouth_open.png"
-  mouth_closed_gcs_uri = "gs://test/mouth_closed.png"
-  mouth_o_gcs_uri = "gs://test/mouth_o.png"
-  left_eye_open_gcs_uri = "gs://test/left_eye_open.png"
-  left_eye_closed_gcs_uri = "gs://test/left_eye_closed.png"
-  right_eye_open_gcs_uri = "gs://test/right_eye_open.png"
-  right_eye_closed_gcs_uri = "gs://test/right_eye_closed.png"
+
+class _DummyCharacter(PosableCharacter):
+
+  def __init__(self):
+    super().__init__(definition=_DUMMY_CHAR_DEF)
 
 
 def _make_png_bytes(size=(32, 32), color=(255, 0, 0, 255)) -> bytes:

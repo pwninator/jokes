@@ -1331,6 +1331,54 @@ class PunnyJoke:
     return {**minimal, **payload}
 
 
+@dataclass(kw_only=True)
+class PosableCharacterDef:
+  """Definition for a posable character (assets and dimensions)."""
+
+  key: str | None = None
+  name: str | None = None
+
+  width: int = 0
+  height: int = 0
+
+  head_gcs_uri: str = ""
+  left_hand_gcs_uri: str = ""
+  right_hand_gcs_uri: str = ""
+  mouth_open_gcs_uri: str = ""
+  mouth_closed_gcs_uri: str = ""
+  mouth_o_gcs_uri: str = ""
+  left_eye_open_gcs_uri: str = ""
+  left_eye_closed_gcs_uri: str = ""
+  right_eye_open_gcs_uri: str = ""
+  right_eye_closed_gcs_uri: str = ""
+
+  def to_dict(self, include_key: bool = False) -> dict:
+    """Convert to dictionary for Firestore storage."""
+    data = dataclasses.asdict(self)
+    if not include_key:
+      data.pop('key', None)
+    return data
+
+  @classmethod
+  def from_firestore_dict(cls, data: dict, key: str) -> 'PosableCharacterDef':
+    """Create a PosableCharacterDef from a Firestore dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    data['key'] = key
+
+    _parse_int_field(data, 'width', 0)
+    _parse_int_field(data, 'height', 0)
+
+    # Filter to dataclass fields
+    allowed = {f.name for f in dataclasses.fields(cls)}
+    filtered = {k: v for k, v in data.items() if k in allowed}
+
+    return cls(**filtered)
+
+
 def _parse_enum_field(
   data: dict,
   field_name: str,

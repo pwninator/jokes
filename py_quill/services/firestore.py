@@ -1359,6 +1359,64 @@ def delete_character(character_id: str) -> bool:
   return True
 
 
+def create_posable_character_def(
+  character_def: models.PosableCharacterDef,
+) -> models.PosableCharacterDef:
+  """Create a posable character definition."""
+  def_data = character_def.to_dict(include_key=False)
+  def_data['creation_time'] = SERVER_TIMESTAMP
+  def_data['last_modification_time'] = SERVER_TIMESTAMP
+
+  # Generate custom ID: [timestamp]_[name_prefix] if name is available
+  name_part = character_def.name if character_def.name else "posable"
+  custom_id = utils.create_timestamped_firestore_key(name_part)
+
+  def_ref = db().collection('posable_character_defs').document(custom_id)
+  def_ref.set(def_data)
+  character_def.key = custom_id
+  return character_def
+
+
+def get_posable_character_def(
+  character_def_id: str,
+) -> models.PosableCharacterDef | None:
+  """Get a posable character definition."""
+  if not character_def_id:
+    return None
+  doc = db().collection('posable_character_defs').document(character_def_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+
+  return models.PosableCharacterDef.from_firestore_dict(
+    doc.to_dict() or {}, key=doc.id)
+
+
+def get_posable_character_defs() -> list[models.PosableCharacterDef]:
+  """Get all posable character definitions."""
+  docs = db().collection('posable_character_defs').stream()
+  return [
+    models.PosableCharacterDef.from_firestore_dict(
+      doc.to_dict(), key=doc.id) for doc in docs if doc.exists
+  ]
+
+
+def update_posable_character_def(
+  character_def: models.PosableCharacterDef,
+) -> bool:
+  """Update a posable character definition."""
+  if not character_def.key:
+    return False
+
+  def_ref = db().collection('posable_character_defs').document(character_def.key)
+  if not def_ref.get().exists:
+    return False
+
+  def_data = character_def.to_dict(include_key=False)
+  def_data['last_modification_time'] = SERVER_TIMESTAMP
+  def_ref.update(def_data)
+  return True
+
+
 def create_image(image: models.Image) -> models.Image:
   """Create a new image in Firestore.
 

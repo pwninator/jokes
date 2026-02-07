@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from common import models
 from common.posable_character import MouthState, PosableCharacter, Transform
 from PIL import Image
 
@@ -15,20 +16,26 @@ def _make_image(
   return Image.new("RGBA", size, color=color)
 
 
-class SampleCharacter(PosableCharacter):
-  width = 4
-  height = 4
+_SAMPLE_DEF = models.PosableCharacterDef(
+  width=4,
+  height=4,
+  head_gcs_uri="gs://test/head.png",
+  left_hand_gcs_uri="gs://test/left_hand.png",
+  right_hand_gcs_uri="gs://test/right_hand.png",
+  mouth_open_gcs_uri="gs://test/mouth_open.png",
+  mouth_closed_gcs_uri="gs://test/mouth_closed.png",
+  mouth_o_gcs_uri="gs://test/mouth_o.png",
+  left_eye_open_gcs_uri="gs://test/left_eye_open.png",
+  left_eye_closed_gcs_uri="gs://test/left_eye_closed.png",
+  right_eye_open_gcs_uri="gs://test/right_eye_open.png",
+  right_eye_closed_gcs_uri="gs://test/right_eye_closed.png",
+)
 
-  head_gcs_uri = "gs://test/head.png"
-  left_hand_gcs_uri = "gs://test/left_hand.png"
-  right_hand_gcs_uri = "gs://test/right_hand.png"
-  mouth_open_gcs_uri = "gs://test/mouth_open.png"
-  mouth_closed_gcs_uri = "gs://test/mouth_closed.png"
-  mouth_o_gcs_uri = "gs://test/mouth_o.png"
-  left_eye_open_gcs_uri = "gs://test/left_eye_open.png"
-  left_eye_closed_gcs_uri = "gs://test/left_eye_closed.png"
-  right_eye_open_gcs_uri = "gs://test/right_eye_open.png"
-  right_eye_closed_gcs_uri = "gs://test/right_eye_closed.png"
+
+class SampleCharacter(PosableCharacter):
+
+  def __init__(self):
+    super().__init__(definition=_SAMPLE_DEF)
 
 
 class TransformTest(unittest.TestCase):
@@ -60,16 +67,16 @@ class PosableCharacterTest(unittest.TestCase):
 
   def _default_images(self) -> dict[str, Image.Image]:
     return {
-      SampleCharacter.head_gcs_uri: _make_image((255, 0, 0, 255)),
-      SampleCharacter.left_eye_open_gcs_uri: _make_image((0, 255, 0, 255)),
-      SampleCharacter.right_eye_open_gcs_uri: _make_image((0, 0, 255, 255)),
-      SampleCharacter.left_eye_closed_gcs_uri: _make_image((0, 255, 0, 255)),
-      SampleCharacter.right_eye_closed_gcs_uri: _make_image((0, 0, 255, 255)),
-      SampleCharacter.mouth_open_gcs_uri: _make_image((255, 255, 0, 255)),
-      SampleCharacter.mouth_closed_gcs_uri: _make_image((255, 255, 0, 255)),
-      SampleCharacter.mouth_o_gcs_uri: _make_image((255, 255, 0, 255)),
-      SampleCharacter.left_hand_gcs_uri: _make_image((255, 0, 255, 255)),
-      SampleCharacter.right_hand_gcs_uri: _make_image((0, 255, 255, 255)),
+      _SAMPLE_DEF.head_gcs_uri: _make_image((255, 0, 0, 255)),
+      _SAMPLE_DEF.left_eye_open_gcs_uri: _make_image((0, 255, 0, 255)),
+      _SAMPLE_DEF.right_eye_open_gcs_uri: _make_image((0, 0, 255, 255)),
+      _SAMPLE_DEF.left_eye_closed_gcs_uri: _make_image((0, 255, 0, 255)),
+      _SAMPLE_DEF.right_eye_closed_gcs_uri: _make_image((0, 0, 255, 255)),
+      _SAMPLE_DEF.mouth_open_gcs_uri: _make_image((255, 255, 0, 255)),
+      _SAMPLE_DEF.mouth_closed_gcs_uri: _make_image((255, 255, 0, 255)),
+      _SAMPLE_DEF.mouth_o_gcs_uri: _make_image((255, 255, 0, 255)),
+      _SAMPLE_DEF.left_hand_gcs_uri: _make_image((255, 0, 255, 255)),
+      _SAMPLE_DEF.right_hand_gcs_uri: _make_image((0, 255, 255, 255)),
     }
 
   def test_set_pose_updates_only_provided_values(self):
@@ -111,16 +118,16 @@ class PosableCharacterTest(unittest.TestCase):
   def test_hand_transform_translation_and_scale(self, mock_download):
     images = self._default_images()
     transparent = _make_image((0, 0, 0, 0))
-    images[SampleCharacter.head_gcs_uri] = transparent
-    images[SampleCharacter.left_eye_open_gcs_uri] = transparent
-    images[SampleCharacter.right_eye_open_gcs_uri] = transparent
-    images[SampleCharacter.left_eye_closed_gcs_uri] = transparent
-    images[SampleCharacter.right_eye_closed_gcs_uri] = transparent
-    images[SampleCharacter.mouth_open_gcs_uri] = transparent
-    images[SampleCharacter.mouth_closed_gcs_uri] = transparent
-    images[SampleCharacter.mouth_o_gcs_uri] = transparent
-    images[SampleCharacter.right_hand_gcs_uri] = transparent
-    images[SampleCharacter.left_hand_gcs_uri] = _make_image((200, 10, 10, 255))
+    images[_SAMPLE_DEF.head_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_o_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_hand_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_hand_gcs_uri] = _make_image((200, 10, 10, 255))
     mock_download.side_effect = lambda uri: images[uri]
 
     character = self._build_character()
@@ -137,12 +144,12 @@ class PosableCharacterTest(unittest.TestCase):
   def test_head_transform_applies_to_eyes_and_mouth(self, mock_download):
     images = self._default_images()
     transparent = _make_image((0, 0, 0, 0))
-    images[SampleCharacter.head_gcs_uri] = transparent
-    images[SampleCharacter.mouth_open_gcs_uri] = transparent
-    images[SampleCharacter.mouth_closed_gcs_uri] = transparent
-    images[SampleCharacter.mouth_o_gcs_uri] = transparent
-    images[SampleCharacter.right_eye_open_gcs_uri] = transparent
-    images[SampleCharacter.right_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.head_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_o_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_closed_gcs_uri] = transparent
     mock_download.side_effect = lambda uri: images[uri]
 
     character = self._build_character()
@@ -184,6 +191,40 @@ class PosableCharacterTest(unittest.TestCase):
     image_two = character.get_image()
 
     self.assertIsNot(image_one, image_two)
+
+  def test_initialization_with_definition(self):
+    definition = models.PosableCharacterDef(
+      width=10,
+      height=20,
+      head_gcs_uri="gs://test/model_head.png",
+      left_hand_gcs_uri="gs://test/model_left_hand.png",
+      right_hand_gcs_uri="gs://test/model_right_hand.png",
+      mouth_open_gcs_uri="gs://test/model_mouth_open.png",
+      mouth_closed_gcs_uri="gs://test/model_mouth_closed.png",
+      mouth_o_gcs_uri="gs://test/model_mouth_o.png",
+      left_eye_open_gcs_uri="gs://test/model_left_eye_open.png",
+      left_eye_closed_gcs_uri="gs://test/model_left_eye_closed.png",
+      right_eye_open_gcs_uri="gs://test/model_right_eye_open.png",
+      right_eye_closed_gcs_uri="gs://test/model_right_eye_closed.png",
+    )
+    character = PosableCharacter.from_def(definition)
+    self.assertEqual(character.definition.width, 10)
+    self.assertEqual(character.definition.height, 20)
+    self.assertEqual(character.definition.head_gcs_uri,
+                     "gs://test/model_head.png")
+
+    # Verify transient fields are initialized
+    self.assertTrue(character.left_eye_open)
+    self.assertEqual(character.mouth_state, MouthState.OPEN)
+    self.assertIsInstance(character._image_cache, dict)
+
+    # Verify it works with get_image (mocking download)
+    with patch(
+        "common.posable_character.cloud_storage.download_image_from_gcs"
+    ) as mock_download:
+      mock_download.return_value = _make_image((255, 0, 0, 255), size=(10, 20))
+      character.get_image()
+      mock_download.assert_any_call("gs://test/model_head.png")
 
 
 if __name__ == "__main__":

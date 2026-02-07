@@ -3,13 +3,14 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from common.posable_character import PosableCharacter, generate_frames, MouthState, Transform
+from common.posable_character import PosableCharacter, MouthState, Transform
 from common.posable_character_sequence import (
     PosableCharacterSequence,
     SequenceBooleanEvent,
     SequenceMouthEvent,
     SequenceSoundEvent,
     SequenceTransformEvent,
+    generate_frames,
 )
 from common import models
 from PIL import Image

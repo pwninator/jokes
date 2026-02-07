@@ -11,6 +11,7 @@ from typing import Iterator
 from PIL import Image
 
 from common import models
+from services import cloud_storage
 
 
 class MouthState(Enum):
@@ -155,8 +156,6 @@ class PosableCharacter:
     )
 
   def _load_component(self, gcs_uri: str) -> Image.Image:
-    from services import cloud_storage
-
     cached = self._component_cache.get(gcs_uri)
     if cached is not None:
       return cached

@@ -29,6 +29,13 @@ class SequenceEvent:
   def to_dict(self) -> dict[str, Any]:
     return dataclasses.asdict(self)
 
+  @staticmethod
+  def _parse_common_fields(data: dict[str, Any]) -> dict[str, float]:
+    return {
+      "start_time": float(data["start_time"]),
+      "end_time": float(data["end_time"]),
+    }
+
 
 @dataclass
 class SequenceBooleanEvent(SequenceEvent):
@@ -38,9 +45,8 @@ class SequenceBooleanEvent(SequenceEvent):
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> SequenceBooleanEvent:
     return cls(
-      start_time=float(data["start_time"]),
-      end_time=float(data["end_time"]),
       value=bool(data["value"]),
+      **cls._parse_common_fields(data),
     )
 
 
@@ -50,18 +56,15 @@ class SequenceMouthEvent(SequenceEvent):
   mouth_state: MouthState
 
   def to_dict(self) -> dict[str, Any]:
-    return {
-      "start_time": self.start_time,
-      "end_time": self.end_time,
-      "mouth_state": self.mouth_state.value,
-    }
+    data = super().to_dict()
+    data["mouth_state"] = self.mouth_state.value
+    return data
 
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> SequenceMouthEvent:
     return cls(
-      start_time=float(data["start_time"]),
-      end_time=float(data["end_time"]),
       mouth_state=MouthState(data["mouth_state"]),
+      **cls._parse_common_fields(data),
     )
 
 
@@ -70,30 +73,17 @@ class SequenceTransformEvent(SequenceEvent):
   """Event for transform properties (translation/scaling)."""
   target_transform: Transform
 
-  def to_dict(self) -> dict[str, Any]:
-    return {
-      "start_time": self.start_time,
-      "end_time": self.end_time,
-      "target_transform": {
-        "translate_x": self.target_transform.translate_x,
-        "translate_y": self.target_transform.translate_y,
-        "scale_x": self.target_transform.scale_x,
-        "scale_y": self.target_transform.scale_y,
-      },
-    }
-
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> SequenceTransformEvent:
     transform_data = data["target_transform"]
     return cls(
-      start_time=float(data["start_time"]),
-      end_time=float(data["end_time"]),
       target_transform=Transform(
         translate_x=float(transform_data.get("translate_x", 0.0)),
         translate_y=float(transform_data.get("translate_y", 0.0)),
         scale_x=float(transform_data.get("scale_x", 1.0)),
         scale_y=float(transform_data.get("scale_y", 1.0)),
       ),
+      **cls._parse_common_fields(data),
     )
 
 

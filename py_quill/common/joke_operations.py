@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import array
 import datetime
-import io
 import random
-import sys
-import wave
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any, Literal, Tuple
 
-from common import audio_timing, image_generation, models
+from common import audio_operations, audio_timing, image_generation, models
 from common.posable_character import PosableCharacter
 from common.posable_characters import PosableCat
 from firebase_functions import logger
@@ -687,7 +683,7 @@ def generate_joke_audio(
 
   if setup_wav is None or response_wav is None or punchline_wav is None:
     try:
-      setup_wav, response_wav, punchline_wav = _split_wav_bytes_on_two_pauses(
+      setup_wav, response_wav, punchline_wav = audio_operations.split_wav_on_silence(
         dialog_wav_bytes,
         silence_duration_sec=1.0,
       )
@@ -738,39 +734,6 @@ def generate_joke_audio(
   )
 
 
-def _slice_wav_bytes(
-  wav_bytes: bytes,
-  *,
-  start_time_sec: float,
-  end_time_sec: float,
-) -> bytes:
-  """Return a WAV byte slice for the given time range (preserving WAV headers)."""
-  with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
-    # pylint: disable=no-member
-    n_channels = wf.getnchannels()
-    sampwidth = wf.getsampwidth()
-    framerate = wf.getframerate()
-    n_frames = wf.getnframes()
-    # pylint: enable=no-member
-
-    start_frame = max(0, int(round(float(start_time_sec) * framerate)))
-    end_frame = max(start_frame, int(round(float(end_time_sec) * framerate)))
-    end_frame = min(end_frame, int(n_frames))
-
-    wf.setpos(start_frame)
-    frames = wf.readframes(end_frame - start_frame)
-
-  buffer = io.BytesIO()
-  with wave.open(buffer, "wb") as out:
-    # pylint: disable=no-member
-    out.setnchannels(int(n_channels))
-    out.setsampwidth(int(sampwidth))
-    out.setframerate(int(framerate))
-    out.writeframes(frames)
-    # pylint: enable=no-member
-  return buffer.getvalue()
-
-
 def _split_joke_dialog_wav_by_timing(
   dialog_wav_bytes: bytes,
   timing: audio_timing.TtsTiming,
@@ -778,8 +741,8 @@ def _split_joke_dialog_wav_by_timing(
   """Split the 3-turn joke dialog WAV using provider timing data.
 
   Uses `timing.voice_segments` to find the time bounds for each dialogue turn
-  (setup, response, punchline). Also slices the corresponding character timing
-  alignment into per-clip word timings, shifted to clip-local time.
+  (setup, response, punchline). Then uses refined scan-and-split logic to
+  find the exact silence between turns to avoid bleeding or truncation.
   """
   alignment = timing.normalized_alignment or timing.alignment
   if alignment is None or not timing.voice_segments:
@@ -799,25 +762,45 @@ def _split_joke_dialog_wav_by_timing(
     word_end = max(int(s.word_end_index) for s in segs)
     return start_sec, end_sec, word_start, word_end
 
-  setup_start, setup_end, setup_w0, setup_w1 = _turn_bounds(0)
+  _setup_start, setup_end, setup_w0, setup_w1 = _turn_bounds(0)
   response_start, response_end, response_w0, response_w1 = _turn_bounds(1)
-  punch_start, punch_end, punch_w0, punch_w1 = _turn_bounds(2)
+  punch_start, _punch_end, punch_w0, punch_w1 = _turn_bounds(2)
 
-  setup_wav = _slice_wav_bytes(
+  # Gap 1: between Setup end and Response start
+  gap1_center = (setup_end + response_start) / 2
+  split_point_1 = audio_operations.find_best_split_point(
     dialog_wav_bytes,
-    start_time_sec=setup_start,
-    end_time_sec=setup_end,
+    gap1_center - 0.2,
+    gap1_center + 0.2,
   )
-  response_wav = _slice_wav_bytes(
+
+  # Gap 2: between Response end and Punchline start
+  gap2_center = (response_end + punch_start) / 2
+  split_point_2 = audio_operations.find_best_split_point(
     dialog_wav_bytes,
-    start_time_sec=response_start,
-    end_time_sec=response_end,
+    gap2_center - 0.2,
+    gap2_center + 0.2,
   )
-  punchline_wav = _slice_wav_bytes(
-    dialog_wav_bytes,
-    start_time_sec=punch_start,
-    end_time_sec=punch_end,
-  )
+
+  # Ensure split points are ordered
+  if split_point_2 <= split_point_1:
+    split_point_2 = split_point_1 + 0.1
+
+  # Split the WAV
+  part1_bytes, remainder_bytes = audio_operations.split_wav_at_point(
+    dialog_wav_bytes, split_point_1)
+
+  # Calculate split_point_2 relative to remainder (since remainder starts at split_point_1)
+  split_point_2_relative = split_point_2 - split_point_1
+
+  part2_bytes, part3_bytes = audio_operations.split_wav_at_point(
+    remainder_bytes, split_point_2_relative)
+
+  setup_wav, setup_lead_trimmed = audio_operations.trim_silence(part1_bytes)
+  response_wav, response_lead_trimmed = audio_operations.trim_silence(
+    part2_bytes)
+  punchline_wav, punchline_lead_trimmed = audio_operations.trim_silence(
+    part3_bytes)
 
   def _shift_words(
     words: list[audio_timing.WordTiming],
@@ -847,10 +830,16 @@ def _split_joke_dialog_wav_by_timing(
     response_wav,
     punchline_wav,
     JokeAudioTiming(
-      setup=_shift_words(alignment[setup_w0:setup_w1], offset_sec=setup_start),
-      response=_shift_words(alignment[response_w0:response_w1],
-                            offset_sec=response_start),
-      punchline=_shift_words(alignment[punch_w0:punch_w1], offset_sec=punch_start),
+      setup=_shift_words(alignment[setup_w0:setup_w1],
+                         offset_sec=setup_lead_trimmed),
+      response=_shift_words(
+        alignment[response_w0:response_w1],
+        offset_sec=split_point_1 + response_lead_trimmed,
+      ),
+      punchline=_shift_words(
+        alignment[punch_w0:punch_w1],
+        offset_sec=split_point_2 + punchline_lead_trimmed,
+      ),
     ),
   )
 
@@ -885,11 +874,11 @@ def generate_joke_video_from_audio_uris(
     punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
       punchline_image_url)
 
-  setup_duration_sec = _get_wav_duration_sec(
+  setup_duration_sec = audio_operations.get_wav_duration_sec(
     cloud_storage.download_bytes_from_gcs(setup_audio_gcs_uri))
-  response_duration_sec = _get_wav_duration_sec(
+  response_duration_sec = audio_operations.get_wav_duration_sec(
     cloud_storage.download_bytes_from_gcs(response_audio_gcs_uri))
-  punchline_duration_sec = _get_wav_duration_sec(
+  punchline_duration_sec = audio_operations.get_wav_duration_sec(
     cloud_storage.download_bytes_from_gcs(punchline_audio_gcs_uri))
 
   response_start_sec = setup_duration_sec + _JOKE_AUDIO_RESPONSE_GAP_SEC
@@ -1117,212 +1106,3 @@ def _resolve_speakers(
     raise ValueError("Speakers supports up to 2 speakers")
 
   return normalized
-
-
-def _split_wav_bytes_on_two_pauses(
-  wav_bytes: bytes,
-  *,
-  silence_duration_sec: float,
-) -> tuple[bytes, bytes, bytes]:
-  """Split a WAV into 3 clips using the first two interior long silent runs."""
-  params, frames = _read_wav_bytes(wav_bytes)
-  frame_size_bytes = int(params.nchannels) * int(params.sampwidth)
-  silence_frames = max(
-    1, int(round(int(params.framerate) * silence_duration_sec)))
-
-  silent_frames_mask = _compute_silent_frame_mask(
-    frames,
-    params=params,
-    silence_abs_amplitude_threshold=250,
-  )
-  runs = _find_silent_runs(silent_frames_mask, min_run_frames=silence_frames)
-
-  # Prefer pauses between utterances, not leading/trailing.
-  nframes = int(params.nframes)
-  interior_runs = [(start, end) for start, end in runs
-                   if start > 0 and end < nframes]
-  if len(interior_runs) < 2:
-    raise ValueError(
-      f"Expected at least 2 interior silence runs of ~{silence_duration_sec}s; found {len(interior_runs)}"
-    )
-
-  (run1_start, run1_end), (run2_start,
-                           run2_end) = interior_runs[0], interior_runs[1]
-  silences_are_ordered = 0 <= run1_start < run1_end <= run2_start < run2_end <= nframes
-  if not silences_are_ordered:
-    raise ValueError(
-      f"Detected silence runs are not ordered as expected: {interior_runs}")
-
-  setup_frames = frames[:run1_start * frame_size_bytes]
-  response_frames = frames[run1_end * frame_size_bytes:run2_start *
-                           frame_size_bytes]
-  punchline_frames = frames[run2_end * frame_size_bytes:]
-
-  if not setup_frames or not response_frames or not punchline_frames:
-    raise ValueError("Split produced an empty clip")
-
-  return (
-    _write_wav_bytes(params=params, frames=setup_frames),
-    _write_wav_bytes(params=params, frames=response_frames),
-    _write_wav_bytes(params=params, frames=punchline_frames),
-  )
-
-
-def _read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
-  """Parse WAV bytes into (params, raw PCM frame bytes)."""
-  with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
-    # pylint: disable=no-member
-    params = wf.getparams()
-    nframes = wf.getnframes()
-    frames = wf.readframes(nframes)
-    # pylint: enable=no-member
-
-  if params.comptype != "NONE":
-    raise ValueError(f"Unsupported WAV compression: {params.comptype}")
-
-  frame_size_bytes = int(params.nchannels) * int(params.sampwidth)
-  expected_len = int(params.nframes) * frame_size_bytes
-  if expected_len and len(frames) != expected_len:
-    # Some providers produce WAV headers with placeholder sizes (e.g. 0xFFFFFFFF),
-    # which makes `wave` report an absurd nframes count. If the actual payload is
-    # well-formed PCM, infer the correct nframes from the real byte length.
-    if (frame_size_bytes > 0 and expected_len > len(frames)
-        and len(frames) % frame_size_bytes == 0):
-      inferred_nframes = len(frames) // frame_size_bytes
-      if hasattr(params, "_replace"):
-        params = params._replace(nframes=inferred_nframes)
-      else:
-        try:
-          params.nframes = inferred_nframes
-        except Exception:
-          pass
-    else:
-      raise ValueError(
-        f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"
-      )
-  return params, frames
-
-
-def _get_wav_duration_sec(wav_bytes: bytes) -> float:
-  """Compute WAV duration from bytes."""
-  params, _frames = _read_wav_bytes(wav_bytes)
-  framerate = float(params.framerate)
-  if framerate <= 0:
-    raise ValueError("WAV framerate must be positive")
-  return float(params.nframes) / framerate
-
-
-def _write_wav_bytes(*, params: Any, frames: bytes) -> bytes:
-  """Write WAV bytes from params + raw frame bytes."""
-  buffer = io.BytesIO()
-  with wave.open(buffer, "wb") as wf:
-    # pylint: disable=no-member
-    wf.setnchannels(int(params.nchannels))
-    wf.setsampwidth(int(params.sampwidth))
-    wf.setframerate(int(params.framerate))
-    wf.writeframes(frames)
-    # pylint: enable=no-member
-  return buffer.getvalue()
-
-
-def _compute_silent_frame_mask(
-  frames: bytes,
-  *,
-  params: Any,
-  silence_abs_amplitude_threshold: int,
-) -> list[bool]:
-  """Return a per-frame boolean mask for silence detection.
-
-  This is intentionally lightweight (stdlib only). We treat a frame as silent
-  when its peak absolute amplitude is below an adaptive threshold derived from
-  the audio itself. This is more robust than a fixed threshold when "silence"
-  contains quiet room tone.
-  """
-  nchannels = int(params.nchannels)
-  sampwidth = int(params.sampwidth)
-  nframes = int(params.nframes)
-
-  frame_size_bytes = nchannels * sampwidth
-  if nframes == 0:
-    return []
-  if len(frames) != nframes * frame_size_bytes:
-    raise ValueError("Frame byte length does not match WAV params")
-
-  # Gemini output is LINEAR16 (signed int16). Support that robustly.
-  if sampwidth == 2:
-
-    samples = array.array("h")
-    samples.frombytes(frames)
-    if sys.byteorder == "big":
-      # WAV PCM is little-endian. Ensure consistent interpretation.
-      samples.byteswap()
-
-    # Compute a per-frame peak amplitude.
-    peaks: list[int] = [0] * nframes
-    sample_index = 0
-    for frame_index in range(nframes):
-      peak = 0
-      for _ch in range(nchannels):
-        sample = samples[sample_index]
-        sample_index += 1
-        value = abs(int(sample))
-        if value > peak:
-          peak = value
-      peaks[frame_index] = peak
-
-    # Adaptive threshold: sample peaks to estimate noise floor.
-    step = max(1, nframes // 5000)
-    sampled = [peaks[i] for i in range(0, nframes, step)]
-    sampled.sort()
-    if not sampled:
-      return [True] * nframes
-
-    def percentile(p: float) -> int:
-      idx = int(round((len(sampled) - 1) * p))
-      idx = max(0, min(idx, len(sampled) - 1))
-      return int(sampled[idx])
-
-    p10 = percentile(0.10)
-    p50 = percentile(0.50)
-
-    # If the file has long quiet regions, p10 approximates the noise floor.
-    # Use both p10 and p50 so we don't classify everything as silence in cases
-    # where the whole file is quiet.
-    adaptive_threshold = max(
-      int(silence_abs_amplitude_threshold),
-      int(round(p10 * 1.8)),
-      int(round(p50 * 0.05)),
-    )
-
-    return [peak <= adaptive_threshold for peak in peaks]
-
-  # Fallback: treat only all-zero frames as silence.
-  zero_frame = b"\x00" * frame_size_bytes
-  silent = [False] * nframes
-  for frame_index in range(nframes):
-    chunk = frames[frame_index * frame_size_bytes:(frame_index + 1) *
-                   frame_size_bytes]
-    silent[frame_index] = chunk == zero_frame
-  return silent
-
-
-def _find_silent_runs(
-  mask: list[bool],
-  *,
-  min_run_frames: int,
-) -> list[tuple[int, int]]:
-  """Return [(start_frame, end_frame_exclusive)] for silent runs >= min_run."""
-  runs: list[tuple[int, int]] = []
-  i = 0
-  n = len(mask)
-  while i < n:
-    if not mask[i]:
-      i += 1
-      continue
-    start = i
-    while i < n and mask[i]:
-      i += 1
-    end = i
-    if (end - start) >= min_run_frames:
-      runs.append((start, end))
-  return runs

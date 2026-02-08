@@ -29,7 +29,7 @@ class PosableCharacterGeneratorTest(unittest.TestCase):
     def test_generate_frames_duration(self):
         # 1 second duration
         seq = PosableCharacterSequence(
-            sequence_left_eye_open=[SequenceBooleanEvent(0.0, 1.0, True)]
+            sequence_left_eye_open=[SequenceBooleanEvent(start_time=0.0, end_time=1.0, value=True)]
         )
         fps = 10
         frames = list(generate_frames(self.char, seq, fps))
@@ -41,7 +41,7 @@ class PosableCharacterGeneratorTest(unittest.TestCase):
     def test_sound_events(self):
         # Sound at 0.5
         seq = PosableCharacterSequence(
-            sequence_sound_events=[SequenceSoundEvent(0.5, "uri", volume=1.0)]
+            sequence_sound_events=[SequenceSoundEvent(start_time=0.5, gcs_uri="uri", volume=1.0)]
         )
         fps = 10 # dt = 0.1. Frames: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, ...
 
@@ -60,7 +60,7 @@ class PosableCharacterGeneratorTest(unittest.TestCase):
         # Transform 0.0 -> 1.0. X: 0 -> 10.
         seq = PosableCharacterSequence(
             sequence_left_hand_transform=[
-                SequenceTransformEvent(0.0, 1.0, Transform(translate_x=10))
+                SequenceTransformEvent(start_time=0.0, end_time=1.0, target_transform=Transform(translate_x=10))
             ]
         )
         fps = 2 # dt = 0.5. Frames: 0.0, 0.5, 1.0.
@@ -89,8 +89,8 @@ class PosableCharacterGeneratorTest(unittest.TestCase):
 
         seq = PosableCharacterSequence(
             sequence_left_hand_transform=[
-                SequenceTransformEvent(0.0, 1.0, Transform(translate_x=10)),
-                SequenceTransformEvent(2.0, 3.0, Transform(translate_x=20)),
+                SequenceTransformEvent(start_time=0.0, end_time=1.0, target_transform=Transform(translate_x=10)),
+                SequenceTransformEvent(start_time=2.0, end_time=3.0, target_transform=Transform(translate_x=20)),
             ]
         )
         fps = 1 # dt=1.0. Frames: 0, 1, 2, 3.
@@ -120,8 +120,8 @@ class PosableCharacterGeneratorTest(unittest.TestCase):
         # Mouth: 0.0-1.0 Open. Gap. 2.0-3.0 O.
         seq = PosableCharacterSequence(
             sequence_mouth_state=[
-                SequenceMouthEvent(0.0, 1.0, MouthState.OPEN),
-                SequenceMouthEvent(2.0, 3.0, MouthState.O),
+                SequenceMouthEvent(start_time=0.0, end_time=1.0, mouth_state=MouthState.OPEN),
+                SequenceMouthEvent(start_time=2.0, end_time=3.0, mouth_state=MouthState.O),
             ]
         )
         fps = 2 # dt=0.5. 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0.

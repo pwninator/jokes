@@ -14,30 +14,31 @@ from common.posable_character import MouthState, PosableCharacter, Transform
 T = TypeVar("T")
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SequenceEvent:
   """Base class for animation sequence events."""
   start_time: float
-  end_time: float
+  end_time: float | None = None
 
   def validate(self) -> None:
     if self.start_time < 0:
       raise ValueError("start_time must be non-negative")
-    if self.end_time < self.start_time:
+    if self.end_time is not None and self.end_time < self.start_time:
       raise ValueError("end_time must be greater than or equal to start_time")
 
   def to_dict(self) -> dict[str, Any]:
     return dataclasses.asdict(self)
 
   @staticmethod
-  def _parse_common_fields(data: dict[str, Any]) -> dict[str, float]:
+  def _parse_common_fields(data: dict[str, Any]) -> dict[str, float | None]:
+    end_time = data.get("end_time")
     return {
       "start_time": float(data["start_time"]),
-      "end_time": float(data["end_time"]),
+      "end_time": float(end_time) if end_time is not None else None,
     }
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SequenceBooleanEvent(SequenceEvent):
   """Event for boolean properties (e.g., eyes open/closed)."""
   value: bool
@@ -50,7 +51,7 @@ class SequenceBooleanEvent(SequenceEvent):
     )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SequenceMouthEvent(SequenceEvent):
   """Event for mouth state."""
   mouth_state: MouthState
@@ -68,7 +69,7 @@ class SequenceMouthEvent(SequenceEvent):
     )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SequenceTransformEvent(SequenceEvent):
   """Event for transform properties (translation/scaling)."""
   target_transform: Transform
@@ -87,33 +88,23 @@ class SequenceTransformEvent(SequenceEvent):
     )
 
 
-@dataclass
-class SequenceSoundEvent:
+@dataclass(kw_only=True)
+class SequenceSoundEvent(SequenceEvent):
   """Event for sound effects."""
-  start_time: float
-  gcs_uri: str
+  gcs_uri: str = ""
   volume: float = 1.0
-  end_time: float | None = None
 
   def validate(self) -> None:
-    if self.start_time < 0:
-      raise ValueError("start_time must be non-negative")
-    if self.end_time is not None and self.end_time < self.start_time:
-      raise ValueError("end_time must be greater than or equal to start_time")
+    super().validate()
     if not self.gcs_uri:
       raise ValueError("gcs_uri must be provided")
 
-  def to_dict(self) -> dict[str, Any]:
-    return dataclasses.asdict(self)
-
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> SequenceSoundEvent:
-    end_time = data.get("end_time")
     return cls(
-      start_time=float(data["start_time"]),
       gcs_uri=str(data["gcs_uri"]),
       volume=float(data.get("volume", 1.0)),
-      end_time=float(end_time) if end_time is not None else None,
+      **cls._parse_common_fields(data),
     )
 
 

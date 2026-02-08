@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from PIL import Image
+
 from common import models
 from services import cloud_storage
 

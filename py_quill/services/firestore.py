@@ -5,7 +5,7 @@ import pprint
 from typing import Any, Collection
 from zoneinfo import ZoneInfo
 
-from common import models, utils
+from common import models, posable_character_sequence, utils
 from firebase_admin import firestore, firestore_async
 from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
@@ -1415,6 +1415,41 @@ def update_posable_character_def(
   def_data['last_modification_time'] = SERVER_TIMESTAMP
   def_ref.update(def_data)
   return True
+
+
+def get_posable_character_sequence(
+  sequence_id: str,
+) -> posable_character_sequence.PosableCharacterSequence | None:
+  """Get a posable character sequence."""
+  if not sequence_id:
+    return None
+  doc = db().collection('posable_character_sequences').document(sequence_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+
+  return posable_character_sequence.PosableCharacterSequence.from_dict(
+    doc.to_dict() or {}, key=doc.id)
+
+
+def upsert_posable_character_sequence(
+  sequence: posable_character_sequence.PosableCharacterSequence,
+) -> posable_character_sequence.PosableCharacterSequence:
+  """Upsert a posable character sequence."""
+  sequence.validate()
+  sequence_data = sequence.to_dict(include_key=False)
+  sequence_data['last_modification_time'] = SERVER_TIMESTAMP
+
+  if sequence.key:
+    seq_ref = db().collection('posable_character_sequences').document(
+      sequence.key)
+    seq_ref.set(sequence_data, merge=True)
+  else:
+    sequence_data['creation_time'] = SERVER_TIMESTAMP
+    _, seq_ref = db().collection('posable_character_sequences').add(
+      sequence_data)
+    sequence.key = seq_ref.id
+
+  return sequence
 
 
 def create_image(image: models.Image) -> models.Image:

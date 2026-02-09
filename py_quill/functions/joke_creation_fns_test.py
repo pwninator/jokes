@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from common import models
+import pytest
+from unittest.mock import MagicMock
+from agents import constants
+from common import models, posable_character_sequence
 from functions import joke_creation_fns
 from services import gen_audio
 
@@ -26,6 +29,46 @@ class DummyReq:
 
   def get_json(self):
     return {"data": self._data}
+
+
+@pytest.fixture(autouse=True)
+def reset_image_quality(monkeypatch):
+  """Ensure the image quality map is predictable in tests."""
+  monkeypatch.setattr(joke_creation_fns.image_generation,
+                      'PUN_IMAGE_CLIENTS_BY_QUALITY', {
+                        "low": object(),
+                        "medium": object(),
+                        "medium_mini": object(),
+                      })
+
+
+@pytest.fixture(autouse=True)
+def stub_scene_idea_generation(monkeypatch):
+  """Prevent real prompt calls by stubbing scene idea generation."""
+
+  def fake_generate(*_args, **_kwargs):
+    return ("idea-setup", "idea-punch",
+            models.SingleGenerationMetadata(model_name="test"))
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations.joke_operation_prompts,
+    "generate_joke_scene_ideas",
+    fake_generate,
+  )
+
+
+@pytest.fixture(autouse=True)
+def stub_metadata_generation(monkeypatch):
+  """Prevent real prompt calls by stubbing metadata generation."""
+
+  def fake_generate_metadata(joke):
+    return joke
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_metadata",
+    fake_generate_metadata,
+  )
 
 
 def test_joke_creation_process_overrides_seasonal_tags(monkeypatch):
@@ -121,56 +164,6 @@ def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
   assert captured_init["tags"] == []
   assert saved["joke"].seasonal is None
   assert saved["joke"].tags == []
-
-
-"""Tests for joke_creation_fns."""
-
-import pytest
-from agents import constants
-from common import models
-from functions import joke_creation_fns
-from unittest.mock import MagicMock
-
-
-class DummyReq:
-  """Simple request stub for testing."""
-
-  def __init__(self, data=None, args=None, path="", method='POST'):
-    self._data = data or {}
-    self.args = args or {}
-    self.path = path
-    self.method = method
-    self.headers = {}
-    self.is_json = True
-
-  def get_json(self):
-    return {"data": self._data}
-
-
-@pytest.fixture(autouse=True)
-def reset_image_quality(monkeypatch):
-  """Ensure the image quality map is predictable in tests."""
-  monkeypatch.setattr(joke_creation_fns.image_generation,
-                      'PUN_IMAGE_CLIENTS_BY_QUALITY', {
-                        "low": object(),
-                        "medium": object(),
-                        "medium_mini": object(),
-                      })
-
-
-@pytest.fixture(autouse=True)
-def stub_scene_idea_generation(monkeypatch):
-  """Prevent real prompt calls by stubbing scene idea generation."""
-
-  def fake_generate(*_args, **_kwargs):
-    return ("idea-setup", "idea-punch",
-            models.SingleGenerationMetadata(model_name="test"))
-
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations.joke_operation_prompts,
-    "generate_joke_scene_ideas",
-    fake_generate,
-  )
 
 
 def test_joke_creation_process_creates_joke_from_text(monkeypatch):
@@ -1248,15 +1241,135 @@ def test_joke_creation_process_updates_book_page_ready(monkeypatch):
   assert captured["update_metadata"] == {"book_page_ready": True}
 
 
-@pytest.fixture(autouse=True)
-def stub_metadata_generation(monkeypatch):
-  """Prevent real prompt calls by stubbing metadata generation."""
+def test_joke_creation_process_handles_animation_op(monkeypatch):
+  """ANIMATION op should upsert a PosableCharacterSequence."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
 
-  def fake_generate_metadata(joke):
-    return joke
+  captured: dict = {}
 
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    "generate_joke_metadata",
-    fake_generate_metadata,
-  )
+  def fake_upsert(sequence):
+    captured["sequence"] = sequence
+    sequence.key = sequence.key or "seq-123"
+    return sequence
+
+  monkeypatch.setattr(joke_creation_fns.firestore,
+                      "upsert_posable_character_sequence", fake_upsert)
+
+  # Valid sequence JSON
+  sequence_data = {
+    "sequence_left_eye_open": [{
+      "start_time": 0.0,
+      "value": True
+    }],
+    "sequence_right_eye_open": [],
+    "sequence_mouth_state": [],
+    "sequence_left_hand_visible": [],
+    "sequence_right_hand_visible": [],
+    "sequence_left_hand_transform": [],
+    "sequence_right_hand_transform": [],
+    "sequence_head_transform": [],
+    "sequence_sound_events": [],
+  }
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.ANIMATION.value,
+        "sequence_data": sequence_data,
+        "sequence_id": "seq-custom",
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert payload["key"] == "seq-custom"
+  assert captured["sequence"].key == "seq-custom"
+  assert len(captured["sequence"].sequence_left_eye_open) == 1
+  assert captured["sequence"].sequence_left_eye_open[0].value is True
+
+
+def test_joke_creation_process_handles_character_def_op_create(monkeypatch):
+  """CHARACTER op should create a new character definition when no ID provided."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  captured: dict = {}
+
+  def fake_create(char_def):
+    captured["char_def"] = char_def
+    char_def.key = "new-char-1"
+    return char_def
+
+  monkeypatch.setattr(joke_creation_fns.firestore,
+                      "create_posable_character_def", fake_create)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "name": "New Guy",
+        "width": 100,
+        "height": 200,
+        "head_gcs_uri": "gs://bucket/head.png",
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert payload["key"] == "new-char-1"
+  assert captured["char_def"].name == "New Guy"
+  assert captured["char_def"].width == 100
+  assert captured["char_def"].height == 200
+  assert captured["char_def"].head_gcs_uri == "gs://bucket/head.png"
+
+
+def test_joke_creation_process_handles_character_def_op_update(monkeypatch):
+  """CHARACTER op should update character definition when ID provided."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  captured: dict = {}
+
+  def fake_update(char_def):
+    captured["char_def"] = char_def
+    return True
+
+  monkeypatch.setattr(joke_creation_fns.firestore,
+                      "update_posable_character_def", fake_update)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "character_id": "existing-char-1",
+        "name": "Updated Guy",
+        "width": 150,
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert payload["key"] == "existing-char-1"
+  assert captured["char_def"].key == "existing-char-1"
+  assert captured["char_def"].name == "Updated Guy"
+  assert captured["char_def"].width == 150
+
+
+def test_joke_creation_process_handles_character_def_op_update_not_found(
+    monkeypatch):
+  """CHARACTER op should return 404 when updating non-existent character."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  monkeypatch.setattr(joke_creation_fns.firestore,
+                      "update_posable_character_def", lambda _: False)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "character_id": "missing-char",
+        "name": "Ghost",
+      }))
+
+  assert resp.status_code == 404
+  payload = resp.get_json()["data"]
+  assert "Character def not found" in payload["error"]

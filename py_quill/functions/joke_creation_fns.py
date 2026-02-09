@@ -8,7 +8,7 @@ from enum import Enum
 
 from agents import constants
 from common import (image_generation, joke_notes_sheet_operations,
-                    joke_operations, models, utils)
+                    joke_operations, models, posable_character_sequence, utils)
 from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
@@ -27,6 +27,8 @@ class JokeCreationOp(str, Enum):
   JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
   PRINTABLE_NOTE = "printable_note"
+  ANIMATION = "animation"
+  CHARACTER = "character"
 
 
 @https_fn.on_request(
@@ -60,6 +62,10 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       return social_fns.run_social_post_creation_process(req)
     if op == JokeCreationOp.PRINTABLE_NOTE:
       return _run_printable_sheet_proc(req)
+    if op == JokeCreationOp.ANIMATION:
+      return _run_character_animation_op(req)
+    if op == JokeCreationOp.CHARACTER:
+      return _run_character_def_op(req)
 
     return error_response(f'Unsupported op: {op_value}',
                           error_type='unsupported_operation',
@@ -673,3 +679,126 @@ def _run_printable_sheet_proc(req: https_fn.Request) -> https_fn.Response:
     },
     req=req,
   )
+
+
+def _run_character_animation_op(req: https_fn.Request) -> https_fn.Response:
+  """Upsert a character animation sequence."""
+  if req.method != 'POST':
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
+  sequence_data = get_param(req, "sequence_data")
+  sequence_id = (get_param(req, "sequence_id") or "").strip()
+
+  if not sequence_data:
+    return error_response("sequence_data is required",
+                          error_type="invalid_request",
+                          status=400,
+                          req=req)
+
+  try:
+    if isinstance(sequence_data, str):
+      sequence_data = json.loads(sequence_data)
+
+    sequence = posable_character_sequence.PosableCharacterSequence.from_dict(
+      sequence_data, key=sequence_id or None)
+
+    saved_sequence = firestore.upsert_posable_character_sequence(sequence)
+
+    return success_response(
+      saved_sequence.to_dict(include_key=True),
+      req=req,
+    )
+  except ValueError as exc:
+    return error_response(str(exc),
+                          error_type="invalid_request",
+                          status=400,
+                          req=req)
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error upserting character sequence: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string, error_type="internal_error", req=req)
+
+
+def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
+  """Upsert a posable character definition."""
+  if req.method != 'POST':
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
+  character_id = (get_param(req, "character_id") or "").strip()
+  if not character_id:
+    # Check for 'key' as an alias
+    character_id = (get_param(req, "key") or "").strip()
+
+  # Extract fields
+  name = (get_param(req, "name") or "").strip()
+  width = get_param(req, "width")
+  height = get_param(req, "height")
+  head_gcs_uri = (get_param(req, "head_gcs_uri") or "").strip()
+  left_hand_gcs_uri = (get_param(req, "left_hand_gcs_uri") or "").strip()
+  right_hand_gcs_uri = (get_param(req, "right_hand_gcs_uri") or "").strip()
+  mouth_open_gcs_uri = (get_param(req, "mouth_open_gcs_uri") or "").strip()
+  mouth_closed_gcs_uri = (get_param(req, "mouth_closed_gcs_uri") or "").strip()
+  mouth_o_gcs_uri = (get_param(req, "mouth_o_gcs_uri") or "").strip()
+  left_eye_open_gcs_uri = (get_param(req, "left_eye_open_gcs_uri")
+                           or "").strip()
+  left_eye_closed_gcs_uri = (get_param(req, "left_eye_closed_gcs_uri")
+                             or "").strip()
+  right_eye_open_gcs_uri = (get_param(req, "right_eye_open_gcs_uri")
+                            or "").strip()
+  right_eye_closed_gcs_uri = (get_param(req, "right_eye_closed_gcs_uri")
+                              or "").strip()
+
+  try:
+    width_int = int(width) if width is not None else 0
+    height_int = int(height) if height is not None else 0
+
+    char_def = models.PosableCharacterDef(
+      key=character_id or None,
+      name=name or None,
+      width=width_int,
+      height=height_int,
+      head_gcs_uri=head_gcs_uri,
+      left_hand_gcs_uri=left_hand_gcs_uri,
+      right_hand_gcs_uri=right_hand_gcs_uri,
+      mouth_open_gcs_uri=mouth_open_gcs_uri,
+      mouth_closed_gcs_uri=mouth_closed_gcs_uri,
+      mouth_o_gcs_uri=mouth_o_gcs_uri,
+      left_eye_open_gcs_uri=left_eye_open_gcs_uri,
+      left_eye_closed_gcs_uri=left_eye_closed_gcs_uri,
+      right_eye_open_gcs_uri=right_eye_open_gcs_uri,
+      right_eye_closed_gcs_uri=right_eye_closed_gcs_uri,
+    )
+
+    if character_id:
+      # Update existing
+      updated = firestore.update_posable_character_def(char_def)
+      if not updated:
+        return error_response(f"Character def not found: {character_id}",
+                              error_type="not_found",
+                              status=404,
+                              req=req)
+      saved_def = char_def
+    else:
+      # Create new
+      saved_def = firestore.create_posable_character_def(char_def)
+
+    return success_response(
+      saved_def.to_dict(include_key=True),
+      req=req,
+    )
+
+  except ValueError as exc:
+    return error_response(str(exc),
+                          error_type="invalid_request",
+                          status=400,
+                          req=req)
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error upserting character def: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string, error_type="internal_error", req=req)

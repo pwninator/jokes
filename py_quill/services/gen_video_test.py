@@ -5,12 +5,11 @@ import wave
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from common import audio_timing
+from common import audio_timing, models
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
-from services import gen_video
 from PIL import Image
+from services import gen_video
 
 
 class _FakeImageClip:
@@ -128,20 +127,26 @@ class _FakeVideoClip:
     pass
 
 
-class _DummyCharacter(PosableCharacter):
-  width = 100
-  height = 80
+_DUMMY_CHAR_DEF = models.PosableCharacterDef(
+  width=100,
+  height=80,
+  head_gcs_uri="gs://test/head.png",
+  left_hand_gcs_uri="gs://test/left_hand.png",
+  right_hand_gcs_uri="gs://test/right_hand.png",
+  mouth_open_gcs_uri="gs://test/mouth_open.png",
+  mouth_closed_gcs_uri="gs://test/mouth_closed.png",
+  mouth_o_gcs_uri="gs://test/mouth_o.png",
+  left_eye_open_gcs_uri="gs://test/left_eye_open.png",
+  left_eye_closed_gcs_uri="gs://test/left_eye_closed.png",
+  right_eye_open_gcs_uri="gs://test/right_eye_open.png",
+  right_eye_closed_gcs_uri="gs://test/right_eye_closed.png",
+)
 
-  head_gcs_uri = "gs://test/head.png"
-  left_hand_gcs_uri = "gs://test/left_hand.png"
-  right_hand_gcs_uri = "gs://test/right_hand.png"
-  mouth_open_gcs_uri = "gs://test/mouth_open.png"
-  mouth_closed_gcs_uri = "gs://test/mouth_closed.png"
-  mouth_o_gcs_uri = "gs://test/mouth_o.png"
-  left_eye_open_gcs_uri = "gs://test/left_eye_open.png"
-  left_eye_closed_gcs_uri = "gs://test/left_eye_closed.png"
-  right_eye_open_gcs_uri = "gs://test/right_eye_open.png"
-  right_eye_closed_gcs_uri = "gs://test/right_eye_closed.png"
+
+class _DummyCharacter(PosableCharacter):
+
+  def __init__(self):
+    super().__init__(definition=_DUMMY_CHAR_DEF)
 
 
 def _make_png_bytes(size=(32, 32), color=(255, 0, 0, 255)) -> bytes:
@@ -377,13 +382,15 @@ def test_create_portrait_character_video_uploads_mp4():
     ("gs://bucket/image1.png", 0.0),
     ("gs://bucket/image2.png", 0.2),
   ]
-  timing = [audio_timing.WordTiming(word="hi",
-                                   start_time=0.0,
-                                   end_time=0.1,
-                                   char_timings=[])]
+  timing = [
+    audio_timing.WordTiming(word="hi",
+                            start_time=0.0,
+                            end_time=0.1,
+                            char_timings=[])
+  ]
   character_dialogs = [
-    (_DummyCharacter(),
-     [("gs://bucket/audio1.wav", 0.0, "hello world", timing)]),
+    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world", timing)
+                         ]),
     (_DummyCharacter(), [("gs://bucket/audio2.wav", 0.2, "hi there", timing)]),
   ]
   upload_mock = MagicMock()
@@ -435,10 +442,11 @@ def test_create_portrait_character_video_uploads_mp4():
     "timing",
     "timing",
   ]
-  assert {transcript for _mode, transcript, _timing in detect_calls} == {
-    "hello world",
-    "hi there",
-  }
+  assert {transcript
+          for _mode, transcript, _timing in detect_calls} == {
+            "hello world",
+            "hi there",
+          }
 
   get_uri_mock.assert_called_once()
   assert get_uri_mock.call_args.kwargs["temp"] is True
@@ -453,8 +461,8 @@ def test_create_portrait_character_video_uploads_mp4():
 
 def test_create_portrait_character_test_video_uploads_mp4():
   character_dialogs = [
-    (_DummyCharacter(),
-     [("gs://bucket/audio1.wav", 0.0, "hello world", None)]),
+    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world", None)
+                         ]),
     (_DummyCharacter(), [("gs://bucket/audio2.wav", 0.0, "hi there", None)]),
   ]
   upload_mock = MagicMock()
@@ -474,9 +482,7 @@ def test_create_portrait_character_test_video_uploads_mp4():
     detect_calls.append((mode, transcript, timing is not None))
     if mode == "librosa":
       return [
-        MouthEvent(start_time=0.0,
-                   end_time=0.1,
-                   mouth_shape=MouthState.OPEN),
+        MouthEvent(start_time=0.0, end_time=0.1, mouth_shape=MouthState.OPEN),
       ]
     if mode == "parselmouth":
       return [
@@ -516,10 +522,13 @@ def test_create_portrait_character_test_video_uploads_mp4():
   # Each clip should be analyzed per engine and transcript-alignment mode,
   # plus timing-mode rows.
   assert len(detect_calls) == 10
-  assert any(mode == "timing" for mode, _transcript, _has_timing in detect_calls)
-  assert any(transcript is None for _mode, transcript, _has_timing in detect_calls)
-  assert any(isinstance(transcript, str) and transcript
+  assert any(mode == "timing"
+             for mode, _transcript, _has_timing in detect_calls)
+  assert any(transcript is None
              for _mode, transcript, _has_timing in detect_calls)
+  assert any(
+    isinstance(transcript, str) and transcript
+    for _mode, transcript, _has_timing in detect_calls)
 
   get_uri_mock.assert_called_once()
   assert get_uri_mock.call_args.kwargs["temp"] is True

@@ -5,7 +5,7 @@ import pprint
 from typing import Any, Collection
 from zoneinfo import ZoneInfo
 
-from common import models, utils
+from common import models, posable_character_sequence, utils
 from firebase_admin import firestore, firestore_async
 from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
@@ -1357,6 +1357,109 @@ def delete_character(character_id: str) -> bool:
     return False
   char_ref.delete()
   return True
+
+
+def create_posable_character_def(
+  character_def: models.PosableCharacterDef,
+) -> models.PosableCharacterDef:
+  """Create a posable character definition."""
+  def_data = character_def.to_dict(include_key=False)
+  def_data['creation_time'] = SERVER_TIMESTAMP
+  def_data['last_modification_time'] = SERVER_TIMESTAMP
+
+  # Generate custom ID: [timestamp]_[name_prefix] if name is available
+  name_part = character_def.name if character_def.name else "posable"
+  custom_id = utils.create_timestamped_firestore_key(name_part)
+
+  def_ref = db().collection('posable_character_defs').document(custom_id)
+  def_ref.set(def_data)
+  character_def.key = custom_id
+  return character_def
+
+
+def get_posable_character_def(
+  character_def_id: str,
+) -> models.PosableCharacterDef | None:
+  """Get a posable character definition."""
+  if not character_def_id:
+    return None
+  doc = db().collection('posable_character_defs').document(character_def_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+
+  return models.PosableCharacterDef.from_firestore_dict(
+    doc.to_dict() or {}, key=doc.id)
+
+
+def get_posable_character_defs() -> list[models.PosableCharacterDef]:
+  """Get all posable character definitions."""
+  docs = db().collection('posable_character_defs').stream()
+  return [
+    models.PosableCharacterDef.from_firestore_dict(
+      doc.to_dict(), key=doc.id) for doc in docs if doc.exists
+  ]
+
+
+def update_posable_character_def(
+  character_def: models.PosableCharacterDef,
+) -> bool:
+  """Update a posable character definition."""
+  if not character_def.key:
+    return False
+
+  def_ref = db().collection('posable_character_defs').document(character_def.key)
+  if not def_ref.get().exists:
+    return False
+
+  def_data = character_def.to_dict(include_key=False)
+  def_data['last_modification_time'] = SERVER_TIMESTAMP
+  def_ref.update(def_data)
+  return True
+
+
+def get_posable_character_sequence(
+  sequence_id: str,
+) -> posable_character_sequence.PosableCharacterSequence | None:
+  """Get a posable character sequence."""
+  if not sequence_id:
+    return None
+  doc = db().collection('posable_character_sequences').document(sequence_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+
+  return posable_character_sequence.PosableCharacterSequence.from_dict(
+    doc.to_dict() or {}, key=doc.id)
+
+
+def get_posable_character_sequences(
+) -> list[posable_character_sequence.PosableCharacterSequence]:
+  """Get all posable character sequences."""
+  docs = db().collection('posable_character_sequences').stream()
+  return [
+    posable_character_sequence.PosableCharacterSequence.from_dict(
+      doc.to_dict() or {}, key=doc.id) for doc in docs if doc.exists
+  ]
+
+
+def upsert_posable_character_sequence(
+  sequence: posable_character_sequence.PosableCharacterSequence,
+) -> posable_character_sequence.PosableCharacterSequence:
+  """Upsert a posable character sequence."""
+  sequence.validate()
+  sequence_data = sequence.to_dict(include_key=False)
+  sequence_data['last_modification_time'] = SERVER_TIMESTAMP
+
+  if sequence.key:
+    seq_ref = db().collection('posable_character_sequences').document(
+      sequence.key)
+    seq_ref.set(sequence_data, merge=True)
+  else:
+    sequence_data['creation_time'] = SERVER_TIMESTAMP
+    _, seq_ref = db().collection('posable_character_sequences').add(
+      sequence_data)
+    sequence.key = seq_ref.id
+
+  return sequence
 
 
 def create_image(image: models.Image) -> models.Image:

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Animator Test</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: sans-serif;
+        }
+        #stage {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-color: white;
+            border: 1px solid #ccc;
+            overflow: hidden;
+        }
+        /* Centering helpers for character parts */
+        .character-part {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* Centers the element on 0,0 */
+            transform-origin: center center; /* Ensure scaling happens from center */
+        }
+
+        /* Debug visuals */
+        #head {
+            width: 200px;
+            height: 200px;
+            background-color: #ffcccc;
+            border-radius: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #left-eye, #right-eye {
+            width: 30px;
+            height: 30px;
+            background-color: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 60px;
+        }
+        #left-eye { left: 50px; }
+        #right-eye { right: 50px; }
+
+        #mouth {
+            width: 60px;
+            height: 20px;
+            background-color: #333;
+            border-radius: 10px;
+            position: absolute;
+            bottom: 50px;
+            left: 70px; /* Centered relative to head width 200 */
+        }
+
+        #left-hand, #right-hand {
+            width: 50px;
+            height: 50px;
+            background-color: #ccffcc;
+            border-radius: 50%;
+            position: absolute; /* Relative to stage center */
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Character Animator Test</h1>
+
+    <div id="stage">
+        <!-- Head Container -->
+        <div id="head" class="character-part">
+            <img id="left-eye" src="" alt="Left Eye">
+            <img id="right-eye" src="" alt="Right Eye">
+            <img id="mouth" src="" alt="Mouth">
+        </div>
+
+        <!-- Hands -->
+        <div id="left-hand" class="character-part">Left Hand</div>
+        <div id="right-hand" class="character-part">Right Hand</div>
+    </div>
+
+    <div class="controls">
+        <button id="play-btn">Play</button>
+        <button id="pause-btn">Pause</button>
+        <button id="restart-btn">Restart</button>
+        <button id="seek-btn">Seek to 2s</button>
+    </div>
+
+    <!-- Import Map for GSAP -->
+    <script type="module">
+        import { CharacterAnimator } from './js/character_animator.js';
+
+        // 1. Mock Data
+        const sequenceData = {
+            sequence_head_transform: [
+                { start_time: 0.0, end_time: 1.0, target_transform: { translate_x: 0, translate_y: 0, scale_x: 1, scale_y: 1 } },
+                { start_time: 1.0, end_time: 2.0, target_transform: { translate_x: 100, translate_y: -50, scale_x: 1.2, scale_y: 1.2 } },
+                { start_time: 2.0, end_time: 3.0, target_transform: { translate_x: -100, translate_y: 50, scale_x: 0.8, scale_y: 0.8 } },
+                { start_time: 3.0, end_time: 4.0, target_transform: { translate_x: 0, translate_y: 0, scale_x: 1, scale_y: 1 } }
+            ],
+            sequence_left_eye_open: [
+                { start_time: 0.0, value: true },
+                { start_time: 1.5, value: false }, // Blink
+                { start_time: 1.7, value: true }
+            ],
+            sequence_right_eye_open: [
+                { start_time: 0.0, value: true },
+                { start_time: 1.5, value: false }, // Blink
+                { start_time: 1.7, value: true }
+            ],
+            sequence_mouth_state: [
+                { start_time: 0.0, mouth_state: "CLOSED" },
+                { start_time: 0.5, mouth_state: "OPEN" },
+                { start_time: 1.0, mouth_state: "O" },
+                { start_time: 1.5, mouth_state: "CLOSED" }
+            ],
+            sequence_left_hand_visible: [
+                { start_time: 0.0, value: false },
+                { start_time: 2.0, value: true }
+            ],
+            sequence_right_hand_visible: [
+                { start_time: 0.0, value: false },
+                { start_time: 2.5, value: true }
+            ],
+            sequence_sound_events: [
+                // Mock sound events - these will fail to load in this static file unless we use real URLs.
+                // Using a simple beep sound data URI for testing if possible, or just log errors.
+                // { start_time: 0.5, gcs_uri: "https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg", volume: 0.5 }
+            ]
+        };
+
+        const characterDefinition = {
+            mouth_open_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSIyMCI+PHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjIwIiBmaWxsPSJyZWQiLz48L3N2Zz4=", // Red Rect
+            mouth_closed_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI1Ij48cmVjdCB3aWR0aD0iNjAiIGhlaWdodD0iNSIgZmlsbD0iYmxhY2siLz48L3N2Zz4=", // Black Line
+            mouth_o_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMTAiIGZpbGw9ImJsYWNrIi8+PC9zdmc+", // Black Circle
+
+            left_eye_open_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCI+PGNpcmNsZSBjeD0iMTUiIGN5PSIxNSIgcj0iMTUiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iMTUiIGN5PSIxNSIgcj0iNSIgZmlsbD0iYmxhY2siLz48L3N2Zz4=",
+            left_eye_closed_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMCIgaGVpZ2h0PSI1Ij48cmVjdCB3aWR0aD0iMzAiIGhlaWdodD0iNSIgZmlsbD0iYmxhY2siLz48L3N2Zz4=",
+
+            right_eye_open_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCI+PGNpcmNsZSBjeD0iMTUiIGN5PSIxNSIgcj0iMTUiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iMTUiIGN5PSIxNSIgcj0iNSIgZmlsbD0iYmxhY2siLz48L3N2Zz4=",
+            right_eye_closed_gcs_uri: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMCIgaGVpZ2h0PSI1Ij48cmVjdCB3aWR0aD0iMzAiIGhlaWdodD0iNSIgZmlsbD0iYmxhY2siLz48L3N2Zz4=",
+        };
+
+        const domElements = {
+            head: document.getElementById('head'),
+            mouth: document.getElementById('mouth'),
+            leftEye: document.getElementById('left-eye'),
+            rightEye: document.getElementById('right-eye'),
+            leftHand: document.getElementById('left-hand'),
+            rightHand: document.getElementById('right-hand')
+        };
+
+        // 2. Initialize Animator
+        const animator = new CharacterAnimator(sequenceData, domElements, characterDefinition);
+
+        // 3. Setup Controls
+        document.getElementById('play-btn').addEventListener('click', () => animator.play());
+        document.getElementById('pause-btn').addEventListener('click', () => animator.pause());
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            animator.pause();
+            animator.seek(0);
+            animator.play();
+        });
+        document.getElementById('seek-btn').addEventListener('click', () => animator.seek(2.0));
+
+        // 4. Start Loading
+        console.log("Initializing animator...");
+        animator.init().then(() => {
+            console.log("Animator ready!");
+        });
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Character Animator · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<style>
+  .animator-controls {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .stage-container {
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+  }
+</style>
+
+<h2>Character Animator</h2>
+
+<div class="animator-controls">
+  <select id="def-select" style="padding: 8px;">
+    <option value="">Select Character Definition</option>
+    {% for def in character_defs %}
+      <option value="{{ def.key }}">{{ def.name or def.key }}</option>
+    {% endfor %}
+  </select>
+
+  <select id="seq-select" style="padding: 8px;">
+    <option value="">Select Sequence</option>
+    {% for seq in sequences %}
+      <option value="{{ seq.key }}">{{ seq.key }}</option>
+    {% endfor %}
+  </select>
+
+  <button id="load-btn" class="text-button">Load & Play</button>
+  <button id="play-btn" class="text-button" disabled>Play</button>
+  <button id="pause-btn" class="text-button" disabled>Pause</button>
+</div>
+
+<div id="stage" class="stage-container">
+    <!-- Structure for animator -->
+    <div id="head-group" style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
+        <img id="char-head-base" style="grid-area: 1/1; max-width: none;">
+        <img id="char-eye-l" style="grid-area: 1/1; max-width: none;">
+        <img id="char-eye-r" style="grid-area: 1/1; max-width: none;">
+        <img id="char-mouth" style="grid-area: 1/1; max-width: none;">
+    </div>
+    <div id="hand-l-group" style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
+        <img id="char-hand-l" style="grid-area: 1/1; max-width: none;">
+    </div>
+    <div id="hand-r-group" style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
+        <img id="char-hand-r" style="grid-area: 1/1; max-width: none;">
+    </div>
+</div>
+
+<script type="module">
+  import { CharacterAnimator } from "{{ url_for('static', filename='js/character_animator.js') }}";
+
+  let animator = null;
+  const stage = document.getElementById('stage');
+  const headGroup = document.getElementById('head-group');
+  const handLGroup = document.getElementById('hand-l-group');
+  const handRGroup = document.getElementById('hand-r-group');
+
+  const imgHead = document.getElementById('char-head-base');
+  const imgEyeL = document.getElementById('char-eye-l');
+  const imgEyeR = document.getElementById('char-eye-r');
+  const imgMouth = document.getElementById('char-mouth');
+  const imgHandL = document.getElementById('char-hand-l');
+  const imgHandR = document.getElementById('char-hand-r');
+
+  document.getElementById('load-btn').addEventListener('click', async () => {
+    const defId = document.getElementById('def-select').value;
+    const seqId = document.getElementById('seq-select').value;
+
+    if (!defId || !seqId) {
+      alert('Please select both a definition and a sequence.');
+      return;
+    }
+
+    const loadBtn = document.getElementById('load-btn');
+    loadBtn.disabled = true;
+    loadBtn.textContent = 'Loading...';
+
+    try {
+      const resp = await fetch('/admin/api/character-animator/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ def_id: defId, seq_id: seqId })
+      });
+
+      if (!resp.ok) throw new Error('Failed to load data');
+      const data = await resp.json();
+      const def = data.definition;
+      const seq = data.sequence;
+
+      // Setup stage size
+      stage.style.width = `${def.width}px`;
+      stage.style.height = `${def.height}px`;
+
+      // Setup initial images
+      imgHead.src = def.head_gcs_uri;
+      imgHandL.src = def.left_hand_gcs_uri;
+      imgHandR.src = def.right_hand_gcs_uri;
+
+      // Set defaults to avoid blank images
+      imgEyeL.src = def.left_eye_open_gcs_uri || '';
+      imgEyeR.src = def.right_eye_open_gcs_uri || '';
+      imgMouth.src = def.mouth_closed_gcs_uri || '';
+
+      const domElements = {
+        head: headGroup,
+        mouth: imgMouth,
+        leftEye: imgEyeL,
+        rightEye: imgEyeR,
+        leftHand: handLGroup,
+        rightHand: handRGroup
+      };
+
+      if (animator) {
+         animator.pause();
+      }
+
+      animator = new CharacterAnimator(seq, domElements, def);
+      await animator.init();
+
+      animator.play();
+      document.getElementById('play-btn').disabled = false;
+      document.getElementById('pause-btn').disabled = false;
+
+    } catch (e) {
+      console.error(e);
+      alert('Error loading animation: ' + e.message);
+    } finally {
+      loadBtn.disabled = false;
+      loadBtn.textContent = 'Load & Play';
+    }
+  });
+
+  document.getElementById('play-btn').addEventListener('click', () => animator?.play());
+  document.getElementById('pause-btn').addEventListener('click', () => animator?.pause());
+
+</script>
+{% endblock %}

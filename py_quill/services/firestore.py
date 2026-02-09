@@ -1431,6 +1431,16 @@ def get_posable_character_sequence(
     doc.to_dict() or {}, key=doc.id)
 
 
+def get_posable_character_sequences(
+) -> list[posable_character_sequence.PosableCharacterSequence]:
+  """Get all posable character sequences."""
+  docs = db().collection('posable_character_sequences').stream()
+  return [
+    posable_character_sequence.PosableCharacterSequence.from_dict(
+      doc.to_dict() or {}, key=doc.id) for doc in docs if doc.exists
+  ]
+
+
 def upsert_posable_character_sequence(
   sequence: posable_character_sequence.PosableCharacterSequence,
 ) -> posable_character_sequence.PosableCharacterSequence:

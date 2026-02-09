@@ -257,3 +257,16 @@ def test_admin_dashboard_includes_joke_media_generator_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert '/admin/joke-media-generator' in html
   assert 'Joke Media Generator' in html
+
+
+def test_admin_dashboard_includes_character_animator_link(monkeypatch):
+  """Admin dashboard includes the character animator tile."""
+  _mock_admin_session(monkeypatch)
+
+  with app.test_client() as client:
+    resp = client.get('/admin')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '/admin/character-animator' in html
+  assert 'Character Animator' in html

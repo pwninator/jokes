@@ -238,6 +238,34 @@
       };
   }
 
+  function toBrowserUrl(uri) {
+      if (!uri) {
+          return '';
+      }
+      const raw = String(uri).trim();
+      if (!raw) {
+          return '';
+      }
+      if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) {
+          return raw;
+      }
+      if (!raw.startsWith('gs://')) {
+          return raw;
+      }
+
+      const gcsPath = raw.slice('gs://'.length);
+      const slashIndex = gcsPath.indexOf('/');
+      if (slashIndex === -1) {
+          return `https://${gcsPath}`;
+      }
+      const bucket = gcsPath.slice(0, slashIndex);
+      const objectPath = gcsPath.slice(slashIndex + 1);
+      if (bucket.includes('.')) {
+          return `https://${bucket}/${objectPath}`;
+      }
+      return `https://storage.googleapis.com/${bucket}/${objectPath}`;
+  }
+
   async function fetchAnimatorData(payload) {
       const resp = await fetch('/admin/api/character-animator/data', {
           method: 'POST',
@@ -538,13 +566,13 @@
       stage.style.width = `${def.width}px`;
       stage.style.height = `${def.height}px`;
 
-      imgHead.src = def.head_gcs_uri;
-      imgHandL.src = def.left_hand_gcs_uri;
-      imgHandR.src = def.right_hand_gcs_uri;
+      imgHead.src = toBrowserUrl(def.head_gcs_uri);
+      imgHandL.src = toBrowserUrl(def.left_hand_gcs_uri);
+      imgHandR.src = toBrowserUrl(def.right_hand_gcs_uri);
 
-      imgEyeL.src = def.left_eye_open_gcs_uri || '';
-      imgEyeR.src = def.right_eye_open_gcs_uri || '';
-      imgMouth.src = def.mouth_closed_gcs_uri || '';
+      imgEyeL.src = toBrowserUrl(def.left_eye_open_gcs_uri);
+      imgEyeR.src = toBrowserUrl(def.right_eye_open_gcs_uri);
+      imgMouth.src = toBrowserUrl(def.mouth_closed_gcs_uri);
   }
 
   function initializeComponents(seq, def) {

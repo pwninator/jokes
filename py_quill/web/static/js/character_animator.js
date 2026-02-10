@@ -49,6 +49,36 @@ function asNumber(value) {
   return Number(value ?? 0);
 }
 
+function toBrowserUrl(uri) {
+  if (!uri) {
+    return uri;
+  }
+  const raw = String(uri).trim();
+  if (!raw) {
+    return raw;
+  }
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) {
+    return raw;
+  }
+  if (!raw.startsWith('gs://')) {
+    return raw;
+  }
+
+  const gcsPath = raw.slice('gs://'.length);
+  const slashIndex = gcsPath.indexOf('/');
+  if (slashIndex === -1) {
+    return `https://${gcsPath}`;
+  }
+  const bucket = gcsPath.slice(0, slashIndex);
+  const objectPath = gcsPath.slice(slashIndex + 1);
+
+  // Custom-domain buckets (e.g. images.quillsstorybook.com) are directly hostable.
+  if (bucket.includes('.')) {
+    return `https://${bucket}/${objectPath}`;
+  }
+  return `https://storage.googleapis.com/${bucket}/${objectPath}`;
+}
+
 export class CharacterAnimator {
   /**
    * @param {Object} sequenceData - JSON export of PosableCharacterSequence
@@ -58,7 +88,7 @@ export class CharacterAnimator {
   constructor(sequenceData, domElements, characterDefinition) {
     this.sequenceData = sequenceData || {};
     this.domElements = domElements || {};
-    this.characterDefinition = characterDefinition || {};
+    this.characterDefinition = this._normalizeCharacterDefinition(characterDefinition || {});
     this.timeline = null;
     this.audioCache = new Map();
     this.activeSounds = new Set();
@@ -66,6 +96,16 @@ export class CharacterAnimator {
     this._sortedTrackCache = new Map();
     this._gsap = null;
     this._validateSequenceForSpec();
+  }
+
+  _normalizeCharacterDefinition(definition) {
+    const normalized = { ...definition };
+    Object.keys(normalized).forEach((field) => {
+      if (field.endsWith('_gcs_uri')) {
+        normalized[field] = toBrowserUrl(normalized[field]);
+      }
+    });
+    return normalized;
   }
 
   /**
@@ -254,7 +294,11 @@ export class CharacterAnimator {
    */
   async _preloadAudio() {
     const soundEvents = this._track('sequence_sound_events');
-    const uniqueUris = new Set(soundEvents.map((event) => event.gcs_uri).filter((uri) => uri));
+    const uniqueUris = new Set(
+      soundEvents
+        .map((event) => toBrowserUrl(event.gcs_uri))
+        .filter((uri) => uri),
+    );
 
     const loadPromises = Array.from(uniqueUris).map((uri) => new Promise((resolve) => {
       const audio = new Audio();
@@ -420,8 +464,9 @@ export class CharacterAnimator {
     }
     events.forEach((event, index) => {
       const eventKey = this._eventKey(event, index);
+      const audioUri = toBrowserUrl(event.gcs_uri);
       this.timeline.call(() => {
-        this._playSound(eventKey, event.gcs_uri, event.volume);
+        this._playSound(eventKey, audioUri, event.volume);
       }, null, asNumber(event.start_time));
       this.timeline.call(() => {
         this._stopSoundByEventKey(eventKey);
@@ -501,7 +546,8 @@ export class CharacterAnimator {
   _syncAudioToTime(time) {
     const soundEvents = this._track('sequence_sound_events');
     soundEvents.forEach((event, index) => {
-      const audio = this.audioCache.get(event.gcs_uri);
+      const audioUri = toBrowserUrl(event.gcs_uri);
+      const audio = this.audioCache.get(audioUri);
       if (!audio || !audio.duration) {
         return;
       }

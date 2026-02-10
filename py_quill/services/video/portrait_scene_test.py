@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from common import models
+from common import audio_timing, models
 from common.posable_character import MouthState, PosableCharacter, Transform
 from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceMouthEvent,
@@ -10,6 +10,7 @@ from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceTransformEvent)
 from PIL import Image
 from services.video import scene_video_renderer
+from services.video import joke_social_script_builder
 from services.video.script import (SceneCanvas, SceneRect, SceneScript,
                                    TimedCharacterSequence, TimedImage)
 
@@ -374,3 +375,72 @@ def test_scene_renderer_uses_half_open_image_windows():
 
   pixel = frame[5, 5]
   assert tuple(int(value) for value in pixel.tolist()) == (0, 0, 255)
+
+
+def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
+  left_character = _DummyCharacter()
+  right_character = _DummyCharacter()
+  intro_timing = [
+    audio_timing.WordTiming("hey", 0.0, 0.3, char_timings=[]),
+    audio_timing.WordTiming("joke", 0.3, 0.6, char_timings=[]),
+  ]
+  setup_timing = [
+    audio_timing.WordTiming("setup", 0.0, 0.5, char_timings=[]),
+  ]
+  response_timing = [
+    audio_timing.WordTiming("what", 0.0, 0.2, char_timings=[]),
+  ]
+  punchline_timing = [
+    audio_timing.WordTiming("punchline", 0.0, 0.5, char_timings=[]),
+  ]
+  character_dialogs = [
+    (left_character, [
+      ("gs://bucket/intro.wav", 0.0, "Hey... want to hear a joke?", intro_timing),
+      ("gs://bucket/setup.wav", 1.6, "Setup line", setup_timing),
+      ("gs://bucket/punchline.wav", 4.0, "Punchline line", punchline_timing),
+    ]),
+    (right_character, [
+      ("gs://bucket/response.wav", 3.0, "what?", response_timing),
+    ]),
+  ]
+
+  with patch.object(
+    _DummyCharacter,
+    "get_image",
+    return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ):
+    script = joke_social_script_builder.build_portrait_joke_scene_script(
+      joke_images=[
+        ("gs://bucket/setup.png", 0.0),
+        ("gs://bucket/punchline.png", 4.0),
+      ],
+      character_dialogs=character_dialogs,
+      footer_background_gcs_uri="gs://bucket/footer.png",
+      total_duration_sec=6.5,
+      detect_mouth_events_fn=lambda *_args, **_kwargs: [],
+      include_drumming=True,
+      drumming_duration_sec=2.0,
+    )
+
+  character_items = [
+    item for item in script.items if isinstance(item, TimedCharacterSequence)
+  ]
+  drumming_items = [
+    item for item in character_items
+    if not item.sequence.sequence_sound_events
+    and item.sequence.sequence_left_hand_transform
+    and item.sequence.sequence_right_hand_transform
+  ]
+  assert len(drumming_items) == 4
+
+  drumming_by_actor: dict[str, list[TimedCharacterSequence]] = {}
+  for item in drumming_items:
+    drumming_by_actor.setdefault(item.actor_id, []).append(item)
+  assert set(drumming_by_actor.keys()) == {"actor_0", "actor_1"}
+
+  for actor_items in drumming_by_actor.values():
+    actor_items.sort(key=lambda item: float(item.start_time_sec))
+    assert actor_items[0].start_time_sec == pytest.approx(0.6)
+    assert actor_items[0].end_time_sec == pytest.approx(1.6)
+    assert actor_items[1].start_time_sec == pytest.approx(4.5)
+    assert actor_items[1].end_time_sec == pytest.approx(6.5)

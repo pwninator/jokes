@@ -29,6 +29,7 @@ _PORTRAIT_FOOTER_RECT = SceneRect(
   width_px=_PORTRAIT_VIDEO_WIDTH_PX,
   height_px=_PORTRAIT_FOOTER_HEIGHT_PX,
 )
+_INTRO_DIALOG_TRANSCRIPT = "hey... want to hear a joke?"
 
 CharacterDialog = tuple[
   str,
@@ -169,6 +170,10 @@ def _build_timed_character_sequence_items(
 ) -> list[TimedCharacterSequence]:
   """Compile dialog clips into timed character sequence items."""
   items: list[TimedCharacterSequence] = []
+  intro_drumming_window = (
+    _resolve_intro_drumming_window(character_dialogs)
+    if include_drumming else None
+  )
   for actor_index, (character, dialogs) in enumerate(character_dialogs):
     if character is None:
       continue
@@ -197,6 +202,23 @@ def _build_timed_character_sequence_items(
       latest_actor_end = max(latest_actor_end,
                              float(start_time) + float(duration_sec))
 
+    if intro_drumming_window is not None:
+      intro_start, intro_end = intro_drumming_window
+      if float(intro_end) > float(intro_start):
+        intro_drumming_sequence = _build_drumming_sequence(
+          duration_sec=float(intro_end) - float(intro_start))
+        items.append(
+          TimedCharacterSequence(
+            actor_id=actor_id,
+            character=character,
+            sequence=intro_drumming_sequence,
+            start_time_sec=float(intro_start),
+            end_time_sec=float(intro_end),
+            z_index=int(z_index),
+            rect=actor_rect,
+            fit_mode="contain",
+          ))
+
     if include_drumming and float(drumming_duration_sec) > 0:
       start = max(float(latest_actor_end),
                   float(total_duration_sec) - float(drumming_duration_sec))
@@ -216,6 +238,31 @@ def _build_timed_character_sequence_items(
           ))
 
   return items
+
+
+def _resolve_intro_drumming_window(
+  character_dialogs: CharacterDialogTracks,
+) -> tuple[float, float] | None:
+  """Return the `[start, end)` window between intro and setup line, if present."""
+  intro_token = _normalize_dialog_transcript(_INTRO_DIALOG_TRANSCRIPT)
+  for _character, dialogs in character_dialogs:
+    if len(dialogs) < 2:
+      continue
+    for index in range(len(dialogs) - 1):
+      _intro_gcs_uri, intro_start, intro_transcript, intro_timing = dialogs[index]
+      _setup_gcs_uri, setup_start, _setup_transcript, _setup_timing = dialogs[
+        index + 1]
+      if _normalize_dialog_transcript(intro_transcript) != intro_token:
+        continue
+      intro_end = float(intro_start) + _estimate_dialog_duration_sec(intro_timing)
+      if float(setup_start) > float(intro_end):
+        return float(intro_end), float(setup_start)
+  return None
+
+
+def _normalize_dialog_transcript(transcript: str) -> str:
+  letters = [ch for ch in str(transcript).lower() if ch.isalnum()]
+  return "".join(letters)
 
 
 def _build_lipsync_sequence_for_dialog(

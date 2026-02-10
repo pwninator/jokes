@@ -1603,6 +1603,129 @@ def test_generate_joke_video_uses_test_video_when_is_test_true(
   assert call_kwargs["output_filename_base"] == "joke_video_test_joke-test"
 
 
+def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
+  monkeypatch,
+  mock_cloud_storage,
+):
+
+  def make_wav_bytes(duration_sec: float, *, rate: int = 10) -> bytes:
+    frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  joke = models.PunnyJoke(
+    key="joke-42",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="https://images.example.com/setup.png",
+    punchline_image_url="https://images.example.com/punchline.png",
+  )
+
+  audio_metadata = models.SingleGenerationMetadata(model_name="audio-model")
+  video_metadata = models.SingleGenerationMetadata(model_name="video-model")
+  setup_timing = [
+    joke_operations.audio_timing.WordTiming("hey", 0.00, 0.20, char_timings=[]),
+    joke_operations.audio_timing.WordTiming("want",
+                                            0.20,
+                                            0.40,
+                                            char_timings=[]),
+    joke_operations.audio_timing.WordTiming("to", 0.40, 0.50, char_timings=[]),
+    joke_operations.audio_timing.WordTiming("hear",
+                                            0.50,
+                                            0.70,
+                                            char_timings=[]),
+    joke_operations.audio_timing.WordTiming("a", 0.70, 0.78, char_timings=[]),
+    joke_operations.audio_timing.WordTiming("joke", 0.78, 0.95, char_timings=[]),
+    joke_operations.audio_timing.WordTiming("setup",
+                                            0.95,
+                                            1.40,
+                                            char_timings=[]),
+  ]
+  response_timing = [
+    joke_operations.audio_timing.WordTiming("what", 0.00, 0.20, char_timings=[])
+  ]
+  punchline_timing = [
+    joke_operations.audio_timing.WordTiming("punchline",
+                                            0.00,
+                                            0.60,
+                                            char_timings=[])
+  ]
+  monkeypatch.setattr(
+    joke_operations,
+    "generate_joke_audio",
+    Mock(
+      return_value=joke_operations.JokeAudioResult(
+        dialog_gcs_uri="gs://audio/dialog.wav",
+        setup_gcs_uri="gs://audio/setup.wav",
+        response_gcs_uri="gs://audio/response.wav",
+        punchline_gcs_uri="gs://audio/punchline.wav",
+        generation_metadata=audio_metadata,
+        clip_timing=joke_operations.JokeAudioTiming(
+          setup=setup_timing,
+          response=response_timing,
+          punchline=punchline_timing,
+        ),
+      )))
+
+  create_video_mock = Mock(return_value=("gs://videos/joke.mp4", video_metadata))
+  monkeypatch.setattr(joke_operations.gen_video,
+                      "create_portrait_character_video", create_video_mock)
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+    "gs://images/setup.png",
+    "gs://images/punchline.png",
+  ]
+  mock_cloud_storage.download_bytes_from_gcs.side_effect = [
+    make_wav_bytes(2.0),
+    make_wav_bytes(0.5),
+    make_wav_bytes(1.0),
+  ]
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = (
+    lambda file_name_base, extension, temp=False:
+    f"gs://audio/{file_name_base}.{extension}")
+  mock_cloud_storage.upload_bytes_to_gcs.return_value = None
+
+  video_uri, metadata = joke_operations.generate_joke_video(joke)
+
+  assert video_uri == "gs://videos/joke.mp4"
+  assert [gen.model_name for gen in metadata.generations] == [
+    "audio-model",
+    "video-model",
+  ]
+
+  create_video_mock.assert_called_once()
+  call_kwargs = create_video_mock.call_args.kwargs
+  assert len(call_kwargs["character_dialogs"]) == 2
+
+  first_character, first_audio = call_kwargs["character_dialogs"][0]
+  second_character, second_audio = call_kwargs["character_dialogs"][1]
+  assert isinstance(first_character, joke_operations.PosableCat)
+  assert isinstance(second_character, joke_operations.PosableCat)
+
+  assert len(first_audio) == 3
+  assert first_audio[0][0].startswith("gs://audio/joke_joke-42_intro")
+  assert first_audio[0][1] == pytest.approx(0.0)
+  assert first_audio[0][2] == "Hey... want to hear a joke?"
+  assert first_audio[1][0].startswith("gs://audio/joke_joke-42_setup_line")
+  assert first_audio[1][1] == pytest.approx(1.95, abs=1e-3)
+  assert first_audio[1][2] == "Setup"
+  assert first_audio[2] == ("gs://audio/punchline.wav", 5.3, "Punchline",
+                            punchline_timing)
+  assert second_audio == [("gs://audio/response.wav", 3.8, "what?",
+                           response_timing)]
+
+  assert call_kwargs["total_duration_sec"] == pytest.approx(8.3)
+  assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
+  assert mock_cloud_storage.upload_bytes_to_gcs.call_count == 2
+
+
 def test_generate_joke_video_requires_images():
   joke = models.PunnyJoke(
     setup_text="Setup",

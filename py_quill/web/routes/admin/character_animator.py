@@ -30,16 +30,22 @@ def character_animator_data() -> flask.Response:
   def_id = data.get('def_id')
   seq_id = data.get('seq_id')
 
-  if not def_id or not seq_id:
+  if not def_id and not seq_id:
     return flask.jsonify({'error': 'Missing def_id or seq_id'}), 400
 
-  character_def = firestore.get_posable_character_def(def_id)
-  sequence = firestore.get_posable_character_sequence(seq_id)
+  character_def = None
+  if def_id:
+    character_def = firestore.get_posable_character_def(def_id)
+    if not character_def:
+      return flask.jsonify({'error': 'Definition not found'}), 404
 
-  if not character_def or not sequence:
-    return flask.jsonify({'error': 'Definition or sequence not found'}), 404
+  sequence = None
+  if seq_id:
+    sequence = firestore.get_posable_character_sequence(seq_id)
+    if not sequence:
+      return flask.jsonify({'error': 'Sequence not found'}), 404
 
   return flask.jsonify({
-    'definition': character_def.to_dict(include_key=True),
-    'sequence': sequence.to_dict(include_key=True),
+    'definition': character_def.to_dict(include_key=True) if character_def else None,
+    'sequence': sequence.to_dict(include_key=True) if sequence else None,
   })

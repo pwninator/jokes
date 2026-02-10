@@ -44,6 +44,7 @@
         <option value="{{ def.key }}">{{ def.name or def.key }}</option>
       {% endfor %}
     </select>
+    <button id="edit-char-btn" class="text-button">Edit Character</button>
   </div>
 
   <div class="control-group">
@@ -69,6 +70,33 @@
     <button id="play-btn" class="text-button" disabled>Play</button>
     <button id="pause-btn" class="text-button" disabled>Pause</button>
   </div>
+</div>
+
+<div id="character-editor-container" style="display: none; background: #fff; border: 1px solid #ccc; padding: 16px; margin-bottom: 24px;">
+    <h3>Character Editor</h3>
+    <input type="hidden" id="char-id-input">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label>Name: <input type="text" id="char-name" style="width: 100%;"></label>
+        <div style="display: flex; gap: 16px;">
+            <label>Width: <input type="number" id="char-width"></label>
+            <label>Height: <input type="number" id="char-height"></label>
+        </div>
+        <label>Head GCS URI: <input type="text" id="char-head-uri" style="width: 100%;"></label>
+        <label>Left Hand GCS URI: <input type="text" id="char-left-hand-uri" style="width: 100%;"></label>
+        <label>Right Hand GCS URI: <input type="text" id="char-right-hand-uri" style="width: 100%;"></label>
+        <label>Mouth Open GCS URI: <input type="text" id="char-mouth-open-uri" style="width: 100%;"></label>
+        <label>Mouth Closed GCS URI: <input type="text" id="char-mouth-closed-uri" style="width: 100%;"></label>
+        <label>Mouth O GCS URI: <input type="text" id="char-mouth-o-uri" style="width: 100%;"></label>
+        <label>Left Eye Open GCS URI: <input type="text" id="char-left-eye-open-uri" style="width: 100%;"></label>
+        <label>Left Eye Closed GCS URI: <input type="text" id="char-left-eye-closed-uri" style="width: 100%;"></label>
+        <label>Right Eye Open GCS URI: <input type="text" id="char-right-eye-open-uri" style="width: 100%;"></label>
+        <label>Right Eye Closed GCS URI: <input type="text" id="char-right-eye-closed-uri" style="width: 100%;"></label>
+
+        <div style="margin-top: 16px; display: flex; gap: 16px;">
+            <button id="new-char-btn" class="text-button">New Character (Clear)</button>
+            <button id="save-char-btn" class="text-button primary">Save Character</button>
+        </div>
+    </div>
 </div>
 
 <div id="stage" class="stage-container">
@@ -112,6 +140,24 @@
   const seqIdInput = document.getElementById('seq-id-input');
   const defSelect = document.getElementById('def-select');
 
+  // Character Editor Elements
+  const charEditorContainer = document.getElementById('character-editor-container');
+  const charIdInput = document.getElementById('char-id-input');
+  const charNameInput = document.getElementById('char-name');
+  const charWidthInput = document.getElementById('char-width');
+  const charHeightInput = document.getElementById('char-height');
+  const charHeadUriInput = document.getElementById('char-head-uri');
+  const charLeftHandUriInput = document.getElementById('char-left-hand-uri');
+  const charRightHandUriInput = document.getElementById('char-right-hand-uri');
+  const charMouthOpenUriInput = document.getElementById('char-mouth-open-uri');
+  const charMouthClosedUriInput = document.getElementById('char-mouth-closed-uri');
+  const charMouthOUriInput = document.getElementById('char-mouth-o-uri');
+  const charLeftEyeOpenUriInput = document.getElementById('char-left-eye-open-uri');
+  const charLeftEyeClosedUriInput = document.getElementById('char-left-eye-closed-uri');
+  const charRightEyeOpenUriInput = document.getElementById('char-right-eye-open-uri');
+  const charRightEyeClosedUriInput = document.getElementById('char-right-eye-closed-uri');
+
+
   // Helper to get DOM map
   function getDomElements() {
       return {
@@ -123,6 +169,135 @@
         rightHand: handRGroup
       };
   }
+
+  // Toggle Character Editor
+  document.getElementById('edit-char-btn').addEventListener('click', () => {
+      const isHidden = charEditorContainer.style.display === 'none';
+      charEditorContainer.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) {
+          loadCharacterDef();
+      }
+  });
+
+  // Reload character editor if selection changes while open
+  defSelect.addEventListener('change', () => {
+      if (charEditorContainer.style.display !== 'none') {
+          loadCharacterDef();
+      }
+  });
+
+  async function loadCharacterDef() {
+      const defId = defSelect.value;
+      if (!defId) {
+          clearCharacterForm();
+          return;
+      }
+
+      try {
+          const resp = await fetch('/admin/api/character-animator/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ def_id: defId })
+          });
+          if (!resp.ok) throw new Error('Failed to load character definition');
+          const data = await resp.json();
+          const def = data.definition;
+          if (def) {
+              populateCharacterForm(def);
+          }
+      } catch (e) {
+          console.error(e);
+          alert('Error loading character: ' + e.message);
+      }
+  }
+
+  function populateCharacterForm(def) {
+      charIdInput.value = def.key || '';
+      charNameInput.value = def.name || '';
+      charWidthInput.value = def.width || 0;
+      charHeightInput.value = def.height || 0;
+      charHeadUriInput.value = def.head_gcs_uri || '';
+      charLeftHandUriInput.value = def.left_hand_gcs_uri || '';
+      charRightHandUriInput.value = def.right_hand_gcs_uri || '';
+      charMouthOpenUriInput.value = def.mouth_open_gcs_uri || '';
+      charMouthClosedUriInput.value = def.mouth_closed_gcs_uri || '';
+      charMouthOUriInput.value = def.mouth_o_gcs_uri || '';
+      charLeftEyeOpenUriInput.value = def.left_eye_open_gcs_uri || '';
+      charLeftEyeClosedUriInput.value = def.left_eye_closed_gcs_uri || '';
+      charRightEyeOpenUriInput.value = def.right_eye_open_gcs_uri || '';
+      charRightEyeClosedUriInput.value = def.right_eye_closed_gcs_uri || '';
+  }
+
+  function clearCharacterForm() {
+      charIdInput.value = '';
+      charNameInput.value = '';
+      charWidthInput.value = 0;
+      charHeightInput.value = 0;
+      charHeadUriInput.value = '';
+      charLeftHandUriInput.value = '';
+      charRightHandUriInput.value = '';
+      charMouthOpenUriInput.value = '';
+      charMouthClosedUriInput.value = '';
+      charMouthOUriInput.value = '';
+      charLeftEyeOpenUriInput.value = '';
+      charLeftEyeClosedUriInput.value = '';
+      charRightEyeOpenUriInput.value = '';
+      charRightEyeClosedUriInput.value = '';
+  }
+
+  document.getElementById('new-char-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      clearCharacterForm();
+      defSelect.value = ""; // clear selection
+  });
+
+  document.getElementById('save-char-btn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const btn = e.target;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+          const formData = new FormData();
+          formData.append('op', 'character');
+          if (charIdInput.value) formData.append('character_id', charIdInput.value);
+          formData.append('name', charNameInput.value);
+          formData.append('width', charWidthInput.value);
+          formData.append('height', charHeightInput.value);
+          formData.append('head_gcs_uri', charHeadUriInput.value);
+          formData.append('left_hand_gcs_uri', charLeftHandUriInput.value);
+          formData.append('right_hand_gcs_uri', charRightHandUriInput.value);
+          formData.append('mouth_open_gcs_uri', charMouthOpenUriInput.value);
+          formData.append('mouth_closed_gcs_uri', charMouthClosedUriInput.value);
+          formData.append('mouth_o_gcs_uri', charMouthOUriInput.value);
+          formData.append('left_eye_open_gcs_uri', charLeftEyeOpenUriInput.value);
+          formData.append('left_eye_closed_gcs_uri', charLeftEyeClosedUriInput.value);
+          formData.append('right_eye_open_gcs_uri', charRightEyeOpenUriInput.value);
+          formData.append('right_eye_closed_gcs_uri', charRightEyeClosedUriInput.value);
+
+          const resp = await fetch('/joke_creation_process', {
+              method: 'POST',
+              body: formData
+          });
+
+          if (!resp.ok) {
+              const text = await resp.text();
+              throw new Error(text);
+          }
+
+          alert('Character saved successfully!');
+          if (confirm("Reload page to update list?")) {
+              window.location.reload();
+          }
+
+      } catch (err) {
+          console.error(err);
+          alert('Error saving character: ' + err.message);
+      } finally {
+          btn.disabled = false;
+          btn.textContent = 'Save Character';
+      }
+  });
 
   // Initial load logic
   document.getElementById('load-btn').addEventListener('click', async () => {

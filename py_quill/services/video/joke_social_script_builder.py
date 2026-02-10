@@ -245,10 +245,14 @@ def _build_lipsync_sequence_for_dialog(
       timing=timing,
     )
     for event in detected_events:
+      start_time = max(0.0, float(event.start_time))
+      end_time = min(float(sound_end), float(event.end_time))
+      if end_time <= start_time:
+        continue
       mouth_events.append(
         SequenceMouthEvent(
-          start_time=float(event.start_time),
-          end_time=float(event.end_time),
+          start_time=start_time,
+          end_time=end_time,
           mouth_state=event.mouth_shape,
         ))
 

@@ -1726,3 +1726,104 @@ def test_generate_joke_audio_uses_scan_and_split_with_timing(
   # Punchline word starts at 3.0 - 3.0 = 0.0.
   assert result.clip_timing.punchline[0].start_time == pytest.approx(
     0.0, abs=0.1)
+
+
+def test_generate_joke_audio_clamps_negative_shifted_word_timing(
+    monkeypatch,
+    mock_cloud_storage,
+):
+  """Clip-local timing is clamped to non-negative after split/trim offsets."""
+  timing = joke_operations.audio_timing.TtsTiming(
+    voice_segments=[
+      joke_operations.audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.6,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      joke_operations.audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=1.0,
+        end_time_seconds=1.5,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      joke_operations.audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=2.0,
+        end_time_seconds=2.5,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+    ],
+    normalized_alignment=[
+      joke_operations.audio_timing.WordTiming(
+        "setup",
+        0.1,
+        0.4,
+        char_timings=[
+          joke_operations.audio_timing.CharTiming("s", 0.12, 0.18),
+        ],
+      ),
+      joke_operations.audio_timing.WordTiming(
+        "response",
+        1.1,
+        1.3,
+        char_timings=[],
+      ),
+      joke_operations.audio_timing.WordTiming(
+        "punchline",
+        2.1,
+        2.4,
+        char_timings=[],
+      ),
+    ],
+  )
+
+  mock_result = Mock()
+  mock_result.gcs_uri = "gs://temp/dialog.wav"
+  mock_result.metadata = models.SingleGenerationMetadata()
+  mock_result.timing = timing
+
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = mock_result
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
+
+  monkeypatch.setattr(
+    joke_operations.audio_operations,
+    "split_audio",
+    Mock(return_value=[
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"setup",
+        offset_sec=0.8,
+      ),
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"response",
+        offset_sec=1.0,
+      ),
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"punchline",
+        offset_sec=2.0,
+      ),
+    ]),
+  )
+
+  mock_cloud_storage.download_bytes_from_gcs.return_value = b"dialog"
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = lambda x, y: f"gs://{x}.{y}"
+  mock_cloud_storage.upload_bytes_to_gcs.return_value = None
+
+  joke = models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
+  result = joke_operations.generate_joke_audio(joke)
+
+  assert result.clip_timing is not None
+  assert result.clip_timing.setup[0].start_time == 0.0
+  assert result.clip_timing.setup[0].end_time >= 0.0
+  assert result.clip_timing.setup[0].char_timings[0].start_time == 0.0

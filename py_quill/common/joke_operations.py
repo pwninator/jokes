@@ -791,16 +791,23 @@ def _split_joke_dialog_wav_by_timing(
     offset_sec = float(offset_sec)
     out: list[audio_timing.WordTiming] = []
     for word in words:
+      start_time = max(0.0, float(word.start_time) - offset_sec)
+      end_time = max(start_time, float(word.end_time) - offset_sec)
       out.append(
         audio_timing.WordTiming(
           word=str(word.word),
-          start_time=float(word.start_time) - offset_sec,
-          end_time=float(word.end_time) - offset_sec,
+          start_time=start_time,
+          end_time=end_time,
           char_timings=[
+            # Alignment timestamps can drift slightly before clip-local 0 after
+            # silence trimming; clamp to preserve valid non-negative windows.
             audio_timing.CharTiming(
               char=str(ch.char),
-              start_time=float(ch.start_time) - offset_sec,
-              end_time=float(ch.end_time) - offset_sec,
+              start_time=max(0.0, float(ch.start_time) - offset_sec),
+              end_time=max(
+                max(0.0, float(ch.start_time) - offset_sec),
+                float(ch.end_time) - offset_sec,
+              ),
             ) for ch in (word.char_timings or [])
           ],
         ))

@@ -237,6 +237,18 @@ export class CharacterAnimator {
   }
 
   /**
+   * Updates the sequence data and rebuilds the timeline.
+   * @param {Object} newSequenceData
+   */
+  async updateSequence(newSequenceData) {
+    this.sequenceData = newSequenceData;
+    // Start preloading any new audio
+    this._preloadAudio();
+    // Rebuild timeline immediately
+    this._buildTimeline();
+  }
+
+  /**
    * Preloads all unique audio files referenced in the sequence.
    * @returns {Promise<void>}
    */

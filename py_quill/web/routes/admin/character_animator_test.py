@@ -49,6 +49,22 @@ def test_character_animator_api(mock_get_seq, mock_get_def, client, monkeypatch)
   assert data['definition']['key'] == 'def1'
   assert data['sequence']['key'] == 'seq1'
 
+@patch('services.firestore.get_posable_character_def')
+def test_character_animator_api_def_only(mock_get_def, client, monkeypatch):
+  _mock_admin_session(monkeypatch)
+  mock_def = MagicMock()
+  mock_def.to_dict.return_value = {'key': 'def1', 'name': 'Test Def'}
+  mock_get_def.return_value = mock_def
+
+  response = client.post('/admin/api/character-animator/data', json={
+    'def_id': 'def1'
+  })
+
+  assert response.status_code == 200
+  data = response.get_json()
+  assert data['definition']['key'] == 'def1'
+  assert data['sequence'] is None
+
 def test_character_animator_api_missing_args(client, monkeypatch):
   _mock_admin_session(monkeypatch)
   response = client.post('/admin/api/character-animator/data', json={})

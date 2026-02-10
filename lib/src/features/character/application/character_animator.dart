@@ -3,6 +3,10 @@ import 'package:flutter/widgets.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:snickerdoodle/src/features/character/domain/posable_character_sequence.dart';
 
+/// This implementation must strictly conform to:
+/// `py_quill/common/character_animator_spec.md`.
+/// Keep runtime semantics aligned with the canonical spec.
+
 /// Configuration object holding ValueNotifiers for the CharacterAnimator.
 class CharacterAnimationConfig {
   final ValueNotifier<Matrix4> headTransform;
@@ -27,11 +31,13 @@ class CharacterAnimationConfig {
 }
 
 /// Controller logic for animating a posable character.
+///
+/// Runtime behavior should match `py_quill/common/character_animator_spec.md`.
 class CharacterAnimator {
   final CharacterAnimationConfig config;
   final PosableCharacterSequence sequence;
   final AnimationController _controller;
-  final List<AudioPlayer> _activeAudioPlayers = [];
+  final Map<int, AudioPlayer> _activeAudioPlayersByEvent = {};
   double _lastAudioTime = -1.0;
 
   // Animation objects for transforms
@@ -49,6 +55,7 @@ class CharacterAnimator {
   }
 
   void _initialize() {
+    _validateSequenceForSpec();
     // 1. Calculate total duration from sequence
     final double durationSeconds = _calculateTotalDuration();
     final duration = Duration(milliseconds: (durationSeconds * 1000).ceil());
@@ -58,9 +65,18 @@ class CharacterAnimator {
     // Prevent division by zero or invalid duration issues
     final safeDuration = durationSeconds > 0 ? durationSeconds : 1.0;
 
-    _headAnimation = _buildTransformAnimation(sequence.sequenceHeadTransform, safeDuration);
-    _leftHandAnimation = _buildTransformAnimation(sequence.sequenceLeftHandTransform, safeDuration);
-    _rightHandAnimation = _buildTransformAnimation(sequence.sequenceRightHandTransform, safeDuration);
+    _headAnimation = _buildTransformAnimation(
+      sequence.sequenceHeadTransform,
+      safeDuration,
+    );
+    _leftHandAnimation = _buildTransformAnimation(
+      sequence.sequenceLeftHandTransform,
+      safeDuration,
+    );
+    _rightHandAnimation = _buildTransformAnimation(
+      sequence.sequenceRightHandTransform,
+      safeDuration,
+    );
   }
 
   double _calculateTotalDuration() {
@@ -70,9 +86,9 @@ class CharacterAnimator {
       for (final e in events) {
         // Access properties dynamically since we know the structure but don't share a base interface
         // with accessible fields for the compiler.
-        final double start = (e as dynamic).startTime;
-        final double? end = (e as dynamic).endTime;
-        maxTime = math.max(maxTime, end ?? start);
+        final num endRaw = (e as dynamic).endTime as num;
+        final double end = endRaw.toDouble();
+        maxTime = math.max(maxTime, end);
       }
     }
 
@@ -89,13 +105,17 @@ class CharacterAnimator {
     return maxTime;
   }
 
-  Animation<Matrix4> _buildTransformAnimation(List<SequenceTransformEvent> events, double totalDuration) {
+  Animation<Matrix4> _buildTransformAnimation(
+    List<SequenceTransformEvent> events,
+    double totalDuration,
+  ) {
     if (events.isEmpty) {
       return ConstantTween<Matrix4>(Matrix4.identity()).animate(_controller);
     }
 
     // Sort events by start time
-    final sortedEvents = List<SequenceTransformEvent>.from(events)..sort((a, b) => a.startTime.compareTo(b.startTime));
+    final sortedEvents = List<SequenceTransformEvent>.from(events)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
     final List<TweenSequenceItem<Matrix4>> items = [];
     double currentTime = 0.0;
@@ -104,16 +124,18 @@ class CharacterAnimator {
     for (int i = 0; i < sortedEvents.length; i++) {
       final event = sortedEvents[i];
       final eventStart = event.startTime;
-      final eventEnd = event.endTime ?? event.startTime;
+      final eventEnd = event.endTime!;
 
       // Handle Gap (Hold previous)
       if (eventStart > currentTime) {
         final duration = eventStart - currentTime;
         if (duration > 0) {
-           items.add(TweenSequenceItem(
-            tween: ConstantTween<Matrix4>(currentMatrix),
-            weight: duration,
-          ));
+          items.add(
+            TweenSequenceItem(
+              tween: ConstantTween<Matrix4>(currentMatrix),
+              weight: duration,
+            ),
+          );
         }
         currentTime = eventStart;
       }
@@ -124,10 +146,15 @@ class CharacterAnimator {
 
       if (eventDuration > 0) {
         // Interpolate
-        items.add(TweenSequenceItem(
-          tween: Matrix4Tween(begin: currentMatrix, end: targetMatrix).chain(CurveTween(curve: Curves.linear)),
-          weight: eventDuration,
-        ));
+        items.add(
+          TweenSequenceItem(
+            tween: Matrix4Tween(
+              begin: currentMatrix,
+              end: targetMatrix,
+            ).chain(CurveTween(curve: Curves.linear)),
+            weight: eventDuration,
+          ),
+        );
         currentTime = eventEnd;
         currentMatrix = targetMatrix;
       } else {
@@ -139,17 +166,19 @@ class CharacterAnimator {
 
     // Fill remaining time
     if (currentTime < totalDuration) {
-       final duration = totalDuration - currentTime;
-       if (duration > 0) {
-         items.add(TweenSequenceItem(
+      final duration = totalDuration - currentTime;
+      if (duration > 0) {
+        items.add(
+          TweenSequenceItem(
             tween: ConstantTween<Matrix4>(currentMatrix),
             weight: duration,
-         ));
-       }
+          ),
+        );
+      }
     }
 
     if (items.isEmpty) {
-       return ConstantTween<Matrix4>(Matrix4.identity()).animate(_controller);
+      return ConstantTween<Matrix4>(Matrix4.identity()).animate(_controller);
     }
 
     return TweenSequence<Matrix4>(items).animate(_controller);
@@ -168,7 +197,8 @@ class CharacterAnimator {
     config.leftHandTransform.value = _leftHandAnimation.value;
     config.rightHandTransform.value = _rightHandAnimation.value;
 
-    final durationSeconds = (_controller.duration?.inMilliseconds.toDouble() ?? 0.0) / 1000.0;
+    final durationSeconds =
+        (_controller.duration?.inMilliseconds.toDouble() ?? 0.0) / 1000.0;
     final double t = _controller.value * durationSeconds;
 
     _updateDiscreteProperties(t);
@@ -177,56 +207,88 @@ class CharacterAnimator {
 
   void _updateDiscreteProperties(double t) {
     config.mouthState.value = _getMouthState(t);
-    config.leftEyeOpen.value = _getBooleanValue(sequence.sequenceLeftEyeOpen, t, true);
-    config.rightEyeOpen.value = _getBooleanValue(sequence.sequenceRightEyeOpen, t, true);
-    config.leftHandVisible.value = _getBooleanValue(sequence.sequenceLeftHandVisible, t, true);
-    config.rightHandVisible.value = _getBooleanValue(sequence.sequenceRightHandVisible, t, true);
+    config.leftEyeOpen.value = _getBooleanValue(
+      sequence.sequenceLeftEyeOpen,
+      t,
+      true,
+    );
+    config.rightEyeOpen.value = _getBooleanValue(
+      sequence.sequenceRightEyeOpen,
+      t,
+      true,
+    );
+    config.leftHandVisible.value = _getBooleanValue(
+      sequence.sequenceLeftHandVisible,
+      t,
+      true,
+    );
+    config.rightHandVisible.value = _getBooleanValue(
+      sequence.sequenceRightHandVisible,
+      t,
+      true,
+    );
   }
 
   MouthState _getMouthState(double t) {
     // Defaults to CLOSED
     // Find active event
     for (final event in sequence.sequenceMouthState) {
-       final end = event.endTime ?? event.startTime;
-       if (t >= event.startTime && t <= end) {
-         return event.mouthState;
-       }
+      final end = event.endTime!;
+      if (t >= event.startTime && t <= end) {
+        return event.mouthState;
+      }
     }
     return MouthState.closed;
   }
 
-  bool _getBooleanValue(List<SequenceBooleanEvent> track, double t, bool defaultValue) {
+  bool _getBooleanValue(
+    List<SequenceBooleanEvent> track,
+    double t,
+    bool defaultValue,
+  ) {
     for (final event in track) {
-       final end = event.endTime ?? event.startTime;
-       if (t >= event.startTime && t <= end) {
-         return event.value;
-       }
+      final end = event.endTime!;
+      if (t >= event.startTime && t <= end) {
+        return event.value;
+      }
     }
     return defaultValue;
   }
 
   void _updateAudio(double t) {
-     // Handle loop/seek: if t jumped backwards, reset _lastAudioTime
-     if (t < _lastAudioTime) {
-       _lastAudioTime = -1.0;
-     }
+    // Handle loop/seek: if t jumped backwards, reset _lastAudioTime
+    if (t < _lastAudioTime) {
+      _lastAudioTime = -1.0;
+    }
 
-     for (final event in sequence.sequenceSoundEvents) {
-       // Check if event started between _lastAudioTime (exclusive) and t (inclusive)
-       if (event.startTime > _lastAudioTime && event.startTime <= t) {
-         _playAudio(event);
-       }
-     }
-     _lastAudioTime = t;
+    for (
+      int eventIndex = 0;
+      eventIndex < sequence.sequenceSoundEvents.length;
+      eventIndex++
+    ) {
+      final event = sequence.sequenceSoundEvents[eventIndex];
+      final end = event.endTime!;
+      // Check if event started between _lastAudioTime (exclusive) and t (inclusive)
+      if (event.startTime > _lastAudioTime && event.startTime <= t && t < end) {
+        _playAudio(eventIndex, event);
+      }
+      if (t >= end) {
+        _stopAudio(eventIndex);
+      }
+    }
+    _lastAudioTime = t;
   }
 
-  Future<void> _playAudio(SequenceSoundEvent event) async {
+  Future<void> _playAudio(int eventIndex, SequenceSoundEvent event) async {
+    _stopAudio(eventIndex);
     final player = AudioPlayer();
-    _activeAudioPlayers.add(player);
+    _activeAudioPlayersByEvent[eventIndex] = player;
 
     // Cleanup on complete
     player.onPlayerComplete.listen((_) {
-      _activeAudioPlayers.remove(player);
+      if (_activeAudioPlayersByEvent[eventIndex] == player) {
+        _activeAudioPlayersByEvent.remove(eventIndex);
+      }
       player.dispose();
     });
 
@@ -234,26 +296,79 @@ class CharacterAnimator {
       await player.play(UrlSource(event.gcsUri), volume: event.volume);
     } catch (e) {
       debugPrint('Error playing audio: $e');
-      _activeAudioPlayers.remove(player);
+      if (_activeAudioPlayersByEvent[eventIndex] == player) {
+        _activeAudioPlayersByEvent.remove(eventIndex);
+      }
       player.dispose();
     }
   }
 
+  void _stopAudio(int eventIndex) {
+    final player = _activeAudioPlayersByEvent.remove(eventIndex);
+    if (player == null) {
+      return;
+    }
+    player.stop();
+    player.dispose();
+  }
+
+  void _stopAllAudio() {
+    final eventIndexes = _activeAudioPlayersByEvent.keys.toList();
+    for (final eventIndex in eventIndexes) {
+      _stopAudio(eventIndex);
+    }
+  }
+
+  void _validateSequenceForSpec() {
+    void checkEvents(Iterable<dynamic> events, String trackName) {
+      for (final event in events) {
+        final num startRaw = (event as dynamic).startTime as num;
+        final double start = startRaw.toDouble();
+        final num? endRaw = (event as dynamic).endTime as num?;
+        final double? end = endRaw?.toDouble();
+        if (end == null) {
+          throw StateError('$trackName event missing required endTime');
+        }
+        if (end < start) {
+          throw StateError('$trackName event has endTime < startTime');
+        }
+      }
+    }
+
+    checkEvents(sequence.sequenceLeftEyeOpen, 'sequenceLeftEyeOpen');
+    checkEvents(sequence.sequenceRightEyeOpen, 'sequenceRightEyeOpen');
+    checkEvents(sequence.sequenceMouthState, 'sequenceMouthState');
+    checkEvents(sequence.sequenceLeftHandVisible, 'sequenceLeftHandVisible');
+    checkEvents(sequence.sequenceRightHandVisible, 'sequenceRightHandVisible');
+    checkEvents(
+      sequence.sequenceLeftHandTransform,
+      'sequenceLeftHandTransform',
+    );
+    checkEvents(
+      sequence.sequenceRightHandTransform,
+      'sequenceRightHandTransform',
+    );
+    checkEvents(sequence.sequenceHeadTransform, 'sequenceHeadTransform');
+    checkEvents(sequence.sequenceSoundEvents, 'sequenceSoundEvents');
+  }
+
   void dispose() {
     _controller.removeListener(_onTick);
-    for (final player in _activeAudioPlayers) {
+    for (final player in _activeAudioPlayersByEvent.values) {
       player.dispose();
     }
-    _activeAudioPlayers.clear();
+    _activeAudioPlayersByEvent.clear();
   }
 
   // Proxies for controller
   void play() => _controller.forward();
   void pause() => _controller.stop();
   void seek(Duration pos) {
-     final duration = _controller.duration;
-     if (duration != null && duration.inMilliseconds > 0) {
-       _controller.value = pos.inMilliseconds / duration.inMilliseconds;
-     }
+    _stopAllAudio();
+    _lastAudioTime = -1.0;
+    final duration = _controller.duration;
+    if (duration != null && duration.inMilliseconds > 0) {
+      _controller.value = pos.inMilliseconds / duration.inMilliseconds;
+    }
   }
 }

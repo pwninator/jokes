@@ -6,7 +6,8 @@ import unittest
 from unittest.mock import patch
 
 from common import models
-from common.posable_character import MouthState, PosableCharacter, Transform
+from common.posable_character import (MouthState, PoseState, PosableCharacter,
+                                      Transform)
 from PIL import Image
 
 
@@ -98,6 +99,32 @@ class PosableCharacterTest(unittest.TestCase):
       character.head_transform,
       Transform(translate_x=1.0, translate_y=2.0, scale_x=0.5, scale_y=0.25),
     )
+
+  def test_pose_state_updates_with_set_pose(self):
+    character = self._build_character()
+    self.assertEqual(character.pose_state, PoseState())
+
+    character.set_pose(mouth_state=MouthState.CLOSED, left_hand_visible=False)
+    self.assertEqual(character.pose_state.mouth_state, MouthState.CLOSED)
+    self.assertFalse(character.pose_state.left_hand_visible)
+
+  def test_apply_pose_state_replaces_all_pose_fields(self):
+    character = self._build_character()
+    target = PoseState(
+      left_eye_open=False,
+      right_eye_open=False,
+      mouth_state=MouthState.O,
+      left_hand_visible=False,
+      right_hand_visible=False,
+      left_hand_transform=Transform(translate_x=2.0),
+      right_hand_transform=Transform(translate_y=-3.0),
+      head_transform=Transform(scale_x=0.5, scale_y=0.5),
+    )
+
+    character.apply_pose_state(target)
+    self.assertEqual(character.pose_state, target)
+    self.assertFalse(character.left_eye_open)
+    self.assertEqual(character.mouth_state, MouthState.O)
 
   @patch("common.posable_character.cloud_storage.download_image_from_gcs")
   def test_get_image_layers_hands_last(self, mock_download):
@@ -219,9 +246,8 @@ class PosableCharacterTest(unittest.TestCase):
     self.assertIsInstance(character._image_cache, dict)
 
     # Verify it works with get_image (mocking download)
-    with patch(
-        "common.posable_character.cloud_storage.download_image_from_gcs"
-    ) as mock_download:
+    with patch("common.posable_character.cloud_storage.download_image_from_gcs"
+               ) as mock_download:
       mock_download.return_value = _make_image((255, 0, 0, 255), size=(10, 20))
       character.get_image()
       mock_download.assert_any_call("gs://test/model_head.png")

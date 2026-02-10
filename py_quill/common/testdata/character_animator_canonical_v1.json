@@ -1,0 +1,350 @@
+{
+  "version": "v1",
+  "sequence": {
+    "sequence_left_eye_open": [
+      {
+        "start_time": 0.5,
+        "end_time": 0.6,
+        "value": false
+      }
+    ],
+    "sequence_right_eye_open": [],
+    "sequence_mouth_state": [
+      {
+        "start_time": 0.0,
+        "end_time": 0.4,
+        "mouth_state": "OPEN"
+      },
+      {
+        "start_time": 0.8,
+        "end_time": 1.1,
+        "mouth_state": "O"
+      }
+    ],
+    "sequence_left_hand_visible": [
+      {
+        "start_time": 1.2,
+        "end_time": 1.6,
+        "value": false
+      }
+    ],
+    "sequence_right_hand_visible": [],
+    "sequence_left_hand_transform": [
+      {
+        "start_time": 0.0,
+        "end_time": 1.0,
+        "target_transform": {
+          "translate_x": 10.0,
+          "translate_y": 0.0,
+          "scale_x": 1.0,
+          "scale_y": 1.0
+        }
+      },
+      {
+        "start_time": 1.5,
+        "end_time": 2.0,
+        "target_transform": {
+          "translate_x": 20.0,
+          "translate_y": 0.0,
+          "scale_x": 1.0,
+          "scale_y": 1.0
+        }
+      }
+    ],
+    "sequence_right_hand_transform": [],
+    "sequence_head_transform": [],
+    "sequence_sound_events": [
+      {
+        "start_time": 0.3,
+        "end_time": 0.9,
+        "gcs_uri": "gs://bucket/sfx_a.wav",
+        "volume": 0.8
+      },
+      {
+        "start_time": 1.0,
+        "end_time": 1.7,
+        "gcs_uri": "gs://bucket/sfx_b.wav",
+        "volume": 0.6
+      }
+    ]
+  },
+  "expected_duration_sec": 2.0,
+  "sample_times_sec": [
+    0.0,
+    0.25,
+    0.5,
+    0.55,
+    0.75,
+    1.0,
+    1.3,
+    1.7,
+    2.0
+  ],
+  "expected_samples": [
+    {
+      "time_sec": 0.0,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "OPEN",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 0.25,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "OPEN",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 2.5,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 0.5,
+      "left_eye_open": false,
+      "right_eye_open": true,
+      "mouth_state": "CLOSED",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 5.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 0.55,
+      "left_eye_open": false,
+      "right_eye_open": true,
+      "mouth_state": "CLOSED",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 5.5,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 0.75,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "CLOSED",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 7.5,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 1.0,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "O",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 10.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 1.3,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "CLOSED",
+      "left_hand_visible": false,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 10.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 1.7,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "CLOSED",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 14.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    },
+    {
+      "time_sec": 2.0,
+      "left_eye_open": true,
+      "right_eye_open": true,
+      "mouth_state": "CLOSED",
+      "left_hand_visible": true,
+      "right_hand_visible": true,
+      "left_hand_transform": {
+        "translate_x": 20.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "right_hand_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      },
+      "head_transform": {
+        "translate_x": 0.0,
+        "translate_y": 0.0,
+        "scale_x": 1.0,
+        "scale_y": 1.0
+      }
+    }
+  ],
+  "sound_windows": [
+    {
+      "start_time_sec": 0.0,
+      "end_time_sec": 0.25,
+      "expected_sound_starts": []
+    },
+    {
+      "start_time_sec": 0.25,
+      "end_time_sec": 0.35,
+      "expected_sound_starts": [
+        0.3
+      ]
+    },
+    {
+      "start_time_sec": 0.35,
+      "end_time_sec": 0.9,
+      "expected_sound_starts": []
+    },
+    {
+      "start_time_sec": 0.9,
+      "end_time_sec": 1.01,
+      "expected_sound_starts": [
+        1.0
+      ]
+    },
+    {
+      "start_time_sec": 1.01,
+      "end_time_sec": 2.1,
+      "expected_sound_starts": []
+    }
+  ]
+}

@@ -1260,6 +1260,7 @@ def test_joke_creation_process_handles_animation_op(monkeypatch):
   sequence_data = {
     "sequence_left_eye_open": [{
       "start_time": 0.0,
+      "end_time": 0.0,
       "value": True
     }],
     "sequence_right_eye_open": [],

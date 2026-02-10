@@ -124,3 +124,62 @@ test('CharacterAnimator matches canonical fixture sound windows', async () => {
     assert.deepEqual(actualStarts, expectedStarts);
   });
 });
+
+test('CharacterAnimator updateSequence uses updated track data after cache has been primed', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+  const initialSequence = {
+    sequence_left_eye_open: [],
+    sequence_right_eye_open: [],
+    sequence_mouth_state: [
+      { start_time: 0, end_time: 1, mouth_state: 'CLOSED' },
+    ],
+    sequence_left_hand_visible: [],
+    sequence_right_hand_visible: [],
+    sequence_left_hand_transform: [],
+    sequence_right_hand_transform: [],
+    sequence_head_transform: [],
+    sequence_sound_events: [],
+  };
+  const updatedSequence = {
+    ...initialSequence,
+    sequence_mouth_state: [
+      { start_time: 0, end_time: 1, mouth_state: 'OPEN' },
+    ],
+  };
+
+  const animator = new CharacterAnimator(initialSequence, {}, {});
+
+  // Avoid requiring GSAP runtime in this unit test.
+  animator._preloadAudio = async () => {};
+  animator._buildTimeline = () => {};
+
+  // Prime internal sorted-track cache from the initial sequence.
+  assert.equal(animator.samplePoseAtTime(0.5).mouth_state, 'CLOSED');
+
+  await animator.updateSequence(updatedSequence);
+
+  // Must reflect updated sequence data after updateSequence.
+  assert.equal(animator.samplePoseAtTime(0.5).mouth_state, 'OPEN');
+});
+
+test('CharacterAnimator play always restarts from time zero', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+  const animator = new CharacterAnimator({}, {}, {});
+
+  let seekCalledWith = null;
+  animator.seek = (time) => {
+    seekCalledWith = time;
+  };
+
+  let played = false;
+  animator.timeline = {
+    play() {
+      played = true;
+    },
+  };
+
+  animator.play();
+
+  assert.equal(seekCalledWith, 0);
+  assert.equal(played, true);
+});

@@ -281,7 +281,9 @@ export class CharacterAnimator {
    * @param {Object} newSequenceData
    */
   async updateSequence(newSequenceData) {
-    this.sequenceData = newSequenceData;
+    this.sequenceData = newSequenceData || {};
+    // Invalidate cached sorted tracks so timeline rebuild uses fresh edits.
+    this._sortedTrackCache.clear();
     // Start preloading any new audio
     this._preloadAudio();
     // Rebuild timeline immediately
@@ -528,6 +530,7 @@ export class CharacterAnimator {
   }
 
   play() {
+    this.seek(0);
     this.timeline?.play();
     this._resumeAllSounds();
   }

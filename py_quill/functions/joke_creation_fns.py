@@ -289,19 +289,19 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  script_template = _parse_dialog_turn_templates(
-    get_param(req, 'script_template'))
-  audio_model_value = (get_param(req, 'audio_model') or "").strip()
-  audio_model = None
-  if audio_model_value:
-    try:
-      audio_model = audio_client.AudioModel(audio_model_value)
-    except ValueError as exc:
-      raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
-
   allow_partial = get_bool_param(req, "allow_partial", False)
 
   try:
+    script_template = _parse_dialog_turn_templates(
+      get_param(req, 'script_template'))
+    audio_model_value = (get_param(req, 'audio_model') or "").strip()
+    audio_model = None
+    if audio_model_value:
+      try:
+        audio_model = audio_client.AudioModel(audio_model_value)
+      except ValueError as exc:
+        raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
+
     audio_result = joke_operations.generate_joke_audio(
       joke,
       temp_output=True,
@@ -368,22 +368,22 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  script_template = _parse_dialog_turn_templates(
-    get_param(req, 'script_template'))
-  audio_model_value = (get_param(req, 'audio_model') or "").strip()
-  audio_model = None
-  if audio_model_value:
-    try:
-      audio_model = audio_client.AudioModel(audio_model_value)
-    except ValueError as exc:
-      raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
-
   allow_partial = get_bool_param(req, "allow_partial", False)
   is_test_video = get_bool_param(req, "is_test_video", False)
 
   audio_generation_metadata = None
   generation_metadata = models.GenerationMetadata()
   try:
+    script_template = _parse_dialog_turn_templates(
+      get_param(req, 'script_template'))
+    audio_model_value = (get_param(req, 'audio_model') or "").strip()
+    audio_model = None
+    if audio_model_value:
+      try:
+        audio_model = audio_client.AudioModel(audio_model_value)
+      except ValueError as exc:
+        raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
+
     audio_result = joke_operations.generate_joke_audio(
       joke,
       temp_output=True,

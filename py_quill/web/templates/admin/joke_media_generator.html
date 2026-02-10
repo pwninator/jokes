@@ -384,7 +384,7 @@
     function setLoading(button, isLoading, label) {
       if (!button) return;
       button.disabled = Boolean(isLoading);
-      button.textContent = isLoading ? 'Generating…' : label;
+      button.textContent = isLoading ? 'Generating...' : label;
     }
 
     function gcsToCdnUrl(gcsUri) {

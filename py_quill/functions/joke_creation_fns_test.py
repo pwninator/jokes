@@ -871,6 +871,46 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
   assert captured_audio_args["audio_model"].value == "gemini-2.5-flash-preview-tts"
 
 
+def test_joke_creation_process_handles_joke_audio_op_invalid_audio_model(
+  monkeypatch,
+):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-audio-invalid-model",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  def should_not_run(*_args, **_kwargs):
+    raise AssertionError("generate_joke_audio should not be called")
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_audio",
+    should_not_run,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value,
+        "joke_id": "j-audio-invalid-model",
+        "audio_model": "invalid-model-name",
+      }))
+
+  assert resp.status_code == 400
+  payload = resp.get_json()["data"]
+  assert payload["error_type"] == "invalid_request"
+  assert "Invalid audio_model" in payload["error"]
+
+
 def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   """JOKE_VIDEO should generate and return a video GCS URI."""
   monkeypatch.setattr(
@@ -1002,6 +1042,49 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert captured_video_args["clip_timing"] is None
   assert captured_video_args["temp_output"] is True
   assert captured_video_args["is_test"] is False
+
+
+def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
+  monkeypatch,
+):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-video-invalid-template",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  def should_not_run(*_args, **_kwargs):
+    raise AssertionError("generate_joke_audio should not be called")
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_audio",
+    should_not_run,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
+        "joke_id": "j-video-invalid-template",
+        "script_template": {
+          "voice": "GEMINI_LEDA",
+          "script": "{setup_text}",
+        },
+      }))
+
+  assert resp.status_code == 400
+  payload = resp.get_json()["data"]
+  assert payload["error_type"] == "invalid_request"
+  assert "script_template must be a list" in payload["error"]
 
 
 def test_joke_creation_process_handles_joke_video_op_can_generate_test_video(

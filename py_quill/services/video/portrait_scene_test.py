@@ -4,11 +4,14 @@ import pytest
 
 from common import models
 from common.posable_character import MouthState, PosableCharacter, Transform
-from services import cloud_storage as cloud_storage_module
-from services.video import portrait_scene
-from services.video.script import (CharacterTrackSpec, DialogClip,
-                                   PortraitJokeVideoScript, TimedImage)
+from common.posable_character_sequence import (PosableCharacterSequence,
+                                               SequenceMouthEvent,
+                                               SequenceSoundEvent,
+                                               SequenceTransformEvent)
 from PIL import Image
+from services.video import scene_video_renderer
+from services.video.script import (SceneCanvas, SceneRect, SceneScript,
+                                   TimedCharacterSequence, TimedImage)
 
 
 class _DummyCharacter(PosableCharacter):
@@ -29,171 +32,345 @@ class _DummyCharacter(PosableCharacter):
     ))
 
 
-def test_build_blink_timeline_is_deterministic():
-  t1 = portrait_scene._build_blink_timeline(duration_sec=12.0, seed=123)
-  t2 = portrait_scene._build_blink_timeline(duration_sec=12.0, seed=123)
-  assert t1.segments == t2.segments
-  assert any(seg.value is False for seg in t1.segments)
-
-
-def test_blink_and_drumming_apply_to_pose():
-  character = _DummyCharacter()
-  mouth_timeline = portrait_scene.SegmentTimeline.from_value_segments([
-    (MouthState.OPEN, 0.0, 0.5),
-  ])
-  blink_timeline = portrait_scene._build_blink_timeline(duration_sec=10.0,
-                                                       seed=1)
-  assert blink_timeline.segments
-  blink_mid = (blink_timeline.segments[0].start_time +
-               blink_timeline.segments[0].end_time) / 2.0
-
-  left_hand_timeline, right_hand_timeline = portrait_scene._build_drumming_hand_timelines(
-    start_time_sec=8.0,
-    end_time_sec=10.0,
-    step_sec=0.1,
-    amplitude_px=10.0,
-  )
-
-  render = portrait_scene._CharacterRender(
-    character=character,
-    position=(0, 0),
-    mouth_timeline=mouth_timeline,
-    scale=1.0,
-    blink_timeline=blink_timeline,
-    left_hand_timeline=left_hand_timeline,
-    right_hand_timeline=right_hand_timeline,
-  )
-
-  joke_images = [(0.0, Image.new("RGBA", (1080, 1080), (0, 0, 0, 255)))]
-  footer = Image.new("RGBA", (1080, 840), (0, 0, 0, 255))
-
-  # During blink window, both eyes should be closed.
-  with patch.object(cloud_storage_module,
-                    "download_image_from_gcs",
-                    return_value=Image.new("RGBA", (32, 32), (0, 0, 0, 0))):
-    portrait_scene._render_portrait_frame(
-      time_sec=blink_mid,
-      joke_images=joke_images,
-      footer_background=footer,
-      character_renders=[render],
-    )
-  assert character.left_eye_open is False
-  assert character.right_eye_open is False
-
-  # During drumming window, left and right hands should be opposite directions.
-  with patch.object(cloud_storage_module,
-                    "download_image_from_gcs",
-                    return_value=Image.new("RGBA", (32, 32), (0, 0, 0, 0))):
-    portrait_scene._render_portrait_frame(
-      time_sec=8.05,
-      joke_images=joke_images,
-      footer_background=footer,
-      character_renders=[render],
-    )
-  assert character.left_hand_transform.translate_y == pytest.approx(-10.0)
-  assert character.right_hand_transform.translate_y == pytest.approx(10.0)
-
-  with patch.object(cloud_storage_module,
-                    "download_image_from_gcs",
-                    return_value=Image.new("RGBA", (32, 32), (0, 0, 0, 0))):
-    portrait_scene._render_portrait_frame(
-      time_sec=8.15,
-      joke_images=joke_images,
-      footer_background=footer,
-      character_renders=[render],
-    )
-  assert character.left_hand_transform.translate_y == pytest.approx(10.0)
-  assert character.right_hand_transform.translate_y == pytest.approx(-10.0)
-
-
-def test_generate_portrait_joke_video_appends_drumming_window():
-  # Use a probing VideoClip that calls make_frame near the end so we can
-  # assert drumming is applied without encoding a real video.
-  class _ProbingVideoClip:
-    def __init__(self, make_frame, duration=None):
-      self.make_frame = make_frame
-      self.duration = duration
-      self.audio = None
-
-    def with_audio(self, audio):
-      self.audio = audio
-      return self
-
-    def write_videofile(self, output_path, **_kwargs):
-      # sample a frame in the drumming window
-      self.make_frame(float(self.duration) - 0.5)
-      with open(output_path, "wb") as f:
-        f.write(b"fake")
-
-    def close(self):
-      pass
-
-  class _FakeAudioClip:
-    def __init__(self, _path):
-      self.start = None
-
-    def with_start(self, start):
-      self.start = start
-      return self
-
-    def close(self):
-      pass
-
-  class _FakeCompositeAudio:
-    def __init__(self, _clips):
-      pass
-
-    def close(self):
-      pass
-
-  character = _DummyCharacter()
-  script = PortraitJokeVideoScript(
-    joke_images=[TimedImage(gcs_uri="gs://bucket/img.png", start_time_sec=0.0)],
-    footer_background_gcs_uri="gs://bucket/footer.png",
-    characters=[
-      CharacterTrackSpec(
-        character_id="c0",
-        character=character,
-        dialogs=[
-          DialogClip(
-            audio_gcs_uri="gs://bucket/a.wav",
-            start_time_sec=0.0,
-            transcript="hi",
-            timing=[],
-          )
-        ],
+def _simple_sequence() -> PosableCharacterSequence:
+  sequence = PosableCharacterSequence(
+    sequence_mouth_state=[
+      SequenceMouthEvent(
+        start_time=0.0,
+        end_time=0.2,
+        mouth_state=MouthState.OPEN,
       )
     ],
-    duration_sec=6.0,
-    fps=24,
-    seed=42,
+    sequence_left_hand_transform=[
+      SequenceTransformEvent(
+        start_time=0.0,
+        end_time=0.2,
+        target_transform=Transform(translate_y=-10.0),
+      )
+    ],
+    sequence_sound_events=[
+      SequenceSoundEvent(
+        start_time=0.0,
+        end_time=0.2,
+        gcs_uri="gs://bucket/a.wav",
+        volume=1.0,
+      )
+    ],
   )
+  sequence.validate()
+  return sequence
 
-  def download_image(_uri):
-    if _uri.endswith("footer.png"):
-      return Image.new("RGBA", (1080, 840), (0, 0, 0, 255))
-    return Image.new("RGBA", (1080, 1080), (0, 0, 0, 255))
+
+class _ProbingVideoClip:
+  def __init__(self, make_frame, duration=None):
+    self.make_frame = make_frame
+    self.duration = duration
+    self.audio = None
+
+  def with_audio(self, audio):
+    self.audio = audio
+    return self
+
+  def write_videofile(self, output_path, **_kwargs):
+    self.make_frame(0.1)
+    with open(output_path, "wb") as file_handle:
+      file_handle.write(b"fake")
+
+  def close(self):
+    pass
+
+
+class _FakeAudioClip:
+  def __init__(self, _path):
+    self.start = None
+    self.duration = None
+
+  def with_start(self, start):
+    self.start = start
+    return self
+
+  def with_duration(self, duration):
+    self.duration = duration
+    return self
+
+  def close(self):
+    pass
+
+
+class _FakeCompositeAudio:
+  def __init__(self, _clips):
+    pass
+
+  def close(self):
+    pass
+
+
+def test_generate_scene_video_applies_sequence_pose():
+  character = _DummyCharacter()
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=1080, height_px=1920),
+    items=[
+      TimedImage(
+        gcs_uri="gs://bucket/top.png",
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=10,
+        rect=SceneRect(x_px=0, y_px=0, width_px=1080, height_px=1080),
+        fit_mode="fill",
+      ),
+      TimedImage(
+        gcs_uri="gs://bucket/footer.png",
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=5,
+        rect=SceneRect(x_px=0, y_px=1080, width_px=1080, height_px=840),
+        fit_mode="fill",
+      ),
+      TimedCharacterSequence(
+        actor_id="left",
+        character=character,
+        sequence=_simple_sequence(),
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=20,
+        rect=SceneRect(x_px=220, y_px=1120, width_px=640, height_px=760),
+      ),
+    ],
+    duration_sec=1.0,
+  )
 
   upload_mock = MagicMock()
 
-  with patch.object(portrait_scene.cloud_storage,
+  with patch.object(scene_video_renderer.cloud_storage,
                     "download_image_from_gcs",
-                    side_effect=download_image), \
-      patch.object(portrait_scene.cloud_storage,
+                    return_value=Image.new("RGBA", (1080, 1080), (0, 0, 0, 255))), \
+      patch.object(scene_video_renderer.cloud_storage,
                    "download_bytes_from_gcs",
                    return_value=b"RIFF"), \
-      patch.object(portrait_scene.cloud_storage,
+      patch.object(scene_video_renderer.cloud_storage,
                    "upload_file_to_gcs",
                    upload_mock), \
-      patch.object(portrait_scene, "VideoClip", _ProbingVideoClip), \
-      patch.object(portrait_scene, "AudioFileClip", _FakeAudioClip), \
-      patch.object(portrait_scene, "CompositeAudioClip", _FakeCompositeAudio):
-    portrait_scene.generate_portrait_joke_video(
+      patch.object(scene_video_renderer, "VideoClip", _ProbingVideoClip), \
+      patch.object(scene_video_renderer, "AudioFileClip", _FakeAudioClip), \
+      patch.object(scene_video_renderer, "CompositeAudioClip", _FakeCompositeAudio):
+    scene_video_renderer.generate_scene_video(
       script=script,
       output_gcs_uri="gs://files/video/out.mp4",
+      label="create_portrait_character_video",
+      fps=24,
     )
 
-  # Probing frame render should have applied drumming transforms.
-  assert abs(character.left_hand_transform.translate_y) == pytest.approx(10.0)
-  assert abs(character.right_hand_transform.translate_y) == pytest.approx(10.0)
-  assert character.left_hand_transform.translate_y == -character.right_hand_transform.translate_y
+  assert character.mouth_state == MouthState.OPEN
+  assert character.left_hand_transform.translate_y == pytest.approx(-5.0)
+  upload_mock.assert_called_once()
+
+
+def test_generate_scene_video_reports_metadata():
+  character = _DummyCharacter()
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=1080, height_px=1920),
+    items=[
+      TimedImage(
+        gcs_uri="gs://bucket/footer.png",
+        start_time_sec=0.0,
+        end_time_sec=0.5,
+        z_index=5,
+        rect=SceneRect(x_px=0, y_px=1080, width_px=1080, height_px=840),
+        fit_mode="fill",
+      ),
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=_simple_sequence(),
+        start_time_sec=0.0,
+        end_time_sec=0.5,
+        z_index=20,
+        rect=SceneRect(x_px=220, y_px=1120, width_px=640, height_px=760),
+      ),
+    ],
+    duration_sec=0.5,
+  )
+
+  with patch.object(scene_video_renderer.cloud_storage,
+                    "download_image_from_gcs",
+                    return_value=Image.new("RGBA", (1080, 1080), (0, 0, 0, 255))), \
+      patch.object(scene_video_renderer.cloud_storage,
+                   "download_bytes_from_gcs",
+                   return_value=b"RIFF"), \
+      patch.object(scene_video_renderer.cloud_storage,
+                   "upload_file_to_gcs"), \
+      patch.object(scene_video_renderer, "VideoClip", _ProbingVideoClip), \
+      patch.object(scene_video_renderer, "AudioFileClip", _FakeAudioClip), \
+      patch.object(scene_video_renderer, "CompositeAudioClip", _FakeCompositeAudio):
+    _uri, metadata = scene_video_renderer.generate_scene_video(
+      script=script,
+      output_gcs_uri="gs://files/video/test.mp4",
+      label="create_portrait_character_test_video",
+      fps=24,
+    )
+
+  assert metadata.label == "create_portrait_character_test_video"
+  assert metadata.token_counts["num_characters"] == 1
+
+
+def test_scene_script_disallows_overlapping_actor_sequences():
+  character = _DummyCharacter()
+  sequence = _simple_sequence()
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=1080, height_px=1920),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=sequence,
+        start_time_sec=0.0,
+        end_time_sec=0.3,
+        z_index=10,
+        rect=SceneRect(x_px=220, y_px=1120, width_px=640, height_px=760),
+      ),
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=sequence,
+        start_time_sec=0.2,
+        end_time_sec=0.5,
+        z_index=10,
+        rect=SceneRect(x_px=220, y_px=1120, width_px=640, height_px=760),
+      ),
+    ],
+    duration_sec=0.5,
+  )
+
+  with pytest.raises(ValueError, match="Overlapping character sequence items"):
+    script.validate()
+
+
+def test_scene_script_rejects_zero_duration_items():
+  character = _DummyCharacter()
+  sequence = _simple_sequence()
+  image_script = SceneScript(
+    canvas=SceneCanvas(width_px=1080, height_px=1920),
+    items=[
+      TimedImage(
+        gcs_uri="gs://bucket/top.png",
+        start_time_sec=0.2,
+        end_time_sec=0.2,
+        z_index=10,
+        rect=SceneRect(x_px=0, y_px=0, width_px=1080, height_px=1080),
+        fit_mode="fill",
+      )
+    ],
+    duration_sec=1.0,
+  )
+  with pytest.raises(ValueError, match="must be > start_time_sec"):
+    image_script.validate()
+
+  character_script = SceneScript(
+    canvas=SceneCanvas(width_px=1080, height_px=1920),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=sequence,
+        start_time_sec=0.5,
+        end_time_sec=0.5,
+        z_index=10,
+        rect=SceneRect(x_px=220, y_px=1120, width_px=640, height_px=760),
+      )
+    ],
+    duration_sec=1.0,
+  )
+  with pytest.raises(ValueError, match="must be > start_time_sec"):
+    character_script.validate()
+
+
+def test_scene_renderer_respects_cross_type_z_order():
+  character = _DummyCharacter()
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=100, height_px=100),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=PosableCharacterSequence(),
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=5,
+        rect=SceneRect(x_px=0, y_px=0, width_px=100, height_px=100),
+        fit_mode="fill",
+      ),
+      TimedImage(
+        gcs_uri="gs://bucket/top.png",
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=10,
+        rect=SceneRect(x_px=0, y_px=0, width_px=100, height_px=100),
+        fit_mode="fill",
+      ),
+    ],
+    duration_sec=1.0,
+  )
+
+  def _image_stub(gcs_uri: str) -> Image.Image:
+    if str(gcs_uri) == "gs://bucket/top.png":
+      return Image.new("RGBA", (100, 100), (255, 0, 0, 255))
+    return Image.new("RGBA", (100, 100), (0, 255, 0, 255))
+
+  with patch.object(scene_video_renderer.cloud_storage,
+                    "download_image_from_gcs",
+                    side_effect=_image_stub):
+    prepared_images = scene_video_renderer._prepare_images(script)  # pylint: disable=protected-access
+    actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
+    frame = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
+      time_sec=0.5,
+      canvas=script.canvas,
+      prepared_images=prepared_images,
+      actor_renders=actor_renders,
+    )
+
+  pixel = frame[50, 50]
+  assert tuple(int(value) for value in pixel.tolist()) == (255, 0, 0)
+
+
+def test_scene_renderer_uses_half_open_image_windows():
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=10, height_px=10),
+    items=[
+      TimedImage(
+        gcs_uri="gs://bucket/first.png",
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=10,
+        rect=SceneRect(x_px=0, y_px=0, width_px=10, height_px=10),
+        fit_mode="fill",
+      ),
+      TimedImage(
+        gcs_uri="gs://bucket/second.png",
+        start_time_sec=1.0,
+        end_time_sec=2.0,
+        z_index=10,
+        rect=SceneRect(x_px=0, y_px=0, width_px=10, height_px=10),
+        fit_mode="fill",
+      ),
+    ],
+    duration_sec=2.0,
+  )
+
+  def _image_stub(gcs_uri: str) -> Image.Image:
+    if str(gcs_uri).endswith("first.png"):
+      return Image.new("RGBA", (10, 10), (255, 0, 0, 255))
+    return Image.new("RGBA", (10, 10), (0, 0, 255, 255))
+
+  with patch.object(scene_video_renderer.cloud_storage,
+                    "download_image_from_gcs",
+                    side_effect=_image_stub):
+    prepared_images = scene_video_renderer._prepare_images(script)  # pylint: disable=protected-access
+    frame = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
+      time_sec=1.0,
+      canvas=script.canvas,
+      prepared_images=prepared_images,
+      actor_renders=[],
+    )
+
+  pixel = frame[5, 5]
+  assert tuple(int(value) for value in pixel.tolist()) == (0, 0, 255)

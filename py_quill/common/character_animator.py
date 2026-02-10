@@ -114,12 +114,14 @@ class CharacterAnimator:
     out: list[SequenceSoundEvent] = []
     for event in self._sound_track:
       event_time = float(event.start_time)
-      if event_time < start_time_sec or (
-          not include_start and math.isclose(event_time, start_time_sec)):
+      lower_ok = (event_time >= start_time_sec
+                  if include_start else event_time > start_time_sec)
+      if not lower_ok:
         continue
 
-      if event_time > end_time_sec or (
-          not include_end and math.isclose(event_time, end_time_sec)):
+      upper_ok = (event_time <= end_time_sec
+                  if include_end else event_time < end_time_sec)
+      if not upper_ok:
         break
 
       out.append(event)
@@ -178,7 +180,7 @@ class CharacterAnimator:
     for event in track:
       start = float(event.start_time)
       end = float(event.end_time)
-      if start <= float(time_sec) <= end:
+      if start <= float(time_sec) < end:
         return bool(event.value)
       if start > float(time_sec):
         break
@@ -193,7 +195,7 @@ class CharacterAnimator:
     for event in track:
       start = float(event.start_time)
       end = float(event.end_time)
-      if start <= float(time_sec) <= end:
+      if start <= float(time_sec) < end:
         return event.mouth_state
       if start > float(time_sec):
         break
@@ -216,7 +218,7 @@ class CharacterAnimator:
       if float(time_sec) < start:
         return previous_target
 
-      if start <= float(time_sec) <= end:
+      if start <= float(time_sec) < end:
         duration = float(end - start)
         if duration <= 1e-6:
           return event.target_transform

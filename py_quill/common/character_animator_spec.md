@@ -24,7 +24,7 @@ The following implementations must strictly conform to this spec:
 ## 2. Event Interval Rules
 
 - For boolean and mouth tracks, an event is active when:
-  `event.start_time <= t <= event_end`.
+  `event.start_time <= t < event_end`.
 - `event_end` is always `event.end_time`.
 - Instantaneous state changes are represented explicitly with
   `end_time == start_time`.
@@ -36,7 +36,7 @@ The following implementations must strictly conform to this spec:
 ## 3. Transform Track Rules
 
 - Tracks are sorted by `start_time`.
-- While inside an event (`start <= t <= end`), transform is linear interpolation
+- While inside an event (`start <= t < end`), transform is linear interpolation
   from previous event's target (or identity for first event) to current target.
 - For zero-duration transform events (`end == start`), the target transform
   applies instantly.
@@ -48,6 +48,7 @@ The following implementations must strictly conform to this spec:
 
 - Sound events are keyed by `start_time`.
 - Sound events must include `end_time`.
+- Sound events must have positive duration (`end_time > start_time`).
 - Playback starts at `start_time` and is forcibly stopped at `end_time`.
 - To play the full clip, set `end_time >= start_time + clip_duration_sec`.
 - It is valid to stop early by setting

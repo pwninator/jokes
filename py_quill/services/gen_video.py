@@ -7,7 +7,6 @@ import random
 import tempfile
 import time
 import traceback
-import zlib
 
 from common import audio_timing, models, utils
 from common.posable_character import PosableCharacter
@@ -15,11 +14,9 @@ from firebase_functions import logger
 from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
                      ImageClip)
 from services import cloud_storage
-from services.video.portrait_scene import (generate_portrait_joke_video,
-                                           generate_portrait_mouth_test_video)
-from services.video.script import (CharacterTrackSpec, DialogClip,
-                                   PortraitJokeVideoScript,
-                                   PortraitMouthTestVideoScript, TimedImage)
+from services import mouth_event_detection
+from services.video.scene_video_renderer import generate_scene_video
+from services.video import joke_social_script_builder
 
 _DEFAULT_VIDEO_FPS = 24
 
@@ -222,35 +219,20 @@ def create_portrait_character_video(
   )
 
   try:
-    seed = _stable_seed(output_filename_base)
-    script = PortraitJokeVideoScript(
-      joke_images=[
-        TimedImage(gcs_uri=gcs_uri, start_time_sec=float(start_time))
-        for gcs_uri, start_time in normalized_images
-      ],
+    script = joke_social_script_builder.build_portrait_joke_scene_script(
+      joke_images=normalized_images,
+      character_dialogs=normalized_dialogs,
       footer_background_gcs_uri=str(footer_background_gcs_uri),
-      characters=[
-        CharacterTrackSpec(
-          character_id=f"character_{idx}",
-          character=character,
-          dialogs=[
-            DialogClip(
-              audio_gcs_uri=gcs_uri,
-              start_time_sec=float(start_time),
-              transcript=str(transcript),
-              timing=timing,
-            ) for gcs_uri, start_time, transcript, timing in dialogs
-          ],
-        ) for idx, (character, dialogs) in enumerate(normalized_dialogs)
-        if character is not None
-      ],
-      duration_sec=float(total_duration_sec),
-      fps=_DEFAULT_VIDEO_FPS,
-      seed=seed,
+      total_duration_sec=float(total_duration_sec),
+      detect_mouth_events_fn=mouth_event_detection.detect_mouth_events,
+      include_drumming=True,
+      drumming_duration_sec=2.0,
     )
-    gcs_uri, metadata = generate_portrait_joke_video(
+    gcs_uri, metadata = generate_scene_video(
       script=script,
       output_gcs_uri=output_gcs_uri,
+      label="create_portrait_character_video",
+      fps=_DEFAULT_VIDEO_FPS,
     )
     _log_video_response(
       images=normalized_images,
@@ -308,31 +290,17 @@ def create_portrait_character_test_video(
   )
 
   try:
-    seed = _stable_seed(output_filename_base)
-    script = PortraitMouthTestVideoScript(
+    script = joke_social_script_builder.build_portrait_test_scene_script(
+      character_dialogs=normalized_dialogs,
       footer_background_gcs_uri=str(footer_background_gcs_uri),
-      characters=[
-        CharacterTrackSpec(
-          character_id=f"character_{idx}",
-          character=character,
-          dialogs=[
-            DialogClip(
-              audio_gcs_uri=gcs_uri,
-              start_time_sec=float(start_time),
-              transcript=str(transcript),
-              timing=timing,
-            ) for gcs_uri, start_time, transcript, timing in dialogs
-          ],
-        ) for idx, (character, dialogs) in enumerate(normalized_dialogs)
-        if character is not None
-      ],
-      duration_sec=float(total_duration_sec),
-      fps=_DEFAULT_VIDEO_FPS,
-      seed=seed,
+      total_duration_sec=float(total_duration_sec),
+      detect_mouth_events_fn=mouth_event_detection.detect_mouth_events,
     )
-    gcs_uri, metadata = generate_portrait_mouth_test_video(
+    gcs_uri, metadata = generate_scene_video(
       script=script,
       output_gcs_uri=output_gcs_uri,
+      label="create_portrait_character_test_video",
+      fps=_DEFAULT_VIDEO_FPS,
     )
     _log_video_response(images=[],
                         audio_files=normalized_audio,
@@ -617,8 +585,3 @@ def _flatten_character_audio(
       (gcs_uri, float(start_time)) for gcs_uri, start_time, _, _ in dialogs)
   return flattened
 
-
-def _stable_seed(value: str) -> int:
-  """Return a stable 32-bit seed for deterministic randomness."""
-  data = str(value).encode("utf-8", errors="ignore")
-  return int(zlib.crc32(data) & 0xFFFFFFFF)

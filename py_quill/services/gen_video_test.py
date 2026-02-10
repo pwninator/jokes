@@ -10,7 +10,7 @@ from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
 from PIL import Image
 from services import gen_video
-from services.video import portrait_scene
+from services.video import scene_video_renderer as portrait_scene
 from services.video.mouth import apply_forced_closures
 
 
@@ -418,7 +418,7 @@ def test_create_portrait_character_video_uploads_mp4():
                    side_effect=download_bytes), \
       patch.object(gen_video.cloud_storage, "download_image_from_gcs",
                    side_effect=download_image), \
-      patch.object(portrait_scene.mouth_event_detection,
+      patch.object(gen_video.mouth_event_detection,
                    "detect_mouth_events",
                    side_effect=detect_stub), \
       patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
@@ -437,7 +437,7 @@ def test_create_portrait_character_video_uploads_mp4():
 
   assert gcs_uri == "gs://files/video/portrait.mp4"
   assert metadata.model_name == "moviepy"
-  assert metadata.token_counts["num_images"] == 2
+  assert metadata.token_counts["num_images"] == 3
   assert metadata.token_counts["num_audio_files"] == 2
   assert metadata.token_counts["num_characters"] == 2
   assert [mode for mode, _transcript, _timing in detect_calls] == [
@@ -458,7 +458,7 @@ def test_create_portrait_character_video_uploads_mp4():
   uploaded_content_type = upload_mock.call_args.kwargs["content_type"]
   assert uploaded_uri == "gs://files/video/portrait.mp4"
   assert uploaded_content_type == "video/mp4"
-  assert uploaded_path.endswith("portrait.mp4")
+  assert uploaded_path.endswith("scene.mp4")
 
 
 def test_create_portrait_character_test_video_uploads_mp4():
@@ -497,7 +497,7 @@ def test_create_portrait_character_test_video_uploads_mp4():
                    side_effect=download_bytes), \
       patch.object(gen_video.cloud_storage, "download_image_from_gcs",
                    side_effect=download_image), \
-      patch.object(portrait_scene.mouth_event_detection,
+      patch.object(gen_video.mouth_event_detection,
                    "detect_mouth_events",
                    side_effect=detect_stub), \
       patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
@@ -515,11 +515,11 @@ def test_create_portrait_character_test_video_uploads_mp4():
 
   assert gcs_uri == "gs://files/video/portrait_test.mp4"
   assert metadata.model_name == "moviepy"
-  assert metadata.token_counts["num_rows"] == 2
-  assert metadata.token_counts["num_characters"] == 4
+  assert metadata.token_counts["num_images"] == 1
+  assert metadata.token_counts["num_characters"] == 2
 
-  # Timing-only test video with two variants (forced closures off/on) x 2 chars.
-  assert len(detect_calls) == 4
+  # Sequence generation runs lip-sync detection once per character track.
+  assert len(detect_calls) == 2
   assert all(mode == "timing"
              for mode, _transcript, _has_timing in detect_calls)
   assert all(_has_timing for _mode, _transcript, _has_timing in detect_calls)
@@ -536,4 +536,4 @@ def test_create_portrait_character_test_video_uploads_mp4():
   uploaded_content_type = upload_mock.call_args.kwargs["content_type"]
   assert uploaded_uri == "gs://files/video/portrait_test.mp4"
   assert uploaded_content_type == "video/mp4"
-  assert uploaded_path.endswith("portrait_test.mp4")
+  assert uploaded_path.endswith("scene.mp4")

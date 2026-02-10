@@ -18,9 +18,11 @@ class SequenceEvent:
   def validate(self) -> None:
     """Validate that the event is valid."""
     if self.start_time < 0:
-      raise ValueError("start_time must be non-negative")
+      raise ValueError(f"start_time ({self.start_time}) must be non-negative")
     if self.end_time < self.start_time:
-      raise ValueError("end_time must be greater than or equal to start_time")
+      raise ValueError(
+        f"end_time ({self.end_time}) must be greater than or equal to start_time ({self.start_time})"
+      )
 
   def to_dict(self) -> dict[str, Any]:
     """Convert the event to a dictionary."""
@@ -98,6 +100,9 @@ class SequenceSoundEvent(SequenceEvent):
 
   def validate(self) -> None:
     super().validate()
+    if float(self.end_time) <= float(self.start_time):
+      raise ValueError(
+        "Sound events must have positive duration (end_time > start_time)")
     if not self.gcs_uri:
       raise ValueError("gcs_uri must be provided")
 

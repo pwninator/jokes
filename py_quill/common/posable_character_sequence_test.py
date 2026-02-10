@@ -76,6 +76,14 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     ])
     seq.validate()
 
+  def test_sound_validation_rejects_zero_duration(self):
+    seq = PosableCharacterSequence(sequence_sound_events=[
+      SequenceSoundEvent(start_time=1.0, end_time=1.0, gcs_uri="uri1"),
+    ])
+    with self.assertRaisesRegex(
+      ValueError, "Sound events must have positive duration"):
+      seq.validate()
+
 
 if __name__ == '__main__':
   unittest.main()

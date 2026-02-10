@@ -136,9 +136,9 @@ class PosableCharacterGeneratorTest(unittest.TestCase):
     next(gen)
     self.assertEqual(self.char.mouth_state, MouthState.OPEN)
 
-    # t=1.0: E1 ends. (Inclusive). Open.
+    # t=1.0: E1 end boundary. Half-open interval -> default (Closed).
     next(gen)
-    self.assertEqual(self.char.mouth_state, MouthState.OPEN)
+    self.assertEqual(self.char.mouth_state, MouthState.CLOSED)
 
     # t=1.5: Gap. Default (Closed).
     next(gen)

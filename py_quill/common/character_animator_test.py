@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 
 from common.character_animator import CharacterAnimator
+from common.posable_character import MouthState
 from common.posable_character_sequence import PosableCharacterSequence
+from common.posable_character_sequence import SequenceMouthEvent
 
 
 def _fixture_path() -> Path:
@@ -101,6 +103,25 @@ class CharacterAnimatorTest(unittest.TestCase):
       sound_starts = [float(event.start_time) for event in sounds]
       expected_starts = [float(value) for value in window["expected_sound_starts"]]
       self.assertEqual(sound_starts, expected_starts)
+
+  def test_adjacent_mouth_events_use_half_open_windows(self):
+    sequence = PosableCharacterSequence(
+      sequence_mouth_state=[
+        SequenceMouthEvent(
+          start_time=0.0,
+          end_time=1.0,
+          mouth_state=MouthState.OPEN,
+        ),
+        SequenceMouthEvent(
+          start_time=1.0,
+          end_time=2.0,
+          mouth_state=MouthState.O,
+        ),
+      ])
+    animator = CharacterAnimator(sequence)
+
+    self.assertEqual(animator.sample_pose(0.999).mouth_state, MouthState.OPEN)
+    self.assertEqual(animator.sample_pose(1.0).mouth_state, MouthState.O)
 
 
 if __name__ == "__main__":

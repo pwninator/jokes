@@ -19,8 +19,7 @@ T = TypeVar("T")
 class Segment(Generic[T]):
   """A half-open value span used by `SegmentTimeline`.
 
-  The rendering code treats each segment as active from `start_time` through
-  `end_time` inclusively for sampling stability at exact frame boundaries.
+  Segments are active on `[start_time, end_time)`.
   """
   start_time: float
   end_time: float
@@ -65,7 +64,7 @@ class SegmentTimeline(Generic[T]):
       return default
 
     seg = self._segments[idx]
-    if time_sec <= float(seg.end_time):
+    if time_sec < float(seg.end_time):
       return seg.value
     return default
 

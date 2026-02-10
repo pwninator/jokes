@@ -127,6 +127,7 @@
 
   let animator = null;
   let editor = null;
+  let isSequenceDirty = false;
 
   // DOM Elements
   const stage = document.getElementById('stage');
@@ -141,6 +142,12 @@
   const imgHandL = document.getElementById('char-hand-l');
   const imgHandR = document.getElementById('char-hand-r');
 
+  const loadBtn = document.getElementById('load-btn');
+  const newSeqBtn = document.getElementById('new-seq-btn');
+  const saveBtn = document.getElementById('save-btn');
+  const playBtn = document.getElementById('play-btn');
+  const pauseBtn = document.getElementById('pause-btn');
+  const seqSelect = document.getElementById('seq-select');
   const seqIdInput = document.getElementById('seq-id-input');
   const defSelect = document.getElementById('def-select');
 
@@ -162,8 +169,64 @@
   const charRightEyeClosedUriInput = document.getElementById('char-right-eye-closed-uri');
   const charFileIdentifierInput = document.getElementById('char-file-identifier');
 
+  function createEmptySequence() {
+      return {
+          sequence_head_transform: [],
+          sequence_left_hand_transform: [],
+          sequence_right_hand_transform: [],
+          sequence_left_eye_open: [],
+          sequence_right_eye_open: [],
+          sequence_mouth_state: [],
+          sequence_left_hand_visible: [],
+          sequence_right_hand_visible: [],
+          sequence_sound_events: []
+      };
+  }
 
-  // Helper to get DOM map
+  function normalizeSequenceData(sequence) {
+      const normalized = createEmptySequence();
+      const source = sequence || {};
+      Object.keys(normalized).forEach((trackName) => {
+          normalized[trackName] = Array.isArray(source[trackName]) ? source[trackName] : [];
+      });
+      return normalized;
+  }
+
+  function setSequenceDirty(isDirty) {
+      isSequenceDirty = isDirty;
+  }
+
+  function confirmDiscardSequenceChanges() {
+      if (!isSequenceDirty) {
+          return true;
+      }
+      return confirm('Start over and discard unsaved sequence changes?');
+  }
+
+  function setPlaybackButtonsEnabled(isEnabled) {
+      playBtn.disabled = !isEnabled;
+      pauseBtn.disabled = !isEnabled;
+  }
+
+  function setSequenceIdState(sequenceId, isExisting) {
+      seqIdInput.value = sequenceId || '';
+      seqIdInput.disabled = isExisting;
+  }
+
+  function ensureSequenceOption(sequenceId) {
+      if (!sequenceId) {
+          return;
+      }
+      const exists = Array.from(seqSelect.options).some((option) => option.value === sequenceId);
+      if (exists) {
+          return;
+      }
+      const option = document.createElement('option');
+      option.value = sequenceId;
+      option.textContent = sequenceId;
+      seqSelect.appendChild(option);
+  }
+
   function getDomElements() {
       return {
         head: headGroup,
@@ -175,23 +238,49 @@
       };
   }
 
-  // Toggle Character Editor
+  async function fetchAnimatorData(payload) {
+      const resp = await fetch('/admin/api/character-animator/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+      if (resp.ok) {
+          return resp.json();
+      }
+
+      let message = 'Request failed';
+      try {
+          const errorData = await resp.json();
+          message = errorData.error || message;
+      } catch (_err) {
+          message = await resp.text();
+      }
+      throw new Error(message);
+  }
+
+  async function fetchDefinition(defId) {
+      const data = await fetchAnimatorData({ def_id: defId });
+      if (!data.definition) {
+          throw new Error('Character definition not found');
+      }
+      return data.definition;
+  }
+
   document.getElementById('edit-char-btn').addEventListener('click', () => {
       const isHidden = charEditorContainer.style.display === 'none';
       charEditorContainer.style.display = isHidden ? 'block' : 'none';
       if (isHidden) {
-          loadCharacterDef();
+          loadCharacterDefinitionIntoForm();
       }
   });
 
-  // Reload character editor if selection changes while open
   defSelect.addEventListener('change', () => {
       if (charEditorContainer.style.display !== 'none') {
-          loadCharacterDef();
+          loadCharacterDefinitionIntoForm();
       }
   });
 
-  async function loadCharacterDef() {
+  async function loadCharacterDefinitionIntoForm() {
       const defId = defSelect.value;
       if (!defId) {
           clearCharacterForm();
@@ -199,17 +288,8 @@
       }
 
       try {
-          const resp = await fetch('/admin/api/character-animator/data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ def_id: defId })
-          });
-          if (!resp.ok) throw new Error('Failed to load character definition');
-          const data = await resp.json();
-          const def = data.definition;
-          if (def) {
-              populateCharacterForm(def);
-          }
+          const def = await fetchDefinition(defId);
+          populateCharacterForm(def);
       } catch (e) {
           console.error(e);
           alert('Error loading character: ' + e.message);
@@ -324,38 +404,41 @@
       }
   });
 
-  // Initial load logic
-  document.getElementById('load-btn').addEventListener('click', async () => {
+  async function startSequenceEditor(definition, sequenceData, sequenceId, isExisting) {
+      const normalizedSequence = normalizeSequenceData(sequenceData);
+      setupStage(definition);
+      initializeComponents(normalizedSequence, definition);
+      setSequenceIdState(sequenceId, isExisting);
+      if (!isExisting) {
+          seqSelect.value = '';
+      }
+      setSequenceDirty(false);
+  }
+
+  async function loadExistingSequence() {
     const defId = defSelect.value;
-    const seqId = document.getElementById('seq-select').value;
+    const seqId = seqSelect.value;
 
     if (!defId || !seqId) {
       alert('Please select both a definition and a sequence.');
       return;
     }
+    if (!confirmDiscardSequenceChanges()) {
+      return;
+    }
 
-    const loadBtn = document.getElementById('load-btn');
     loadBtn.disabled = true;
     loadBtn.textContent = 'Loading...';
 
     try {
-      const resp = await fetch('/admin/api/character-animator/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ def_id: defId, seq_id: seqId })
-      });
-
-      if (!resp.ok) throw new Error('Failed to load data');
-      const data = await resp.json();
+      const data = await fetchAnimatorData({ def_id: defId, seq_id: seqId });
       const def = data.definition;
       const seq = data.sequence;
+      if (!def || !seq) {
+          throw new Error('Missing definition or sequence payload');
+      }
 
-      setupStage(def);
-      initializeComponents(seq, def);
-
-      // Update UI state
-      seqIdInput.value = seq.key || '';
-      seqIdInput.disabled = true;
+      await startSequenceEditor(def, seq, seq.key || seqId, true);
 
     } catch (e) {
       console.error(e);
@@ -364,122 +447,52 @@
       loadBtn.disabled = false;
       loadBtn.textContent = 'Load';
     }
-  });
+  }
 
-  // New Sequence Logic
-  document.getElementById('new-seq-btn').addEventListener('click', async () => {
+  async function createNewSequence() {
       const defId = defSelect.value;
       if (!defId) {
           alert('Please select a Character Definition first.');
           return;
       }
-
-      // We need the definition to setup the stage, so fetch just that if not already loaded?
-      // Actually, we can fetch definition by ID separately if needed, but reusing the API is easiest.
-      // Or we can just require loading *something* first?
-      // Better: Fetch definition details if we don't have them.
-      // For simplicity, let's assume the user has to pick a def ID, and we can fetch it.
-      // But our existing API requires seq_id.
-      // Let's make a new endpoint or just use what we have?
-      // Actually, we can't easily fetch just the def with existing endpoint without a seq_id.
-      // Hack: We can pick the first sequence temporarily? No.
-      // Let's just alert the user to select a Def, and we'll fetch it.
-      // Wait, we need an endpoint for just the definition.
-      // The `character_animator_data` endpoint requires `seq_id`.
-      // I should update that endpoint or use a workaround.
-      // Workaround: We can't render the stage without dimensions/images.
-      // I'll check if I can modify the python endpoint quickly or just fetch a dummy sequence.
-      // Actually, I'll modify the JS to ask the user to load a sequence first, then click New?
-      // No, that's bad UX.
-
-      // Let's modify the python endpoint to make seq_id optional?
-      // "get character definition and sequence data".
-      // If seq_id is missing, it returns error.
-
-      // Since I am only supposed to modify the template in this step, I might be blocked on fetching just the def.
-      // However, `character_defs` is passed to the template. But it only has `key` and `name`. It doesn't have the full object with image URIs.
-      // I will add logic to fetch the definition alone.
-      // I'll assume I can pass `seq_id=''` to the API and it might handle it?
-      // The python code: `if not def_id or not seq_id: return error`.
-
-      // I will skip fetching definition for "New" if one is not already loaded?
-      // Or I can just clear the sequence data but keep the definition if one was already loaded.
-      if (!animator) {
-          alert("Please load an existing sequence first to set up the character definition, then click New Sequence to clear the timeline.");
-          // This is a bit clunky but avoids changing backend code I didn't plan for.
-          // Wait, the user asked to "Sync your git client... and describe the admin page... as well as the upsert operations...".
-          // I am allowed to make changes.
-          // I'll update the Python endpoint to allow missing seq_id.
+      if (!confirmDiscardSequenceChanges()) {
           return;
       }
 
-      if (confirm("Start a new sequence? Unsaved changes will be lost.")) {
-          const emptySeq = {
-              sequence_head_transform: [],
-              sequence_left_hand_transform: [],
-              sequence_right_hand_transform: [],
-              sequence_left_eye_open: [],
-              sequence_right_eye_open: [],
-              sequence_mouth_state: [],
-              sequence_left_hand_visible: [],
-              sequence_right_hand_visible: [],
-              sequence_sound_events: []
-          };
+      newSeqBtn.disabled = true;
+      newSeqBtn.textContent = 'Preparing...';
 
-          // Re-init with empty sequence, keeping current definition
-          initializeComponents(emptySeq, animator.characterDefinition);
-
-          seqIdInput.value = '';
-          seqIdInput.disabled = false;
-          document.getElementById('seq-select').value = "";
+      try {
+          const definition = await fetchDefinition(defId);
+          await startSequenceEditor(definition, createEmptySequence(), '', false);
+      } catch (e) {
+          console.error(e);
+          alert('Error creating new sequence: ' + e.message);
+      } finally {
+          newSeqBtn.disabled = false;
+          newSeqBtn.textContent = 'New Sequence';
       }
-  });
+  }
 
-  // Save Sequence Logic
-  document.getElementById('save-btn').addEventListener('click', async () => {
-      if (!editor) return;
+  async function saveSequence() {
+      if (!editor) {
+          alert('Load or create a sequence first.');
+          return;
+      }
 
       const seqId = seqIdInput.value.trim();
-      // If seqId is empty, backend generates one.
+      const sequenceData = normalizeSequenceData(editor.sequenceData);
 
-      const sequenceData = editor.sequenceData;
-
-      const saveBtn = document.getElementById('save-btn');
       saveBtn.disabled = true;
       saveBtn.textContent = 'Saving...';
 
       try {
-          // joke_creation_process op=animation
-          // params: op=animation, sequence_data (json), sequence_id (optional)
-
           const formData = new FormData();
           formData.append('op', 'animation');
           formData.append('sequence_data', JSON.stringify(sequenceData));
           if (seqId) {
               formData.append('sequence_id', seqId);
           }
-
-          // We need to call the cloud function URL.
-          // Assuming it's available at /joke_creation_process or similar.
-          // In admin context, we might need the full URL or a relative one if rewritten.
-          // `functions/joke_creation_fns.py` -> `joke_creation_process`.
-          // Usually mapped in firebase.json.
-          // Let's assume `/joke_creation_process` or construct it.
-          // Since I don't know the exact rewritten URL, I'll check `firebase.json` if possible,
-          // or assume standard function URL convention /api/joke_creation_process?
-          // The codebase uses `web_fns.py` for `/admin`.
-          // `joke_creation_process` is a separate function.
-          // Often accessed via direct URL.
-          // I'll use a relative path if rewrites exist, or absolute.
-          // Let's assume `/joke-creation-process` based on function name?
-          // I'll check `firebase.json` quickly in my thought process.
-          // But wait, I can't check it now easily without interrupting write_file.
-          // I'll assume `/joke-creation-process` is the standard rewrite for function `joke_creation_process`.
-          // Or `https://<region>-<project>.cloudfunctions.net/joke_creation_process`.
-          // Since I'm on the admin page served by `web`, I'm on the same domain.
-          // I'll try `/joke-creation-process` (kebab-case is common for firebase rewrites).
-          // Actually, let's just guess `joke_creation_process` (snake_case) or verify later.
-          // I will use `/joke_creation_process` for now.
 
           const resp = await fetch('/joke_creation_process', {
               method: 'POST',
@@ -492,20 +505,16 @@
           }
 
           const result = await resp.json();
-          const savedSeq = result.data; // success_response wraps in data
+          const savedSeq = result.data;
 
           alert('Sequence saved successfully!');
-
-          // Update UI
           if (savedSeq.key) {
-              seqIdInput.value = savedSeq.key;
-              seqIdInput.disabled = true; // Now it's existing
+              setSequenceIdState(savedSeq.key, true);
+              ensureSequenceOption(savedSeq.key);
+              seqSelect.value = savedSeq.key;
+              setSequenceDirty(false);
           }
 
-          // Reload page to update list?
-          // window.location.reload();
-          // Maybe just reload list via API? Too complex for now.
-          // Reloading page is safest to ensure state consistency.
           if (confirm("Reload page to update list?")) {
               window.location.reload();
           }
@@ -517,10 +526,13 @@
           saveBtn.disabled = false;
           saveBtn.textContent = 'Save Sequence';
       }
-  });
+  }
 
-  document.getElementById('play-btn').addEventListener('click', () => animator?.play());
-  document.getElementById('pause-btn').addEventListener('click', () => animator?.pause());
+  loadBtn.addEventListener('click', loadExistingSequence);
+  newSeqBtn.addEventListener('click', createNewSequence);
+  saveBtn.addEventListener('click', saveSequence);
+  playBtn.addEventListener('click', () => animator?.play());
+  pauseBtn.addEventListener('click', () => animator?.pause());
 
   function setupStage(def) {
       stage.style.width = `${def.width}px`;
@@ -536,22 +548,25 @@
   }
 
   function initializeComponents(seq, def) {
-      // 1. Setup Animator
-      if (animator) animator.pause(); // Cleanup?
-      animator = new CharacterAnimator(seq, getDomElements(), def);
-      animator.init(); // Async but we don't await for UI responsiveness? Better to await.
-      animator.init().then(() => {
-          document.getElementById('play-btn').disabled = false;
-          document.getElementById('pause-btn').disabled = false;
-      });
-
-      // 2. Setup Editor
-      const container = document.getElementById('editor-container');
+      if (animator) {
+          animator.pause();
+      }
       if (editor) {
           editor.destroy();
       }
+
+      setPlaybackButtonsEnabled(false);
+      animator = new CharacterAnimator(seq, getDomElements(), def);
+      animator.init().then(() => {
+          setPlaybackButtonsEnabled(true);
+      }).catch((err) => {
+          console.error(err);
+          alert('Error initializing animator: ' + err.message);
+      });
+
+      const container = document.getElementById('editor-container');
       editor = new CharacterEditor(container, seq, (updatedSeq) => {
-          // On update, refresh animator
+          setSequenceDirty(true);
           if (animator) {
               animator.updateSequence(updatedSeq);
               animator.seek(0);
@@ -559,5 +574,6 @@
       });
   }
 
+  setPlaybackButtonsEnabled(false);
 </script>
 {% endblock %}

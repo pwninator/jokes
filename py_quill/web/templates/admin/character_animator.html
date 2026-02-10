@@ -78,8 +78,8 @@
     <div style="display: flex; flex-direction: column; gap: 8px;">
         <label>Name: <input type="text" id="char-name" style="width: 100%;"></label>
         <div style="display: flex; gap: 16px;">
-            <label>Width: <input type="number" id="char-width"></label>
-            <label>Height: <input type="number" id="char-height"></label>
+            <label>Width: <span id="char-width-text"></span></label>
+            <label>Height: <span id="char-height-text"></span></label>
         </div>
         <label>Head GCS URI: <input type="text" id="char-head-uri" style="width: 100%;"></label>
         <label>Left Hand GCS URI: <input type="text" id="char-left-hand-uri" style="width: 100%;"></label>
@@ -91,6 +91,10 @@
         <label>Left Eye Closed GCS URI: <input type="text" id="char-left-eye-closed-uri" style="width: 100%;"></label>
         <label>Right Eye Open GCS URI: <input type="text" id="char-right-eye-open-uri" style="width: 100%;"></label>
         <label>Right Eye Closed GCS URI: <input type="text" id="char-right-eye-closed-uri" style="width: 100%;"></label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <label>File Identifier: <input type="text" id="char-file-identifier"></label>
+            <button id="fill-uris-btn" class="text-button">Fill URIs</button>
+        </div>
 
         <div style="margin-top: 16px; display: flex; gap: 16px;">
             <button id="new-char-btn" class="text-button">New Character (Clear)</button>
@@ -144,8 +148,8 @@
   const charEditorContainer = document.getElementById('character-editor-container');
   const charIdInput = document.getElementById('char-id-input');
   const charNameInput = document.getElementById('char-name');
-  const charWidthInput = document.getElementById('char-width');
-  const charHeightInput = document.getElementById('char-height');
+  const charWidthText = document.getElementById('char-width-text');
+  const charHeightText = document.getElementById('char-height-text');
   const charHeadUriInput = document.getElementById('char-head-uri');
   const charLeftHandUriInput = document.getElementById('char-left-hand-uri');
   const charRightHandUriInput = document.getElementById('char-right-hand-uri');
@@ -156,6 +160,7 @@
   const charLeftEyeClosedUriInput = document.getElementById('char-left-eye-closed-uri');
   const charRightEyeOpenUriInput = document.getElementById('char-right-eye-open-uri');
   const charRightEyeClosedUriInput = document.getElementById('char-right-eye-closed-uri');
+  const charFileIdentifierInput = document.getElementById('char-file-identifier');
 
 
   // Helper to get DOM map
@@ -214,8 +219,8 @@
   function populateCharacterForm(def) {
       charIdInput.value = def.key || '';
       charNameInput.value = def.name || '';
-      charWidthInput.value = def.width || 0;
-      charHeightInput.value = def.height || 0;
+      charWidthText.textContent = def.width ?? '';
+      charHeightText.textContent = def.height ?? '';
       charHeadUriInput.value = def.head_gcs_uri || '';
       charLeftHandUriInput.value = def.left_hand_gcs_uri || '';
       charRightHandUriInput.value = def.right_hand_gcs_uri || '';
@@ -231,8 +236,8 @@
   function clearCharacterForm() {
       charIdInput.value = '';
       charNameInput.value = '';
-      charWidthInput.value = 0;
-      charHeightInput.value = 0;
+      charWidthText.textContent = '';
+      charHeightText.textContent = '';
       charHeadUriInput.value = '';
       charLeftHandUriInput.value = '';
       charRightHandUriInput.value = '';
@@ -243,7 +248,29 @@
       charLeftEyeClosedUriInput.value = '';
       charRightEyeOpenUriInput.value = '';
       charRightEyeClosedUriInput.value = '';
+      charFileIdentifierInput.value = '';
   }
+
+  document.getElementById('fill-uris-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      const fileIdentifier = charFileIdentifierInput.value.trim();
+      if (!fileIdentifier) {
+          alert('Please enter a file identifier.');
+          return;
+      }
+
+      const baseUri = `gs://images.quillsstorybook.com/_joke_assets/characters/${fileIdentifier}`;
+      charHeadUriInput.value = `${baseUri}/${fileIdentifier}_head.png`;
+      charLeftHandUriInput.value = `${baseUri}/${fileIdentifier}_hand_left.png`;
+      charRightHandUriInput.value = `${baseUri}/${fileIdentifier}_hand_right.png`;
+      charMouthOpenUriInput.value = `${baseUri}/${fileIdentifier}_mouth_open.png`;
+      charMouthClosedUriInput.value = `${baseUri}/${fileIdentifier}_mouth_closed.png`;
+      charMouthOUriInput.value = `${baseUri}/${fileIdentifier}_mouth_o.png`;
+      charLeftEyeOpenUriInput.value = `${baseUri}/${fileIdentifier}_eye_left_open.png`;
+      charLeftEyeClosedUriInput.value = `${baseUri}/${fileIdentifier}_eye_left_closed.png`;
+      charRightEyeOpenUriInput.value = `${baseUri}/${fileIdentifier}_eye_right_open.png`;
+      charRightEyeClosedUriInput.value = `${baseUri}/${fileIdentifier}_eye_right_closed.png`;
+  });
 
   document.getElementById('new-char-btn').addEventListener('click', (e) => {
       e.preventDefault();
@@ -262,8 +289,6 @@
           formData.append('op', 'character');
           if (charIdInput.value) formData.append('character_id', charIdInput.value);
           formData.append('name', charNameInput.value);
-          formData.append('width', charWidthInput.value);
-          formData.append('height', charHeightInput.value);
           formData.append('head_gcs_uri', charHeadUriInput.value);
           formData.append('left_hand_gcs_uri', charLeftHandUriInput.value);
           formData.append('right_hand_gcs_uri', charRightHandUriInput.value);

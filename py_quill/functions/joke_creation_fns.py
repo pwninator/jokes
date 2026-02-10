@@ -16,7 +16,7 @@ from functions.function_utils import (AuthError, error_response,
                                       get_param, get_user_id,
                                       handle_cors_preflight,
                                       handle_health_check, success_response)
-from services import audio_client, firestore, gen_audio
+from services import audio_client, cloud_storage, firestore, gen_audio
 
 
 class JokeCreationOp(str, Enum):
@@ -736,8 +736,6 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
 
   # Extract fields
   name = (get_param(req, "name") or "").strip()
-  width = get_param(req, "width")
-  height = get_param(req, "height")
   head_gcs_uri = (get_param(req, "head_gcs_uri") or "").strip()
   left_hand_gcs_uri = (get_param(req, "left_hand_gcs_uri") or "").strip()
   right_hand_gcs_uri = (get_param(req, "right_hand_gcs_uri") or "").strip()
@@ -754,8 +752,20 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
                               or "").strip()
 
   try:
-    width_int = int(width) if width is not None else 0
-    height_int = int(height) if height is not None else 0
+    asset_uris = {
+      "head_gcs_uri": head_gcs_uri,
+      "left_hand_gcs_uri": left_hand_gcs_uri,
+      "right_hand_gcs_uri": right_hand_gcs_uri,
+      "mouth_open_gcs_uri": mouth_open_gcs_uri,
+      "mouth_closed_gcs_uri": mouth_closed_gcs_uri,
+      "mouth_o_gcs_uri": mouth_o_gcs_uri,
+      "left_eye_open_gcs_uri": left_eye_open_gcs_uri,
+      "left_eye_closed_gcs_uri": left_eye_closed_gcs_uri,
+      "right_eye_open_gcs_uri": right_eye_open_gcs_uri,
+      "right_eye_closed_gcs_uri": right_eye_closed_gcs_uri,
+    }
+    width_int, height_int = _validate_character_assets_and_get_dimensions(
+      asset_uris)
 
     char_def = models.PosableCharacterDef(
       key=character_id or None,
@@ -802,3 +812,43 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string, error_type="internal_error", req=req)
+
+
+def _validate_character_assets_and_get_dimensions(
+  asset_uris: dict[str, str],
+) -> tuple[int, int]:
+  """Verify character assets exist, are valid images, and share dimensions."""
+  expected_size: tuple[int, int] | None = None
+  expected_field: str | None = None
+
+  for field_name, uri in asset_uris.items():
+    if not uri:
+      raise ValueError(f"{field_name} is required")
+
+    image = None
+    try:
+      image = cloud_storage.download_image_from_gcs(uri)
+      image.load()  # Force decode to fail early on invalid/corrupt images.
+      size = image.size
+    except Exception as exc:  # pylint: disable=broad-except
+      raise ValueError(
+        f"Invalid or missing image for {field_name}: {uri}") from exc
+    finally:
+      if image is not None:
+        image.close()
+
+    if expected_size is None:
+      expected_size = size
+      expected_field = field_name
+      continue
+
+    if size != expected_size:
+      raise ValueError(
+        f"All character assets must have matching dimensions. "
+        f"{field_name} is {size[0]}x{size[1]}, "
+        f"but {expected_field} is {expected_size[0]}x{expected_size[1]}.")
+
+  if expected_size is None:
+    raise ValueError("At least one character asset URI is required")
+
+  return expected_size

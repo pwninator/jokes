@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from agents import constants
 from common import models, posable_character_sequence
 from functions import joke_creation_fns
+from PIL import Image
 from services import gen_audio
 
 
@@ -1372,6 +1373,22 @@ def test_joke_creation_process_handles_animation_op(monkeypatch):
   assert captured["sequence"].sequence_left_eye_open[0].value is True
 
 
+def _character_uri_payload(file_identifier: str = "char") -> dict[str, str]:
+  base = f"gs://images.quillsstorybook.com/_joke_assets/characters/{file_identifier}"
+  return {
+    "head_gcs_uri": f"{base}/{file_identifier}_head.png",
+    "left_hand_gcs_uri": f"{base}/{file_identifier}_hand_left.png",
+    "right_hand_gcs_uri": f"{base}/{file_identifier}_hand_right.png",
+    "mouth_open_gcs_uri": f"{base}/{file_identifier}_mouth_open.png",
+    "mouth_closed_gcs_uri": f"{base}/{file_identifier}_mouth_closed.png",
+    "mouth_o_gcs_uri": f"{base}/{file_identifier}_mouth_o.png",
+    "left_eye_open_gcs_uri": f"{base}/{file_identifier}_eye_left_open.png",
+    "left_eye_closed_gcs_uri": f"{base}/{file_identifier}_eye_left_closed.png",
+    "right_eye_open_gcs_uri": f"{base}/{file_identifier}_eye_right_open.png",
+    "right_eye_closed_gcs_uri": f"{base}/{file_identifier}_eye_right_closed.png",
+  }
+
+
 def test_joke_creation_process_handles_character_def_op_create(monkeypatch):
   """CHARACTER op should create a new character definition when no ID provided."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",
@@ -1386,24 +1403,25 @@ def test_joke_creation_process_handles_character_def_op_create(monkeypatch):
 
   monkeypatch.setattr(joke_creation_fns.firestore,
                       "create_posable_character_def", fake_create)
+  monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
+                      lambda _uri: Image.new("RGBA", (640, 360), (0, 0, 0, 0)))
 
   resp = joke_creation_fns.joke_creation_process(
     DummyReq(
       data={
         "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
         "name": "New Guy",
-        "width": 100,
-        "height": 200,
-        "head_gcs_uri": "gs://bucket/head.png",
-      }))
+        **_character_uri_payload("new_guy"),
+      },
+    ))
 
   assert resp.status_code == 200
   payload = resp.get_json()["data"]
   assert payload["key"] == "new-char-1"
   assert captured["char_def"].name == "New Guy"
-  assert captured["char_def"].width == 100
-  assert captured["char_def"].height == 200
-  assert captured["char_def"].head_gcs_uri == "gs://bucket/head.png"
+  assert captured["char_def"].width == 640
+  assert captured["char_def"].height == 360
+  assert captured["char_def"].head_gcs_uri.endswith("new_guy_head.png")
 
 
 def test_joke_creation_process_handles_character_def_op_update(monkeypatch):
@@ -1419,6 +1437,8 @@ def test_joke_creation_process_handles_character_def_op_update(monkeypatch):
 
   monkeypatch.setattr(joke_creation_fns.firestore,
                       "update_posable_character_def", fake_update)
+  monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
+                      lambda _uri: Image.new("RGBA", (500, 300), (0, 0, 0, 0)))
 
   resp = joke_creation_fns.joke_creation_process(
     DummyReq(
@@ -1426,15 +1446,17 @@ def test_joke_creation_process_handles_character_def_op_update(monkeypatch):
         "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
         "character_id": "existing-char-1",
         "name": "Updated Guy",
-        "width": 150,
-      }))
+        **_character_uri_payload("updated_guy"),
+      },
+    ))
 
   assert resp.status_code == 200
   payload = resp.get_json()["data"]
   assert payload["key"] == "existing-char-1"
   assert captured["char_def"].key == "existing-char-1"
   assert captured["char_def"].name == "Updated Guy"
-  assert captured["char_def"].width == 150
+  assert captured["char_def"].width == 500
+  assert captured["char_def"].height == 300
 
 
 def test_joke_creation_process_handles_character_def_op_update_not_found(
@@ -1445,6 +1467,8 @@ def test_joke_creation_process_handles_character_def_op_update_not_found(
 
   monkeypatch.setattr(joke_creation_fns.firestore,
                       "update_posable_character_def", lambda _: False)
+  monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
+                      lambda _uri: Image.new("RGBA", (500, 300), (0, 0, 0, 0)))
 
   resp = joke_creation_fns.joke_creation_process(
     DummyReq(
@@ -1452,8 +1476,38 @@ def test_joke_creation_process_handles_character_def_op_update_not_found(
         "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
         "character_id": "missing-char",
         "name": "Ghost",
-      }))
+        **_character_uri_payload("ghost"),
+      },
+    ))
 
   assert resp.status_code == 404
   payload = resp.get_json()["data"]
   assert "Character def not found" in payload["error"]
+
+
+def test_joke_creation_process_character_def_op_rejects_mismatched_dimensions(
+    monkeypatch):
+  """CHARACTER op should fail when asset dimensions do not match."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  def _download_image(uri: str):
+    if uri.endswith("_head.png"):
+      return Image.new("RGBA", (600, 400), (0, 0, 0, 0))
+    return Image.new("RGBA", (500, 300), (0, 0, 0, 0))
+
+  monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
+                      _download_image)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "name": "Mismatch",
+        **_character_uri_payload("mismatch"),
+      },
+    ))
+
+  assert resp.status_code == 400
+  payload = resp.get_json()["data"]
+  assert "matching dimensions" in payload["error"]

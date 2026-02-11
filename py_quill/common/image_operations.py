@@ -1414,7 +1414,7 @@ def _add_page_number_to_image(
   text_width = text_bbox[2] - text_bbox[0]
   text_height = text_bbox[3] - text_bbox[1]
 
-  offset_from_edge = _BOOK_PAGE_BLEED_PX * 3
+  offset_from_edge = int(round(_BOOK_PAGE_BLEED_PX * 3.5))
   text_x: float
   if is_punchline:
     text_x = offset_from_edge

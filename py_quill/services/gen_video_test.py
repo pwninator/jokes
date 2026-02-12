@@ -437,7 +437,7 @@ def test_create_portrait_character_video_uploads_mp4():
 
   assert gcs_uri == "gs://files/video/portrait.mp4"
   assert metadata.model_name == "moviepy"
-  assert metadata.token_counts["num_images"] == 3
+  assert metadata.token_counts["num_images"] == 5
   assert metadata.token_counts["num_audio_files"] == 2
   assert metadata.token_counts["num_characters"] == 2
   assert [mode for mode, _transcript, _timing in detect_calls] == [

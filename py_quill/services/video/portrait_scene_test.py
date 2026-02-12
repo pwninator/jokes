@@ -444,3 +444,73 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
     assert actor_items[0].end_time_sec == pytest.approx(1.6)
     assert actor_items[1].start_time_sec == pytest.approx(4.5)
     assert actor_items[1].end_time_sec == pytest.approx(6.5)
+
+
+def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
+  character = _DummyCharacter()
+  timing = [
+    audio_timing.WordTiming("hello", 0.0, 0.2, char_timings=[]),
+  ]
+  character_dialogs = [
+    (character, [
+      ("gs://bucket/audio.wav", 0.0, "hello", timing),
+    ]),
+  ]
+
+  with patch.object(
+    _DummyCharacter,
+    "get_image",
+    return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ):
+    script = joke_social_script_builder.build_portrait_joke_scene_script(
+      joke_images=[
+        ("gs://bucket/setup.png", 0.0),
+      ],
+      character_dialogs=character_dialogs,
+      footer_background_gcs_uri="gs://bucket/footer.png",
+      total_duration_sec=1.0,
+      detect_mouth_events_fn=lambda *_args, **_kwargs: [],
+      include_drumming=False,
+      drumming_duration_sec=0.0,
+    )
+
+  image_items = [item for item in script.items if isinstance(item, TimedImage)]
+  assert len(image_items) == 4
+
+  banner_item = next(item for item in image_items
+                     if item.gcs_uri.endswith("icon_words_transparent_light.png"))
+  assert banner_item.rect == SceneRect(x_px=80, y_px=0, width_px=920, height_px=240)
+
+  top_image_item = next(item for item in image_items
+                        if item.gcs_uri == "gs://bucket/setup.png")
+  assert top_image_item.rect == SceneRect(
+    x_px=0,
+    y_px=240,
+    width_px=1080,
+    height_px=1080,
+  )
+
+  footer_items = [item for item in image_items
+                  if item.gcs_uri == "gs://bucket/footer.png"]
+  assert len(footer_items) == 2
+
+  top_banner_background_item = next(item for item in footer_items
+                                    if item.rect.y_px == 0)
+  assert top_banner_background_item.rect == SceneRect(
+    x_px=0,
+    y_px=0,
+    width_px=1080,
+    height_px=240,
+  )
+
+  footer_item = next(item for item in footer_items if item.rect.y_px == 1320)
+  assert footer_item.rect == SceneRect(
+    x_px=0,
+    y_px=1320,
+    width_px=1080,
+    height_px=600,
+  )
+
+  character_item = next(item for item in script.items
+                        if isinstance(item, TimedCharacterSequence))
+  assert character_item.rect.y_px == 1440

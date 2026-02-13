@@ -259,10 +259,6 @@
   <form id="video-tuner-form" class="card" method="GET">
     <input type="hidden" name="op" value="{{ joke_video_op }}">
     <div class="audio-actions">
-      <label class="muted small" style="display: inline-flex; align-items: center; gap: 8px;">
-        <input id="is-test-video" type="checkbox">
-        Make test video
-      </label>
       <button id="generate-video-button" type="button" class="text-button" disabled>Generate Video</button>
     </div>
   </form>
@@ -286,7 +282,6 @@
     const videoForm = document.getElementById('video-tuner-form');
     const generateAudioButton = document.getElementById('generate-audio-button');
     const generateVideoButton = document.getElementById('generate-video-button');
-    const isTestVideoInput = document.getElementById('is-test-video');
     const errorBanner = document.getElementById('error-banner');
     const errorBannerText = document.getElementById('error-banner-text');
     const results = document.getElementById('audio-results');
@@ -645,7 +640,6 @@
           audio_model: (audioModelInput?.value || '').trim(),
           script_template: buildDialogTurnTemplate(),
           allow_partial: true,
-          is_test_video: Boolean(isTestVideoInput?.checked),
         });
         const videoGcs = data.video_gcs_uri;
         const meta = data.video_generation_metadata || {};

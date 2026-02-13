@@ -841,7 +841,6 @@ def generate_joke_video_from_audio_uris(
   clip_timing: JokeAudioTiming | None = None,
   audio_generation_metadata: models.SingleGenerationMetadata | None = None,
   temp_output: bool = False,
-  is_test: bool = False,
   character_class: type[PosableCharacter] | None = PosableCat,
 ) -> tuple[str, models.GenerationMetadata]:
   """Generate a portrait video for a joke using existing audio clips."""
@@ -849,19 +848,16 @@ def generate_joke_video_from_audio_uris(
     raise ValueError("Joke must have setup_text and punchline_text")
   joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
 
-  setup_image_gcs_uri: str | None = None
-  punchline_image_gcs_uri: str | None = None
-  if not is_test:
-    setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
-    punchline_image_url = (joke.punchline_image_url_upscaled
-                           or joke.punchline_image_url)
-    if not setup_image_url or not punchline_image_url:
-      raise ValueError("Joke must have setup and punchline images")
+  setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
+  punchline_image_url = (joke.punchline_image_url_upscaled
+                         or joke.punchline_image_url)
+  if not setup_image_url or not punchline_image_url:
+    raise ValueError("Joke must have setup and punchline images")
 
-    setup_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      setup_image_url)
-    punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      punchline_image_url)
+  setup_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    setup_image_url)
+  punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    punchline_image_url)
 
   setup_audio_bytes = cloud_storage.download_bytes_from_gcs(
     setup_audio_gcs_uri)
@@ -910,31 +906,19 @@ def generate_joke_video_from_audio_uris(
       (character_class(), response_audio),
     ]
 
-  if is_test:
-    video_gcs_uri, video_generation_metadata = (
-      gen_video.create_portrait_character_test_video(
-        character_dialogs=character_dialogs,
-        footer_background_gcs_uri=_JOKE_VIDEO_FOOTER_BACKGROUND_GCS_URI,
-        total_duration_sec=total_duration_sec,
-        output_filename_base=f"joke_video_test_{joke_id_for_filename}",
-        temp_output=temp_output,
-      ))
-  else:
-    assert setup_image_gcs_uri is not None
-    assert punchline_image_gcs_uri is not None
-    joke_images = [
-      (setup_image_gcs_uri, 0.0),
-      (punchline_image_gcs_uri, punchline_start_sec),
-    ]
-    video_gcs_uri, video_generation_metadata = (
-      gen_video.create_portrait_character_video(
-        joke_images=joke_images,
-        character_dialogs=character_dialogs,
-        footer_background_gcs_uri=_JOKE_VIDEO_FOOTER_BACKGROUND_GCS_URI,
-        total_duration_sec=total_duration_sec,
-        output_filename_base=f"joke_video_{joke_id_for_filename}",
-        temp_output=temp_output,
-      ))
+  joke_images = [
+    (setup_image_gcs_uri, 0.0),
+    (punchline_image_gcs_uri, punchline_start_sec),
+  ]
+  video_gcs_uri, video_generation_metadata = (
+    gen_video.create_portrait_character_video(
+      joke_images=joke_images,
+      character_dialogs=character_dialogs,
+      footer_background_gcs_uri=_JOKE_VIDEO_FOOTER_BACKGROUND_GCS_URI,
+      total_duration_sec=total_duration_sec,
+      output_filename_base=f"joke_video_{joke_id_for_filename}",
+      temp_output=temp_output,
+    ))
 
   generation_metadata = models.GenerationMetadata()
   generation_metadata.add_generation(audio_generation_metadata)
@@ -1114,7 +1098,6 @@ def _shift_word_timing_windows(
 def generate_joke_video(
   joke: models.PunnyJoke,
   temp_output: bool = False,
-  is_test: bool = False,
   script_template: list[audio_client.DialogTurn] | None = None,
   audio_model: audio_client.AudioModel | None = None,
   character_class: type[PosableCharacter] | None = PosableCat,
@@ -1123,12 +1106,11 @@ def generate_joke_video(
   if not joke.setup_text or not joke.punchline_text:
     raise ValueError("Joke must have setup_text and punchline_text")
 
-  if not is_test:
-    setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
-    punchline_image_url = (joke.punchline_image_url_upscaled
-                           or joke.punchline_image_url)
-    if not setup_image_url or not punchline_image_url:
-      raise ValueError("Joke must have setup and punchline images")
+  setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
+  punchline_image_url = (joke.punchline_image_url_upscaled
+                         or joke.punchline_image_url)
+  if not setup_image_url or not punchline_image_url:
+    raise ValueError("Joke must have setup and punchline images")
 
   audio_result = generate_joke_audio(
     joke,
@@ -1144,7 +1126,6 @@ def generate_joke_video(
     clip_timing=audio_result.clip_timing,
     audio_generation_metadata=audio_result.generation_metadata,
     temp_output=temp_output,
-    is_test=is_test,
     character_class=character_class,
   )
 

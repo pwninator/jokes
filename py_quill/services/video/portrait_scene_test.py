@@ -207,11 +207,11 @@ def test_generate_scene_video_reports_metadata():
     _uri, metadata = scene_video_renderer.generate_scene_video(
       script=script,
       output_gcs_uri="gs://files/video/test.mp4",
-      label="create_portrait_character_test_video",
+      label="create_portrait_character_video",
       fps=24,
     )
 
-  assert metadata.label == "create_portrait_character_test_video"
+  assert metadata.label == "create_portrait_character_video"
   assert metadata.token_counts["num_characters"] == 1
 
 

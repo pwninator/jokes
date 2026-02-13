@@ -124,31 +124,6 @@ def build_portrait_joke_scene_script(
   )
 
 
-def build_portrait_test_scene_script(
-  *,
-  character_dialogs: CharacterDialogTracks,
-  footer_background_gcs_uri: str,
-  total_duration_sec: float,
-  detect_mouth_events_fn: DetectMouthEventsFn,
-) -> SceneScript:
-  """Build the portrait lip-sync test `SceneScript`."""
-  image_items = [_build_static_image_item(
-    gcs_uri=str(footer_background_gcs_uri),
-    duration_sec=float(total_duration_sec),
-    z_index=_PORTRAIT_FOOTER_BACKGROUND_Z_INDEX,
-    rect=_PORTRAIT_FOOTER_RECT,
-    fit_mode="fill",
-  )]
-  return _build_portrait_scene_script(
-    image_items=image_items,
-    character_dialogs=character_dialogs,
-    duration_sec=float(total_duration_sec),
-    include_drumming=False,
-    drumming_duration_sec=0.0,
-    detect_mouth_events_fn=detect_mouth_events_fn,
-  )
-
-
 def _build_portrait_scene_script(
   *,
   image_items: list[TimedImage],

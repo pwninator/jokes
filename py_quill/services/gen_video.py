@@ -250,69 +250,6 @@ def create_portrait_character_video(
     raise GenVideoError(f"Portrait video generation failed: {e}") from e
 
 
-def create_portrait_character_test_video(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]],
-  footer_background_gcs_uri: str,
-  total_duration_sec: float,
-  output_filename_base: str,
-  temp_output: bool = False,
-) -> tuple[str, models.SingleGenerationMetadata]:
-  """Create a portrait test video for timing-based mouth animation."""
-  if utils.is_emulator():
-    logger.info('Running in emulator mode. Returning a test video file.')
-    random_suffix = f"{random.randint(1, 10):02d}"
-    test_uri = f"gs://test_story_video_data/test_portrait_params_{random_suffix}.mp4"
-    return test_uri, models.SingleGenerationMetadata()
-
-  normalized_dialogs = _normalize_character_dialogs(character_dialogs)
-  if not [c for c, _ in normalized_dialogs if c is not None]:
-    raise GenVideoError(
-      "At least one character must be provided for test video")
-
-  flattened_audio = _flatten_character_audio(normalized_dialogs)
-  normalized_audio = _normalize_timed_assets(flattened_audio,
-                                             label="audio",
-                                             allow_empty=True)
-
-  _validate_video_duration(total_duration_sec)
-  _validate_output_filename(output_filename_base)
-  _validate_audio_timing(normalized_audio, total_duration_sec)
-
-  output_gcs_uri = cloud_storage.get_video_gcs_uri(
-    output_filename_base,
-    "mp4",
-    temp=temp_output,
-  )
-
-  try:
-    script = joke_social_script_builder.build_portrait_test_scene_script(
-      character_dialogs=normalized_dialogs,
-      footer_background_gcs_uri=str(footer_background_gcs_uri),
-      total_duration_sec=float(total_duration_sec),
-      detect_mouth_events_fn=mouth_event_detection.detect_mouth_events,
-    )
-    gcs_uri, metadata = generate_scene_video(
-      script=script,
-      output_gcs_uri=output_gcs_uri,
-      label="create_portrait_character_test_video",
-      fps=_DEFAULT_VIDEO_FPS,
-    )
-    _log_video_response(images=[],
-                        audio_files=normalized_audio,
-                        gcs_uri=gcs_uri,
-                        metadata=metadata)
-    return gcs_uri, metadata
-  except Exception as e:
-    logger.error("Portrait test video generation failed:\n"
-                 f"{traceback.format_exc()}")
-    raise GenVideoError(f"Portrait test video generation failed: {e}") from e
-
-
 def _normalize_timed_assets(
   assets: list[tuple[str, float]] | None,
   *,

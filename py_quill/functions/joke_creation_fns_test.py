@@ -967,7 +967,6 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     clip_timing=None,
     audio_generation_metadata=None,
     temp_output=False,
-    is_test=False,
     character_class=None,
   ):
     captured_video_args["setup_audio_gcs_uri"] = setup_audio_gcs_uri
@@ -976,7 +975,6 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     captured_video_args["audio_generation_metadata"] = audio_generation_metadata
     captured_video_args["clip_timing"] = clip_timing
     captured_video_args["temp_output"] = temp_output
-    captured_video_args["is_test"] = is_test
     captured_video_args["character_class"] = character_class
     return ("gs://public/video/joke.mp4", generation_metadata)
 
@@ -1042,7 +1040,6 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert captured_video_args["audio_generation_metadata"] is audio_metadata
   assert captured_video_args["clip_timing"] is None
   assert captured_video_args["temp_output"] is True
-  assert captured_video_args["is_test"] is False
 
 
 def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
@@ -1086,79 +1083,6 @@ def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
   payload = resp.get_json()["data"]
   assert payload["error_type"] == "invalid_request"
   assert "script_template must be a list" in payload["error"]
-
-
-def test_joke_creation_process_handles_joke_video_op_can_generate_test_video(
-  monkeypatch,
-):
-  monkeypatch.setattr(
-    joke_creation_fns,
-    'get_user_id',
-    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
-  )
-
-  joke = models.PunnyJoke(
-    key="j-video-1",
-    setup_text="Setup",
-    punchline_text="Punch",
-  )
-  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
-                      lambda _joke_id: joke)
-
-  audio_metadata = models.SingleGenerationMetadata(model_name="gemini-tts")
-  generation_metadata = models.GenerationMetadata()
-  generation_metadata.add_generation(audio_metadata)
-  generation_metadata.add_generation(
-    models.SingleGenerationMetadata(model_name="moviepy"))
-
-  captured_video_args: dict[str, object] = {}
-
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    "generate_joke_audio",
-    lambda *_args, **_kwargs: joke_creation_fns.joke_operations.JokeAudioResult(
-      dialog_gcs_uri="gs://public/audio/dialog.wav",
-      setup_gcs_uri="gs://public/audio/setup.wav",
-      response_gcs_uri="gs://public/audio/response.wav",
-      punchline_gcs_uri="gs://public/audio/punchline.wav",
-      generation_metadata=audio_metadata,
-      clip_timing=None,
-    ),
-  )
-
-  def fake_generate_video_from_audio(
-    _joke,
-    *,
-    setup_audio_gcs_uri,
-    response_audio_gcs_uri,
-    punchline_audio_gcs_uri,
-    clip_timing=None,
-    audio_generation_metadata=None,
-    temp_output=False,
-    is_test=False,
-    character_class=None,
-  ):
-    captured_video_args["is_test"] = is_test
-    return ("gs://public/video/joke.mp4", generation_metadata)
-
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    "generate_joke_video_from_audio_uris",
-    fake_generate_video_from_audio,
-  )
-
-  resp = joke_creation_fns.joke_creation_process(
-    DummyReq(
-      data={
-        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
-        "joke_id": "j-video-1",
-        "is_test_video": True,
-      }))
-
-  assert resp.status_code == 200
-  payload = resp.get_json()["data"]
-  assert payload["video_gcs_uri"] == "gs://public/video/joke.mp4"
-  assert captured_video_args["is_test"] is True
 
 
 def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_fails(

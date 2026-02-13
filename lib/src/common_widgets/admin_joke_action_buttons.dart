@@ -29,11 +29,11 @@ class AdminPopulateJokeButton extends ConsumerWidget {
       holdCompleteIcon: Icons.refresh,
       onTap: () async {
         final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(jokeId, imageQuality: 'low');
+        await notifier.populateJoke(jokeId, imageQuality: 'medium_mini');
       },
       onHoldComplete: () async {
         final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(jokeId, imageQuality: 'medium');
+        await notifier.populateJoke(jokeId, imageQuality: 'high_mini');
       },
       isLoading: isLoading,
       theme: theme,

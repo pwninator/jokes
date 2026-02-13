@@ -1391,19 +1391,18 @@ def _character_uri_payload(file_identifier: str = "char") -> dict[str, str]:
 
 
 def test_joke_creation_process_handles_character_def_op_create(monkeypatch):
-  """CHARACTER op should create a new character definition when no ID provided."""
+  """CHARACTER op should upsert a character definition with provided ID."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",
                       lambda *_args, **_kwargs: "admin-user")
 
   captured: dict = {}
 
-  def fake_create(char_def):
+  def fake_upsert(char_def):
     captured["char_def"] = char_def
-    char_def.key = "new-char-1"
     return char_def
 
   monkeypatch.setattr(joke_creation_fns.firestore,
-                      "create_posable_character_def", fake_create)
+                      "upsert_posable_character_def", fake_upsert)
   monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
                       lambda _uri: Image.new("RGBA", (640, 360), (0, 0, 0, 0)))
 
@@ -1411,6 +1410,7 @@ def test_joke_creation_process_handles_character_def_op_create(monkeypatch):
     DummyReq(
       data={
         "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "character_id": "new-char-1",
         "name": "New Guy",
         **_character_uri_payload("new_guy"),
       },
@@ -1419,25 +1419,48 @@ def test_joke_creation_process_handles_character_def_op_create(monkeypatch):
   assert resp.status_code == 200
   payload = resp.get_json()["data"]
   assert payload["key"] == "new-char-1"
+  assert captured["char_def"].key == "new-char-1"
   assert captured["char_def"].name == "New Guy"
   assert captured["char_def"].width == 640
   assert captured["char_def"].height == 360
   assert captured["char_def"].head_gcs_uri.endswith("new_guy_head.png")
 
 
+def test_joke_creation_process_character_def_op_requires_character_id(
+    monkeypatch):
+  """CHARACTER op should require a character_id."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+  monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
+                      lambda _uri: Image.new("RGBA", (640, 360), (0, 0, 0, 0)))
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "name": "Missing ID",
+        **_character_uri_payload("new_guy_missing_id"),
+      },
+    ))
+
+  assert resp.status_code == 400
+  payload = resp.get_json()["data"]
+  assert "character_id is required" in payload["error"]
+
+
 def test_joke_creation_process_handles_character_def_op_update(monkeypatch):
-  """CHARACTER op should update character definition when ID provided."""
+  """CHARACTER op should upsert character definition when ID provided."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",
                       lambda *_args, **_kwargs: "admin-user")
 
   captured: dict = {}
 
-  def fake_update(char_def):
+  def fake_upsert(char_def):
     captured["char_def"] = char_def
-    return True
+    return char_def
 
   monkeypatch.setattr(joke_creation_fns.firestore,
-                      "update_posable_character_def", fake_update)
+                      "upsert_posable_character_def", fake_upsert)
   monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
                       lambda _uri: Image.new("RGBA", (500, 300), (0, 0, 0, 0)))
 
@@ -1460,14 +1483,20 @@ def test_joke_creation_process_handles_character_def_op_update(monkeypatch):
   assert captured["char_def"].height == 300
 
 
-def test_joke_creation_process_handles_character_def_op_update_not_found(
+def test_joke_creation_process_handles_character_def_op_upserts_missing_character(
     monkeypatch):
-  """CHARACTER op should return 404 when updating non-existent character."""
+  """CHARACTER op should upsert even when ID does not exist yet."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",
                       lambda *_args, **_kwargs: "admin-user")
 
+  captured: dict = {}
+
+  def fake_upsert(char_def):
+    captured["char_def"] = char_def
+    return char_def
+
   monkeypatch.setattr(joke_creation_fns.firestore,
-                      "update_posable_character_def", lambda _: False)
+                      "upsert_posable_character_def", fake_upsert)
   monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
                       lambda _uri: Image.new("RGBA", (500, 300), (0, 0, 0, 0)))
 
@@ -1481,9 +1510,10 @@ def test_joke_creation_process_handles_character_def_op_update_not_found(
       },
     ))
 
-  assert resp.status_code == 404
+  assert resp.status_code == 200
   payload = resp.get_json()["data"]
-  assert "Character def not found" in payload["error"]
+  assert payload["key"] == "missing-char"
+  assert captured["char_def"].key == "missing-char"
 
 
 def test_joke_creation_process_character_def_op_rejects_mismatched_dimensions(
@@ -1504,6 +1534,7 @@ def test_joke_creation_process_character_def_op_rejects_mismatched_dimensions(
     DummyReq(
       data={
         "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "character_id": "mismatch-char",
         "name": "Mismatch",
         **_character_uri_payload("mismatch"),
       },
@@ -1522,13 +1553,12 @@ def test_joke_creation_process_character_def_op_allows_surface_line_dimension_mi
 
   captured: dict = {}
 
-  def fake_create(char_def):
+  def fake_upsert(char_def):
     captured["char_def"] = char_def
-    char_def.key = "new-char-surface-line-mismatch"
     return char_def
 
   monkeypatch.setattr(joke_creation_fns.firestore,
-                      "create_posable_character_def", fake_create)
+                      "upsert_posable_character_def", fake_upsert)
 
   def _download_image(uri: str):
     # Standard sprite size for all character parts.
@@ -1544,6 +1574,7 @@ def test_joke_creation_process_character_def_op_allows_surface_line_dimension_mi
     DummyReq(
       data={
         "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "character_id": "new-char-surface-line-mismatch",
         "name": "Surface Line Mismatch OK",
         **_character_uri_payload("surface_line_mismatch_ok"),
       },

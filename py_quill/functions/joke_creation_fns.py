@@ -733,6 +733,11 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
   if not character_id:
     # Check for 'key' as an alias
     character_id = (get_param(req, "key") or "").strip()
+  if not character_id:
+    return error_response("character_id is required",
+                          error_type="invalid_request",
+                          status=400,
+                          req=req)
 
   # Extract fields
   name = (get_param(req, "name") or "").strip()
@@ -770,7 +775,7 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
       asset_uris)
 
     char_def = models.PosableCharacterDef(
-      key=character_id or None,
+      key=character_id,
       name=name or None,
       width=width_int,
       height=height_int,
@@ -787,18 +792,7 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
       right_eye_closed_gcs_uri=right_eye_closed_gcs_uri,
     )
 
-    if character_id:
-      # Update existing
-      updated = firestore.update_posable_character_def(char_def)
-      if not updated:
-        return error_response(f"Character def not found: {character_id}",
-                              error_type="not_found",
-                              status=404,
-                              req=req)
-      saved_def = char_def
-    else:
-      # Create new
-      saved_def = firestore.create_posable_character_def(char_def)
+    saved_def = firestore.upsert_posable_character_def(char_def)
 
     return success_response(
       saved_def.to_dict(include_key=True),

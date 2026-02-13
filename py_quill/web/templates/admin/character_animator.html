@@ -75,6 +75,12 @@
 <div id="character-editor-container" style="display: none; background: #fff; border: 1px solid #ccc; padding: 16px; margin-bottom: 24px;">
     <h3>Character Editor</h3>
     <input type="hidden" id="char-id-input">
+    <div id="char-create-id-row" style="margin-bottom: 8px;">
+        <label>Firestore Doc ID: <input type="text" id="char-create-id-input" style="width: 100%;" required></label>
+    </div>
+    <div id="char-existing-id-row" style="display: none; margin-bottom: 8px;">
+        <strong>Firestore Doc ID:</strong> <span id="char-existing-id-text"></span>
+    </div>
     <div style="display: flex; flex-direction: column; gap: 8px;">
         <label>Name: <input type="text" id="char-name" style="width: 100%;"></label>
         <div style="display: flex; gap: 16px;">
@@ -237,6 +243,10 @@
   // Character Editor Elements
   const charEditorContainer = document.getElementById('character-editor-container');
   const charIdInput = document.getElementById('char-id-input');
+  const charCreateIdRow = document.getElementById('char-create-id-row');
+  const charExistingIdRow = document.getElementById('char-existing-id-row');
+  const charCreateIdInput = document.getElementById('char-create-id-input');
+  const charExistingIdText = document.getElementById('char-existing-id-text');
   const charNameInput = document.getElementById('char-name');
   const charWidthText = document.getElementById('char-width-text');
   const charHeightText = document.getElementById('char-height-text');
@@ -252,6 +262,12 @@
   const charRightEyeOpenUriInput = document.getElementById('char-right-eye-open-uri');
   const charRightEyeClosedUriInput = document.getElementById('char-right-eye-closed-uri');
   const charFileIdentifierInput = document.getElementById('char-file-identifier');
+
+  function setCharacterIdMode(isExisting) {
+      charCreateIdRow.style.display = isExisting ? 'none' : 'block';
+      charExistingIdRow.style.display = isExisting ? 'block' : 'none';
+      charCreateIdInput.required = !isExisting;
+  }
 
   function createEmptySequence() {
       return {
@@ -423,6 +439,9 @@
 
   function populateCharacterForm(def) {
       charIdInput.value = def.key || '';
+      charCreateIdInput.value = '';
+      charExistingIdText.textContent = def.key || '';
+      setCharacterIdMode(true);
       charNameInput.value = def.name || '';
       charWidthText.textContent = def.width ?? '';
       charHeightText.textContent = def.height ?? '';
@@ -441,6 +460,9 @@
 
   function clearCharacterForm() {
       charIdInput.value = '';
+      charCreateIdInput.value = '';
+      charExistingIdText.textContent = '';
+      setCharacterIdMode(false);
       charNameInput.value = '';
       charWidthText.textContent = '';
       charHeightText.textContent = '';
@@ -492,6 +514,14 @@
 
   document.getElementById('save-char-btn').addEventListener('click', async (e) => {
       e.preventDefault();
+      const existingCharacterId = charIdInput.value.trim();
+      const isExistingCharacter = !!existingCharacterId;
+      const createCharacterId = charCreateIdInput.value.trim();
+      if (!isExistingCharacter && !createCharacterId) {
+          alert('Firestore Doc ID is required for new characters.');
+          return;
+      }
+
       const btn = e.target;
       btn.disabled = true;
       btn.textContent = 'Saving...';
@@ -499,7 +529,7 @@
       try {
           const formData = new FormData();
           formData.append('op', 'character');
-          if (charIdInput.value) formData.append('character_id', charIdInput.value);
+          formData.append('character_id', isExistingCharacter ? existingCharacterId : createCharacterId);
           formData.append('name', charNameInput.value);
           formData.append('head_gcs_uri', charHeadUriInput.value);
           formData.append('surface_line_gcs_uri', charSurfaceLineUriInput.value);

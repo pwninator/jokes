@@ -1359,21 +1359,20 @@ def delete_character(character_id: str) -> bool:
   return True
 
 
-def create_posable_character_def(
+def upsert_posable_character_def(
   character_def: models.PosableCharacterDef,
 ) -> models.PosableCharacterDef:
-  """Create a posable character definition."""
+  """Upsert a posable character definition using its existing key."""
+  if not character_def.key:
+    raise ValueError("PosableCharacterDef key is required for upsert")
+
   def_data = character_def.to_dict(include_key=False)
-  def_data['creation_time'] = SERVER_TIMESTAMP
   def_data['last_modification_time'] = SERVER_TIMESTAMP
 
-  # Generate custom ID: [timestamp]_[name_prefix] if name is available
-  name_part = character_def.name if character_def.name else "posable"
-  custom_id = utils.create_timestamped_firestore_key(name_part)
-
-  def_ref = db().collection('posable_character_defs').document(custom_id)
-  def_ref.set(def_data)
-  character_def.key = custom_id
+  def_ref = db().collection('posable_character_defs').document(character_def.key)
+  if not def_ref.get().exists:
+    def_data['creation_time'] = SERVER_TIMESTAMP
+  def_ref.set(def_data, merge=True)
   return character_def
 
 
@@ -1398,23 +1397,6 @@ def get_posable_character_defs() -> list[models.PosableCharacterDef]:
     models.PosableCharacterDef.from_firestore_dict(
       doc.to_dict(), key=doc.id) for doc in docs if doc.exists
   ]
-
-
-def update_posable_character_def(
-  character_def: models.PosableCharacterDef,
-) -> bool:
-  """Update a posable character definition."""
-  if not character_def.key:
-    return False
-
-  def_ref = db().collection('posable_character_defs').document(character_def.key)
-  if not def_ref.get().exists:
-    return False
-
-  def_data = character_def.to_dict(include_key=False)
-  def_data['last_modification_time'] = SERVER_TIMESTAMP
-  def_ref.update(def_data)
-  return True
 
 
 def get_posable_character_sequence(

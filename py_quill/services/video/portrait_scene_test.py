@@ -21,6 +21,7 @@ class _DummyCharacter(PosableCharacter):
       width=100,
       height=80,
       head_gcs_uri="gs://test/head.png",
+      surface_line_gcs_uri="gs://test/surface_line.png",
       left_hand_gcs_uri="gs://test/left_hand.png",
       right_hand_gcs_uri="gs://test/right_hand.png",
       mouth_open_gcs_uri="gs://test/mouth_open.png",

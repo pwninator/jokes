@@ -200,6 +200,12 @@ void main() {
       rightEyeOpen: ValueNotifier(true),
       leftHandVisible: ValueNotifier(true),
       rightHandVisible: ValueNotifier(true),
+      surfaceLineOffset: ValueNotifier(50.0),
+      maskBoundaryOffset: ValueNotifier(50.0),
+      surfaceLineVisible: ValueNotifier(true),
+      headMaskingEnabled: ValueNotifier(true),
+      leftHandMaskingEnabled: ValueNotifier(false),
+      rightHandMaskingEnabled: ValueNotifier(false),
     );
   }
 
@@ -323,6 +329,30 @@ void main() {
         config.headTransform.value.storage[5],
         closeTo((headExpected['scale_y'] as num).toDouble(), 0.001),
       );
+      expect(
+        config.surfaceLineOffset.value,
+        closeTo((expected['surface_line_offset'] as num).toDouble(), 0.001),
+      );
+      expect(
+        config.maskBoundaryOffset.value,
+        closeTo((expected['mask_boundary_offset'] as num).toDouble(), 0.001),
+      );
+      expect(
+        config.surfaceLineVisible.value,
+        expected['surface_line_visible'] as bool,
+      );
+      expect(
+        config.headMaskingEnabled.value,
+        expected['head_masking_enabled'] as bool,
+      );
+      expect(
+        config.leftHandMaskingEnabled.value,
+        expected['left_hand_masking_enabled'] as bool,
+      );
+      expect(
+        config.rightHandMaskingEnabled.value,
+        expected['right_hand_masking_enabled'] as bool,
+      );
     }
 
     animator.dispose();
@@ -389,6 +419,12 @@ void main() {
       rightEyeOpen: ValueNotifier(true),
       leftHandVisible: ValueNotifier(true),
       rightHandVisible: ValueNotifier(true),
+      surfaceLineOffset: ValueNotifier(50.0),
+      maskBoundaryOffset: ValueNotifier(50.0),
+      surfaceLineVisible: ValueNotifier(true),
+      headMaskingEnabled: ValueNotifier(true),
+      leftHandMaskingEnabled: ValueNotifier(false),
+      rightHandMaskingEnabled: ValueNotifier(false),
     );
 
     final animator = CharacterAnimator(
@@ -446,6 +482,12 @@ void main() {
       rightEyeOpen: ValueNotifier(true),
       leftHandVisible: ValueNotifier(true),
       rightHandVisible: ValueNotifier(true),
+      surfaceLineOffset: ValueNotifier(50.0),
+      maskBoundaryOffset: ValueNotifier(50.0),
+      surfaceLineVisible: ValueNotifier(true),
+      headMaskingEnabled: ValueNotifier(true),
+      leftHandMaskingEnabled: ValueNotifier(false),
+      rightHandMaskingEnabled: ValueNotifier(false),
     );
 
     final animator = CharacterAnimator(

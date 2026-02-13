@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/features/character/domain/posable_character_se
 /// Can be AssetImages or NetworkImages.
 class CharacterAssetConfig {
   final ImageProvider head;
+  final ImageProvider? surfaceLine;
   final ImageProvider leftHand;
   final ImageProvider rightHand;
   final ImageProvider mouthOpen;
@@ -19,6 +20,7 @@ class CharacterAssetConfig {
 
   const CharacterAssetConfig({
     required this.head,
+    this.surfaceLine,
     required this.leftHand,
     required this.rightHand,
     required this.mouthOpen,
@@ -47,7 +49,8 @@ class CharacterWidget extends ConsumerStatefulWidget {
   ConsumerState<CharacterWidget> createState() => _CharacterWidgetState();
 }
 
-class _CharacterWidgetState extends ConsumerState<CharacterWidget> with SingleTickerProviderStateMixin {
+class _CharacterWidgetState extends ConsumerState<CharacterWidget>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final CharacterAnimator _animator;
 
@@ -60,6 +63,12 @@ class _CharacterWidgetState extends ConsumerState<CharacterWidget> with SingleTi
   final _rightEyeOpen = ValueNotifier<bool>(true);
   final _leftHandVisible = ValueNotifier<bool>(true);
   final _rightHandVisible = ValueNotifier<bool>(true);
+  final _surfaceLineOffset = ValueNotifier<double>(50.0);
+  final _maskBoundaryOffset = ValueNotifier<double>(50.0);
+  final _surfaceLineVisible = ValueNotifier<bool>(true);
+  final _headMaskingEnabled = ValueNotifier<bool>(true);
+  final _leftHandMaskingEnabled = ValueNotifier<bool>(false);
+  final _rightHandMaskingEnabled = ValueNotifier<bool>(false);
 
   @override
   void initState() {
@@ -75,6 +84,12 @@ class _CharacterWidgetState extends ConsumerState<CharacterWidget> with SingleTi
       rightEyeOpen: _rightEyeOpen,
       leftHandVisible: _leftHandVisible,
       rightHandVisible: _rightHandVisible,
+      surfaceLineOffset: _surfaceLineOffset,
+      maskBoundaryOffset: _maskBoundaryOffset,
+      surfaceLineVisible: _surfaceLineVisible,
+      headMaskingEnabled: _headMaskingEnabled,
+      leftHandMaskingEnabled: _leftHandMaskingEnabled,
+      rightHandMaskingEnabled: _rightHandMaskingEnabled,
     );
 
     _animator = CharacterAnimator(
@@ -100,80 +115,186 @@ class _CharacterWidgetState extends ConsumerState<CharacterWidget> with SingleTi
     _rightEyeOpen.dispose();
     _leftHandVisible.dispose();
     _rightHandVisible.dispose();
+    _surfaceLineOffset.dispose();
+    _maskBoundaryOffset.dispose();
+    _surfaceLineVisible.dispose();
+    _headMaskingEnabled.dispose();
+    _leftHandMaskingEnabled.dispose();
+    _rightHandMaskingEnabled.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // The stack assumes images are layered centered.
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Head Group (Includes Eyes and Mouth)
-        ValueListenableBuilder<Matrix4>(
-          valueListenable: _headTransform,
-          builder: (context, transform, child) {
-            return Transform(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final canvasHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 0.0;
+        return Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            _buildHeadLayer(canvasHeight),
+            _buildSurfaceLineLayer(canvasHeight),
+            _buildHandLayer(
+              visibleNotifier: _leftHandVisible,
+              transformNotifier: _leftHandTransform,
+              maskingEnabledNotifier: _leftHandMaskingEnabled,
+              image: widget.assets.leftHand,
+              canvasHeight: canvasHeight,
+            ),
+            _buildHandLayer(
+              visibleNotifier: _rightHandVisible,
+              transformNotifier: _rightHandTransform,
+              maskingEnabledNotifier: _rightHandMaskingEnabled,
+              image: widget.assets.rightHand,
+              canvasHeight: canvasHeight,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildHeadLayer(double canvasHeight) {
+    return ValueListenableBuilder<Matrix4>(
+      valueListenable: _headTransform,
+      builder: (context, transform, child) {
+        return _buildMaskedLayer(
+          canvasHeight: canvasHeight,
+          maskingEnabledNotifier: _headMaskingEnabled,
+          child: Center(
+            child: Transform(
               transform: transform,
               alignment: Alignment.center,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   Image(image: widget.assets.head, fit: BoxFit.contain),
-                  _buildEye(widget.assets.leftEyeOpen, widget.assets.leftEyeClosed, _leftEyeOpen),
-                  _buildEye(widget.assets.rightEyeOpen, widget.assets.rightEyeClosed, _rightEyeOpen),
+                  _buildEye(
+                    widget.assets.leftEyeOpen,
+                    widget.assets.leftEyeClosed,
+                    _leftEyeOpen,
+                  ),
+                  _buildEye(
+                    widget.assets.rightEyeOpen,
+                    widget.assets.rightEyeClosed,
+                    _rightEyeOpen,
+                  ),
                   _buildMouth(),
                 ],
               ),
-            );
-          },
-        ),
-        // Left Hand
-        ValueListenableBuilder<bool>(
-          valueListenable: _leftHandVisible,
-          builder: (context, visible, child) {
-            if (!visible) return const SizedBox.shrink();
-            return ValueListenableBuilder<Matrix4>(
-              valueListenable: _leftHandTransform,
-              builder: (context, transform, child) {
-                return Transform(
-                  transform: transform,
-                  alignment: Alignment.center,
-                  child: Image(image: widget.assets.leftHand, fit: BoxFit.contain),
-                );
-              },
-            );
-          },
-        ),
-        // Right Hand
-        ValueListenableBuilder<bool>(
-          valueListenable: _rightHandVisible,
-          builder: (context, visible, child) {
-            if (!visible) return const SizedBox.shrink();
-            return ValueListenableBuilder<Matrix4>(
-              valueListenable: _rightHandTransform,
-              builder: (context, transform, child) {
-                return Transform(
-                  transform: transform,
-                  alignment: Alignment.center,
-                  child: Image(image: widget.assets.rightHand, fit: BoxFit.contain),
-                );
-              },
-            );
-          },
-        ),
-      ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildEye(ImageProvider open, ImageProvider closed, ValueNotifier<bool> notifier) {
+  Widget _buildSurfaceLineLayer(double canvasHeight) {
+    if (widget.assets.surfaceLine == null) {
+      return const SizedBox.shrink();
+    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: _surfaceLineVisible,
+      builder: (context, visible, child) {
+        if (!visible) {
+          return const SizedBox.shrink();
+        }
+        return ValueListenableBuilder<double>(
+          valueListenable: _surfaceLineOffset,
+          builder: (context, offset, child) {
+            final top = canvasHeight - offset;
+            return Positioned(
+              left: 0,
+              right: 0,
+              top: top,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Image(
+                  image: widget.assets.surfaceLine!,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildHandLayer({
+    required ValueNotifier<bool> visibleNotifier,
+    required ValueNotifier<Matrix4> transformNotifier,
+    required ValueNotifier<bool> maskingEnabledNotifier,
+    required ImageProvider image,
+    required double canvasHeight,
+  }) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: visibleNotifier,
+      builder: (context, visible, child) {
+        if (!visible) {
+          return const SizedBox.shrink();
+        }
+        return ValueListenableBuilder<Matrix4>(
+          valueListenable: transformNotifier,
+          builder: (context, transform, child) {
+            return _buildMaskedLayer(
+              canvasHeight: canvasHeight,
+              maskingEnabledNotifier: maskingEnabledNotifier,
+              child: Center(
+                child: Transform(
+                  transform: transform,
+                  alignment: Alignment.center,
+                  child: Image(image: image, fit: BoxFit.contain),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMaskedLayer({
+    required double canvasHeight,
+    required ValueNotifier<bool> maskingEnabledNotifier,
+    required Widget child,
+  }) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: maskingEnabledNotifier,
+      builder: (context, maskingEnabled, _) {
+        if (!maskingEnabled) {
+          return Positioned.fill(child: child);
+        }
+        return ValueListenableBuilder<double>(
+          valueListenable: _maskBoundaryOffset,
+          builder: (context, boundaryOffset, _) {
+            return Positioned.fill(
+              child: ClipRect(
+                clipper: _BelowBoundaryClipper(
+                  boundaryOffset: boundaryOffset,
+                  canvasHeight: canvasHeight,
+                ),
+                child: child,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEye(
+    ImageProvider open,
+    ImageProvider closed,
+    ValueNotifier<bool> notifier,
+  ) {
     return ValueListenableBuilder<bool>(
       valueListenable: notifier,
       builder: (context, isOpen, child) {
-        return Image(
-          image: isOpen ? open : closed,
-          fit: BoxFit.contain,
-        );
+        return Image(image: isOpen ? open : closed, fit: BoxFit.contain);
       },
     );
   }
@@ -191,12 +312,34 @@ class _CharacterWidgetState extends ConsumerState<CharacterWidget> with SingleTi
             image = widget.assets.mouthO;
             break;
           case MouthState.closed:
-          default:
             image = widget.assets.mouthClosed;
             break;
         }
         return Image(image: image, fit: BoxFit.contain);
       },
     );
+  }
+}
+
+class _BelowBoundaryClipper extends CustomClipper<Rect> {
+  final double boundaryOffset;
+  final double canvasHeight;
+
+  const _BelowBoundaryClipper({
+    required this.boundaryOffset,
+    required this.canvasHeight,
+  });
+
+  @override
+  Rect getClip(Size size) {
+    final maxHeight = canvasHeight > 0 ? canvasHeight : size.height;
+    final cutoffY = (maxHeight - boundaryOffset).clamp(0.0, maxHeight);
+    return Rect.fromLTRB(0, 0, size.width, cutoffY);
+  }
+
+  @override
+  bool shouldReclip(_BelowBoundaryClipper oldClipper) {
+    return oldClipper.boundaryOffset != boundaryOffset ||
+        oldClipper.canvasHeight != canvasHeight;
   }
 }

@@ -14,6 +14,12 @@ export class CharacterEditor {
       { name: 'sequence_mouth_state', label: 'Mouth State', type: 'MOUTH' },
       { name: 'sequence_left_hand_visible', label: 'L Hand Visible', type: 'BOOLEAN' },
       { name: 'sequence_right_hand_visible', label: 'R Hand Visible', type: 'BOOLEAN' },
+      { name: 'sequence_surface_line_offset', label: 'Surface Line Offset', type: 'FLOAT' },
+      { name: 'sequence_mask_boundary_offset', label: 'Mask Boundary Offset', type: 'FLOAT' },
+      { name: 'sequence_surface_line_visible', label: 'Surface Line Visible', type: 'BOOLEAN' },
+      { name: 'sequence_head_masking_enabled', label: 'Head Masking', type: 'BOOLEAN' },
+      { name: 'sequence_left_hand_masking_enabled', label: 'L Hand Masking', type: 'BOOLEAN' },
+      { name: 'sequence_right_hand_masking_enabled', label: 'R Hand Masking', type: 'BOOLEAN' },
       { name: 'sequence_sound_events', label: 'Sound', type: 'SOUND' },
     ];
 
@@ -193,6 +199,7 @@ export class CharacterEditor {
         // Label content
         if (track.type === 'TRANSFORM') block.textContent = 'T';
         else if (track.type === 'BOOLEAN') block.textContent = event.value ? 'ON' : 'OFF';
+        else if (track.type === 'FLOAT') block.textContent = `${event.target_value ?? 0}`;
         else if (track.type === 'MOUTH') block.textContent = event.mouth_state;
         else if (track.type === 'SOUND') block.textContent = '♫';
 
@@ -232,6 +239,8 @@ export class CharacterEditor {
         this._addInput(content, 'sy', 'Scale Y', t.scale_y !== undefined ? t.scale_y : 1, 'number', 0.1);
     } else if (track.type === 'BOOLEAN') {
         this._addCheckbox(content, 'value', 'Value', event.value !== undefined ? event.value : true);
+    } else if (track.type === 'FLOAT') {
+        this._addInput(content, 'target_value', 'Target Value', event.target_value ?? 0, 'number', 0.1);
     } else if (track.type === 'MOUTH') {
         this._addSelect(content, 'mouth_state', 'Mouth State', ['OPEN', 'CLOSED', 'O'], event.mouth_state || 'CLOSED');
     } else if (track.type === 'SOUND') {
@@ -345,6 +354,8 @@ export class CharacterEditor {
         };
     } else if (track.type === 'BOOLEAN') {
         newEvent.value = data.value;
+    } else if (track.type === 'FLOAT') {
+        newEvent.target_value = data.target_value;
     } else if (track.type === 'MOUTH') {
         newEvent.mouth_state = data.mouth_state;
     } else if (track.type === 'SOUND') {

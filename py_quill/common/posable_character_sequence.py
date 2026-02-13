@@ -93,6 +93,20 @@ class SequenceTransformEvent(SequenceEvent):
 
 
 @dataclass(kw_only=True)
+class SequenceFloatEvent(SequenceEvent):
+  """Event for float properties (e.g., mask/line offsets)."""
+  target_value: float
+
+  @classmethod
+  def from_dict(cls, data: dict[str, Any]) -> SequenceFloatEvent:
+    """Create a SequenceFloatEvent from a dictionary."""
+    return cls(
+      target_value=float(data["target_value"]),
+      **cls._parse_common_fields(data),
+    )
+
+
+@dataclass(kw_only=True)
 class SequenceSoundEvent(SequenceEvent):
   """Event for sound effects."""
   gcs_uri: str = ""
@@ -139,8 +153,20 @@ class PosableCharacterSequence:
     default_factory=list)
   sequence_head_transform: list[SequenceTransformEvent] = field(
     default_factory=list)
+  sequence_surface_line_offset: list[SequenceFloatEvent] = field(
+    default_factory=list)
+  sequence_mask_boundary_offset: list[SequenceFloatEvent] = field(
+    default_factory=list)
 
   sequence_sound_events: list[SequenceSoundEvent] = field(default_factory=list)
+  sequence_surface_line_visible: list[SequenceBooleanEvent] = field(
+    default_factory=list)
+  sequence_head_masking_enabled: list[SequenceBooleanEvent] = field(
+    default_factory=list)
+  sequence_left_hand_masking_enabled: list[SequenceBooleanEvent] = field(
+    default_factory=list)
+  sequence_right_hand_masking_enabled: list[SequenceBooleanEvent] = field(
+    default_factory=list)
 
   def validate(self) -> None:
     """Validate that events in each track are sorted and non-overlapping."""
@@ -158,6 +184,18 @@ class PosableCharacterSequence:
                          "sequence_right_hand_transform")
     self._validate_track(self.sequence_head_transform,
                          "sequence_head_transform")
+    self._validate_track(self.sequence_surface_line_offset,
+                         "sequence_surface_line_offset")
+    self._validate_track(self.sequence_mask_boundary_offset,
+                         "sequence_mask_boundary_offset")
+    self._validate_track(self.sequence_surface_line_visible,
+                         "sequence_surface_line_visible")
+    self._validate_track(self.sequence_head_masking_enabled,
+                         "sequence_head_masking_enabled")
+    self._validate_track(self.sequence_left_hand_masking_enabled,
+                         "sequence_left_hand_masking_enabled")
+    self._validate_track(self.sequence_right_hand_masking_enabled,
+                         "sequence_right_hand_masking_enabled")
     # Sound events can overlap, so we only validate individual events.
     for event in self.sequence_sound_events:
       event.validate()
@@ -196,8 +234,20 @@ class PosableCharacterSequence:
       [e.to_dict() for e in self.sequence_right_hand_transform],
       "sequence_head_transform":
       [e.to_dict() for e in self.sequence_head_transform],
+      "sequence_surface_line_offset":
+      [e.to_dict() for e in self.sequence_surface_line_offset],
+      "sequence_mask_boundary_offset":
+      [e.to_dict() for e in self.sequence_mask_boundary_offset],
       "sequence_sound_events":
       [e.to_dict() for e in self.sequence_sound_events],
+      "sequence_surface_line_visible":
+      [e.to_dict() for e in self.sequence_surface_line_visible],
+      "sequence_head_masking_enabled":
+      [e.to_dict() for e in self.sequence_head_masking_enabled],
+      "sequence_left_hand_masking_enabled":
+      [e.to_dict() for e in self.sequence_left_hand_masking_enabled],
+      "sequence_right_hand_masking_enabled":
+      [e.to_dict() for e in self.sequence_right_hand_masking_enabled],
     }
     if include_key and self.key:
       data["key"] = self.key
@@ -245,8 +295,32 @@ class PosableCharacterSequence:
         SequenceTransformEvent.from_dict(e)
         for e in data.get("sequence_head_transform", [])
       ],
+      sequence_surface_line_offset=[
+        SequenceFloatEvent.from_dict(e)
+        for e in data.get("sequence_surface_line_offset", [])
+      ],
+      sequence_mask_boundary_offset=[
+        SequenceFloatEvent.from_dict(e)
+        for e in data.get("sequence_mask_boundary_offset", [])
+      ],
       sequence_sound_events=[
         SequenceSoundEvent.from_dict(e)
         for e in data.get("sequence_sound_events", [])
+      ],
+      sequence_surface_line_visible=[
+        SequenceBooleanEvent.from_dict(e)
+        for e in data.get("sequence_surface_line_visible", [])
+      ],
+      sequence_head_masking_enabled=[
+        SequenceBooleanEvent.from_dict(e)
+        for e in data.get("sequence_head_masking_enabled", [])
+      ],
+      sequence_left_hand_masking_enabled=[
+        SequenceBooleanEvent.from_dict(e)
+        for e in data.get("sequence_left_hand_masking_enabled", [])
+      ],
+      sequence_right_hand_masking_enabled=[
+        SequenceBooleanEvent.from_dict(e)
+        for e in data.get("sequence_right_hand_masking_enabled", [])
       ],
     )

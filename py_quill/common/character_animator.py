@@ -13,6 +13,7 @@ from common.posable_character import (MouthState, PoseState, PosableCharacter,
                                       Transform)
 from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceBooleanEvent,
+                                               SequenceFloatEvent,
                                                SequenceMouthEvent,
                                                SequenceSoundEvent,
                                                SequenceTransformEvent)
@@ -52,6 +53,30 @@ class CharacterAnimator:
     )
     self._head_transform_track = sorted(sequence.sequence_head_transform,
                                         key=lambda event: float(event.start_time))
+    self._surface_line_offset_track = sorted(
+      sequence.sequence_surface_line_offset,
+      key=lambda event: float(event.start_time),
+    )
+    self._mask_boundary_offset_track = sorted(
+      sequence.sequence_mask_boundary_offset,
+      key=lambda event: float(event.start_time),
+    )
+    self._surface_line_visible_track = sorted(
+      sequence.sequence_surface_line_visible,
+      key=lambda event: float(event.start_time),
+    )
+    self._head_masking_enabled_track = sorted(
+      sequence.sequence_head_masking_enabled,
+      key=lambda event: float(event.start_time),
+    )
+    self._left_hand_masking_enabled_track = sorted(
+      sequence.sequence_left_hand_masking_enabled,
+      key=lambda event: float(event.start_time),
+    )
+    self._right_hand_masking_enabled_track = sorted(
+      sequence.sequence_right_hand_masking_enabled,
+      key=lambda event: float(event.start_time),
+    )
     self._sound_track = sorted(sequence.sequence_sound_events,
                                key=lambda event: float(event.start_time))
     self._duration_sec = self._compute_duration_sec()
@@ -82,6 +107,36 @@ class CharacterAnimator:
       ),
       head_transform=self._sample_transform(self._head_transform_track, time_sec,
                                             Transform()),
+      surface_line_offset=self._sample_float(
+        self._surface_line_offset_track,
+        time_sec,
+        50.0,
+      ),
+      mask_boundary_offset=self._sample_float(
+        self._mask_boundary_offset_track,
+        time_sec,
+        50.0,
+      ),
+      surface_line_visible=self._sample_boolean(
+        self._surface_line_visible_track,
+        time_sec,
+        True,
+      ),
+      head_masking_enabled=self._sample_boolean(
+        self._head_masking_enabled_track,
+        time_sec,
+        True,
+      ),
+      left_hand_masking_enabled=self._sample_boolean(
+        self._left_hand_masking_enabled_track,
+        time_sec,
+        False,
+      ),
+      right_hand_masking_enabled=self._sample_boolean(
+        self._right_hand_masking_enabled_track,
+        time_sec,
+        False,
+      ),
     )
 
   def apply_pose(self, character: PosableCharacter, time_sec: float) -> PoseState:
@@ -160,6 +215,12 @@ class CharacterAnimator:
       self._left_hand_transform_track,
       self._right_hand_transform_track,
       self._head_transform_track,
+      self._surface_line_offset_track,
+      self._mask_boundary_offset_track,
+      self._surface_line_visible_track,
+      self._head_masking_enabled_track,
+      self._left_hand_masking_enabled_track,
+      self._right_hand_masking_enabled_track,
       self._sound_track,
     ):
       for event in track:
@@ -168,7 +229,8 @@ class CharacterAnimator:
 
   @staticmethod
   def _event_end_time(event: SequenceBooleanEvent | SequenceMouthEvent
-                      | SequenceTransformEvent | SequenceSoundEvent) -> float:
+                      | SequenceTransformEvent | SequenceFloatEvent
+                      | SequenceSoundEvent) -> float:
     return float(event.end_time)
 
   @staticmethod
@@ -237,6 +299,34 @@ class CharacterAnimator:
 
       previous_target = event.target_transform
 
+    return previous_target
+
+  @staticmethod
+  def _sample_float(
+    track: list[SequenceFloatEvent],
+    time_sec: float,
+    default: float,
+  ) -> float:
+    if not track:
+      return float(default)
+
+    previous_target = float(default)
+    for event in track:
+      start = float(event.start_time)
+      end = float(event.end_time)
+      target = float(event.target_value)
+      if float(time_sec) < start:
+        return previous_target
+      if start <= float(time_sec) < end:
+        duration = float(end - start)
+        if duration <= 1e-6:
+          return target
+        progress = (float(time_sec) - start) / duration
+        progress = max(0.0, min(1.0, progress))
+        return _lerp(previous_target, target, progress)
+      if start > float(time_sec):
+        break
+      previous_target = target
     return previous_target
 
 

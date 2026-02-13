@@ -5,6 +5,7 @@ import unittest
 from common.posable_character import MouthState, Transform
 from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceBooleanEvent,
+                                               SequenceFloatEvent,
                                                SequenceMouthEvent,
                                                SequenceSoundEvent,
                                                SequenceTransformEvent)
@@ -29,6 +30,9 @@ class PosableCharacterSequenceTest(unittest.TestCase):
                                end_time=1.0,
                                target_transform=Transform(10, 20, 1.0, 1.0)),
       ],
+      sequence_surface_line_offset=[
+        SequenceFloatEvent(start_time=0.0, end_time=1.0, target_value=50.0),
+      ],
       sequence_sound_events=[
         SequenceSoundEvent(start_time=0.0,
                            end_time=1.0,
@@ -43,6 +47,8 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     self.assertEqual(
       data["sequence_left_hand_transform"][0]["target_transform"]
       ["translate_x"], 10)
+    self.assertEqual(data["sequence_surface_line_offset"][0]["target_value"],
+                     50.0)
 
     seq2 = PosableCharacterSequence.from_dict(data)
     self.assertEqual(seq2.key, "seq1")
@@ -50,6 +56,7 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     self.assertEqual(seq2.sequence_mouth_state[0].mouth_state, MouthState.OPEN)
     self.assertEqual(
       seq2.sequence_left_hand_transform[0].target_transform.translate_x, 10)
+    self.assertEqual(seq2.sequence_surface_line_offset[0].target_value, 50.0)
     self.assertEqual(seq2.sequence_sound_events[0].volume, 0.8)
 
   def test_validation_overlap(self):

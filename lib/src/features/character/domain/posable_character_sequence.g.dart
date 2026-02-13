@@ -80,6 +80,22 @@ Map<String, dynamic> _$$SequenceTransformEventImplToJson(
   'target_transform': instance.targetTransform,
 };
 
+_$SequenceFloatEventImpl _$$SequenceFloatEventImplFromJson(
+  Map<String, dynamic> json,
+) => _$SequenceFloatEventImpl(
+  startTime: (json['start_time'] as num).toDouble(),
+  endTime: (json['end_time'] as num?)?.toDouble(),
+  targetValue: (json['target_value'] as num).toDouble(),
+);
+
+Map<String, dynamic> _$$SequenceFloatEventImplToJson(
+  _$SequenceFloatEventImpl instance,
+) => <String, dynamic>{
+  'start_time': instance.startTime,
+  'end_time': instance.endTime,
+  'target_value': instance.targetValue,
+};
+
 _$SequenceSoundEventImpl _$$SequenceSoundEventImplFromJson(
   Map<String, dynamic> json,
 ) => _$SequenceSoundEventImpl(
@@ -148,9 +164,39 @@ _$PosableCharacterSequenceImpl _$$PosableCharacterSequenceImplFromJson(
           )
           .toList() ??
       const [],
+  sequenceSurfaceLineOffset:
+      (json['sequence_surface_line_offset'] as List<dynamic>?)
+          ?.map((e) => SequenceFloatEvent.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  sequenceMaskBoundaryOffset:
+      (json['sequence_mask_boundary_offset'] as List<dynamic>?)
+          ?.map((e) => SequenceFloatEvent.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
   sequenceSoundEvents:
       (json['sequence_sound_events'] as List<dynamic>?)
           ?.map((e) => SequenceSoundEvent.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  sequenceSurfaceLineVisible:
+      (json['sequence_surface_line_visible'] as List<dynamic>?)
+          ?.map((e) => SequenceBooleanEvent.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  sequenceHeadMaskingEnabled:
+      (json['sequence_head_masking_enabled'] as List<dynamic>?)
+          ?.map((e) => SequenceBooleanEvent.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  sequenceLeftHandMaskingEnabled:
+      (json['sequence_left_hand_masking_enabled'] as List<dynamic>?)
+          ?.map((e) => SequenceBooleanEvent.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const [],
+  sequenceRightHandMaskingEnabled:
+      (json['sequence_right_hand_masking_enabled'] as List<dynamic>?)
+          ?.map((e) => SequenceBooleanEvent.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
 );
@@ -167,5 +213,12 @@ Map<String, dynamic> _$$PosableCharacterSequenceImplToJson(
   'sequence_left_hand_transform': instance.sequenceLeftHandTransform,
   'sequence_right_hand_transform': instance.sequenceRightHandTransform,
   'sequence_head_transform': instance.sequenceHeadTransform,
+  'sequence_surface_line_offset': instance.sequenceSurfaceLineOffset,
+  'sequence_mask_boundary_offset': instance.sequenceMaskBoundaryOffset,
   'sequence_sound_events': instance.sequenceSoundEvents,
+  'sequence_surface_line_visible': instance.sequenceSurfaceLineVisible,
+  'sequence_head_masking_enabled': instance.sequenceHeadMaskingEnabled,
+  'sequence_left_hand_masking_enabled': instance.sequenceLeftHandMaskingEnabled,
+  'sequence_right_hand_masking_enabled':
+      instance.sequenceRightHandMaskingEnabled,
 };

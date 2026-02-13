@@ -886,6 +886,207 @@ abstract class _SequenceTransformEvent implements SequenceTransformEvent {
   get copyWith => throw _privateConstructorUsedError;
 }
 
+SequenceFloatEvent _$SequenceFloatEventFromJson(Map<String, dynamic> json) {
+  return _SequenceFloatEvent.fromJson(json);
+}
+
+/// @nodoc
+mixin _$SequenceFloatEvent {
+  double get startTime => throw _privateConstructorUsedError;
+  double? get endTime => throw _privateConstructorUsedError;
+  double get targetValue => throw _privateConstructorUsedError;
+
+  /// Serializes this SequenceFloatEvent to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of SequenceFloatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $SequenceFloatEventCopyWith<SequenceFloatEvent> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $SequenceFloatEventCopyWith<$Res> {
+  factory $SequenceFloatEventCopyWith(
+    SequenceFloatEvent value,
+    $Res Function(SequenceFloatEvent) then,
+  ) = _$SequenceFloatEventCopyWithImpl<$Res, SequenceFloatEvent>;
+  @useResult
+  $Res call({double startTime, double? endTime, double targetValue});
+}
+
+/// @nodoc
+class _$SequenceFloatEventCopyWithImpl<$Res, $Val extends SequenceFloatEvent>
+    implements $SequenceFloatEventCopyWith<$Res> {
+  _$SequenceFloatEventCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of SequenceFloatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? startTime = null,
+    Object? endTime = freezed,
+    Object? targetValue = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            startTime: null == startTime
+                ? _value.startTime
+                : startTime // ignore: cast_nullable_to_non_nullable
+                      as double,
+            endTime: freezed == endTime
+                ? _value.endTime
+                : endTime // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            targetValue: null == targetValue
+                ? _value.targetValue
+                : targetValue // ignore: cast_nullable_to_non_nullable
+                      as double,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$SequenceFloatEventImplCopyWith<$Res>
+    implements $SequenceFloatEventCopyWith<$Res> {
+  factory _$$SequenceFloatEventImplCopyWith(
+    _$SequenceFloatEventImpl value,
+    $Res Function(_$SequenceFloatEventImpl) then,
+  ) = __$$SequenceFloatEventImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({double startTime, double? endTime, double targetValue});
+}
+
+/// @nodoc
+class __$$SequenceFloatEventImplCopyWithImpl<$Res>
+    extends _$SequenceFloatEventCopyWithImpl<$Res, _$SequenceFloatEventImpl>
+    implements _$$SequenceFloatEventImplCopyWith<$Res> {
+  __$$SequenceFloatEventImplCopyWithImpl(
+    _$SequenceFloatEventImpl _value,
+    $Res Function(_$SequenceFloatEventImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of SequenceFloatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? startTime = null,
+    Object? endTime = freezed,
+    Object? targetValue = null,
+  }) {
+    return _then(
+      _$SequenceFloatEventImpl(
+        startTime: null == startTime
+            ? _value.startTime
+            : startTime // ignore: cast_nullable_to_non_nullable
+                  as double,
+        endTime: freezed == endTime
+            ? _value.endTime
+            : endTime // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        targetValue: null == targetValue
+            ? _value.targetValue
+            : targetValue // ignore: cast_nullable_to_non_nullable
+                  as double,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _$SequenceFloatEventImpl implements _SequenceFloatEvent {
+  const _$SequenceFloatEventImpl({
+    required this.startTime,
+    this.endTime,
+    required this.targetValue,
+  });
+
+  factory _$SequenceFloatEventImpl.fromJson(Map<String, dynamic> json) =>
+      _$$SequenceFloatEventImplFromJson(json);
+
+  @override
+  final double startTime;
+  @override
+  final double? endTime;
+  @override
+  final double targetValue;
+
+  @override
+  String toString() {
+    return 'SequenceFloatEvent(startTime: $startTime, endTime: $endTime, targetValue: $targetValue)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SequenceFloatEventImpl &&
+            (identical(other.startTime, startTime) ||
+                other.startTime == startTime) &&
+            (identical(other.endTime, endTime) || other.endTime == endTime) &&
+            (identical(other.targetValue, targetValue) ||
+                other.targetValue == targetValue));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, startTime, endTime, targetValue);
+
+  /// Create a copy of SequenceFloatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SequenceFloatEventImplCopyWith<_$SequenceFloatEventImpl> get copyWith =>
+      __$$SequenceFloatEventImplCopyWithImpl<_$SequenceFloatEventImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$SequenceFloatEventImplToJson(this);
+  }
+}
+
+abstract class _SequenceFloatEvent implements SequenceFloatEvent {
+  const factory _SequenceFloatEvent({
+    required final double startTime,
+    final double? endTime,
+    required final double targetValue,
+  }) = _$SequenceFloatEventImpl;
+
+  factory _SequenceFloatEvent.fromJson(Map<String, dynamic> json) =
+      _$SequenceFloatEventImpl.fromJson;
+
+  @override
+  double get startTime;
+  @override
+  double? get endTime;
+  @override
+  double get targetValue;
+
+  /// Create a copy of SequenceFloatEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$SequenceFloatEventImplCopyWith<_$SequenceFloatEventImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 SequenceSoundEvent _$SequenceSoundEventFromJson(Map<String, dynamic> json) {
   return _SequenceSoundEvent.fromJson(json);
 }
@@ -1131,7 +1332,19 @@ mixin _$PosableCharacterSequence {
       throw _privateConstructorUsedError;
   List<SequenceTransformEvent> get sequenceHeadTransform =>
       throw _privateConstructorUsedError;
+  List<SequenceFloatEvent> get sequenceSurfaceLineOffset =>
+      throw _privateConstructorUsedError;
+  List<SequenceFloatEvent> get sequenceMaskBoundaryOffset =>
+      throw _privateConstructorUsedError;
   List<SequenceSoundEvent> get sequenceSoundEvents =>
+      throw _privateConstructorUsedError;
+  List<SequenceBooleanEvent> get sequenceSurfaceLineVisible =>
+      throw _privateConstructorUsedError;
+  List<SequenceBooleanEvent> get sequenceHeadMaskingEnabled =>
+      throw _privateConstructorUsedError;
+  List<SequenceBooleanEvent> get sequenceLeftHandMaskingEnabled =>
+      throw _privateConstructorUsedError;
+  List<SequenceBooleanEvent> get sequenceRightHandMaskingEnabled =>
       throw _privateConstructorUsedError;
 
   /// Serializes this PosableCharacterSequence to a JSON map.
@@ -1161,7 +1374,13 @@ abstract class $PosableCharacterSequenceCopyWith<$Res> {
     List<SequenceTransformEvent> sequenceLeftHandTransform,
     List<SequenceTransformEvent> sequenceRightHandTransform,
     List<SequenceTransformEvent> sequenceHeadTransform,
+    List<SequenceFloatEvent> sequenceSurfaceLineOffset,
+    List<SequenceFloatEvent> sequenceMaskBoundaryOffset,
     List<SequenceSoundEvent> sequenceSoundEvents,
+    List<SequenceBooleanEvent> sequenceSurfaceLineVisible,
+    List<SequenceBooleanEvent> sequenceHeadMaskingEnabled,
+    List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled,
+    List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled,
   });
 }
 
@@ -1192,7 +1411,13 @@ class _$PosableCharacterSequenceCopyWithImpl<
     Object? sequenceLeftHandTransform = null,
     Object? sequenceRightHandTransform = null,
     Object? sequenceHeadTransform = null,
+    Object? sequenceSurfaceLineOffset = null,
+    Object? sequenceMaskBoundaryOffset = null,
     Object? sequenceSoundEvents = null,
+    Object? sequenceSurfaceLineVisible = null,
+    Object? sequenceHeadMaskingEnabled = null,
+    Object? sequenceLeftHandMaskingEnabled = null,
+    Object? sequenceRightHandMaskingEnabled = null,
   }) {
     return _then(
       _value.copyWith(
@@ -1232,10 +1457,36 @@ class _$PosableCharacterSequenceCopyWithImpl<
                 ? _value.sequenceHeadTransform
                 : sequenceHeadTransform // ignore: cast_nullable_to_non_nullable
                       as List<SequenceTransformEvent>,
+            sequenceSurfaceLineOffset: null == sequenceSurfaceLineOffset
+                ? _value.sequenceSurfaceLineOffset
+                : sequenceSurfaceLineOffset // ignore: cast_nullable_to_non_nullable
+                      as List<SequenceFloatEvent>,
+            sequenceMaskBoundaryOffset: null == sequenceMaskBoundaryOffset
+                ? _value.sequenceMaskBoundaryOffset
+                : sequenceMaskBoundaryOffset // ignore: cast_nullable_to_non_nullable
+                      as List<SequenceFloatEvent>,
             sequenceSoundEvents: null == sequenceSoundEvents
                 ? _value.sequenceSoundEvents
                 : sequenceSoundEvents // ignore: cast_nullable_to_non_nullable
                       as List<SequenceSoundEvent>,
+            sequenceSurfaceLineVisible: null == sequenceSurfaceLineVisible
+                ? _value.sequenceSurfaceLineVisible
+                : sequenceSurfaceLineVisible // ignore: cast_nullable_to_non_nullable
+                      as List<SequenceBooleanEvent>,
+            sequenceHeadMaskingEnabled: null == sequenceHeadMaskingEnabled
+                ? _value.sequenceHeadMaskingEnabled
+                : sequenceHeadMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                      as List<SequenceBooleanEvent>,
+            sequenceLeftHandMaskingEnabled:
+                null == sequenceLeftHandMaskingEnabled
+                ? _value.sequenceLeftHandMaskingEnabled
+                : sequenceLeftHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                      as List<SequenceBooleanEvent>,
+            sequenceRightHandMaskingEnabled:
+                null == sequenceRightHandMaskingEnabled
+                ? _value.sequenceRightHandMaskingEnabled
+                : sequenceRightHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                      as List<SequenceBooleanEvent>,
           )
           as $Val,
     );
@@ -1261,7 +1512,13 @@ abstract class _$$PosableCharacterSequenceImplCopyWith<$Res>
     List<SequenceTransformEvent> sequenceLeftHandTransform,
     List<SequenceTransformEvent> sequenceRightHandTransform,
     List<SequenceTransformEvent> sequenceHeadTransform,
+    List<SequenceFloatEvent> sequenceSurfaceLineOffset,
+    List<SequenceFloatEvent> sequenceMaskBoundaryOffset,
     List<SequenceSoundEvent> sequenceSoundEvents,
+    List<SequenceBooleanEvent> sequenceSurfaceLineVisible,
+    List<SequenceBooleanEvent> sequenceHeadMaskingEnabled,
+    List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled,
+    List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled,
   });
 }
 
@@ -1292,7 +1549,13 @@ class __$$PosableCharacterSequenceImplCopyWithImpl<$Res>
     Object? sequenceLeftHandTransform = null,
     Object? sequenceRightHandTransform = null,
     Object? sequenceHeadTransform = null,
+    Object? sequenceSurfaceLineOffset = null,
+    Object? sequenceMaskBoundaryOffset = null,
     Object? sequenceSoundEvents = null,
+    Object? sequenceSurfaceLineVisible = null,
+    Object? sequenceHeadMaskingEnabled = null,
+    Object? sequenceLeftHandMaskingEnabled = null,
+    Object? sequenceRightHandMaskingEnabled = null,
   }) {
     return _then(
       _$PosableCharacterSequenceImpl(
@@ -1332,10 +1595,34 @@ class __$$PosableCharacterSequenceImplCopyWithImpl<$Res>
             ? _value._sequenceHeadTransform
             : sequenceHeadTransform // ignore: cast_nullable_to_non_nullable
                   as List<SequenceTransformEvent>,
+        sequenceSurfaceLineOffset: null == sequenceSurfaceLineOffset
+            ? _value._sequenceSurfaceLineOffset
+            : sequenceSurfaceLineOffset // ignore: cast_nullable_to_non_nullable
+                  as List<SequenceFloatEvent>,
+        sequenceMaskBoundaryOffset: null == sequenceMaskBoundaryOffset
+            ? _value._sequenceMaskBoundaryOffset
+            : sequenceMaskBoundaryOffset // ignore: cast_nullable_to_non_nullable
+                  as List<SequenceFloatEvent>,
         sequenceSoundEvents: null == sequenceSoundEvents
             ? _value._sequenceSoundEvents
             : sequenceSoundEvents // ignore: cast_nullable_to_non_nullable
                   as List<SequenceSoundEvent>,
+        sequenceSurfaceLineVisible: null == sequenceSurfaceLineVisible
+            ? _value._sequenceSurfaceLineVisible
+            : sequenceSurfaceLineVisible // ignore: cast_nullable_to_non_nullable
+                  as List<SequenceBooleanEvent>,
+        sequenceHeadMaskingEnabled: null == sequenceHeadMaskingEnabled
+            ? _value._sequenceHeadMaskingEnabled
+            : sequenceHeadMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                  as List<SequenceBooleanEvent>,
+        sequenceLeftHandMaskingEnabled: null == sequenceLeftHandMaskingEnabled
+            ? _value._sequenceLeftHandMaskingEnabled
+            : sequenceLeftHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                  as List<SequenceBooleanEvent>,
+        sequenceRightHandMaskingEnabled: null == sequenceRightHandMaskingEnabled
+            ? _value._sequenceRightHandMaskingEnabled
+            : sequenceRightHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                  as List<SequenceBooleanEvent>,
       ),
     );
   }
@@ -1355,7 +1642,13 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
     final List<SequenceTransformEvent> sequenceLeftHandTransform = const [],
     final List<SequenceTransformEvent> sequenceRightHandTransform = const [],
     final List<SequenceTransformEvent> sequenceHeadTransform = const [],
+    final List<SequenceFloatEvent> sequenceSurfaceLineOffset = const [],
+    final List<SequenceFloatEvent> sequenceMaskBoundaryOffset = const [],
     final List<SequenceSoundEvent> sequenceSoundEvents = const [],
+    final List<SequenceBooleanEvent> sequenceSurfaceLineVisible = const [],
+    final List<SequenceBooleanEvent> sequenceHeadMaskingEnabled = const [],
+    final List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled = const [],
+    final List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled = const [],
   }) : _sequenceLeftEyeOpen = sequenceLeftEyeOpen,
        _sequenceRightEyeOpen = sequenceRightEyeOpen,
        _sequenceMouthState = sequenceMouthState,
@@ -1364,7 +1657,13 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
        _sequenceLeftHandTransform = sequenceLeftHandTransform,
        _sequenceRightHandTransform = sequenceRightHandTransform,
        _sequenceHeadTransform = sequenceHeadTransform,
-       _sequenceSoundEvents = sequenceSoundEvents;
+       _sequenceSurfaceLineOffset = sequenceSurfaceLineOffset,
+       _sequenceMaskBoundaryOffset = sequenceMaskBoundaryOffset,
+       _sequenceSoundEvents = sequenceSoundEvents,
+       _sequenceSurfaceLineVisible = sequenceSurfaceLineVisible,
+       _sequenceHeadMaskingEnabled = sequenceHeadMaskingEnabled,
+       _sequenceLeftHandMaskingEnabled = sequenceLeftHandMaskingEnabled,
+       _sequenceRightHandMaskingEnabled = sequenceRightHandMaskingEnabled;
 
   factory _$PosableCharacterSequenceImpl.fromJson(Map<String, dynamic> json) =>
       _$$PosableCharacterSequenceImplFromJson(json);
@@ -1451,6 +1750,26 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
     return EqualUnmodifiableListView(_sequenceHeadTransform);
   }
 
+  final List<SequenceFloatEvent> _sequenceSurfaceLineOffset;
+  @override
+  @JsonKey()
+  List<SequenceFloatEvent> get sequenceSurfaceLineOffset {
+    if (_sequenceSurfaceLineOffset is EqualUnmodifiableListView)
+      return _sequenceSurfaceLineOffset;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sequenceSurfaceLineOffset);
+  }
+
+  final List<SequenceFloatEvent> _sequenceMaskBoundaryOffset;
+  @override
+  @JsonKey()
+  List<SequenceFloatEvent> get sequenceMaskBoundaryOffset {
+    if (_sequenceMaskBoundaryOffset is EqualUnmodifiableListView)
+      return _sequenceMaskBoundaryOffset;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sequenceMaskBoundaryOffset);
+  }
+
   final List<SequenceSoundEvent> _sequenceSoundEvents;
   @override
   @JsonKey()
@@ -1461,9 +1780,49 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
     return EqualUnmodifiableListView(_sequenceSoundEvents);
   }
 
+  final List<SequenceBooleanEvent> _sequenceSurfaceLineVisible;
+  @override
+  @JsonKey()
+  List<SequenceBooleanEvent> get sequenceSurfaceLineVisible {
+    if (_sequenceSurfaceLineVisible is EqualUnmodifiableListView)
+      return _sequenceSurfaceLineVisible;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sequenceSurfaceLineVisible);
+  }
+
+  final List<SequenceBooleanEvent> _sequenceHeadMaskingEnabled;
+  @override
+  @JsonKey()
+  List<SequenceBooleanEvent> get sequenceHeadMaskingEnabled {
+    if (_sequenceHeadMaskingEnabled is EqualUnmodifiableListView)
+      return _sequenceHeadMaskingEnabled;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sequenceHeadMaskingEnabled);
+  }
+
+  final List<SequenceBooleanEvent> _sequenceLeftHandMaskingEnabled;
+  @override
+  @JsonKey()
+  List<SequenceBooleanEvent> get sequenceLeftHandMaskingEnabled {
+    if (_sequenceLeftHandMaskingEnabled is EqualUnmodifiableListView)
+      return _sequenceLeftHandMaskingEnabled;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sequenceLeftHandMaskingEnabled);
+  }
+
+  final List<SequenceBooleanEvent> _sequenceRightHandMaskingEnabled;
+  @override
+  @JsonKey()
+  List<SequenceBooleanEvent> get sequenceRightHandMaskingEnabled {
+    if (_sequenceRightHandMaskingEnabled is EqualUnmodifiableListView)
+      return _sequenceRightHandMaskingEnabled;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sequenceRightHandMaskingEnabled);
+  }
+
   @override
   String toString() {
-    return 'PosableCharacterSequence(key: $key, sequenceLeftEyeOpen: $sequenceLeftEyeOpen, sequenceRightEyeOpen: $sequenceRightEyeOpen, sequenceMouthState: $sequenceMouthState, sequenceLeftHandVisible: $sequenceLeftHandVisible, sequenceRightHandVisible: $sequenceRightHandVisible, sequenceLeftHandTransform: $sequenceLeftHandTransform, sequenceRightHandTransform: $sequenceRightHandTransform, sequenceHeadTransform: $sequenceHeadTransform, sequenceSoundEvents: $sequenceSoundEvents)';
+    return 'PosableCharacterSequence(key: $key, sequenceLeftEyeOpen: $sequenceLeftEyeOpen, sequenceRightEyeOpen: $sequenceRightEyeOpen, sequenceMouthState: $sequenceMouthState, sequenceLeftHandVisible: $sequenceLeftHandVisible, sequenceRightHandVisible: $sequenceRightHandVisible, sequenceLeftHandTransform: $sequenceLeftHandTransform, sequenceRightHandTransform: $sequenceRightHandTransform, sequenceHeadTransform: $sequenceHeadTransform, sequenceSurfaceLineOffset: $sequenceSurfaceLineOffset, sequenceMaskBoundaryOffset: $sequenceMaskBoundaryOffset, sequenceSoundEvents: $sequenceSoundEvents, sequenceSurfaceLineVisible: $sequenceSurfaceLineVisible, sequenceHeadMaskingEnabled: $sequenceHeadMaskingEnabled, sequenceLeftHandMaskingEnabled: $sequenceLeftHandMaskingEnabled, sequenceRightHandMaskingEnabled: $sequenceRightHandMaskingEnabled)';
   }
 
   @override
@@ -1505,8 +1864,32 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
               _sequenceHeadTransform,
             ) &&
             const DeepCollectionEquality().equals(
+              other._sequenceSurfaceLineOffset,
+              _sequenceSurfaceLineOffset,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._sequenceMaskBoundaryOffset,
+              _sequenceMaskBoundaryOffset,
+            ) &&
+            const DeepCollectionEquality().equals(
               other._sequenceSoundEvents,
               _sequenceSoundEvents,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._sequenceSurfaceLineVisible,
+              _sequenceSurfaceLineVisible,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._sequenceHeadMaskingEnabled,
+              _sequenceHeadMaskingEnabled,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._sequenceLeftHandMaskingEnabled,
+              _sequenceLeftHandMaskingEnabled,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._sequenceRightHandMaskingEnabled,
+              _sequenceRightHandMaskingEnabled,
             ));
   }
 
@@ -1523,7 +1906,13 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
     const DeepCollectionEquality().hash(_sequenceLeftHandTransform),
     const DeepCollectionEquality().hash(_sequenceRightHandTransform),
     const DeepCollectionEquality().hash(_sequenceHeadTransform),
+    const DeepCollectionEquality().hash(_sequenceSurfaceLineOffset),
+    const DeepCollectionEquality().hash(_sequenceMaskBoundaryOffset),
     const DeepCollectionEquality().hash(_sequenceSoundEvents),
+    const DeepCollectionEquality().hash(_sequenceSurfaceLineVisible),
+    const DeepCollectionEquality().hash(_sequenceHeadMaskingEnabled),
+    const DeepCollectionEquality().hash(_sequenceLeftHandMaskingEnabled),
+    const DeepCollectionEquality().hash(_sequenceRightHandMaskingEnabled),
   );
 
   /// Create a copy of PosableCharacterSequence
@@ -1554,7 +1943,13 @@ abstract class _PosableCharacterSequence implements PosableCharacterSequence {
     final List<SequenceTransformEvent> sequenceLeftHandTransform,
     final List<SequenceTransformEvent> sequenceRightHandTransform,
     final List<SequenceTransformEvent> sequenceHeadTransform,
+    final List<SequenceFloatEvent> sequenceSurfaceLineOffset,
+    final List<SequenceFloatEvent> sequenceMaskBoundaryOffset,
     final List<SequenceSoundEvent> sequenceSoundEvents,
+    final List<SequenceBooleanEvent> sequenceSurfaceLineVisible,
+    final List<SequenceBooleanEvent> sequenceHeadMaskingEnabled,
+    final List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled,
+    final List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled,
   }) = _$PosableCharacterSequenceImpl;
 
   factory _PosableCharacterSequence.fromJson(Map<String, dynamic> json) =
@@ -1579,7 +1974,19 @@ abstract class _PosableCharacterSequence implements PosableCharacterSequence {
   @override
   List<SequenceTransformEvent> get sequenceHeadTransform;
   @override
+  List<SequenceFloatEvent> get sequenceSurfaceLineOffset;
+  @override
+  List<SequenceFloatEvent> get sequenceMaskBoundaryOffset;
+  @override
   List<SequenceSoundEvent> get sequenceSoundEvents;
+  @override
+  List<SequenceBooleanEvent> get sequenceSurfaceLineVisible;
+  @override
+  List<SequenceBooleanEvent> get sequenceHeadMaskingEnabled;
+  @override
+  List<SequenceBooleanEvent> get sequenceLeftHandMaskingEnabled;
+  @override
+  List<SequenceBooleanEvent> get sequenceRightHandMaskingEnabled;
 
   /// Create a copy of PosableCharacterSequence
   /// with the given fields replaced by the non-null parameter values.

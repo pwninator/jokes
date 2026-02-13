@@ -21,6 +21,7 @@ _SAMPLE_DEF = models.PosableCharacterDef(
   width=4,
   height=4,
   head_gcs_uri="gs://test/head.png",
+  surface_line_gcs_uri="gs://test/surface_line.png",
   left_hand_gcs_uri="gs://test/left_hand.png",
   right_hand_gcs_uri="gs://test/right_hand.png",
   mouth_open_gcs_uri="gs://test/mouth_open.png",
@@ -69,6 +70,7 @@ class PosableCharacterTest(unittest.TestCase):
   def _default_images(self) -> dict[str, Image.Image]:
     return {
       _SAMPLE_DEF.head_gcs_uri: _make_image((255, 0, 0, 255)),
+      _SAMPLE_DEF.surface_line_gcs_uri: _make_image((0, 0, 0, 0), size=(4, 1)),
       _SAMPLE_DEF.left_eye_open_gcs_uri: _make_image((0, 255, 0, 255)),
       _SAMPLE_DEF.right_eye_open_gcs_uri: _make_image((0, 0, 255, 255)),
       _SAMPLE_DEF.left_eye_closed_gcs_uri: _make_image((0, 255, 0, 255)),
@@ -187,6 +189,7 @@ class PosableCharacterTest(unittest.TestCase):
         scale_x=0.5,
         scale_y=0.5,
       ),
+      head_masking_enabled=False,
       right_hand_visible=False,
       left_hand_visible=False,
     )
@@ -205,7 +208,7 @@ class PosableCharacterTest(unittest.TestCase):
     image_two = character.get_image()
 
     self.assertIs(image_one, image_two)
-    self.assertEqual(mock_download.call_count, 6)
+    self.assertEqual(mock_download.call_count, 7)
 
   @patch("common.posable_character.cloud_storage.download_image_from_gcs")
   def test_pose_change_returns_new_image(self, mock_download):
@@ -219,11 +222,148 @@ class PosableCharacterTest(unittest.TestCase):
 
     self.assertIsNot(image_one, image_two)
 
+  @patch("common.posable_character.cloud_storage.download_image_from_gcs")
+  def test_head_masking_clips_pixels_below_boundary(self, mock_download):
+    images = self._default_images()
+    transparent = _make_image((0, 0, 0, 0))
+    images[_SAMPLE_DEF.head_gcs_uri] = _make_image((255, 0, 0, 255))
+    images[_SAMPLE_DEF.left_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_o_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_hand_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_hand_gcs_uri] = transparent
+    mock_download.side_effect = lambda uri: images[uri]
+
+    character = self._build_character()
+    character.set_pose(mask_boundary_offset=2.0)
+    composed = character.get_image()
+
+    self.assertEqual(composed.getpixel((2, 1)), (255, 0, 0, 255))
+    self.assertEqual(composed.getpixel((2, 3)), (0, 0, 0, 0))
+
+  @patch("common.posable_character.cloud_storage.download_image_from_gcs")
+  def test_hand_masking_disabled_by_default(self, mock_download):
+    images = self._default_images()
+    transparent = _make_image((0, 0, 0, 0))
+    images[_SAMPLE_DEF.head_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_o_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_hand_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_hand_gcs_uri] = _make_image((200, 10, 10, 255))
+    mock_download.side_effect = lambda uri: images[uri]
+
+    character = self._build_character()
+    character.set_pose(mask_boundary_offset=2.0, right_hand_visible=False)
+    composed = character.get_image()
+
+    self.assertEqual(composed.getpixel((2, 3)), (200, 10, 10, 255))
+
+  @patch("common.posable_character.cloud_storage.download_image_from_gcs")
+  def test_hand_masking_enabled_clips_pixels(self, mock_download):
+    images = self._default_images()
+    transparent = _make_image((0, 0, 0, 0))
+    images[_SAMPLE_DEF.head_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_o_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_hand_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_hand_gcs_uri] = _make_image((200, 10, 10, 255))
+    mock_download.side_effect = lambda uri: images[uri]
+
+    character = self._build_character()
+    character.set_pose(
+      mask_boundary_offset=2.0,
+      left_hand_masking_enabled=True,
+      right_hand_visible=False,
+    )
+    composed = character.get_image()
+
+    self.assertEqual(composed.getpixel((2, 3)), (0, 0, 0, 0))
+
+  @patch("common.posable_character.cloud_storage.download_image_from_gcs")
+  def test_hand_masking_updates_with_transform_and_surface_line_not_masked(
+    self,
+    mock_download,
+  ):
+    definition = models.PosableCharacterDef(
+      width=100,
+      height=100,
+      head_gcs_uri="gs://test2/head.png",
+      surface_line_gcs_uri="gs://test2/surface_line.png",
+      left_hand_gcs_uri="gs://test2/left_hand.png",
+      right_hand_gcs_uri="gs://test2/right_hand.png",
+      mouth_open_gcs_uri="gs://test2/mouth_open.png",
+      mouth_closed_gcs_uri="gs://test2/mouth_closed.png",
+      mouth_o_gcs_uri="gs://test2/mouth_o.png",
+      left_eye_open_gcs_uri="gs://test2/left_eye_open.png",
+      left_eye_closed_gcs_uri="gs://test2/left_eye_closed.png",
+      right_eye_open_gcs_uri="gs://test2/right_eye_open.png",
+      right_eye_closed_gcs_uri="gs://test2/right_eye_closed.png",
+    )
+    transparent = _make_image((0, 0, 0, 0), size=(100, 100))
+    hand = _make_image((200, 10, 10, 255), size=(20, 20))
+    surface_line = _make_image((10, 200, 10, 255), size=(100, 2))
+
+    images: dict[str, Image.Image] = {
+      definition.head_gcs_uri: transparent,
+      definition.left_eye_open_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.right_eye_open_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.left_eye_closed_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.right_eye_closed_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.mouth_open_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.mouth_closed_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.mouth_o_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.left_hand_gcs_uri: hand,
+      definition.right_hand_gcs_uri: _make_image((0, 0, 0, 0)),
+      definition.surface_line_gcs_uri: surface_line,
+    }
+    mock_download.side_effect = lambda uri: images[uri]
+
+    character = PosableCharacter.from_def(definition)
+    # Place the surface line well below the mask boundary; it must remain visible.
+    character.set_pose(
+      head_masking_enabled=False,
+      right_hand_visible=False,
+      left_hand_masking_enabled=True,
+      mask_boundary_offset=30.0,  # cutoff_y = 100 - 30 = 70
+      surface_line_visible=True,
+      surface_line_offset=10.0,  # y = 100 - 10 = 90
+      left_hand_transform=Transform(translate_y=20.0),
+    )
+    composed_low = character.get_image()
+
+    # Hand (20x20) is centered (base_y=40) then translated to y=60.
+    # With cutoff_y=70, only y=60..69 is visible.
+    self.assertEqual(composed_low.getpixel((50, 65)), (200, 10, 10, 255))
+    self.assertEqual(composed_low.getpixel((50, 75)), (0, 0, 0, 0))
+
+    # Surface line is rendered after head and is not subject to masking.
+    self.assertEqual(composed_low.getpixel((50, 90)), (10, 200, 10, 255))
+
+    # Now move the hand above the boundary; the previously masked pixels must reappear.
+    character.set_pose(left_hand_transform=Transform(translate_y=-10.0))
+    composed_high = character.get_image()
+    self.assertEqual(composed_high.getpixel((50, 45)), (200, 10, 10, 255))
+
   def test_initialization_with_definition(self):
     definition = models.PosableCharacterDef(
       width=10,
       height=20,
       head_gcs_uri="gs://test/model_head.png",
+      surface_line_gcs_uri="gs://test/model_surface_line.png",
       left_hand_gcs_uri="gs://test/model_left_hand.png",
       right_hand_gcs_uri="gs://test/model_right_hand.png",
       mouth_open_gcs_uri="gs://test/model_mouth_open.png",

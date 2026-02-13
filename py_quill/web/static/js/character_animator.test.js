@@ -31,11 +31,19 @@ function assertClose(actual, expected, tolerance = 1e-6) {
   );
 }
 
+function minimalDefinition() {
+  return {
+    width: 100,
+    height: 80,
+    surface_line_gcs_uri: 'gs://bucket/surface_line.png',
+  };
+}
+
 test('CharacterAnimator matches canonical fixture samples', async () => {
   const fixture = loadCanonicalFixture();
   const { CharacterAnimator } = await loadCharacterAnimatorModule();
 
-  const animator = new CharacterAnimator(fixture.sequence, {}, {});
+  const animator = new CharacterAnimator(fixture.sequence, {}, minimalDefinition());
   assertClose(animator.durationSec(), fixture.expected_duration_sec);
 
   const expectedByTime = new Map();
@@ -105,13 +113,25 @@ test('CharacterAnimator matches canonical fixture samples', async () => {
       sample.head_transform.scale_y,
       expected.head_transform.scale_y,
     );
+    assertClose(sample.surface_line_offset, expected.surface_line_offset);
+    assertClose(sample.mask_boundary_offset, expected.mask_boundary_offset);
+    assert.equal(sample.surface_line_visible, expected.surface_line_visible);
+    assert.equal(sample.head_masking_enabled, expected.head_masking_enabled);
+    assert.equal(
+      sample.left_hand_masking_enabled,
+      expected.left_hand_masking_enabled,
+    );
+    assert.equal(
+      sample.right_hand_masking_enabled,
+      expected.right_hand_masking_enabled,
+    );
   });
 });
 
 test('CharacterAnimator matches canonical fixture sound windows', async () => {
   const fixture = loadCanonicalFixture();
   const { CharacterAnimator } = await loadCharacterAnimatorModule();
-  const animator = new CharacterAnimator(fixture.sequence, {}, {});
+  const animator = new CharacterAnimator(fixture.sequence, {}, minimalDefinition());
 
   fixture.sound_windows.forEach((window) => {
     const sounds = animator.soundEventsBetween(
@@ -147,7 +167,7 @@ test('CharacterAnimator updateSequence uses updated track data after cache has b
     ],
   };
 
-  const animator = new CharacterAnimator(initialSequence, {}, {});
+  const animator = new CharacterAnimator(initialSequence, {}, minimalDefinition());
 
   // Avoid requiring GSAP runtime in this unit test.
   animator._preloadAudio = async () => {};
@@ -164,7 +184,7 @@ test('CharacterAnimator updateSequence uses updated track data after cache has b
 
 test('CharacterAnimator play always restarts from time zero', async () => {
   const { CharacterAnimator } = await loadCharacterAnimatorModule();
-  const animator = new CharacterAnimator({}, {}, {});
+  const animator = new CharacterAnimator({}, {}, minimalDefinition());
 
   let seekCalledWith = null;
   animator.seek = (time) => {
@@ -182,4 +202,92 @@ test('CharacterAnimator play always restarts from time zero', async () => {
 
   assert.equal(seekCalledWith, 0);
   assert.equal(played, true);
+});
+
+test('CharacterAnimator applies clip-path masking style deterministically', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+  const element = { style: {} };
+  const animator = new CharacterAnimator({}, {}, minimalDefinition());
+
+  animator._applyMasking(element, 12, true);
+  assert.equal(element.style.clipPath, 'inset(0px 0px 12px 0px)');
+
+  animator._applyMasking(element, 12, false);
+  assert.equal(element.style.clipPath, 'none');
+});
+
+test('CharacterAnimator positions surface line from bottom offset', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+  const lineElement = { style: {} };
+  const animator = new CharacterAnimator(
+    {},
+    { surfaceLine: lineElement },
+    minimalDefinition(),
+  );
+
+  animator._applySurfaceLineOffset(30);
+  // height (80) - offset (30) => top 50.
+  assert.equal(lineElement.style.top, '50px');
+});
+
+test('CharacterAnimator render loop applies masking independent of transforms', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+
+  const leftHandClip = { style: {} };
+  const leftHandTransform = { style: {} };
+  const surfaceLine = { style: {} };
+
+  const sequence = {
+    sequence_left_eye_open: [],
+    sequence_right_eye_open: [],
+    sequence_mouth_state: [],
+    sequence_left_hand_visible: [{ start_time: 0, end_time: 10, value: true }],
+    sequence_right_hand_visible: [],
+    sequence_left_hand_transform: [
+      { start_time: 0, end_time: 2, target_transform: { translate_x: 0, translate_y: 20, scale_x: 1, scale_y: 1 } },
+    ],
+    sequence_right_hand_transform: [],
+    sequence_head_transform: [],
+    sequence_surface_line_offset: [{ start_time: 0, end_time: 2, target_value: 20 }],
+    sequence_mask_boundary_offset: [
+      { start_time: 0, end_time: 1, target_value: 12 },
+      { start_time: 1, end_time: 2, target_value: 30 },
+    ],
+    sequence_surface_line_visible: [{ start_time: 0, end_time: 10, value: true }],
+    sequence_head_masking_enabled: [],
+    sequence_left_hand_masking_enabled: [{ start_time: 0, end_time: 10, value: true }],
+    sequence_right_hand_masking_enabled: [],
+    sequence_sound_events: [],
+  };
+
+  const animator = new CharacterAnimator(
+    sequence,
+    {
+      leftHandClip,
+      leftHandTransform,
+      surfaceLine,
+    },
+    minimalDefinition(),
+  );
+
+  // At t=1.0, boundary offset resolves to 12 (from first event).
+  animator._renderAtTime(1.0);
+  assert.equal(leftHandClip.style.clipPath, 'inset(0px 0px 12px 0px)');
+  assert.ok(
+    String(leftHandTransform.style.transform || '').includes('translate('),
+    'expected transform wrapper to receive a translate() transform',
+  );
+  assert.equal(leftHandTransform.style.clipPath, undefined);
+
+  // Surface line should be visible and positioned from the bottom offset.
+  // The surface line offset is a float track; verify top using the sampled pose.
+  const poseAtOne = animator.samplePoseAtTime(1.0);
+  const expectedTop = `${minimalDefinition().height - poseAtOne.surface_line_offset}px`;
+  assert.equal(surfaceLine.style.opacity, '1');
+  assert.equal(surfaceLine.style.visibility, 'visible');
+  assert.equal(surfaceLine.style.top, expectedTop);
+
+  // At t=1.5, boundary offset should have advanced (interpolating 12 -> 30).
+  animator._renderAtTime(1.5);
+  assert.notEqual(leftHandClip.style.clipPath, 'inset(0px 0px 12px 0px)');
 });

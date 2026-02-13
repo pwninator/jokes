@@ -1377,6 +1377,7 @@ def _character_uri_payload(file_identifier: str = "char") -> dict[str, str]:
   base = f"gs://images.quillsstorybook.com/_joke_assets/characters/{file_identifier}"
   return {
     "head_gcs_uri": f"{base}/{file_identifier}_head.png",
+    "surface_line_gcs_uri": f"{base}/{file_identifier}_surface_line.png",
     "left_hand_gcs_uri": f"{base}/{file_identifier}_hand_left.png",
     "right_hand_gcs_uri": f"{base}/{file_identifier}_hand_right.png",
     "mouth_open_gcs_uri": f"{base}/{file_identifier}_mouth_open.png",
@@ -1511,3 +1512,45 @@ def test_joke_creation_process_character_def_op_rejects_mismatched_dimensions(
   assert resp.status_code == 400
   payload = resp.get_json()["data"]
   assert "matching dimensions" in payload["error"]
+
+
+def test_joke_creation_process_character_def_op_allows_surface_line_dimension_mismatch(
+    monkeypatch):
+  """CHARACTER op should allow surface line assets to differ in dimensions."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  captured: dict = {}
+
+  def fake_create(char_def):
+    captured["char_def"] = char_def
+    char_def.key = "new-char-surface-line-mismatch"
+    return char_def
+
+  monkeypatch.setattr(joke_creation_fns.firestore,
+                      "create_posable_character_def", fake_create)
+
+  def _download_image(uri: str):
+    # Standard sprite size for all character parts.
+    if uri.endswith("_surface_line.png"):
+      # Surface line is a thin overlay and is allowed to differ in dimensions.
+      return Image.new("RGBA", (452, 9), (0, 0, 0, 0))
+    return Image.new("RGBA", (500, 350), (0, 0, 0, 0))
+
+  monkeypatch.setattr(joke_creation_fns.cloud_storage, "download_image_from_gcs",
+                      _download_image)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.CHARACTER.value,
+        "name": "Surface Line Mismatch OK",
+        **_character_uri_payload("surface_line_mismatch_ok"),
+      },
+    ))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert payload["key"] == "new-char-surface-line-mismatch"
+  assert captured["char_def"].width == 500
+  assert captured["char_def"].height == 350

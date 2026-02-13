@@ -17,6 +17,12 @@ class CharacterAnimationConfig {
   final ValueNotifier<bool> rightEyeOpen;
   final ValueNotifier<bool> leftHandVisible;
   final ValueNotifier<bool> rightHandVisible;
+  final ValueNotifier<double> surfaceLineOffset;
+  final ValueNotifier<double> maskBoundaryOffset;
+  final ValueNotifier<bool> surfaceLineVisible;
+  final ValueNotifier<bool> headMaskingEnabled;
+  final ValueNotifier<bool> leftHandMaskingEnabled;
+  final ValueNotifier<bool> rightHandMaskingEnabled;
 
   const CharacterAnimationConfig({
     required this.headTransform,
@@ -27,6 +33,12 @@ class CharacterAnimationConfig {
     required this.rightEyeOpen,
     required this.leftHandVisible,
     required this.rightHandVisible,
+    required this.surfaceLineOffset,
+    required this.maskBoundaryOffset,
+    required this.surfaceLineVisible,
+    required this.headMaskingEnabled,
+    required this.leftHandMaskingEnabled,
+    required this.rightHandMaskingEnabled,
   });
 }
 
@@ -100,7 +112,13 @@ class CharacterAnimator {
     check(sequence.sequenceLeftHandTransform);
     check(sequence.sequenceRightHandTransform);
     check(sequence.sequenceHeadTransform);
+    check(sequence.sequenceSurfaceLineOffset);
+    check(sequence.sequenceMaskBoundaryOffset);
     check(sequence.sequenceSoundEvents);
+    check(sequence.sequenceSurfaceLineVisible);
+    check(sequence.sequenceHeadMaskingEnabled);
+    check(sequence.sequenceLeftHandMaskingEnabled);
+    check(sequence.sequenceRightHandMaskingEnabled);
 
     return maxTime;
   }
@@ -187,8 +205,8 @@ class CharacterAnimator {
   Matrix4 _transformToMatrix(CharacterTransform t) {
     // T * S
     return Matrix4.identity()
-      ..translate(t.translateX, t.translateY)
-      ..scale(t.scaleX, t.scaleY, 1.0);
+      ..translateByDouble(t.translateX, t.translateY, 0.0, 1.0)
+      ..scaleByDouble(t.scaleX, t.scaleY, 1.0, 1.0);
   }
 
   void _onTick() {
@@ -227,15 +245,53 @@ class CharacterAnimator {
       t,
       true,
     );
+    config.surfaceLineOffset.value = _getFloatValue(
+      sequence.sequenceSurfaceLineOffset,
+      t,
+      50.0,
+    );
+    config.maskBoundaryOffset.value = _getFloatValue(
+      sequence.sequenceMaskBoundaryOffset,
+      t,
+      50.0,
+    );
+    config.surfaceLineVisible.value = _getBooleanValue(
+      sequence.sequenceSurfaceLineVisible,
+      t,
+      true,
+    );
+    config.headMaskingEnabled.value = _getBooleanValue(
+      sequence.sequenceHeadMaskingEnabled,
+      t,
+      true,
+    );
+    config.leftHandMaskingEnabled.value = _getBooleanValue(
+      sequence.sequenceLeftHandMaskingEnabled,
+      t,
+      false,
+    );
+    config.rightHandMaskingEnabled.value = _getBooleanValue(
+      sequence.sequenceRightHandMaskingEnabled,
+      t,
+      false,
+    );
   }
 
   MouthState _getMouthState(double t) {
-    // Defaults to CLOSED
-    // Find active event
-    for (final event in sequence.sequenceMouthState) {
+    // Spec: active window is [start, end) and track sorted by start_time.
+    if (sequence.sequenceMouthState.isEmpty) {
+      return MouthState.closed;
+    }
+    final sorted = List<SequenceMouthEvent>.from(sequence.sequenceMouthState)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    for (final event in sorted) {
+      final start = event.startTime;
       final end = event.endTime!;
-      if (t >= event.startTime && t <= end) {
+      if (start <= t && t < end) {
         return event.mouthState;
+      }
+      if (start > t) {
+        break;
       }
     }
     return MouthState.closed;
@@ -246,13 +302,54 @@ class CharacterAnimator {
     double t,
     bool defaultValue,
   ) {
-    for (final event in track) {
+    // Spec: active window is [start, end) and track sorted by start_time.
+    if (track.isEmpty) {
+      return defaultValue;
+    }
+    final sorted = List<SequenceBooleanEvent>.from(track)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    for (final event in sorted) {
+      final start = event.startTime;
       final end = event.endTime!;
-      if (t >= event.startTime && t <= end) {
+      if (start <= t && t < end) {
         return event.value;
+      }
+      if (start > t) {
+        break;
       }
     }
     return defaultValue;
+  }
+
+  double _getFloatValue(
+    List<SequenceFloatEvent> track,
+    double t,
+    double defaultValue,
+  ) {
+    if (track.isEmpty) {
+      return defaultValue;
+    }
+    final sorted = List<SequenceFloatEvent>.from(track)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    double previousTarget = defaultValue;
+    for (final event in sorted) {
+      final end = event.endTime!;
+      if (t < event.startTime) {
+        return previousTarget;
+      }
+      // Spec: active window is [start, end)
+      if (event.startTime <= t && t < end) {
+        final duration = end - event.startTime;
+        if (duration <= 0) {
+          return event.targetValue;
+        }
+        final progress = (t - event.startTime) / duration;
+        return previousTarget +
+            ((event.targetValue - previousTarget) * progress);
+      }
+      previousTarget = event.targetValue;
+    }
+    return previousTarget;
   }
 
   void _updateAudio(double t) {
@@ -350,6 +447,30 @@ class CharacterAnimator {
     );
     checkEvents(sequence.sequenceHeadTransform, 'sequenceHeadTransform');
     checkEvents(sequence.sequenceSoundEvents, 'sequenceSoundEvents');
+    checkEvents(
+      sequence.sequenceSurfaceLineOffset,
+      'sequenceSurfaceLineOffset',
+    );
+    checkEvents(
+      sequence.sequenceMaskBoundaryOffset,
+      'sequenceMaskBoundaryOffset',
+    );
+    checkEvents(
+      sequence.sequenceSurfaceLineVisible,
+      'sequenceSurfaceLineVisible',
+    );
+    checkEvents(
+      sequence.sequenceHeadMaskingEnabled,
+      'sequenceHeadMaskingEnabled',
+    );
+    checkEvents(
+      sequence.sequenceLeftHandMaskingEnabled,
+      'sequenceLeftHandMaskingEnabled',
+    );
+    checkEvents(
+      sequence.sequenceRightHandMaskingEnabled,
+      'sequenceRightHandMaskingEnabled',
+    );
   }
 
   void dispose() {

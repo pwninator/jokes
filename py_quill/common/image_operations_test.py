@@ -1347,7 +1347,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
 
     mock_get_font.assert_called_once_with(
       image_operations._PAGE_NUMBER_FONT_SIZE)
-    offset = image_operations._BOOK_PAGE_BLEED_PX * 3
+    offset = int(round(image_operations._BOOK_PAGE_BLEED_PX * 3.5))
     stroke_width = max(
       1,
       int(
@@ -1384,7 +1384,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
 
     mock_get_font.assert_called_once_with(
       image_operations._PAGE_NUMBER_FONT_SIZE)
-    offset = image_operations._BOOK_PAGE_BLEED_PX * 3
+    offset = int(round(image_operations._BOOK_PAGE_BLEED_PX * 3.5))
     stroke_width = max(
       1,
       int(

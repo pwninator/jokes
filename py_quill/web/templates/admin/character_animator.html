@@ -91,6 +91,7 @@
         <label>Left Eye Closed GCS URI: <input type="text" id="char-left-eye-closed-uri" style="width: 100%;"></label>
         <label>Right Eye Open GCS URI: <input type="text" id="char-right-eye-open-uri" style="width: 100%;"></label>
         <label>Right Eye Closed GCS URI: <input type="text" id="char-right-eye-closed-uri" style="width: 100%;"></label>
+        <label>Surface Line GCS URI: <input type="text" id="char-surface-line-uri" style="width: 100%;"></label>
         <div style="display: flex; gap: 8px; align-items: center;">
             <label>File Identifier: <input type="text" id="char-file-identifier"></label>
             <button id="fill-uris-btn" class="text-button">Fill URIs</button>
@@ -106,16 +107,25 @@
 <div id="stage" class="stage-container">
     <!-- Structure for animator -->
     <div id="head-group" style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
-        <img id="char-head-base" style="grid-area: 1/1; max-width: none;">
-        <img id="char-eye-l" style="grid-area: 1/1; max-width: none;">
-        <img id="char-eye-r" style="grid-area: 1/1; max-width: none;">
-        <img id="char-mouth" style="grid-area: 1/1; max-width: none;">
+        <div id="head-transform" style="position: absolute; inset: 0; display: grid; place-items: center; transform-origin: center center;">
+            <img id="char-head-base" style="grid-area: 1/1; max-width: none;">
+            <img id="char-eye-l" style="grid-area: 1/1; max-width: none;">
+            <img id="char-eye-r" style="grid-area: 1/1; max-width: none;">
+            <img id="char-mouth" style="grid-area: 1/1; max-width: none;">
+        </div>
+    </div>
+    <div id="surface-line-group" style="position: absolute; inset: 0; pointer-events: none;">
+        <img id="char-surface-line" style="position: absolute; left: 50%; top: 0; transform: translateX(-50%); max-width: none;">
     </div>
     <div id="hand-l-group" style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
-        <img id="char-hand-l" style="grid-area: 1/1; max-width: none;">
+        <div id="hand-l-transform" style="position: absolute; inset: 0; display: grid; place-items: center; transform-origin: center center;">
+            <img id="char-hand-l" style="grid-area: 1/1; max-width: none;">
+        </div>
     </div>
     <div id="hand-r-group" style="position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;">
-        <img id="char-hand-r" style="grid-area: 1/1; max-width: none;">
+        <div id="hand-r-transform" style="position: absolute; inset: 0; display: grid; place-items: center; transform-origin: center center;">
+            <img id="char-hand-r" style="grid-area: 1/1; max-width: none;">
+        </div>
     </div>
 </div>
 
@@ -124,6 +134,78 @@
 <script type="module">
   import { CharacterAnimator } from "{{ url_for('static', filename='js/character_animator.js') }}";
   import { CharacterEditor } from "{{ url_for('static', filename='js/character_editor.js') }}";
+
+  function getPreviousEventEndTime(events, clickedTime) {
+      if (!Array.isArray(events) || events.length === 0) {
+          return 0;
+      }
+
+      let previousEvent = null;
+      events.forEach((event) => {
+          const startTime = Number(event?.start_time);
+          if (!Number.isFinite(startTime) || startTime > clickedTime) {
+              return;
+          }
+          if (!previousEvent || startTime >= Number(previousEvent.start_time)) {
+              previousEvent = event;
+          }
+      });
+
+      if (!previousEvent) {
+          return 0;
+      }
+
+      const endTime = Number(previousEvent.end_time);
+      if (Number.isFinite(endTime)) {
+          return endTime;
+      }
+      const startTime = Number(previousEvent.start_time);
+      return Number.isFinite(startTime) ? startTime : 0;
+  }
+
+  function patchCharacterEditorBehavior() {
+      if (CharacterEditor.__characterAnimatorPatched) {
+          return;
+      }
+      CharacterEditor.__characterAnimatorPatched = true;
+
+      const originalOpenEventModal = CharacterEditor.prototype._openEventModal;
+      CharacterEditor.prototype._openEventModal = function(trackName, index, defaultTime = 0) {
+          let resolvedDefaultTime = defaultTime;
+          if (index === null) {
+              const clickedTime = Number.isFinite(defaultTime) ? defaultTime : 0;
+              const trackEvents = this.sequenceData?.[trackName] || [];
+              resolvedDefaultTime = getPreviousEventEndTime(trackEvents, clickedTime);
+          }
+          return originalOpenEventModal.call(this, trackName, index, resolvedDefaultTime);
+      };
+
+      const originalRender = CharacterEditor.prototype.render;
+      CharacterEditor.prototype.render = function() {
+          originalRender.call(this);
+
+          const trackElements = this.container.querySelectorAll('.editor-track');
+          this.trackConfig.forEach((track, trackIndex) => {
+              if (track.type !== 'BOOLEAN') {
+                  return;
+              }
+              const trackEl = trackElements[trackIndex];
+              if (!trackEl) {
+                  return;
+              }
+
+              const blocks = trackEl.querySelectorAll('.event-block');
+              const events = this.sequenceData[track.name] || [];
+              blocks.forEach((block, eventIndex) => {
+                  const boolValue = !!events[eventIndex]?.value;
+                  block.style.background = boolValue ? '#b9f3c7' : '#f7c3c3';
+                  block.style.color = '#2f2f2f';
+              });
+          });
+      };
+  }
+
+  patchCharacterEditorBehavior();
 
   let animator = null;
   let editor = null;
@@ -141,6 +223,7 @@
   const imgMouth = document.getElementById('char-mouth');
   const imgHandL = document.getElementById('char-hand-l');
   const imgHandR = document.getElementById('char-hand-r');
+  const imgSurfaceLine = document.getElementById('char-surface-line');
 
   const loadBtn = document.getElementById('load-btn');
   const newSeqBtn = document.getElementById('new-seq-btn');
@@ -158,6 +241,7 @@
   const charWidthText = document.getElementById('char-width-text');
   const charHeightText = document.getElementById('char-height-text');
   const charHeadUriInput = document.getElementById('char-head-uri');
+  const charSurfaceLineUriInput = document.getElementById('char-surface-line-uri');
   const charLeftHandUriInput = document.getElementById('char-left-hand-uri');
   const charRightHandUriInput = document.getElementById('char-right-hand-uri');
   const charMouthOpenUriInput = document.getElementById('char-mouth-open-uri');
@@ -179,7 +263,13 @@
           sequence_mouth_state: [],
           sequence_left_hand_visible: [],
           sequence_right_hand_visible: [],
-          sequence_sound_events: []
+          sequence_sound_events: [],
+          sequence_surface_line_offset: [],
+          sequence_mask_boundary_offset: [],
+          sequence_surface_line_visible: [],
+          sequence_head_masking_enabled: [],
+          sequence_left_hand_masking_enabled: [],
+          sequence_right_hand_masking_enabled: [],
       };
   }
 
@@ -230,11 +320,18 @@
   function getDomElements() {
       return {
         head: headGroup,
+        headClip: headGroup,
+        headTransform: document.getElementById('head-transform'),
         mouth: imgMouth,
         leftEye: imgEyeL,
         rightEye: imgEyeR,
         leftHand: handLGroup,
-        rightHand: handRGroup
+        leftHandClip: handLGroup,
+        leftHandTransform: document.getElementById('hand-l-transform'),
+        rightHand: handRGroup,
+        rightHandClip: handRGroup,
+        rightHandTransform: document.getElementById('hand-r-transform'),
+        surfaceLine: imgSurfaceLine,
       };
   }
 
@@ -330,6 +427,7 @@
       charWidthText.textContent = def.width ?? '';
       charHeightText.textContent = def.height ?? '';
       charHeadUriInput.value = def.head_gcs_uri || '';
+      charSurfaceLineUriInput.value = def.surface_line_gcs_uri;
       charLeftHandUriInput.value = def.left_hand_gcs_uri || '';
       charRightHandUriInput.value = def.right_hand_gcs_uri || '';
       charMouthOpenUriInput.value = def.mouth_open_gcs_uri || '';
@@ -347,6 +445,7 @@
       charWidthText.textContent = '';
       charHeightText.textContent = '';
       charHeadUriInput.value = '';
+      charSurfaceLineUriInput.value = '';
       charLeftHandUriInput.value = '';
       charRightHandUriInput.value = '';
       charMouthOpenUriInput.value = '';
@@ -378,6 +477,11 @@
       charLeftEyeClosedUriInput.value = `${baseUri}/${fileIdentifier}_eye_left_closed.png`;
       charRightEyeOpenUriInput.value = `${baseUri}/${fileIdentifier}_eye_right_open.png`;
       charRightEyeClosedUriInput.value = `${baseUri}/${fileIdentifier}_eye_right_closed.png`;
+
+      const surfaceLineUri = charSurfaceLineUriInput.value.trim();
+      if (!surfaceLineUri) {
+          charSurfaceLineUriInput.value = 'gs://images.quillsstorybook.com/_joke_assets/characters/surface_line_orange1.png';
+      }
   });
 
   document.getElementById('new-char-btn').addEventListener('click', (e) => {
@@ -398,6 +502,7 @@
           if (charIdInput.value) formData.append('character_id', charIdInput.value);
           formData.append('name', charNameInput.value);
           formData.append('head_gcs_uri', charHeadUriInput.value);
+          formData.append('surface_line_gcs_uri', charSurfaceLineUriInput.value);
           formData.append('left_hand_gcs_uri', charLeftHandUriInput.value);
           formData.append('right_hand_gcs_uri', charRightHandUriInput.value);
           formData.append('mouth_open_gcs_uri', charMouthOpenUriInput.value);
@@ -569,10 +674,13 @@
       imgHead.src = toBrowserUrl(def.head_gcs_uri);
       imgHandL.src = toBrowserUrl(def.left_hand_gcs_uri);
       imgHandR.src = toBrowserUrl(def.right_hand_gcs_uri);
+      imgSurfaceLine.src = toBrowserUrl(def.surface_line_gcs_uri);
 
       imgEyeL.src = toBrowserUrl(def.left_eye_open_gcs_uri);
       imgEyeR.src = toBrowserUrl(def.right_eye_open_gcs_uri);
       imgMouth.src = toBrowserUrl(def.mouth_closed_gcs_uri);
+      imgSurfaceLine.style.top = `${(def.height || 0) - 50}px`;
+      imgSurfaceLine.style.opacity = '1';
   }
 
   function initializeComponents(seq, def) {

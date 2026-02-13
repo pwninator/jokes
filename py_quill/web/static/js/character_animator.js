@@ -88,6 +88,21 @@ export class CharacterAnimator {
   constructor(sequenceData, domElements, characterDefinition) {
     this.sequenceData = sequenceData || {};
     this.domElements = domElements || {};
+    // Back-compat + improved structure: allow separate elements for clipping
+    // (masking) vs transforms. If the newer keys are not provided, fall back
+    // to the legacy `head/leftHand/rightHand` elements.
+    this._dom = {
+      headClip: this.domElements.headClip || this.domElements.head,
+      headTransform: this.domElements.headTransform || this.domElements.head,
+      mouth: this.domElements.mouth,
+      leftEye: this.domElements.leftEye,
+      rightEye: this.domElements.rightEye,
+      leftHandClip: this.domElements.leftHandClip || this.domElements.leftHand,
+      leftHandTransform: this.domElements.leftHandTransform || this.domElements.leftHand,
+      rightHandClip: this.domElements.rightHandClip || this.domElements.rightHand,
+      rightHandTransform: this.domElements.rightHandTransform || this.domElements.rightHand,
+      surfaceLine: this.domElements.surfaceLine,
+    };
     this.characterDefinition = this._normalizeCharacterDefinition(characterDefinition || {});
     this.timeline = null;
     this.audioCache = new Map();
@@ -95,6 +110,7 @@ export class CharacterAnimator {
     this._soundByEventKey = new Map();
     this._sortedTrackCache = new Map();
     this._gsap = null;
+    this._validateCharacterDefinition();
     this._validateSequenceForSpec();
   }
 
@@ -106,6 +122,12 @@ export class CharacterAnimator {
       }
     });
     return normalized;
+  }
+
+  _validateCharacterDefinition() {
+    if (!this.characterDefinition.surface_line_gcs_uri) {
+      throw new Error('characterDefinition.surface_line_gcs_uri is required');
+    }
   }
 
   /**
@@ -140,6 +162,12 @@ export class CharacterAnimator {
       left_hand_transform: this._sampleTransformTrack('sequence_left_hand_transform', t),
       right_hand_transform: this._sampleTransformTrack('sequence_right_hand_transform', t),
       head_transform: this._sampleTransformTrack('sequence_head_transform', t),
+      surface_line_offset: this._sampleFloatTrack('sequence_surface_line_offset', t, 50),
+      mask_boundary_offset: this._sampleFloatTrack('sequence_mask_boundary_offset', t, 50),
+      surface_line_visible: this._sampleBooleanTrack('sequence_surface_line_visible', t, true),
+      head_masking_enabled: this._sampleBooleanTrack('sequence_head_masking_enabled', t, true),
+      left_hand_masking_enabled: this._sampleBooleanTrack('sequence_left_hand_masking_enabled', t, false),
+      right_hand_masking_enabled: this._sampleBooleanTrack('sequence_right_hand_masking_enabled', t, false),
     };
   }
 
@@ -199,6 +227,12 @@ export class CharacterAnimator {
       'sequence_left_hand_transform',
       'sequence_right_hand_transform',
       'sequence_head_transform',
+      'sequence_surface_line_offset',
+      'sequence_mask_boundary_offset',
+      'sequence_surface_line_visible',
+      'sequence_head_masking_enabled',
+      'sequence_left_hand_masking_enabled',
+      'sequence_right_hand_masking_enabled',
       'sequence_sound_events',
     ];
   }
@@ -219,8 +253,12 @@ export class CharacterAnimator {
       const event = track[eventIndex];
       const start = asNumber(event.start_time);
       const end = asNumber(event.end_time);
-      if (timeSec >= start && timeSec <= end) {
+      // Spec: active window is [start, end)
+      if (timeSec >= start && timeSec < end) {
         return Boolean(event.value);
+      }
+      if (start > timeSec) {
+        break;
       }
     }
     return defaultValue;
@@ -232,8 +270,12 @@ export class CharacterAnimator {
       const event = track[eventIndex];
       const start = asNumber(event.start_time);
       const end = asNumber(event.end_time);
-      if (timeSec >= start && timeSec <= end) {
+      // Spec: active window is [start, end)
+      if (timeSec >= start && timeSec < end) {
         return event.mouth_state || 'CLOSED';
+      }
+      if (start > timeSec) {
+        break;
       }
     }
     return 'CLOSED';
@@ -257,7 +299,8 @@ export class CharacterAnimator {
         return previousTarget;
       }
 
-      if (timeSec <= end) {
+      // Spec: active window is [start, end)
+      if (timeSec >= start && timeSec < end) {
         if (end <= start) {
           return target;
         }
@@ -273,6 +316,33 @@ export class CharacterAnimator {
       previousTarget = target;
     }
 
+    return previousTarget;
+  }
+
+  _sampleFloatTrack(trackName, timeSec, defaultValue) {
+    const track = this._track(trackName);
+    if (track.length === 0) {
+      return Number(defaultValue);
+    }
+    let previousTarget = Number(defaultValue);
+    for (let eventIndex = 0; eventIndex < track.length; eventIndex += 1) {
+      const event = track[eventIndex];
+      const start = asNumber(event.start_time);
+      const end = asNumber(event.end_time);
+      const target = asNumber(event.target_value);
+      if (timeSec < start) {
+        return previousTarget;
+      }
+      // Spec: active window is [start, end)
+      if (timeSec >= start && timeSec < end) {
+        if (end <= start) {
+          return target;
+        }
+        const progress = (timeSec - start) / (end - start);
+        return lerp(previousTarget, target, progress);
+      }
+      previousTarget = target;
+    }
     return previousTarget;
   }
 
@@ -349,6 +419,7 @@ export class CharacterAnimator {
       definition.left_eye_closed_gcs_uri,
       definition.right_eye_open_gcs_uri,
       definition.right_eye_closed_gcs_uri,
+      definition.surface_line_gcs_uri,
     ].filter((uri) => uri);
 
     const uniqueUris = new Set(uris);
@@ -374,28 +445,88 @@ export class CharacterAnimator {
       this._stopAllSounds();
     }
 
+    const durationSec = Math.max(0, this.durationSec());
     this.timeline = this._gsap.timeline({ paused: true });
 
-    this._addTransformTrack(this.domElements.head, this._track('sequence_head_transform'));
-    this._addTransformTrack(this.domElements.leftHand, this._track('sequence_left_hand_transform'));
-    this._addTransformTrack(this.domElements.rightHand, this._track('sequence_right_hand_transform'));
-
-    this._addBooleanTrack(this.domElements.leftHand, this._track('sequence_left_hand_visible'), 'autoAlpha');
-    this._addBooleanTrack(this.domElements.rightHand, this._track('sequence_right_hand_visible'), 'autoAlpha');
-
-    this._addImageSwapTrack(
-      this.domElements.leftEye,
-      this._track('sequence_left_eye_open'),
-      (isOpen) => (isOpen ? this.characterDefinition.left_eye_open_gcs_uri : this.characterDefinition.left_eye_closed_gcs_uri),
+    // Single spec-driven render loop: sample pose at current time and apply
+    // to DOM. This ensures:
+    // - masking respects transforms (clipping happens in canvas coordinates)
+    // - boolean tracks honor end_time defaults (no "sticky" values)
+    // - rewinds/seeks are deterministic
+    this.timeline.to(
+      {},
+      {
+        duration: durationSec > 0 ? durationSec : 0.0001,
+        ease: 'none',
+        onUpdate: () => {
+          this._renderAtTime(this.timeline.time());
+        },
+      },
+      0,
     );
-    this._addImageSwapTrack(
-      this.domElements.rightEye,
-      this._track('sequence_right_eye_open'),
-      (isOpen) => (isOpen ? this.characterDefinition.right_eye_open_gcs_uri : this.characterDefinition.right_eye_closed_gcs_uri),
-    );
 
-    this._addMouthTrack(this.domElements.mouth, this._track('sequence_mouth_state'));
     this._addAudioTrack(this._track('sequence_sound_events'));
+    this._renderAtTime(0);
+  }
+
+  _renderAtTime(timeSec) {
+    const pose = this.samplePoseAtTime(timeSec);
+
+    // Transforms
+    this._applyTransform(this._dom.headTransform, pose.head_transform);
+    this._applyTransform(this._dom.leftHandTransform, pose.left_hand_transform);
+    this._applyTransform(this._dom.rightHandTransform, pose.right_hand_transform);
+
+    // Visibility
+    this._applyAutoAlpha(this._dom.leftHandClip, pose.left_hand_visible);
+    this._applyAutoAlpha(this._dom.rightHandClip, pose.right_hand_visible);
+    this._applyAutoAlpha(this._dom.surfaceLine, pose.surface_line_visible);
+
+    // Surface line positioning (from bottom offset)
+    this._applySurfaceLineOffset(pose.surface_line_offset);
+
+    // Masking (clip in canvas coordinates; transforms occur inside clip wrappers)
+    this._applyMasking(this._dom.headClip, pose.mask_boundary_offset, pose.head_masking_enabled);
+    this._applyMasking(this._dom.leftHandClip, pose.mask_boundary_offset, pose.left_hand_masking_enabled);
+    this._applyMasking(this._dom.rightHandClip, pose.mask_boundary_offset, pose.right_hand_masking_enabled);
+
+    // Eyes + mouth (image swaps)
+    if (this._dom.leftEye) {
+      this._dom.leftEye.src = pose.left_eye_open
+        ? this.characterDefinition.left_eye_open_gcs_uri
+        : this.characterDefinition.left_eye_closed_gcs_uri;
+    }
+    if (this._dom.rightEye) {
+      this._dom.rightEye.src = pose.right_eye_open
+        ? this.characterDefinition.right_eye_open_gcs_uri
+        : this.characterDefinition.right_eye_closed_gcs_uri;
+    }
+    if (this._dom.mouth) {
+      let uri = this.characterDefinition.mouth_closed_gcs_uri;
+      if (pose.mouth_state === 'OPEN' || pose.mouth_state === 'MouthState.OPEN') {
+        uri = this.characterDefinition.mouth_open_gcs_uri;
+      } else if (pose.mouth_state === 'O' || pose.mouth_state === 'MouthState.O') {
+        uri = this.characterDefinition.mouth_o_gcs_uri;
+      }
+      this._dom.mouth.src = uri;
+    }
+  }
+
+  _applyTransform(element, transform) {
+    if (!element) {
+      return;
+    }
+    const t = normalizeTransform(transform);
+    element.style.transform = `translate(${t.translate_x}px, ${t.translate_y}px) scale(${t.scale_x}, ${t.scale_y})`;
+  }
+
+  _applyAutoAlpha(element, isVisible) {
+    if (!element) {
+      return;
+    }
+    const visible = Boolean(isVisible);
+    element.style.opacity = visible ? '1' : '0';
+    element.style.visibility = visible ? 'visible' : 'hidden';
   }
 
   _addTransformTrack(element, events) {
@@ -427,6 +558,71 @@ export class CharacterAnimator {
         [property]: event.value ? 1 : 0,
       }, asNumber(event.start_time));
     });
+  }
+
+  _addBooleanValueTrack(target, key, events, onUpdate) {
+    if (!events) {
+      return;
+    }
+    events.forEach((event) => {
+      this.timeline.call(() => {
+        target[key] = Boolean(event.value);
+        onUpdate();
+      }, null, asNumber(event.start_time));
+    });
+  }
+
+  _addFloatTrack(target, key, events, onUpdate) {
+    if (!events) {
+      return;
+    }
+    events.forEach((event) => {
+      const startTime = asNumber(event.start_time);
+      const endTime = asNumber(event.end_time);
+      const duration = Math.max(0, endTime - startTime);
+      const targetValue = asNumber(event.target_value);
+      if (duration <= 0) {
+        this.timeline.call(() => {
+          target[key] = targetValue;
+          onUpdate();
+        }, null, startTime);
+        return;
+      }
+      this.timeline.to(target, {
+        [key]: targetValue,
+        duration,
+        ease: 'none',
+        onUpdate,
+      }, startTime);
+    });
+  }
+
+  _applyMaskingState(maskState) {
+    this._applyMasking(this._dom.headClip, maskState.maskBoundaryOffset, maskState.headMaskingEnabled);
+    this._applyMasking(this._dom.leftHandClip, maskState.maskBoundaryOffset, maskState.leftHandMaskingEnabled);
+    this._applyMasking(this._dom.rightHandClip, maskState.maskBoundaryOffset, maskState.rightHandMaskingEnabled);
+  }
+
+  _applyMasking(element, maskBoundaryOffset, maskingEnabled) {
+    if (!element) {
+      return;
+    }
+    if (!maskingEnabled) {
+      element.style.clipPath = 'none';
+      return;
+    }
+    const height = Math.max(0, asNumber(this.characterDefinition.height));
+    const clipBottom = Math.min(Math.max(asNumber(maskBoundaryOffset), 0), height);
+    element.style.clipPath = `inset(0px 0px ${clipBottom}px 0px)`;
+  }
+
+  _applySurfaceLineOffset(surfaceLineOffset) {
+    const line = this.domElements.surfaceLine;
+    if (!line) {
+      return;
+    }
+    const top = asNumber(this.characterDefinition.height) - asNumber(surfaceLineOffset);
+    line.style.top = `${top}px`;
   }
 
   _addImageSwapTrack(element, events, uriSelector) {

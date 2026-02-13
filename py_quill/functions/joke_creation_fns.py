@@ -737,6 +737,7 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
   # Extract fields
   name = (get_param(req, "name") or "").strip()
   head_gcs_uri = (get_param(req, "head_gcs_uri") or "").strip()
+  surface_line_gcs_uri = (get_param(req, "surface_line_gcs_uri") or "").strip()
   left_hand_gcs_uri = (get_param(req, "left_hand_gcs_uri") or "").strip()
   right_hand_gcs_uri = (get_param(req, "right_hand_gcs_uri") or "").strip()
   mouth_open_gcs_uri = (get_param(req, "mouth_open_gcs_uri") or "").strip()
@@ -754,6 +755,7 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
   try:
     asset_uris = {
       "head_gcs_uri": head_gcs_uri,
+      "surface_line_gcs_uri": surface_line_gcs_uri,
       "left_hand_gcs_uri": left_hand_gcs_uri,
       "right_hand_gcs_uri": right_hand_gcs_uri,
       "mouth_open_gcs_uri": mouth_open_gcs_uri,
@@ -773,6 +775,7 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
       width=width_int,
       height=height_int,
       head_gcs_uri=head_gcs_uri,
+      surface_line_gcs_uri=surface_line_gcs_uri,
       left_hand_gcs_uri=left_hand_gcs_uri,
       right_hand_gcs_uri=right_hand_gcs_uri,
       mouth_open_gcs_uri=mouth_open_gcs_uri,
@@ -817,7 +820,11 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
 def _validate_character_assets_and_get_dimensions(
   asset_uris: dict[str, str],
 ) -> tuple[int, int]:
-  """Verify character assets exist, are valid images, and share dimensions."""
+  """Verify character assets exist, are valid images, and share dimensions.
+
+  Note: `surface_line_gcs_uri` is allowed to have different dimensions than the
+  other sprites (it is a thin overlay).
+  """
   expected_size: tuple[int, int] | None = None
   expected_field: str | None = None
 
@@ -840,6 +847,9 @@ def _validate_character_assets_and_get_dimensions(
     if expected_size is None:
       expected_size = size
       expected_field = field_name
+      continue
+
+    if field_name == "surface_line_gcs_uri":
       continue
 
     if size != expected_size:

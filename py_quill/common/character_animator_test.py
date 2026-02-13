@@ -92,6 +92,30 @@ class CharacterAnimatorTest(unittest.TestCase):
         float(sample.head_transform.scale_y),
         float(expected["head_transform"]["scale_y"]),
       )
+      self.assertAlmostEqual(
+        float(sample.surface_line_offset),
+        float(expected["surface_line_offset"]),
+      )
+      self.assertAlmostEqual(
+        float(sample.mask_boundary_offset),
+        float(expected["mask_boundary_offset"]),
+      )
+      self.assertEqual(
+        bool(sample.surface_line_visible),
+        bool(expected["surface_line_visible"]),
+      )
+      self.assertEqual(
+        bool(sample.head_masking_enabled),
+        bool(expected["head_masking_enabled"]),
+      )
+      self.assertEqual(
+        bool(sample.left_hand_masking_enabled),
+        bool(expected["left_hand_masking_enabled"]),
+      )
+      self.assertEqual(
+        bool(sample.right_hand_masking_enabled),
+        bool(expected["right_hand_masking_enabled"]),
+      )
 
     for window in fixture["sound_windows"]:
       sounds = animator.sound_events_between(

@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_annotation_target
+
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'posable_character_sequence.freezed.dart';
@@ -66,6 +68,19 @@ class SequenceTransformEvent with _$SequenceTransformEvent {
 }
 
 @freezed
+class SequenceFloatEvent with _$SequenceFloatEvent {
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory SequenceFloatEvent({
+    required double startTime,
+    double? endTime,
+    required double targetValue,
+  }) = _SequenceFloatEvent;
+
+  factory SequenceFloatEvent.fromJson(Map<String, dynamic> json) =>
+      _$SequenceFloatEventFromJson(json);
+}
+
+@freezed
 class SequenceSoundEvent with _$SequenceSoundEvent {
   @JsonSerializable(fieldRename: FieldRename.snake)
   const factory SequenceSoundEvent({
@@ -92,7 +107,13 @@ class PosableCharacterSequence with _$PosableCharacterSequence {
     @Default([]) List<SequenceTransformEvent> sequenceLeftHandTransform,
     @Default([]) List<SequenceTransformEvent> sequenceRightHandTransform,
     @Default([]) List<SequenceTransformEvent> sequenceHeadTransform,
+    @Default([]) List<SequenceFloatEvent> sequenceSurfaceLineOffset,
+    @Default([]) List<SequenceFloatEvent> sequenceMaskBoundaryOffset,
     @Default([]) List<SequenceSoundEvent> sequenceSoundEvents,
+    @Default([]) List<SequenceBooleanEvent> sequenceSurfaceLineVisible,
+    @Default([]) List<SequenceBooleanEvent> sequenceHeadMaskingEnabled,
+    @Default([]) List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled,
+    @Default([]) List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled,
   }) = _PosableCharacterSequence;
 
   factory PosableCharacterSequence.fromJson(Map<String, dynamic> json) =>

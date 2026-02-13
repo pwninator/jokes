@@ -1342,6 +1342,7 @@ class PosableCharacterDef:
   height: int = 0
 
   head_gcs_uri: str = ""
+  surface_line_gcs_uri: str = ""
   left_hand_gcs_uri: str = ""
   right_hand_gcs_uri: str = ""
   mouth_open_gcs_uri: str = ""

@@ -647,10 +647,8 @@ def generate_joke_audio(
     temp_output=temp_output,
     label="generate_joke_audio",
     extra_log_data={
-      "joke_id":
-      joke.key,
-      "turn_voices":
-      [str(turn.voice.name) for turn in dialog_turns],
+      "joke_id": joke.key,
+      "turn_voices": [str(turn.voice.name) for turn in dialog_turns],
     },
   )
   temp_dialog_gcs_uri = audio_result.gcs_uri
@@ -784,7 +782,8 @@ def _split_joke_dialog_wav_by_timing(
   if len(segments) != 3:
     raise ValueError(f"Expected 3 audio segments, got {len(segments)}")
 
-  setup_seg, response_seg, punchline_seg = segments[0], segments[1], segments[2]
+  setup_seg, response_seg, punchline_seg = segments[0], segments[1], segments[
+    2]
 
   def _shift_words(
     words: list[audio_timing.WordTiming],
@@ -806,9 +805,11 @@ def _split_joke_dialog_wav_by_timing(
             # silence trimming; clamp to preserve valid non-negative windows.
             audio_timing.CharTiming(
               char=str(ch.char),
-              start_time=max(0.0, float(ch.start_time) - offset_sec),
+              start_time=max(0.0,
+                             float(ch.start_time) - offset_sec),
               end_time=max(
-                max(0.0, float(ch.start_time) - offset_sec),
+                0.0,
+                float(ch.start_time) - offset_sec,
                 float(ch.end_time) - offset_sec,
               ),
             ) for ch in (word.char_timings or [])
@@ -862,7 +863,8 @@ def generate_joke_video_from_audio_uris(
     punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
       punchline_image_url)
 
-  setup_audio_bytes = cloud_storage.download_bytes_from_gcs(setup_audio_gcs_uri)
+  setup_audio_bytes = cloud_storage.download_bytes_from_gcs(
+    setup_audio_gcs_uri)
   response_audio_bytes = cloud_storage.download_bytes_from_gcs(
     response_audio_gcs_uri)
   punchline_audio_bytes = cloud_storage.download_bytes_from_gcs(
@@ -881,8 +883,8 @@ def generate_joke_video_from_audio_uris(
     output_filename_base=f"joke_{joke_id_for_filename}",
     temp_output=temp_output,
   )
-  response_start_sec = (
-    setup_duration_sec + float(pre_setup_delay_sec) + _JOKE_AUDIO_RESPONSE_GAP_SEC)
+  response_start_sec = (setup_duration_sec + float(pre_setup_delay_sec) +
+                        _JOKE_AUDIO_RESPONSE_GAP_SEC)
   punchline_start_sec = response_start_sec + response_duration_sec + _JOKE_AUDIO_PUNCHLINE_GAP_SEC
   total_duration_sec = punchline_start_sec + punchline_duration_sec + 2.0
 
@@ -957,28 +959,29 @@ def _build_setup_audio_segments(
 
   split = _split_intro_setup_timing(setup_timing)
   if split is None:
-    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript,
-             setup_timing)], 0.0
+    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript, setup_timing)
+            ], 0.0
 
   split_time_sec, intro_timing, setup_line_timing = split
   if split_time_sec <= 0:
-    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript,
-             setup_timing)], 0.0
+    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript, setup_timing)
+            ], 0.0
 
   setup_duration_sec = audio_operations.get_wav_duration_sec(setup_audio_bytes)
   if split_time_sec >= setup_duration_sec:
-    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript,
-             setup_timing)], 0.0
+    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript, setup_timing)
+            ], 0.0
 
   intro_wav, setup_line_wav = audio_operations.split_wav_at_point(
     setup_audio_bytes,
     split_time_sec,
   )
   intro_duration_sec = audio_operations.get_wav_duration_sec(intro_wav)
-  setup_line_duration_sec = audio_operations.get_wav_duration_sec(setup_line_wav)
+  setup_line_duration_sec = audio_operations.get_wav_duration_sec(
+    setup_line_wav)
   if intro_duration_sec <= 0.01 or setup_line_duration_sec <= 0.01:
-    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript,
-             setup_timing)], 0.0
+    return [(setup_audio_gcs_uri, 0.0, combined_setup_transcript, setup_timing)
+            ], 0.0
 
   intro_audio_gcs_uri = cloud_storage.get_audio_gcs_uri(
     f"{output_filename_base}_intro",
@@ -1041,7 +1044,8 @@ def _split_intro_setup_timing(
   for start in range(0, len(token_values) - len(normalized_intro_tokens) + 1):
     window = token_values[start:start + len(normalized_intro_tokens)]
     if window == normalized_intro_tokens:
-      match_end_word_index = indexed_tokens[start + len(normalized_intro_tokens) -
+      match_end_word_index = indexed_tokens[start +
+                                            len(normalized_intro_tokens) -
                                             1][0]
       break
 
@@ -1065,9 +1069,12 @@ def _split_intro_setup_timing(
 
 def _tokenize_spoken_words(text: str) -> list[str]:
   """Tokenize text into normalized spoken-word tokens."""
-  return [_normalize_spoken_word_token(token)
-          for token in re.findall(r"[A-Za-z0-9']+", str(text).lower())
-          if _normalize_spoken_word_token(token)]
+  return [
+    _normalize_spoken_word_token(token)
+    for token in re.findall(r"[A-Za-z0-9']+",
+                            str(text).lower())
+    if _normalize_spoken_word_token(token)
+  ]
 
 
 def _normalize_spoken_word_token(token: str) -> str:

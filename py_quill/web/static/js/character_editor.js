@@ -222,13 +222,15 @@ export class CharacterEditor {
     this.selectedEvent = { trackName, index };
     const track = this.trackConfig.find(t => t.name === trackName);
     const event = index !== null ? this.sequenceData[trackName][index] : { start_time: defaultTime };
+    const startTimeValue = event.start_time ?? defaultTime ?? 0;
+    const endTimeValue = event.end_time ?? startTimeValue;
 
     const content = this.modalOverlay.querySelector('#modal-content');
     content.innerHTML = '';
 
     // Common fields
-    this._addInput(content, 'start_time', 'Start Time', event.start_time || 0, 'number', 0.01);
-    this._addInput(content, 'end_time', 'End Time', event.end_time || '', 'number', 0.01);
+    this._addInput(content, 'start_time', 'Start Time', startTimeValue, 'number', 0.01, true);
+    this._addInput(content, 'end_time', 'End Time', endTimeValue, 'number', 0.01, true);
 
     // Type specific fields
     if (track.type === 'TRANSFORM') {
@@ -251,7 +253,7 @@ export class CharacterEditor {
     this.modalOverlay.style.display = 'flex';
   }
 
-  _addInput(parent, name, label, value, type = 'text', step = null) {
+  _addInput(parent, name, label, value, type = 'text', step = null, required = false) {
     const group = document.createElement('div');
     group.className = 'form-group';
 
@@ -266,6 +268,7 @@ export class CharacterEditor {
         input.value = value;
     }
     if (step) input.step = step;
+    if (required) input.required = true;
     group.appendChild(input);
 
     parent.appendChild(group);
@@ -313,6 +316,20 @@ export class CharacterEditor {
   }
 
   _saveEvent() {
+    const startTimeInput = this.modalOverlay.querySelector('input[name="start_time"]');
+    const endTimeInput = this.modalOverlay.querySelector('input[name="end_time"]');
+    const startTime = parseFloat(startTimeInput?.value ?? '');
+    const endTime = parseFloat(endTimeInput?.value ?? '');
+
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+      alert('Start Time and End Time are required.');
+      return;
+    }
+    if (endTime < startTime) {
+      alert('End Time must be greater than or equal to Start Time.');
+      return;
+    }
+
     const inputs = this.modalOverlay.querySelectorAll('#modal-content input, #modal-content select');
     const data = {};
     inputs.forEach(input => {
@@ -326,22 +343,11 @@ export class CharacterEditor {
       }
     });
 
-    // Special handling for end_time which can be null
-    // We need to re-read the raw value for end_time because our loop above defaults NaN to 0
-    // Actually, let's fix that logic.
-    // Ideally we iterate and handle each field specifically, but loop is convenient.
-    // Let's check the 'end_time' input specifically.
-    const endTimeInput = this.modalOverlay.querySelector('input[name="end_time"]');
-    let endTime = null;
-    if (endTimeInput && endTimeInput.value.trim() !== '') {
-        endTime = parseFloat(endTimeInput.value);
-    }
-
     const trackName = this.selectedEvent.trackName;
     const track = this.trackConfig.find(t => t.name === trackName);
 
     const newEvent = {
-        start_time: data.start_time,
+        start_time: startTime,
         end_time: endTime,
     };
 

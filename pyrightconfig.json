@@ -1,0 +1,11 @@
+{
+  "include": [
+    "py_quill"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "py_quill"
+    }
+  ],
+  "reportImplicitRelativeImport": "none"
+}

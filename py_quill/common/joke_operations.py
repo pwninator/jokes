@@ -1064,6 +1064,7 @@ def generate_joke_video_from_audio_uris(
       punchline_sequence=punchline_sequence,
       output_filename_base=f"joke_video_{joke_id_for_filename}",
       temp_output=temp_output,
+      drumming_duration_sec=_JOKE_AUDIO_PRE_SETUP_DRUMMING_SEC,
     ))
 
   generation_metadata = models.GenerationMetadata()

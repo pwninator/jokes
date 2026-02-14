@@ -319,7 +319,8 @@ def _resolve_portrait_timeline(
 
   intro_drum_start: float | None = None
   intro_drum_end: float | None = None
-  if (intro_start is not None and intro_end is not None
+  if (drumming_duration_sec > 0 and intro_start is not None
+      and intro_end is not None
       and setup_start > intro_end):
     intro_drum_start = intro_end
     intro_drum_end = setup_start

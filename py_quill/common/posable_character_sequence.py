@@ -180,6 +180,20 @@ class PosableCharacterSequence:
         max_end = max(max_end, float(event.end_time))
     return max_end
 
+  def append_all(
+    self,
+    others: list[tuple[PosableCharacterSequence, float]],
+  ) -> PosableCharacterSequence:
+    """Return a new sequence with `self` and shifted `others` merged."""
+    out = PosableCharacterSequence(
+      key=self.key,
+      transcript=self.transcript,
+    )
+    for sequence, offset in [(self, 0.0), *others]:
+      out._append_shifted(sequence=sequence, offset=offset)
+    out.validate()
+    return out
+
   def validate(self) -> None:
     """Validate that events in each track are sorted and non-overlapping."""
     self._validate_track(self.sequence_left_eye_open, "sequence_left_eye_open")
@@ -247,6 +261,115 @@ class PosableCharacterSequence:
       self.sequence_left_hand_masking_enabled,
       self.sequence_right_hand_masking_enabled,
     )
+
+  def _append_shifted(
+    self,
+    *,
+    sequence: PosableCharacterSequence,
+    offset: float,
+  ) -> None:
+    self.sequence_left_eye_open.extend(
+      self._shift_boolean_events(sequence.sequence_left_eye_open, offset))
+    self.sequence_right_eye_open.extend(
+      self._shift_boolean_events(sequence.sequence_right_eye_open, offset))
+    self.sequence_mouth_state.extend(
+      self._shift_mouth_events(sequence.sequence_mouth_state, offset))
+    self.sequence_left_hand_visible.extend(
+      self._shift_boolean_events(sequence.sequence_left_hand_visible, offset))
+    self.sequence_right_hand_visible.extend(
+      self._shift_boolean_events(sequence.sequence_right_hand_visible, offset))
+    self.sequence_left_hand_transform.extend(
+      self._shift_transform_events(sequence.sequence_left_hand_transform,
+                                   offset))
+    self.sequence_right_hand_transform.extend(
+      self._shift_transform_events(sequence.sequence_right_hand_transform,
+                                   offset))
+    self.sequence_head_transform.extend(
+      self._shift_transform_events(sequence.sequence_head_transform, offset))
+    self.sequence_surface_line_offset.extend(
+      self._shift_float_events(sequence.sequence_surface_line_offset, offset))
+    self.sequence_mask_boundary_offset.extend(
+      self._shift_float_events(sequence.sequence_mask_boundary_offset, offset))
+    self.sequence_sound_events.extend(
+      self._shift_sound_events(sequence.sequence_sound_events, offset))
+    self.sequence_surface_line_visible.extend(
+      self._shift_boolean_events(sequence.sequence_surface_line_visible,
+                                 offset))
+    self.sequence_head_masking_enabled.extend(
+      self._shift_boolean_events(sequence.sequence_head_masking_enabled,
+                                 offset))
+    self.sequence_left_hand_masking_enabled.extend(
+      self._shift_boolean_events(sequence.sequence_left_hand_masking_enabled,
+                                 offset))
+    self.sequence_right_hand_masking_enabled.extend(
+      self._shift_boolean_events(sequence.sequence_right_hand_masking_enabled,
+                                 offset))
+
+  @staticmethod
+  def _shift_boolean_events(
+    events: list[SequenceBooleanEvent],
+    offset: float,
+  ) -> list[SequenceBooleanEvent]:
+    return [
+      SequenceBooleanEvent(
+        start_time=float(event.start_time) + float(offset),
+        end_time=float(event.end_time) + float(offset),
+        value=bool(event.value),
+      ) for event in events
+    ]
+
+  @staticmethod
+  def _shift_mouth_events(
+    events: list[SequenceMouthEvent],
+    offset: float,
+  ) -> list[SequenceMouthEvent]:
+    return [
+      SequenceMouthEvent(
+        start_time=float(event.start_time) + float(offset),
+        end_time=float(event.end_time) + float(offset),
+        mouth_state=event.mouth_state,
+      ) for event in events
+    ]
+
+  @staticmethod
+  def _shift_transform_events(
+    events: list[SequenceTransformEvent],
+    offset: float,
+  ) -> list[SequenceTransformEvent]:
+    return [
+      SequenceTransformEvent(
+        start_time=float(event.start_time) + float(offset),
+        end_time=float(event.end_time) + float(offset),
+        target_transform=event.target_transform,
+      ) for event in events
+    ]
+
+  @staticmethod
+  def _shift_float_events(
+    events: list[SequenceFloatEvent],
+    offset: float,
+  ) -> list[SequenceFloatEvent]:
+    return [
+      SequenceFloatEvent(
+        start_time=float(event.start_time) + float(offset),
+        end_time=float(event.end_time) + float(offset),
+        target_value=float(event.target_value),
+      ) for event in events
+    ]
+
+  @staticmethod
+  def _shift_sound_events(
+    events: list[SequenceSoundEvent],
+    offset: float,
+  ) -> list[SequenceSoundEvent]:
+    return [
+      SequenceSoundEvent(
+        start_time=float(event.start_time) + float(offset),
+        end_time=float(event.end_time) + float(offset),
+        gcs_uri=str(event.gcs_uri),
+        volume=float(event.volume),
+      ) for event in events
+    ]
 
   def to_dict(self, include_key: bool = False) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""

@@ -12,11 +12,7 @@ import numpy as np
 from common import models
 from common.character_animator import CharacterAnimator
 from common.posable_character import PosableCharacter
-from common.posable_character_sequence import (PosableCharacterSequence,
-                                               SequenceBooleanEvent,
-                                               SequenceMouthEvent,
-                                               SequenceSoundEvent,
-                                               SequenceTransformEvent)
+from common.posable_character_sequence import PosableCharacterSequence
 from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.VideoClip import VideoClip
@@ -148,7 +144,10 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
     z_index = int(items[0].z_index)
     rect = items[0].rect
     fit_mode = items[0].fit_mode
-    sequence = _merge_shifted_sequences(items)
+    sequence = PosableCharacterSequence().append_all([(
+      item.sequence,
+      float(item.start_time_sec),
+    ) for item in items])
     animator = CharacterAnimator(sequence)
     renders.append(
       _ActorRender(
@@ -162,89 +161,6 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
       ))
   renders.sort(key=lambda entry: (int(entry.z_index), int(entry.source_order)))
   return renders
-
-
-def _merge_shifted_sequences(
-  items: list[TimedCharacterSequence], ) -> PosableCharacterSequence:
-  """Merge local-time sequence clips into one absolute-time sequence."""
-  out = PosableCharacterSequence()
-  for item in items:
-    offset = float(item.start_time_sec)
-    sequence = item.sequence
-    out.sequence_left_eye_open.extend(
-      _shift_boolean_events(sequence.sequence_left_eye_open, offset))
-    out.sequence_right_eye_open.extend(
-      _shift_boolean_events(sequence.sequence_right_eye_open, offset))
-    out.sequence_mouth_state.extend(
-      _shift_mouth_events(sequence.sequence_mouth_state, offset))
-    out.sequence_left_hand_visible.extend(
-      _shift_boolean_events(sequence.sequence_left_hand_visible, offset))
-    out.sequence_right_hand_visible.extend(
-      _shift_boolean_events(sequence.sequence_right_hand_visible, offset))
-    out.sequence_left_hand_transform.extend(
-      _shift_transform_events(sequence.sequence_left_hand_transform, offset))
-    out.sequence_right_hand_transform.extend(
-      _shift_transform_events(sequence.sequence_right_hand_transform, offset))
-    out.sequence_head_transform.extend(
-      _shift_transform_events(sequence.sequence_head_transform, offset))
-    out.sequence_sound_events.extend(
-      _shift_sound_events(sequence.sequence_sound_events, offset))
-
-  out.validate()
-  return out
-
-
-def _shift_boolean_events(
-  events: list[SequenceBooleanEvent],
-  offset: float,
-) -> list[SequenceBooleanEvent]:
-  return [
-    event.__class__(
-      start_time=float(event.start_time) + float(offset),
-      end_time=float(event.end_time) + float(offset),
-      value=bool(event.value),
-    ) for event in events
-  ]
-
-
-def _shift_mouth_events(
-  events: list[SequenceMouthEvent],
-  offset: float,
-) -> list[SequenceMouthEvent]:
-  return [
-    event.__class__(
-      start_time=float(event.start_time) + float(offset),
-      end_time=float(event.end_time) + float(offset),
-      mouth_state=event.mouth_state,
-    ) for event in events
-  ]
-
-
-def _shift_transform_events(
-  events: list[SequenceTransformEvent],
-  offset: float,
-) -> list[SequenceTransformEvent]:
-  return [
-    event.__class__(
-      start_time=float(event.start_time) + float(offset),
-      end_time=float(event.end_time) + float(offset),
-      target_transform=event.target_transform,
-    ) for event in events
-  ]
-
-
-def _shift_sound_events(
-  events: list[SequenceSoundEvent],
-  offset: float,
-) -> list[SequenceSoundEvent]:
-  return [
-    event.__class__(
-      start_time=float(event.start_time) + float(offset),
-      end_time=float(event.end_time) + float(offset),
-      gcs_uri=event.gcs_uri,
-      volume=float(event.volume),
-    ) for event in events
-  ]
 
 
 def _render_scene_frame(

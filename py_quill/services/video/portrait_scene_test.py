@@ -3,10 +3,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from common import audio_timing, models
 from common.posable_character import MouthState, PosableCharacter, Transform
-from common.posable_character_sequence import (PosableCharacterSequence,
-                                               SequenceMouthEvent,
-                                               SequenceSoundEvent,
-                                               SequenceTransformEvent)
+from common.posable_character_sequence import (
+  PosableCharacterSequence, SequenceBooleanEvent, SequenceFloatEvent,
+  SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
 from PIL import Image
 from services import audio_voices
 from services.video import joke_social_script_builder, scene_video_renderer
@@ -254,6 +253,80 @@ def test_generate_scene_video_applies_sequence_pose():
   assert character.mouth_state == MouthState.OPEN
   assert character.left_hand_transform.translate_y == pytest.approx(-5.0)
   upload_mock.assert_called_once()
+
+
+def test_prepare_actor_renders_merges_mask_and_surface_tracks():
+  sequence = PosableCharacterSequence(
+    sequence_surface_line_offset=[
+      SequenceFloatEvent(
+        start_time=0.0,
+        end_time=1.0,
+        target_value=20.0,
+      ),
+    ],
+    sequence_mask_boundary_offset=[
+      SequenceFloatEvent(
+        start_time=0.0,
+        end_time=1.0,
+        target_value=10.0,
+      ),
+    ],
+    sequence_surface_line_visible=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=1.0,
+        value=False,
+      ),
+    ],
+    sequence_head_masking_enabled=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=1.0,
+        value=False,
+      ),
+    ],
+    sequence_left_hand_masking_enabled=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=1.0,
+        value=True,
+      ),
+    ],
+    sequence_right_hand_masking_enabled=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=1.0,
+        value=True,
+      ),
+    ],
+  )
+  sequence.validate()
+
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=1080, height_px=1920),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=_DummyCharacter(),
+        sequence=sequence,
+        start_time_sec=2.0,
+        end_time_sec=3.0,
+        z_index=20,
+        rect=SceneRect(x_px=220, y_px=1120, width_px=640, height_px=760),
+      )
+    ],
+    duration_sec=3.0,
+  )
+
+  actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
+  pose = actor_renders[0].animator.sample_pose(2.5)
+
+  assert pose.surface_line_offset == pytest.approx(35.0)
+  assert pose.mask_boundary_offset == pytest.approx(30.0)
+  assert pose.surface_line_visible is False
+  assert pose.head_masking_enabled is False
+  assert pose.left_hand_masking_enabled is True
+  assert pose.right_hand_masking_enabled is True
 
 
 def test_generate_scene_video_reports_metadata():
@@ -657,3 +730,76 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
   character_item = next(item for item in script.items
                         if isinstance(item, TimedCharacterSequence))
   assert character_item.rect.y_px == 1440
+
+
+def test_build_portrait_joke_scene_script_has_no_drumming_when_duration_zero():
+  left_character = _DummyCharacter()
+  right_character = _DummyCharacter()
+  intro_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.6,
+      gcs_uri="gs://bucket/intro.wav",
+      volume=1.0,
+    )
+  ])
+  setup_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.5,
+      gcs_uri="gs://bucket/setup.wav",
+      volume=1.0,
+    )
+  ])
+  response_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.2,
+      gcs_uri="gs://bucket/response.wav",
+      volume=1.0,
+    )
+  ])
+  punchline_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.5,
+      gcs_uri="gs://bucket/punchline.wav",
+      volume=1.0,
+    )
+  ])
+  intro_sequence.validate()
+  setup_sequence.validate()
+  response_sequence.validate()
+  punchline_sequence.validate()
+
+  with patch.object(
+    _DummyCharacter,
+    "get_image",
+    return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ), patch.object(joke_social_script_builder,
+                  "_load_sequence_from_firestore",
+                  side_effect=_load_firestore_sequence), \
+      patch.object(joke_social_script_builder.random, "randint", return_value=1):
+    script = joke_social_script_builder.build_portrait_joke_scene_script(
+      setup_image_gcs_uri="gs://bucket/setup.png",
+      punchline_image_gcs_uri="gs://bucket/punchline.png",
+      teller_character=left_character,
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
+      listener_character=right_character,
+      listener_voice=audio_voices.Voice.GEMINI_PUCK,
+      intro_sequence=intro_sequence,
+      setup_sequence=setup_sequence,
+      response_sequence=response_sequence,
+      punchline_sequence=punchline_sequence,
+      drumming_duration_sec=0.0,
+    )
+
+  character_items = [
+    item for item in script.items if isinstance(item, TimedCharacterSequence)
+  ]
+  drumming_items = [
+    item for item in character_items if not item.sequence.sequence_sound_events
+    and item.sequence.sequence_left_hand_transform
+    and item.sequence.sequence_right_hand_transform
+  ]
+  assert len(drumming_items) == 0

@@ -144,7 +144,7 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
     z_index = int(items[0].z_index)
     rect = items[0].rect
     fit_mode = items[0].fit_mode
-    sequence = PosableCharacterSequence().append_all([(
+    sequence = PosableCharacterSequence.merge_all([(
       item.sequence,
       float(item.start_time_sec),
     ) for item in items])

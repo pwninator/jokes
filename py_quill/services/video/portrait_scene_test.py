@@ -540,7 +540,7 @@ def test_scene_renderer_uses_half_open_image_windows():
   assert tuple(int(value) for value in pixel.tolist()) == (0, 0, 255)
 
 
-def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
+def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
   left_character = _DummyCharacter()
   right_character = _DummyCharacter()
   intro_sequence = PosableCharacterSequence(sequence_sound_events=[
@@ -599,7 +599,6 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
       setup_sequence=setup_sequence,
       response_sequence=response_sequence,
       punchline_sequence=punchline_sequence,
-      drumming_duration_sec=2.0,
     )
 
   character_items = [
@@ -625,25 +624,12 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
   for item in laugh_items:
     assert item.start_time_sec == pytest.approx(4.7)
 
-  drumming_items = [
+  non_spoken_transform_only_items = [
     item for item in character_items if not item.sequence.sequence_sound_events
     and item.sequence.sequence_left_hand_transform
     and item.sequence.sequence_right_hand_transform
   ]
-  assert len(drumming_items) == 4
-
-  drumming_by_actor: dict[str, list[TimedCharacterSequence]] = {}
-  for item in drumming_items:
-    drumming_by_actor.setdefault(item.actor_id, []).append(item)
-  assert set(drumming_by_actor.keys()) == {"actor_0", "actor_1"}
-
-  for actor_items in drumming_by_actor.values():
-    actor_items.sort(key=lambda item: float(item.start_time_sec))
-    assert len(actor_items) == 2
-    assert actor_items[0].start_time_sec == pytest.approx(0.9)
-    assert actor_items[0].end_time_sec == pytest.approx(1.7)
-    assert actor_items[1].start_time_sec == pytest.approx(5.4)
-    assert actor_items[1].end_time_sec == pytest.approx(7.4)
+  assert len(non_spoken_transform_only_items) == 0
 
 
 def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
@@ -682,7 +668,6 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
       teller_voice=audio_voices.Voice.GEMINI_LEDA,
       setup_sequence=setup_sequence,
       punchline_sequence=punchline_sequence,
-      drumming_duration_sec=0.0,
     )
 
   image_items = [item for item in script.items if isinstance(item, TimedImage)]
@@ -730,76 +715,3 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
   character_item = next(item for item in script.items
                         if isinstance(item, TimedCharacterSequence))
   assert character_item.rect.y_px == 1440
-
-
-def test_build_portrait_joke_scene_script_has_no_drumming_when_duration_zero():
-  left_character = _DummyCharacter()
-  right_character = _DummyCharacter()
-  intro_sequence = PosableCharacterSequence(sequence_sound_events=[
-    SequenceSoundEvent(
-      start_time=0.0,
-      end_time=0.6,
-      gcs_uri="gs://bucket/intro.wav",
-      volume=1.0,
-    )
-  ])
-  setup_sequence = PosableCharacterSequence(sequence_sound_events=[
-    SequenceSoundEvent(
-      start_time=0.0,
-      end_time=0.5,
-      gcs_uri="gs://bucket/setup.wav",
-      volume=1.0,
-    )
-  ])
-  response_sequence = PosableCharacterSequence(sequence_sound_events=[
-    SequenceSoundEvent(
-      start_time=0.0,
-      end_time=0.2,
-      gcs_uri="gs://bucket/response.wav",
-      volume=1.0,
-    )
-  ])
-  punchline_sequence = PosableCharacterSequence(sequence_sound_events=[
-    SequenceSoundEvent(
-      start_time=0.0,
-      end_time=0.5,
-      gcs_uri="gs://bucket/punchline.wav",
-      volume=1.0,
-    )
-  ])
-  intro_sequence.validate()
-  setup_sequence.validate()
-  response_sequence.validate()
-  punchline_sequence.validate()
-
-  with patch.object(
-    _DummyCharacter,
-    "get_image",
-    return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
-  ), patch.object(joke_social_script_builder,
-                  "_load_sequence_from_firestore",
-                  side_effect=_load_firestore_sequence), \
-      patch.object(joke_social_script_builder.random, "randint", return_value=1):
-    script = joke_social_script_builder.build_portrait_joke_scene_script(
-      setup_image_gcs_uri="gs://bucket/setup.png",
-      punchline_image_gcs_uri="gs://bucket/punchline.png",
-      teller_character=left_character,
-      teller_voice=audio_voices.Voice.GEMINI_LEDA,
-      listener_character=right_character,
-      listener_voice=audio_voices.Voice.GEMINI_PUCK,
-      intro_sequence=intro_sequence,
-      setup_sequence=setup_sequence,
-      response_sequence=response_sequence,
-      punchline_sequence=punchline_sequence,
-      drumming_duration_sec=0.0,
-    )
-
-  character_items = [
-    item for item in script.items if isinstance(item, TimedCharacterSequence)
-  ]
-  drumming_items = [
-    item for item in character_items if not item.sequence.sequence_sound_events
-    and item.sequence.sequence_left_hand_transform
-    and item.sequence.sequence_right_hand_transform
-  ]
-  assert len(drumming_items) == 0

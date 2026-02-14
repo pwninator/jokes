@@ -109,7 +109,7 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     seq = PosableCharacterSequence()
     self.assertEqual(seq.duration_sec, 0.0)
 
-  def test_append_merges_and_offsets_all_tracks(self):
+  def test_merge_all_merges_and_offsets_all_tracks(self):
     base = PosableCharacterSequence(
       sequence_left_eye_open=[
         SequenceBooleanEvent(start_time=0.0, end_time=0.5, value=False),
@@ -189,7 +189,10 @@ class PosableCharacterSequenceTest(unittest.TestCase):
       ],
     )
 
-    merged = base.append([(other, 1.0)])
+    merged = PosableCharacterSequence.merge_all([
+      (base, 0.0),
+      (other, 1.0),
+    ])
 
     self.assertEqual(len(merged.sequence_left_eye_open), 1)
     self.assertEqual(merged.sequence_left_eye_open[0].start_time, 0.0)
@@ -229,7 +232,7 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     self.assertEqual(merged.sequence_sound_events[0].start_time, 0.0)
     self.assertEqual(merged.sequence_sound_events[1].start_time, 1.0)
 
-  def test_append_does_not_mutate_input_sequences(self):
+  def test_merge_all_does_not_mutate_input_sequences(self):
     base = PosableCharacterSequence(sequence_left_eye_open=[
       SequenceBooleanEvent(start_time=0.0, end_time=0.5, value=True),
     ])
@@ -237,7 +240,10 @@ class PosableCharacterSequenceTest(unittest.TestCase):
       SequenceBooleanEvent(start_time=0.0, end_time=0.5, value=False),
     ])
 
-    _ = base.append([(other, 2.0)])
+    _ = PosableCharacterSequence.merge_all([
+      (base, 0.0),
+      (other, 2.0),
+    ])
 
     self.assertEqual(base.sequence_left_eye_open[0].start_time, 0.0)
     self.assertEqual(other.sequence_right_eye_open[0].start_time, 0.0)

@@ -32,7 +32,6 @@ _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
 _JOKE_AUDIO_INTRO_LINE = "Hey... want to hear a joke?"
-_JOKE_AUDIO_PRE_SETUP_DRUMMING_SEC = 0.0
 _DEFAULT_POSABLE_CHARACTER_DEF_ID = "20260212_232209__cat___orange_tabby"
 _LIP_SYNC_METADATA_INTRO = "animation_lip_sync_intro"
 _LIP_SYNC_METADATA_SETUP = "animation_lip_sync_setup"
@@ -1064,7 +1063,6 @@ def generate_joke_video_from_audio_uris(
       punchline_sequence=punchline_sequence,
       output_filename_base=f"joke_video_{joke_id_for_filename}",
       temp_output=temp_output,
-      drumming_duration_sec=_JOKE_AUDIO_PRE_SETUP_DRUMMING_SEC,
     ))
 
   generation_metadata = models.GenerationMetadata()
@@ -1830,7 +1828,6 @@ def generate_joke_video(
     output_filename_base=
     f"joke_video_{(joke.key or str(joke.random_id or 'joke')).strip()}",
     temp_output=temp_output,
-    drumming_duration_sec=_JOKE_AUDIO_PRE_SETUP_DRUMMING_SEC,
   )
   generation_metadata.add_generation(video_generation_metadata)
   return JokeVideoResult(

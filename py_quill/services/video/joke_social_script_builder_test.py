@@ -72,11 +72,10 @@ def test_portrait_character_layout_bottom_aligns_to_tallest():
   teller = _SizedCharacter(width=220, height=300)
   listener = _SizedCharacter(width=120, height=140)
   with patch.object(
-    joke_social_script_builder,
-    "_load_sequence_from_firestore",
-    side_effect=_load_firestore_sequence,
-  ), patch.object(joke_social_script_builder.random,
-                  "randint",
+      joke_social_script_builder,
+      "_load_sequence_from_firestore",
+      side_effect=_load_firestore_sequence,
+  ), patch.object(joke_social_script_builder.random, "randint",
                   return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
@@ -89,7 +88,6 @@ def test_portrait_character_layout_bottom_aligns_to_tallest():
       setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
       response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
       punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
-      drumming_duration_sec=0.0,
     )
 
   spoken_by_actor: dict[str, TimedCharacterSequence] = {}
@@ -107,11 +105,10 @@ def test_portrait_character_layout_uses_proportional_horizontal_slots():
   teller = _SizedCharacter(width=200, height=240)
   listener = _SizedCharacter(width=100, height=240)
   with patch.object(
-    joke_social_script_builder,
-    "_load_sequence_from_firestore",
-    side_effect=_load_firestore_sequence,
-  ), patch.object(joke_social_script_builder.random,
-                  "randint",
+      joke_social_script_builder,
+      "_load_sequence_from_firestore",
+      side_effect=_load_firestore_sequence,
+  ), patch.object(joke_social_script_builder.random, "randint",
                   return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
@@ -124,7 +121,6 @@ def test_portrait_character_layout_uses_proportional_horizontal_slots():
       setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
       response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
       punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
-      drumming_duration_sec=0.0,
     )
 
   spoken_by_actor: dict[str, TimedCharacterSequence] = {}

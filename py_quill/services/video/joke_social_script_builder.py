@@ -97,10 +97,6 @@ class PortraitJokeTimeline:
   punchline_end_sec: float
   laugh_start_sec: float
   laugh_end_sec: float
-  intro_drumming_start_sec: float | None
-  intro_drumming_end_sec: float | None
-  tail_drumming_start_sec: float | None
-  tail_drumming_end_sec: float | None
   total_duration_sec: float
 
 
@@ -125,7 +121,6 @@ def build_portrait_joke_scene_script(
   listener_voice: audio_voices.Voice | None = None,
   intro_sequence: PosableCharacterSequence | None = None,
   response_sequence: PosableCharacterSequence | None = None,
-  drumming_duration_sec: float = 0.0,
 ) -> SceneScript:
   """Build the portrait joke `SceneScript` from prebuilt character sequences."""
   pop_in_sequence = _load_sequence_from_firestore(_POP_IN_SEQUENCE_ID)
@@ -160,7 +155,6 @@ def build_portrait_joke_scene_script(
     punchline_sequence=punchline_sequence,
     laugh_duration_sec=max(teller_laugh_duration_sec,
                            listener_laugh_duration_sec),
-    drumming_duration_sec=drumming_duration_sec,
   )
 
   timed_images: list[TimedImage] = []
@@ -282,9 +276,8 @@ def _resolve_portrait_timeline(
   response_sequence: PosableCharacterSequence | None,
   punchline_sequence: PosableCharacterSequence,
   laugh_duration_sec: float,
-  drumming_duration_sec: float,
 ) -> PortraitJokeTimeline:
-  """Resolve all key script timestamps, including drumming windows."""
+  """Resolve all key script timestamps."""
   pop_in_duration = pop_in_sequence.duration_sec
   pop_in_start = 0.0
   pop_in_end = pop_in_duration
@@ -317,20 +310,6 @@ def _resolve_portrait_timeline(
   laugh_end = laugh_start + max(0.0, laugh_duration_sec)
   total_duration = laugh_end + _VIDEO_TAIL_SEC
 
-  intro_drum_start: float | None = None
-  intro_drum_end: float | None = None
-  if (drumming_duration_sec > 0 and intro_start is not None
-      and intro_end is not None
-      and setup_start > intro_end):
-    intro_drum_start = intro_end
-    intro_drum_end = setup_start
-
-  tail_drum_start: float | None = None
-  tail_drum_end: float | None = None
-  if drumming_duration_sec > 0:
-    tail_drum_start = max(laugh_end, total_duration - drumming_duration_sec)
-    tail_drum_end = total_duration
-
   return PortraitJokeTimeline(
     pop_in_start_sec=pop_in_start,
     pop_in_end_sec=pop_in_end,
@@ -344,10 +323,6 @@ def _resolve_portrait_timeline(
     punchline_end_sec=punchline_end,
     laugh_start_sec=laugh_start,
     laugh_end_sec=laugh_end,
-    intro_drumming_start_sec=intro_drum_start,
-    intro_drumming_end_sec=intro_drum_end,
-    tail_drumming_start_sec=tail_drum_start,
-    tail_drumming_end_sec=tail_drum_end,
     total_duration_sec=total_duration,
   )
 
@@ -407,42 +382,6 @@ def _build_character_dialogs(
           sequence=sequence,
           start_time_sec=start_time,
           end_time_sec=start_time + duration_sec,
-          z_index=int(z_index),
-          rect=actor_rect,
-          fit_mode="contain",
-        ))
-
-    if (timeline.intro_drumming_start_sec is not None
-        and timeline.intro_drumming_end_sec is not None and
-        timeline.intro_drumming_end_sec > timeline.intro_drumming_start_sec):
-      intro_drumming_sequence = _build_drumming_sequence(
-        duration_sec=timeline.intro_drumming_end_sec -
-        timeline.intro_drumming_start_sec)
-      items.append(
-        TimedCharacterSequence(
-          actor_id=actor_id,
-          character=character,
-          sequence=intro_drumming_sequence,
-          start_time_sec=timeline.intro_drumming_start_sec,
-          end_time_sec=timeline.intro_drumming_end_sec,
-          z_index=int(z_index),
-          rect=actor_rect,
-          fit_mode="contain",
-        ))
-
-    if (timeline.tail_drumming_start_sec is not None
-        and timeline.tail_drumming_end_sec is not None
-        and timeline.tail_drumming_end_sec > timeline.tail_drumming_start_sec):
-      tail_drumming_sequence = _build_drumming_sequence(
-        duration_sec=timeline.tail_drumming_end_sec -
-        timeline.tail_drumming_start_sec)
-      items.append(
-        TimedCharacterSequence(
-          actor_id=actor_id,
-          character=character,
-          sequence=tail_drumming_sequence,
-          start_time_sec=timeline.tail_drumming_start_sec,
-          end_time_sec=timeline.tail_drumming_end_sec,
           z_index=int(z_index),
           rect=actor_rect,
           fit_mode="contain",
@@ -510,57 +449,3 @@ def _build_actor_rects_for_tracks(
       ))
     cursor_x += slot_width
   return rects
-
-
-def _build_drumming_sequence(
-  *,
-  duration_sec: float,
-  step_sec: float = 0.10,
-  amplitude_px: float = 10.0,
-) -> PosableCharacterSequence:
-  """Build a deterministic hand-drumming sequence."""
-  duration_sec = max(0.0, duration_sec)
-  step_sec = max(0.02, step_sec)
-
-  left_events = []
-  right_events = []
-  t = 0.0
-  idx = 0
-  while t < duration_sec:
-    start = t
-    end = min(duration_sec, start + step_sec)
-    if end <= start:
-      break
-    left_y = -amplitude_px if idx % 2 == 0 else amplitude_px
-    right_y = amplitude_px if idx % 2 == 0 else -amplitude_px
-    left_events.append({
-      "start_time": start,
-      "end_time": end,
-      "target_transform": {
-        "translate_x": 0.0,
-        "translate_y": left_y,
-        "scale_x": 1.0,
-        "scale_y": 1.0,
-      },
-    })
-    right_events.append({
-      "start_time": start,
-      "end_time": end,
-      "target_transform": {
-        "translate_x": 0.0,
-        "translate_y": right_y,
-        "scale_x": 1.0,
-        "scale_y": 1.0,
-      },
-    })
-    t = end
-    idx += 1
-
-  sequence = PosableCharacterSequence.from_dict({
-    "sequence_left_hand_transform":
-    left_events,
-    "sequence_right_hand_transform":
-    right_events,
-  })
-  sequence.validate()
-  return sequence

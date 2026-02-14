@@ -178,7 +178,6 @@ def create_portrait_character_video(
   listener_voice: audio_voices.Voice | None = None,
   intro_sequence: PosableCharacterSequence | None = None,
   response_sequence: PosableCharacterSequence | None = None,
-  drumming_duration_sec: float = 2.0,
   temp_output: bool = False,
 ) -> tuple[str, models.SingleGenerationMetadata]:
   """Create a portrait video with animated character(s) in the footer.
@@ -241,7 +240,6 @@ def create_portrait_character_video(
       setup_sequence=setup_sequence,
       response_sequence=response_sequence,
       punchline_sequence=punchline_sequence,
-      drumming_duration_sec=drumming_duration_sec,
     )
     _validate_video_duration(script.duration_sec)
     _validate_image_timing(normalized_images, script.duration_sec)

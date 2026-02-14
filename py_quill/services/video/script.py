@@ -20,6 +20,7 @@ class SceneCanvas:
   background_rgba: tuple[int, int, int, int] = (0, 0, 0, 255)
 
   def validate(self) -> None:
+    """Validate the canvas dimensions."""
     if int(self.width_px) <= 0 or int(self.height_px) <= 0:
       raise ValueError("SceneCanvas width_px and height_px must be positive")
 
@@ -34,6 +35,7 @@ class SceneRect:
   height_px: int
 
   def validate(self) -> None:
+    """Validate the rectangle dimensions."""
     if int(self.width_px) <= 0 or int(self.height_px) <= 0:
       raise ValueError("SceneRect width_px and height_px must be positive")
 
@@ -87,7 +89,8 @@ class SceneScript:
 
     character_items_by_actor: dict[str, list[TimedCharacterSequence]] = {}
     for index, item in enumerate(self.items):
-      _validate_item_bounds(item, duration_sec=float(self.duration_sec),
+      _validate_item_bounds(item,
+                            duration_sec=float(self.duration_sec),
                             item_index=index)
       _validate_fit_mode(item.fit_mode, item_index=index)
       item.rect.validate()
@@ -125,7 +128,7 @@ class SceneScript:
         _validate_sequence_fits_item(item)
 
 
-def _validate_fit_mode(fit_mode: FitMode, *, item_index: int) -> None:
+def _validate_fit_mode(fit_mode: str, *, item_index: int) -> None:
   if fit_mode not in ("contain", "cover", "fill"):
     raise ValueError(
       f"Scene item {item_index} has unsupported fit_mode '{fit_mode}'")

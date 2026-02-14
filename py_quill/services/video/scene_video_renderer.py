@@ -11,7 +11,7 @@ from typing import Any, TypedDict
 import numpy as np
 from common import models
 from common.character_animator import CharacterAnimator
-from common.posable_character import PosableCharacter
+from common.posable_character import PosableCharacter, PoseState
 from common.posable_character_sequence import PosableCharacterSequence
 from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -24,8 +24,8 @@ from services.video.script import (FitMode, SceneCanvas, SceneRect,
 
 _DEFAULT_VIDEO_FPS = 24
 _AUDIO_DURATION_COMPARISON_TOLERANCE_SEC = 0.001
-_AudioScheduleEntry = tuple[str, float, float]
-_DownloadedAudioEntry = tuple[str, float, float, str]
+_AudioScheduleEntry = tuple[str, float, float, float]
+_DownloadedAudioEntry = tuple[str, float, float, float, str]
 
 
 class _ActorEntry(TypedDict):
@@ -49,6 +49,8 @@ class _ActorRender:
   source_order: int
   character: PosableCharacter
   animator: CharacterAnimator
+  first_sequence_start_sec: float
+  pre_start_pose: PoseState
   z_index: int
   rect: SceneRect
   fit_mode: FitMode
@@ -140,6 +142,9 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
   for actor_id, actor_entry in by_actor.items():
     items = sorted(actor_entry["items"],
                    key=lambda entry: entry.start_time_sec)
+    first_item = items[0]
+    first_item_animator = CharacterAnimator(first_item.sequence)
+    pre_start_pose = first_item_animator.sample_pose(0.0)
     character = items[0].character
     z_index = int(items[0].z_index)
     rect = items[0].rect
@@ -155,6 +160,8 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
         source_order=int(actor_entry["source_order"]),
         character=character,
         animator=animator,
+        first_sequence_start_sec=float(first_item.start_time_sec),
+        pre_start_pose=pre_start_pose,
         z_index=z_index,
         rect=rect,
         fit_mode=fit_mode,
@@ -200,7 +207,10 @@ def _render_scene_frame(
 
     render = actor_renders[actor_index]
     actor_index += 1
-    pose = render.animator.sample_pose(float(time_sec))
+    if float(time_sec) < float(render.first_sequence_start_sec):
+      pose = render.pre_start_pose
+    else:
+      pose = render.animator.sample_pose(float(time_sec))
     render.character.apply_pose_state(pose)
     sprite = render.character.get_image()
     fitted, x, y = _render_with_fit(
@@ -225,6 +235,7 @@ def _extract_audio_schedule(
         str(event.gcs_uri),
         float(item.start_time_sec) + float(event.start_time),
         float(item.start_time_sec) + float(event.end_time),
+        float(event.volume),
       ))
   schedule = [entry for entry in schedule if float(entry[2]) > float(entry[1])]
   schedule.sort(key=lambda entry: float(entry[1]))
@@ -237,26 +248,29 @@ def _download_audio_to_temp(
   temp_dir: str,
 ) -> list[_DownloadedAudioEntry]:
   out: list[_DownloadedAudioEntry] = []
-  for index, (gcs_uri, start_time, end_time) in enumerate(audio_files):
+  for index, (gcs_uri, start_time, end_time, volume) in enumerate(audio_files):
     _, blob_name = cloud_storage.parse_gcs_uri(gcs_uri)
     extension = os.path.splitext(blob_name)[1] or ".wav"
     local_path = os.path.join(temp_dir, f"audio_{index}{extension}")
     content_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
     with open(local_path, "wb") as file_handle:
       _ = file_handle.write(content_bytes)
-    out.append((gcs_uri, float(start_time), float(end_time), local_path))
+    out.append(
+      (gcs_uri, float(start_time), float(end_time), float(volume), local_path))
   return out
 
 
 def _build_audio_clips(
   audio_paths: list[_DownloadedAudioEntry], ) -> list[AudioFileClip]:
   clips: list[AudioFileClip] = []
-  for _gcs_uri, start_time, end_time, path in audio_paths:
+  for _gcs_uri, start_time, end_time, volume, path in audio_paths:
     requested_duration = float(end_time) - float(start_time)
     if requested_duration <= 0:
       continue
     clip = AudioFileClip(path).with_start(float(start_time))
-    source_duration = float(getattr(clip, "duration", 0.0) or 0.0)
+    clip = clip.with_volume_scaled(float(volume))
+    source_duration = float(
+      clip.duration) if clip.duration is not None else 0.0
 
     # Never extend a clip beyond its source media duration; this can cause
     # MoviePy to request out-of-range frames for short files.

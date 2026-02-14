@@ -9,8 +9,9 @@ Phase 1 focuses on segment-based (stepwise) timelines, which cover:
 from __future__ import annotations
 
 from bisect import bisect_right
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Generic, Iterable, Sequence, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 

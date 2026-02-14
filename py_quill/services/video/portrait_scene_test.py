@@ -133,6 +133,9 @@ class _FakeAudioClip:
     self.duration = duration
     return self
 
+  def with_volume_scaled(self, _factor):
+    return self
+
   def close(self):
     pass
 
@@ -163,6 +166,9 @@ class _InspectableAudioClip:
     self.duration = float(duration)
     return self
 
+  def with_volume_scaled(self, _factor):
+    return self
+
   def set_duration(self, duration):
     return self.with_duration(duration)
 
@@ -171,7 +177,7 @@ class _InspectableAudioClip:
 
 
 def test_build_audio_clips_does_not_extend_past_source_duration():
-  audio_paths = [("gs://bucket/a.wav", 0.0, 0.30, "/tmp/a.wav")]
+  audio_paths = [("gs://bucket/a.wav", 0.0, 0.30, 1.0, "/tmp/a.wav")]
 
   with patch.object(scene_video_renderer, "AudioFileClip",
                     _InspectableAudioClip):
@@ -183,7 +189,7 @@ def test_build_audio_clips_does_not_extend_past_source_duration():
 
 
 def test_build_audio_clips_trims_when_schedule_shorter_than_source():
-  audio_paths = [("gs://bucket/a.wav", 0.0, 0.20, "/tmp/a.wav")]
+  audio_paths = [("gs://bucket/a.wav", 0.0, 0.20, 1.0, "/tmp/a.wav")]
 
   with patch.object(scene_video_renderer, "AudioFileClip",
                     _InspectableAudioClip):
@@ -615,8 +621,13 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
   pop_in_by_actor_id = {item.actor_id: item for item in pop_in_items}
   assert pop_in_by_actor_id["actor_0"].start_time_sec == pytest.approx(0.0)
   assert pop_in_by_actor_id["actor_0"].end_time_sec == pytest.approx(0.3)
-  assert pop_in_by_actor_id["actor_1"].start_time_sec == pytest.approx(1.3)
-  assert pop_in_by_actor_id["actor_1"].end_time_sec == pytest.approx(1.6)
+  listener_pop_in_start_sec = (
+    pop_in_by_actor_id["actor_0"].end_time_sec + joke_social_script_builder.
+    _LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC)  # pylint: disable=protected-access
+  assert pop_in_by_actor_id["actor_1"].start_time_sec == pytest.approx(
+    listener_pop_in_start_sec)
+  assert pop_in_by_actor_id["actor_1"].end_time_sec == pytest.approx(
+    listener_pop_in_start_sec + 0.3)
 
   laugh_items = [
     item for item in spoken_items
@@ -717,3 +728,115 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
   character_item = next(item for item in script.items
                         if isinstance(item, TimedCharacterSequence))
   assert character_item.rect.y_px == 1440
+
+
+def test_render_scene_frame_uses_first_sequence_initial_pose_before_start():
+  character = _DummyCharacter()
+  first_sequence = PosableCharacterSequence(
+    sequence_left_eye_open=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=0.5,
+        value=False,
+      )
+    ],
+    sequence_mouth_state=[
+      SequenceMouthEvent(
+        start_time=0.0,
+        end_time=0.5,
+        mouth_state=MouthState.OPEN,
+      )
+    ],
+  )
+  first_sequence.validate()
+
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=64, height_px=64),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=first_sequence,
+        start_time_sec=1.0,
+        end_time_sec=2.0,
+        z_index=20,
+        rect=SceneRect(x_px=0, y_px=0, width_px=64, height_px=64),
+      ),
+    ],
+    duration_sec=2.0,
+  )
+
+  actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
+  with patch.object(
+      _DummyCharacter,
+      "get_image",
+      return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ):
+    _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
+      time_sec=0.0,
+      canvas=script.canvas,
+      prepared_images=[],
+      actor_renders=actor_renders,
+    )
+
+  assert character.left_eye_open is False
+  assert character.mouth_state == MouthState.OPEN
+
+
+def test_extract_audio_schedule_carries_volume():
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=10, height_px=10),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=_DummyCharacter(),
+        sequence=PosableCharacterSequence(sequence_sound_events=[
+          SequenceSoundEvent(
+            start_time=0.2,
+            end_time=0.5,
+            gcs_uri="gs://bucket/a.wav",
+            volume=0.25,
+          ),
+        ]),
+        start_time_sec=1.0,
+        end_time_sec=2.0,
+        z_index=10,
+        rect=SceneRect(x_px=0, y_px=0, width_px=10, height_px=10),
+      ),
+    ],
+    duration_sec=2.0,
+  )
+
+  schedule = scene_video_renderer._extract_audio_schedule(script)  # pylint: disable=protected-access
+  assert schedule == [("gs://bucket/a.wav", 1.2, 1.5, 0.25)]
+
+
+class _VolumeInspectableAudioClip:
+
+  def __init__(self, _path):
+    self.start = None
+    self.duration = 1.0
+    self.volume_scales: list[float] = []
+
+  def with_start(self, start):
+    self.start = float(start)
+    return self
+
+  def with_duration(self, duration):
+    self.duration = float(duration)
+    return self
+
+  def with_volume_scaled(self, factor):
+    self.volume_scales.append(float(factor))
+    return self
+
+
+def test_build_audio_clips_applies_volume_scaling():
+  audio_paths = [("gs://bucket/a.wav", 0.0, 0.3, 0.4, "/tmp/a.wav")]
+
+  with patch.object(scene_video_renderer, "AudioFileClip",
+                    _VolumeInspectableAudioClip):
+    clips = scene_video_renderer._build_audio_clips(audio_paths)  # pylint: disable=protected-access
+
+  assert len(clips) == 1
+  assert clips[0].volume_scales == [0.4]

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 from common.posable_character import PosableCharacter
 from common.posable_character_sequence import PosableCharacterSequence
+from services import audio_voices, firestore
 from services.video.script import (FitMode, SceneCanvas, SceneRect,
                                    SceneScript, TimedCharacterSequence,
                                    TimedImage)
@@ -74,12 +76,17 @@ _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_SETUP_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
 _VIDEO_TAIL_SEC = 2.0
+_POP_IN_SEQUENCE_ID = "pop_in"
+_GIGGLE_VARIANT_MIN = 1
+_GIGGLE_VARIANT_MAX = 3
 
 
 @dataclass(frozen=True)
 class PortraitJokeTimeline:
   """Resolved timeline for a portrait joke scene."""
 
+  pop_in_start_sec: float
+  pop_in_end_sec: float
   intro_start_sec: float | None
   intro_end_sec: float | None
   setup_start_sec: float
@@ -88,6 +95,8 @@ class PortraitJokeTimeline:
   response_end_sec: float | None
   punchline_start_sec: float
   punchline_end_sec: float
+  laugh_start_sec: float
+  laugh_end_sec: float
   intro_drumming_start_sec: float | None
   intro_drumming_end_sec: float | None
   tail_drumming_start_sec: float | None
@@ -109,27 +118,56 @@ def build_portrait_joke_scene_script(
   setup_image_gcs_uri: str,
   punchline_image_gcs_uri: str,
   teller_character: PosableCharacter,
+  teller_voice: audio_voices.Voice,
   setup_sequence: PosableCharacterSequence,
   punchline_sequence: PosableCharacterSequence,
   listener_character: PosableCharacter | None = None,
+  listener_voice: audio_voices.Voice | None = None,
   intro_sequence: PosableCharacterSequence | None = None,
   response_sequence: PosableCharacterSequence | None = None,
   drumming_duration_sec: float = 2.0,
 ) -> SceneScript:
   """Build the portrait joke `SceneScript` from prebuilt character sequences."""
+  pop_in_sequence = _load_sequence_from_firestore(_POP_IN_SEQUENCE_ID)
+  pop_in_duration_sec = pop_in_sequence.duration_sec
+  if pop_in_duration_sec <= 0:
+    raise ValueError("pop_in sequence must have positive duration")
+
+  teller_laugh_sequence = _load_random_giggle_sequence(voice=teller_voice)
+  teller_laugh_duration_sec = teller_laugh_sequence.duration_sec
+  if teller_laugh_duration_sec <= 0:
+    raise ValueError(
+      f"{teller_voice.name} giggle sequence must have positive duration")
+
+  listener_laugh_sequence: PosableCharacterSequence | None = None
+  listener_laugh_duration_sec = 0.0
+  if listener_character is not None:
+    if listener_voice is None:
+      raise ValueError(
+        "listener_voice is required when listener_character is set")
+    listener_laugh_sequence = _load_random_giggle_sequence(
+      voice=listener_voice)
+    listener_laugh_duration_sec = listener_laugh_sequence.duration_sec
+    if listener_laugh_duration_sec <= 0:
+      raise ValueError(
+        f"{listener_voice.name} giggle sequence must have positive duration")
+
   timeline = _resolve_portrait_timeline(
+    pop_in_sequence=pop_in_sequence,
     intro_sequence=intro_sequence,
     setup_sequence=setup_sequence,
     response_sequence=response_sequence,
     punchline_sequence=punchline_sequence,
+    laugh_duration_sec=max(teller_laugh_duration_sec,
+                           listener_laugh_duration_sec),
     drumming_duration_sec=drumming_duration_sec,
   )
 
   timed_images: list[TimedImage] = []
   timed_images.extend(
     _build_joke_image_items(
-      setup_image_gcs_uri=str(setup_image_gcs_uri),
-      punchline_image_gcs_uri=str(punchline_image_gcs_uri),
+      setup_image_gcs_uri=setup_image_gcs_uri,
+      punchline_image_gcs_uri=punchline_image_gcs_uri,
       timeline=timeline,
     ))
   timed_images.extend(_build_background_image_items(timeline=timeline))
@@ -137,10 +175,13 @@ def build_portrait_joke_scene_script(
   character_items = _build_character_dialogs(
     teller_character=teller_character,
     listener_character=listener_character,
+    pop_in_sequence=pop_in_sequence,
     intro_sequence=intro_sequence,
     setup_sequence=setup_sequence,
     response_sequence=response_sequence,
     punchline_sequence=punchline_sequence,
+    teller_laugh_sequence=teller_laugh_sequence,
+    listener_laugh_sequence=listener_laugh_sequence,
     timeline=timeline,
     z_index=_PORTRAIT_CHARACTER_LAYER_Z_INDEX,
   )
@@ -197,9 +238,9 @@ def _build_static_image_item(
 ) -> TimedImage:
   """Build a static image layer spanning the entire script duration."""
   return TimedImage(
-    gcs_uri=str(gcs_uri),
+    gcs_uri=gcs_uri,
     start_time_sec=0.0,
-    end_time_sec=float(duration_sec),
+    end_time_sec=duration_sec,
     z_index=int(z_index),
     rect=rect,
     fit_mode=fit_mode,
@@ -215,17 +256,17 @@ def _build_joke_image_items(
   """Build timed setup/punchline image items from timeline."""
   return [
     TimedImage(
-      gcs_uri=str(setup_image_gcs_uri),
+      gcs_uri=setup_image_gcs_uri,
       start_time_sec=0.0,
-      end_time_sec=float(timeline.punchline_start_sec),
+      end_time_sec=timeline.punchline_start_sec,
       z_index=int(_PORTRAIT_IMAGE_LAYER_Z_INDEX),
       rect=_PORTRAIT_TOP_RECT,
       fit_mode="fill",
     ),
     TimedImage(
-      gcs_uri=str(punchline_image_gcs_uri),
-      start_time_sec=float(timeline.punchline_start_sec),
-      end_time_sec=float(timeline.total_duration_sec),
+      gcs_uri=punchline_image_gcs_uri,
+      start_time_sec=timeline.punchline_start_sec,
+      end_time_sec=timeline.total_duration_sec,
       z_index=int(_PORTRAIT_IMAGE_LAYER_Z_INDEX),
       rect=_PORTRAIT_TOP_RECT,
       fit_mode="fill",
@@ -235,67 +276,78 @@ def _build_joke_image_items(
 
 def _resolve_portrait_timeline(
   *,
+  pop_in_sequence: PosableCharacterSequence,
   intro_sequence: PosableCharacterSequence | None,
   setup_sequence: PosableCharacterSequence,
   response_sequence: PosableCharacterSequence | None,
   punchline_sequence: PosableCharacterSequence,
+  laugh_duration_sec: float,
   drumming_duration_sec: float,
 ) -> PortraitJokeTimeline:
   """Resolve all key script timestamps, including drumming windows."""
+  pop_in_duration = pop_in_sequence.duration_sec
+  pop_in_start = 0.0
+  pop_in_end = pop_in_duration
+
   intro_start: float | None = None
   intro_end: float | None = None
-  intro_duration = _sequence_duration_sec(
-    intro_sequence) if intro_sequence is not None else 0.0
+  intro_duration = (intro_sequence.duration_sec
+                    if intro_sequence is not None else 0.0)
   if intro_sequence is not None:
-    intro_start = 0.0
-    intro_end = float(intro_duration)
-  setup_duration = _sequence_duration_sec(setup_sequence)
-  response_duration = _sequence_duration_sec(
-    response_sequence) if response_sequence is not None else 0.0
-  punchline_duration = _sequence_duration_sec(punchline_sequence)
+    intro_start = pop_in_end
+    intro_end = intro_start + intro_duration
+  setup_duration = setup_sequence.duration_sec
+  response_duration = (response_sequence.duration_sec
+                       if response_sequence is not None else 0.0)
+  punchline_duration = punchline_sequence.duration_sec
 
-  setup_start = float(intro_duration + _JOKE_AUDIO_SETUP_GAP_SEC
-                      if intro_sequence is not None else intro_duration)
-  setup_end = float(setup_start + setup_duration)
+  setup_start = (
+    intro_end +
+    _JOKE_AUDIO_SETUP_GAP_SEC) if intro_end is not None else pop_in_end
+  setup_end = setup_start + setup_duration
   response_start: float | None = None
   response_end: float | None = None
-  punchline_start = float(setup_end + _JOKE_AUDIO_PUNCHLINE_GAP_SEC)
+  punchline_start = setup_end + _JOKE_AUDIO_PUNCHLINE_GAP_SEC
   if response_sequence is not None:
-    response_start = float(setup_end + _JOKE_AUDIO_RESPONSE_GAP_SEC)
-    response_end = float(response_start + response_duration)
-    punchline_start = float(response_end + _JOKE_AUDIO_PUNCHLINE_GAP_SEC)
-  punchline_end = float(punchline_start + punchline_duration)
-  total_duration = float(punchline_end + _VIDEO_TAIL_SEC)
+    response_start = setup_end + _JOKE_AUDIO_RESPONSE_GAP_SEC
+    response_end = response_start + response_duration
+    punchline_start = response_end + _JOKE_AUDIO_PUNCHLINE_GAP_SEC
+  punchline_end = punchline_start + punchline_duration
+  laugh_start = punchline_end
+  laugh_end = laugh_start + max(0.0, laugh_duration_sec)
+  total_duration = laugh_end + _VIDEO_TAIL_SEC
 
   intro_drum_start: float | None = None
   intro_drum_end: float | None = None
   if (intro_start is not None and intro_end is not None
       and setup_start > intro_end):
-    intro_drum_start = float(intro_end)
-    intro_drum_end = float(setup_start)
+    intro_drum_start = intro_end
+    intro_drum_end = setup_start
 
   tail_drum_start: float | None = None
   tail_drum_end: float | None = None
-  if float(drumming_duration_sec) > 0:
-    tail_drum_start = max(float(punchline_end),
-                          float(total_duration) - float(drumming_duration_sec))
-    tail_drum_end = float(total_duration)
+  if drumming_duration_sec > 0:
+    tail_drum_start = max(laugh_end, total_duration - drumming_duration_sec)
+    tail_drum_end = total_duration
 
   return PortraitJokeTimeline(
+    pop_in_start_sec=pop_in_start,
+    pop_in_end_sec=pop_in_end,
     intro_start_sec=intro_start,
     intro_end_sec=intro_end,
-    setup_start_sec=float(setup_start),
-    setup_end_sec=float(setup_end),
-    response_start_sec=float(response_start)
-    if response_start is not None else None,
-    response_end_sec=float(response_end) if response_end is not None else None,
-    punchline_start_sec=float(punchline_start),
-    punchline_end_sec=float(punchline_end),
+    setup_start_sec=setup_start,
+    setup_end_sec=setup_end,
+    response_start_sec=response_start if response_start is not None else None,
+    response_end_sec=response_end if response_end is not None else None,
+    punchline_start_sec=punchline_start,
+    punchline_end_sec=punchline_end,
+    laugh_start_sec=laugh_start,
+    laugh_end_sec=laugh_end,
     intro_drumming_start_sec=intro_drum_start,
     intro_drumming_end_sec=intro_drum_end,
     tail_drumming_start_sec=tail_drum_start,
     tail_drumming_end_sec=tail_drum_end,
-    total_duration_sec=float(total_duration),
+    total_duration_sec=total_duration,
   )
 
 
@@ -303,10 +355,13 @@ def _build_character_dialogs(
   *,
   teller_character: PosableCharacter,
   listener_character: PosableCharacter | None,
+  pop_in_sequence: PosableCharacterSequence,
   intro_sequence: PosableCharacterSequence | None,
   setup_sequence: PosableCharacterSequence,
   response_sequence: PosableCharacterSequence | None,
   punchline_sequence: PosableCharacterSequence,
+  teller_laugh_sequence: PosableCharacterSequence,
+  listener_laugh_sequence: PosableCharacterSequence | None,
   timeline: PortraitJokeTimeline,
   z_index: int,
 ) -> list[TimedCharacterSequence]:
@@ -314,17 +369,27 @@ def _build_character_dialogs(
   tracks: list[tuple[PosableCharacter,
                      list[tuple[float, PosableCharacterSequence]]]] = []
 
-  teller_dialogs: list[tuple[float, PosableCharacterSequence]] = []
+  teller_dialogs: list[tuple[float, PosableCharacterSequence]] = [
+    (timeline.pop_in_start_sec, pop_in_sequence)
+  ]
   if intro_sequence is not None:
-    teller_dialogs.append((0.0, intro_sequence))
+    teller_dialogs.append((timeline.intro_start_sec or 0.0, intro_sequence))
   teller_dialogs.extend([
-    (float(timeline.setup_start_sec), setup_sequence),
-    (float(timeline.punchline_start_sec), punchline_sequence),
+    (timeline.setup_start_sec, setup_sequence),
+    (timeline.punchline_start_sec, punchline_sequence),
+    (timeline.laugh_start_sec, teller_laugh_sequence),
   ])
   tracks.append((teller_character, teller_dialogs))
 
-  if listener_character and response_sequence and timeline.response_start_sec:
-    listener_dialogs = [(timeline.response_start_sec, response_sequence)]
+  if listener_character:
+    listener_dialogs: list[tuple[float, PosableCharacterSequence]] = [
+      (timeline.pop_in_start_sec, pop_in_sequence)
+    ]
+    if response_sequence and timeline.response_start_sec is not None:
+      listener_dialogs.append((timeline.response_start_sec, response_sequence))
+    if listener_laugh_sequence is not None:
+      listener_dialogs.append(
+        (timeline.laugh_start_sec, listener_laugh_sequence))
     tracks.append((listener_character, listener_dialogs))
 
   items: list[TimedCharacterSequence] = []
@@ -333,14 +398,14 @@ def _build_character_dialogs(
     actor_id = f"actor_{actor_index}"
     actor_rect = actor_rects[actor_index]
     for start_time, sequence in dialogs:
-      duration_sec = _sequence_duration_sec(sequence)
+      duration_sec = sequence.duration_sec
       items.append(
         TimedCharacterSequence(
           actor_id=actor_id,
           character=character,
           sequence=sequence,
-          start_time_sec=float(start_time),
-          end_time_sec=float(start_time) + float(duration_sec),
+          start_time_sec=start_time,
+          end_time_sec=start_time + duration_sec,
           z_index=int(z_index),
           rect=actor_rect,
           fit_mode="contain",
@@ -350,15 +415,15 @@ def _build_character_dialogs(
         and timeline.intro_drumming_end_sec is not None and
         timeline.intro_drumming_end_sec > timeline.intro_drumming_start_sec):
       intro_drumming_sequence = _build_drumming_sequence(
-        duration_sec=float(timeline.intro_drumming_end_sec) -
-        float(timeline.intro_drumming_start_sec))
+        duration_sec=timeline.intro_drumming_end_sec -
+        timeline.intro_drumming_start_sec)
       items.append(
         TimedCharacterSequence(
           actor_id=actor_id,
           character=character,
           sequence=intro_drumming_sequence,
-          start_time_sec=float(timeline.intro_drumming_start_sec),
-          end_time_sec=float(timeline.intro_drumming_end_sec),
+          start_time_sec=timeline.intro_drumming_start_sec,
+          end_time_sec=timeline.intro_drumming_end_sec,
           z_index=int(z_index),
           rect=actor_rect,
           fit_mode="contain",
@@ -368,21 +433,42 @@ def _build_character_dialogs(
         and timeline.tail_drumming_end_sec is not None
         and timeline.tail_drumming_end_sec > timeline.tail_drumming_start_sec):
       tail_drumming_sequence = _build_drumming_sequence(
-        duration_sec=float(timeline.tail_drumming_end_sec) -
-        float(timeline.tail_drumming_start_sec))
+        duration_sec=timeline.tail_drumming_end_sec -
+        timeline.tail_drumming_start_sec)
       items.append(
         TimedCharacterSequence(
           actor_id=actor_id,
           character=character,
           sequence=tail_drumming_sequence,
-          start_time_sec=float(timeline.tail_drumming_start_sec),
-          end_time_sec=float(timeline.tail_drumming_end_sec),
+          start_time_sec=timeline.tail_drumming_start_sec,
+          end_time_sec=timeline.tail_drumming_end_sec,
           z_index=int(z_index),
           rect=actor_rect,
           fit_mode="contain",
         ))
 
   return items
+
+
+def _load_sequence_from_firestore(
+    sequence_id: str) -> PosableCharacterSequence:
+  """Load a required character sequence by Firestore document id."""
+  sequence = firestore.get_posable_character_sequence(sequence_id)
+  if sequence is None:
+    raise ValueError(
+      f"Missing required posable_character_sequences/{sequence_id}")
+  sequence.validate()
+  return sequence
+
+
+def _load_random_giggle_sequence(
+  *,
+  voice: audio_voices.Voice,
+) -> PosableCharacterSequence:
+  """Load a random `voice_giggle[1-3]` sequence for the provided voice enum."""
+  giggle_variant = random.randint(_GIGGLE_VARIANT_MIN, _GIGGLE_VARIANT_MAX)
+  sequence_id = f"{voice.name}_giggle{giggle_variant}"
+  return _load_sequence_from_firestore(sequence_id)
 
 
 def _build_actor_rects_for_tracks(
@@ -408,13 +494,12 @@ def _build_actor_rects_for_tracks(
   total_width = max(1, sum(width for width, _height in actor_sizes))
 
   rects: list[SceneRect] = []
-  cursor_x = float(left_bound)
+  cursor_x = left_bound
   for width_px, height_px in actor_sizes:
-    slot_width = float(available_width) * (float(width_px) /
-                                           float(total_width))
+    slot_width = available_width * (width_px / total_width)
     center_x = cursor_x + (slot_width / 2.0)
     y = int(_PORTRAIT_CHARACTER_RECT.y_px + (tallest_height - height_px))
-    x = int(round(float(center_x) - (float(width_px) / 2.0)))
+    x = int(round(center_x - (width_px / 2.0)))
     rects.append(
       SceneRect(
         x_px=x,
@@ -433,17 +518,16 @@ def _build_drumming_sequence(
   amplitude_px: float = 10.0,
 ) -> PosableCharacterSequence:
   """Build a deterministic hand-drumming sequence."""
-  duration_sec = max(0.0, float(duration_sec))
-  step_sec = max(0.02, float(step_sec))
-  amplitude_px = float(amplitude_px)
+  duration_sec = max(0.0, duration_sec)
+  step_sec = max(0.02, step_sec)
 
   left_events = []
   right_events = []
   t = 0.0
   idx = 0
   while t < duration_sec:
-    start = float(t)
-    end = min(float(duration_sec), start + float(step_sec))
+    start = t
+    end = min(duration_sec, start + step_sec)
     if end <= start:
       break
     left_y = -amplitude_px if idx % 2 == 0 else amplitude_px
@@ -479,23 +563,3 @@ def _build_drumming_sequence(
   })
   sequence.validate()
   return sequence
-
-
-def _sequence_duration_sec(sequence: PosableCharacterSequence) -> float:
-  """Return max end time across all sequence tracks."""
-  max_end = 0.0
-  tracks = [
-    sequence.sequence_left_eye_open,
-    sequence.sequence_right_eye_open,
-    sequence.sequence_mouth_state,
-    sequence.sequence_left_hand_visible,
-    sequence.sequence_right_hand_visible,
-    sequence.sequence_left_hand_transform,
-    sequence.sequence_right_hand_transform,
-    sequence.sequence_head_transform,
-    sequence.sequence_sound_events,
-  ]
-  for track in tracks:
-    for event in track:
-      max_end = max(max_end, float(event.end_time))
-  return max_end

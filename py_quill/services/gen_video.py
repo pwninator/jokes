@@ -16,7 +16,7 @@ from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.VideoClip import ImageClip
-from services import cloud_storage
+from services import audio_voices, cloud_storage
 from services.video import joke_social_script_builder
 from services.video.scene_video_renderer import generate_scene_video
 
@@ -170,10 +170,12 @@ def create_portrait_character_video(
   setup_image_gcs_uri: str,
   punchline_image_gcs_uri: str,
   teller_character: PosableCharacter,
+  teller_voice: audio_voices.Voice,
   setup_sequence: PosableCharacterSequence,
   punchline_sequence: PosableCharacterSequence,
   output_filename_base: str,
   listener_character: PosableCharacter | None = None,
+  listener_voice: audio_voices.Voice | None = None,
   intro_sequence: PosableCharacterSequence | None = None,
   response_sequence: PosableCharacterSequence | None = None,
   drumming_duration_sec: float = 2.0,
@@ -232,7 +234,9 @@ def create_portrait_character_video(
       setup_image_gcs_uri=setup_image_gcs_uri,
       punchline_image_gcs_uri=punchline_image_gcs_uri,
       teller_character=teller_character,
+      teller_voice=teller_voice,
       listener_character=listener_character,
+      listener_voice=listener_voice,
       intro_sequence=intro_sequence,
       setup_sequence=setup_sequence,
       response_sequence=response_sequence,

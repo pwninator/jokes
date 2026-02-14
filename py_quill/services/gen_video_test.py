@@ -11,7 +11,7 @@ from common.posable_character import MouthState, PosableCharacter
 from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceSoundEvent)
 from PIL import Image
-from services import gen_video
+from services import audio_voices, gen_video
 from services.video.mouth import apply_forced_closures
 
 
@@ -424,7 +424,9 @@ def test_create_portrait_character_video_uploads_mp4():
       setup_image_gcs_uri="gs://bucket/image1.png",
       punchline_image_gcs_uri="gs://bucket/image2.png",
       teller_character=_DummyCharacter(),
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
       listener_character=_DummyCharacter(),
+      listener_voice=audio_voices.Voice.GEMINI_PUCK,
       setup_sequence=setup_sequence,
       punchline_sequence=punchline_sequence,
       output_filename_base="portrait",
@@ -437,6 +439,10 @@ def test_create_portrait_character_video_uploads_mp4():
   assert metadata.token_counts["num_audio_files"] == 2
   assert metadata.token_counts["num_characters"] == 2
   build_script_mock.assert_called_once()
+  assert build_script_mock.call_args.kwargs[
+    "teller_voice"] == audio_voices.Voice.GEMINI_LEDA
+  assert build_script_mock.call_args.kwargs[
+    "listener_voice"] == audio_voices.Voice.GEMINI_PUCK
   create_scene_mock.assert_called_once()
 
   get_uri_mock.assert_called_once()

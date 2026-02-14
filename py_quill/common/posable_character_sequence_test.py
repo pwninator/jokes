@@ -3,12 +3,9 @@
 import unittest
 
 from common.posable_character import MouthState, Transform
-from common.posable_character_sequence import (PosableCharacterSequence,
-                                               SequenceBooleanEvent,
-                                               SequenceFloatEvent,
-                                               SequenceMouthEvent,
-                                               SequenceSoundEvent,
-                                               SequenceTransformEvent)
+from common.posable_character_sequence import (
+  PosableCharacterSequence, SequenceBooleanEvent, SequenceFloatEvent,
+  SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
 
 
 class PosableCharacterSequenceTest(unittest.TestCase):
@@ -87,9 +84,30 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     seq = PosableCharacterSequence(sequence_sound_events=[
       SequenceSoundEvent(start_time=1.0, end_time=1.0, gcs_uri="uri1"),
     ])
-    with self.assertRaisesRegex(
-      ValueError, "Sound events must have positive duration"):
+    with self.assertRaisesRegex(ValueError,
+                                "Sound events must have positive duration"):
       seq.validate()
+
+  def test_duration_sec_returns_max_end_time_across_all_tracks(self):
+    seq = PosableCharacterSequence(
+      sequence_mouth_state=[
+        SequenceMouthEvent(start_time=0.0,
+                           end_time=0.8,
+                           mouth_state=MouthState.OPEN),
+      ],
+      sequence_sound_events=[
+        SequenceSoundEvent(start_time=0.0, end_time=1.2, gcs_uri="gs://a.wav"),
+      ],
+      sequence_surface_line_offset=[
+        SequenceFloatEvent(start_time=0.0, end_time=2.4, target_value=12.0),
+      ],
+    )
+
+    self.assertEqual(seq.duration_sec, 2.4)
+
+  def test_duration_sec_empty_sequence_is_zero(self):
+    seq = PosableCharacterSequence()
+    self.assertEqual(seq.duration_sec, 0.0)
 
 
 if __name__ == '__main__':

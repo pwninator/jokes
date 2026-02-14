@@ -6,19 +6,35 @@ import os
 import tempfile
 import time
 from dataclasses import dataclass
+from typing import Any, TypedDict
 
 import numpy as np
 from common import models
 from common.character_animator import CharacterAnimator
 from common.posable_character import PosableCharacter
-from common.posable_character_sequence import PosableCharacterSequence
-from moviepy import AudioFileClip, CompositeAudioClip, VideoClip
+from common.posable_character_sequence import (PosableCharacterSequence,
+                                               SequenceBooleanEvent,
+                                               SequenceMouthEvent,
+                                               SequenceSoundEvent,
+                                               SequenceTransformEvent)
+from moviepy.audio.AudioClip import CompositeAudioClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
+from moviepy.video.VideoClip import VideoClip
 from PIL import Image, ImageOps
 from services import cloud_storage
-from services.video.script import (SceneCanvas, SceneRect, SceneScript,
-                                   TimedCharacterSequence, TimedImage)
+from services.video.script import (FitMode, SceneCanvas, SceneRect,
+                                   SceneScript, TimedCharacterSequence,
+                                   TimedImage)
 
 _DEFAULT_VIDEO_FPS = 24
+_AUDIO_DURATION_COMPARISON_TOLERANCE_SEC = 0.001
+_AudioScheduleEntry = tuple[str, float, float]
+_DownloadedAudioEntry = tuple[str, float, float, str]
+
+
+class _ActorEntry(TypedDict):
+  source_order: int
+  items: list[TimedCharacterSequence]
 
 
 @dataclass(frozen=True)
@@ -39,14 +55,14 @@ class _ActorRender:
   animator: CharacterAnimator
   z_index: int
   rect: SceneRect
-  fit_mode: str
+  fit_mode: FitMode
 
 
 def _render_with_fit(
   image: Image.Image,
   *,
   rect: SceneRect,
-  fit_mode: str,
+  fit_mode: FitMode,
   allow_upscale: bool,
 ) -> tuple[Image.Image, int, int]:
   source = image.convert("RGBA")
@@ -90,7 +106,8 @@ def _prepare_images(script: SceneScript) -> list[_PreparedImage]:
   for index, item in enumerate(script.items):
     if not isinstance(item, TimedImage):
       continue
-    source = cloud_storage.download_image_from_gcs(item.gcs_uri).convert("RGBA")
+    source = cloud_storage.download_image_from_gcs(
+      item.gcs_uri).convert("RGBA")
     sprite, x, y = _render_with_fit(
       source,
       rect=item.rect,
@@ -106,26 +123,27 @@ def _prepare_images(script: SceneScript) -> list[_PreparedImage]:
         sprite=sprite,
         paste_position=(x, y),
       ))
-  prepared.sort(key=lambda entry: (int(entry.z_index), int(entry.source_order)))
+  prepared.sort(
+    key=lambda entry: (int(entry.z_index), int(entry.source_order)))
   return prepared
 
 
 def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
-  by_actor: dict[str, dict[str, object]] = {}
+  by_actor: dict[str, _ActorEntry] = {}
   for index, item in enumerate(script.items):
     if isinstance(item, TimedCharacterSequence):
-      actor_entry = by_actor.setdefault(
-        item.actor_id, {
-          "source_order": int(index),
-          "items": [],
-        })
-      actor_entry["source_order"] = min(
-        int(actor_entry["source_order"]), int(index))
+      actor_entry = by_actor.setdefault(item.actor_id, {
+        "source_order": int(index),
+        "items": [],
+      })
+      actor_entry["source_order"] = min(int(actor_entry["source_order"]),
+                                        int(index))
       actor_entry["items"].append(item)
 
   renders: list[_ActorRender] = []
   for actor_id, actor_entry in by_actor.items():
-    items = sorted(actor_entry["items"], key=lambda entry: entry.start_time_sec)
+    items = sorted(actor_entry["items"],
+                   key=lambda entry: entry.start_time_sec)
     character = items[0].character
     z_index = int(items[0].z_index)
     rect = items[0].rect
@@ -147,8 +165,7 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
 
 
 def _merge_shifted_sequences(
-  items: list[TimedCharacterSequence],
-) -> PosableCharacterSequence:
+  items: list[TimedCharacterSequence], ) -> PosableCharacterSequence:
   """Merge local-time sequence clips into one absolute-time sequence."""
   out = PosableCharacterSequence()
   for item in items:
@@ -177,37 +194,57 @@ def _merge_shifted_sequences(
   return out
 
 
-def _shift_boolean_events(events, offset: float):
-  return [event.__class__(
-    start_time=float(event.start_time) + float(offset),
-    end_time=float(event.end_time) + float(offset),
-    value=bool(event.value),
-  ) for event in events]
+def _shift_boolean_events(
+  events: list[SequenceBooleanEvent],
+  offset: float,
+) -> list[SequenceBooleanEvent]:
+  return [
+    event.__class__(
+      start_time=float(event.start_time) + float(offset),
+      end_time=float(event.end_time) + float(offset),
+      value=bool(event.value),
+    ) for event in events
+  ]
 
 
-def _shift_mouth_events(events, offset: float):
-  return [event.__class__(
-    start_time=float(event.start_time) + float(offset),
-    end_time=float(event.end_time) + float(offset),
-    mouth_state=event.mouth_state,
-  ) for event in events]
+def _shift_mouth_events(
+  events: list[SequenceMouthEvent],
+  offset: float,
+) -> list[SequenceMouthEvent]:
+  return [
+    event.__class__(
+      start_time=float(event.start_time) + float(offset),
+      end_time=float(event.end_time) + float(offset),
+      mouth_state=event.mouth_state,
+    ) for event in events
+  ]
 
 
-def _shift_transform_events(events, offset: float):
-  return [event.__class__(
-    start_time=float(event.start_time) + float(offset),
-    end_time=float(event.end_time) + float(offset),
-    target_transform=event.target_transform,
-  ) for event in events]
+def _shift_transform_events(
+  events: list[SequenceTransformEvent],
+  offset: float,
+) -> list[SequenceTransformEvent]:
+  return [
+    event.__class__(
+      start_time=float(event.start_time) + float(offset),
+      end_time=float(event.end_time) + float(offset),
+      target_transform=event.target_transform,
+    ) for event in events
+  ]
 
 
-def _shift_sound_events(events, offset: float):
-  return [event.__class__(
-    start_time=float(event.start_time) + float(offset),
-    end_time=float(event.end_time) + float(offset),
-    gcs_uri=event.gcs_uri,
-    volume=float(event.volume),
-  ) for event in events]
+def _shift_sound_events(
+  events: list[SequenceSoundEvent],
+  offset: float,
+) -> list[SequenceSoundEvent]:
+  return [
+    event.__class__(
+      start_time=float(event.start_time) + float(offset),
+      end_time=float(event.end_time) + float(offset),
+      gcs_uri=event.gcs_uri,
+      volume=float(event.volume),
+    ) for event in events
+  ]
 
 
 def _render_scene_frame(
@@ -216,7 +253,7 @@ def _render_scene_frame(
   canvas: SceneCanvas,
   prepared_images: list[_PreparedImage],
   actor_renders: list[_ActorRender],
-) -> np.ndarray:
+) -> np.ndarray[Any, Any]:
   base = Image.new("RGBA", (int(canvas.width_px), int(canvas.height_px)),
                    tuple(canvas.background_rgba))
 
@@ -262,52 +299,62 @@ def _render_scene_frame(
 
 
 def _extract_audio_schedule(
-  script: SceneScript, ) -> list[tuple[str, float, float]]:
-  schedule: list[tuple[str, float, float]] = []
+  script: SceneScript, ) -> list[_AudioScheduleEntry]:
+  schedule: list[_AudioScheduleEntry] = []
   for item in script.items:
     if not isinstance(item, TimedCharacterSequence):
       continue
     for event in item.sequence.sequence_sound_events:
-      schedule.append(
-        (
-          str(event.gcs_uri),
-          float(item.start_time_sec) + float(event.start_time),
-          float(item.start_time_sec) + float(event.end_time),
-        ))
+      schedule.append((
+        str(event.gcs_uri),
+        float(item.start_time_sec) + float(event.start_time),
+        float(item.start_time_sec) + float(event.end_time),
+      ))
   schedule = [entry for entry in schedule if float(entry[2]) > float(entry[1])]
   schedule.sort(key=lambda entry: float(entry[1]))
   return schedule
 
 
 def _download_audio_to_temp(
-  audio_files: list[tuple[str, float, float]],
+  audio_files: list[_AudioScheduleEntry],
   *,
   temp_dir: str,
-) -> list[tuple[str, float, float, str]]:
-  out: list[tuple[str, float, float, str]] = []
+) -> list[_DownloadedAudioEntry]:
+  out: list[_DownloadedAudioEntry] = []
   for index, (gcs_uri, start_time, end_time) in enumerate(audio_files):
     _, blob_name = cloud_storage.parse_gcs_uri(gcs_uri)
     extension = os.path.splitext(blob_name)[1] or ".wav"
     local_path = os.path.join(temp_dir, f"audio_{index}{extension}")
     content_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
     with open(local_path, "wb") as file_handle:
-      file_handle.write(content_bytes)
+      _ = file_handle.write(content_bytes)
     out.append((gcs_uri, float(start_time), float(end_time), local_path))
   return out
 
 
 def _build_audio_clips(
-  audio_paths: list[tuple[str, float, float, str]], ) -> list[AudioFileClip]:
+  audio_paths: list[_DownloadedAudioEntry], ) -> list[AudioFileClip]:
   clips: list[AudioFileClip] = []
   for _gcs_uri, start_time, end_time, path in audio_paths:
-    duration = float(end_time) - float(start_time)
-    if duration <= 0:
+    requested_duration = float(end_time) - float(start_time)
+    if requested_duration <= 0:
       continue
     clip = AudioFileClip(path).with_start(float(start_time))
-    if hasattr(clip, "with_duration"):
-      clip = clip.with_duration(duration)
-    elif hasattr(clip, "set_duration"):
-      clip = clip.set_duration(duration)
+    source_duration = float(getattr(clip, "duration", 0.0) or 0.0)
+
+    # Never extend a clip beyond its source media duration; this can cause
+    # MoviePy to request out-of-range frames for short files.
+    if source_duration > 0:
+      if requested_duration > (source_duration +
+                               _AUDIO_DURATION_COMPARISON_TOLERANCE_SEC):
+        clips.append(clip)
+        continue
+      if requested_duration >= (source_duration -
+                                _AUDIO_DURATION_COMPARISON_TOLERANCE_SEC):
+        clips.append(clip)
+        continue
+
+    clip = clip.with_duration(requested_duration)
     clips.append(clip)
   return clips
 
@@ -325,8 +372,8 @@ def generate_scene_video(
     raise ValueError("FPS must be positive")
 
   start_perf = float(time.perf_counter())
-  video_clip = None
-  audio_composite = None
+  video_clip: VideoClip | None = None
+  audio_composite: CompositeAudioClip | None = None
   audio_clips: list[AudioFileClip] = []
 
   try:
@@ -336,7 +383,7 @@ def generate_scene_video(
       audio_schedule = _extract_audio_schedule(script)
       audio_paths = _download_audio_to_temp(audio_schedule, temp_dir=temp_dir)
 
-      def make_frame(time_sec: float) -> np.ndarray:
+      def make_frame(time_sec: float) -> np.ndarray[Any, Any]:
         return _render_scene_frame(
           time_sec=float(time_sec),
           canvas=script.canvas,
@@ -359,7 +406,7 @@ def generate_scene_video(
         logger=None,
       )
 
-      cloud_storage.upload_file_to_gcs(
+      _ = cloud_storage.upload_file_to_gcs(
         output_path,
         output_gcs_uri,
         content_type="video/mp4",
@@ -367,10 +414,11 @@ def generate_scene_video(
 
       file_size_bytes = os.path.getsize(output_path)
       generation_time_sec = float(time.perf_counter()) - float(start_perf)
-      num_images = len([item for item in script.items if isinstance(item, TimedImage)])
+      num_images = len(
+        [item for item in script.items if isinstance(item, TimedImage)])
       num_characters = len({
-        item.actor_id for item in script.items
-        if isinstance(item, TimedCharacterSequence)
+        item.actor_id
+        for item in script.items if isinstance(item, TimedCharacterSequence)
       })
       metadata = models.SingleGenerationMetadata(
         label=label,

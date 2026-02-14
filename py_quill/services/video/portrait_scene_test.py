@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from common import audio_timing, models
 from common.posable_character import MouthState, PosableCharacter, Transform
 from common.posable_character_sequence import (PosableCharacterSequence,
@@ -9,13 +8,14 @@ from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceSoundEvent,
                                                SequenceTransformEvent)
 from PIL import Image
-from services.video import scene_video_renderer
-from services.video import joke_social_script_builder
+from services import audio_voices
+from services.video import joke_social_script_builder, scene_video_renderer
 from services.video.script import (SceneCanvas, SceneRect, SceneScript,
                                    TimedCharacterSequence, TimedImage)
 
 
 class _DummyCharacter(PosableCharacter):
+
   def __init__(self):
     super().__init__(definition=models.PosableCharacterDef(
       width=100,
@@ -63,7 +63,45 @@ def _simple_sequence() -> PosableCharacterSequence:
   return sequence
 
 
+def _load_firestore_sequence(sequence_id: str) -> PosableCharacterSequence:
+  if sequence_id == "pop_in":
+    sequence = PosableCharacterSequence(sequence_sound_events=[
+      SequenceSoundEvent(
+        start_time=0.0,
+        end_time=0.3,
+        gcs_uri="gs://bucket/pop_in.wav",
+        volume=1.0,
+      )
+    ])
+    sequence.validate()
+    return sequence
+  if sequence_id == "GEMINI_LEDA_giggle1":
+    sequence = PosableCharacterSequence(sequence_sound_events=[
+      SequenceSoundEvent(
+        start_time=0.0,
+        end_time=0.7,
+        gcs_uri="gs://bucket/leda_giggle.wav",
+        volume=1.0,
+      )
+    ])
+    sequence.validate()
+    return sequence
+  if sequence_id == "GEMINI_PUCK_giggle1":
+    sequence = PosableCharacterSequence(sequence_sound_events=[
+      SequenceSoundEvent(
+        start_time=0.0,
+        end_time=0.6,
+        gcs_uri="gs://bucket/puck_giggle.wav",
+        volume=1.0,
+      )
+    ])
+    sequence.validate()
+    return sequence
+  raise AssertionError(f"Unexpected sequence id: {sequence_id}")
+
+
 class _ProbingVideoClip:
+
   def __init__(self, make_frame, duration=None):
     self.make_frame = make_frame
     self.duration = duration
@@ -83,6 +121,7 @@ class _ProbingVideoClip:
 
 
 class _FakeAudioClip:
+
   def __init__(self, _path):
     self.start = None
     self.duration = None
@@ -100,11 +139,61 @@ class _FakeAudioClip:
 
 
 class _FakeCompositeAudio:
+
   def __init__(self, _clips):
     pass
 
   def close(self):
     pass
+
+
+class _InspectableAudioClip:
+  source_duration_sec = 0.29
+
+  def __init__(self, _path):
+    self.start = None
+    self.duration = float(self.source_duration_sec)
+    self.duration_calls: list[float] = []
+
+  def with_start(self, start):
+    self.start = start
+    return self
+
+  def with_duration(self, duration):
+    self.duration_calls.append(float(duration))
+    self.duration = float(duration)
+    return self
+
+  def set_duration(self, duration):
+    return self.with_duration(duration)
+
+  def close(self):
+    pass
+
+
+def test_build_audio_clips_does_not_extend_past_source_duration():
+  audio_paths = [("gs://bucket/a.wav", 0.0, 0.30, "/tmp/a.wav")]
+
+  with patch.object(scene_video_renderer, "AudioFileClip",
+                    _InspectableAudioClip):
+    clips = scene_video_renderer._build_audio_clips(audio_paths)  # pylint: disable=protected-access
+
+  assert len(clips) == 1
+  assert clips[0].duration == pytest.approx(0.29)
+  assert clips[0].duration_calls == []
+
+
+def test_build_audio_clips_trims_when_schedule_shorter_than_source():
+  audio_paths = [("gs://bucket/a.wav", 0.0, 0.20, "/tmp/a.wav")]
+
+  with patch.object(scene_video_renderer, "AudioFileClip",
+                    _InspectableAudioClip):
+    clips = scene_video_renderer._build_audio_clips(audio_paths)  # pylint: disable=protected-access
+
+  assert len(clips) == 1
+  assert clips[0].duration == pytest.approx(0.20)
+  assert len(clips[0].duration_calls) == 1
+  assert clips[0].duration_calls[0] == pytest.approx(0.20)
 
 
 def test_generate_scene_video_applies_sequence_pose():
@@ -422,12 +511,17 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
     _DummyCharacter,
     "get_image",
     return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
-  ):
+  ), patch.object(joke_social_script_builder,
+                  "_load_sequence_from_firestore",
+                  side_effect=_load_firestore_sequence), \
+      patch.object(joke_social_script_builder.random, "randint", return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=left_character,
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
       listener_character=right_character,
+      listener_voice=audio_voices.Voice.GEMINI_PUCK,
       intro_sequence=intro_sequence,
       setup_sequence=setup_sequence,
       response_sequence=response_sequence,
@@ -438,9 +532,28 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
   character_items = [
     item for item in script.items if isinstance(item, TimedCharacterSequence)
   ]
+  spoken_items = [
+    item for item in character_items if item.sequence.sequence_sound_events
+  ]
+  pop_in_items = [
+    item for item in spoken_items
+    if item.sequence.sequence_sound_events[0].gcs_uri.endswith("pop_in.wav")
+  ]
+  assert len(pop_in_items) == 2
+  for item in pop_in_items:
+    assert item.start_time_sec == pytest.approx(0.0)
+    assert item.end_time_sec == pytest.approx(0.3)
+
+  laugh_items = [
+    item for item in spoken_items
+    if item.sequence.sequence_sound_events[0].gcs_uri.endswith("giggle.wav")
+  ]
+  assert len(laugh_items) == 2
+  for item in laugh_items:
+    assert item.start_time_sec == pytest.approx(4.7)
+
   drumming_items = [
-    item for item in character_items
-    if not item.sequence.sequence_sound_events
+    item for item in character_items if not item.sequence.sequence_sound_events
     and item.sequence.sequence_left_hand_transform
     and item.sequence.sequence_right_hand_transform
   ]
@@ -454,10 +567,10 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
   for actor_items in drumming_by_actor.values():
     actor_items.sort(key=lambda item: float(item.start_time_sec))
     assert len(actor_items) == 2
-    assert actor_items[0].start_time_sec == pytest.approx(0.6)
-    assert actor_items[0].end_time_sec == pytest.approx(1.4)
-    assert actor_items[1].start_time_sec == pytest.approx(4.4)
-    assert actor_items[1].end_time_sec == pytest.approx(6.4)
+    assert actor_items[0].start_time_sec == pytest.approx(0.9)
+    assert actor_items[0].end_time_sec == pytest.approx(1.7)
+    assert actor_items[1].start_time_sec == pytest.approx(5.4)
+    assert actor_items[1].end_time_sec == pytest.approx(7.4)
 
 
 def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
@@ -485,11 +598,15 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
     _DummyCharacter,
     "get_image",
     return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
-  ):
+  ), patch.object(joke_social_script_builder,
+                  "_load_sequence_from_firestore",
+                  side_effect=_load_firestore_sequence), \
+      patch.object(joke_social_script_builder.random, "randint", return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=character,
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
       setup_sequence=setup_sequence,
       punchline_sequence=punchline_sequence,
       drumming_duration_sec=0.0,
@@ -498,9 +615,13 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
   image_items = [item for item in script.items if isinstance(item, TimedImage)]
   assert len(image_items) == 5
 
-  banner_item = next(item for item in image_items
-                     if item.gcs_uri.endswith("icon_words_transparent_light.png"))
-  assert banner_item.rect == SceneRect(x_px=80, y_px=0, width_px=920, height_px=240)
+  banner_item = next(
+    item for item in image_items
+    if item.gcs_uri.endswith("icon_words_transparent_light.png"))
+  assert banner_item.rect == SceneRect(x_px=80,
+                                       y_px=0,
+                                       width_px=920,
+                                       height_px=240)
 
   top_image_item = next(item for item in image_items
                         if item.gcs_uri == "gs://bucket/setup.png")
@@ -511,8 +632,9 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
     height_px=1080,
   )
 
-  footer_items = [item for item in image_items
-                  if item.gcs_uri.endswith("blank_paper.png")]
+  footer_items = [
+    item for item in image_items if item.gcs_uri.endswith("blank_paper.png")
+  ]
   assert len(footer_items) == 2
 
   top_banner_background_item = next(item for item in footer_items

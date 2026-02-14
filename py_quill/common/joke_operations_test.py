@@ -18,6 +18,12 @@ from PIL import Image
 def mock_firestore_fixture(monkeypatch):
   """Fixture that mocks the firestore service."""
   mock_firestore = Mock()
+  mock_firestore.get_posable_character_def.return_value = (
+    models.PosableCharacterDef(
+      key="20260212_232209__cat___orange_tabby",
+      width=1,
+      height=1,
+    ))
   monkeypatch.setattr(joke_operations, 'firestore', mock_firestore)
   return mock_firestore
 
@@ -1337,12 +1343,11 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
       # pylint: disable=no-member
       return wf.getnframes()
 
-  assert num_frames(uploaded[0][1]) == int(rate * 3.75)
+  assert 0 < num_frames(uploaded[0][1]) < int(rate * 0.3)
   assert 0 < num_frames(uploaded[1][1]) < int(rate * 0.3)
-  assert 0 < num_frames(uploaded[2][1]) < int(rate * 0.3)
   # Later clips can include substantial leading pause by design.
-  assert int(rate * 0.8) < num_frames(uploaded[3][1]) < int(rate * 1.2)
-  assert int(rate * 1.0) < num_frames(uploaded[4][1]) < int(rate * 1.4)
+  assert int(rate * 0.8) < num_frames(uploaded[2][1]) < int(rate * 1.2)
+  assert int(rate * 1.0) < num_frames(uploaded[3][1]) < int(rate * 1.4)
 
 
 def test_generate_joke_audio_uses_turn_templates(monkeypatch,
@@ -1592,7 +1597,8 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
   assert uploaded == []
 
 
-def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
+def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
+                                             mock_firestore):
   joke = models.PunnyJoke(
     key="joke-42",
     setup_text="Setup",
@@ -1666,16 +1672,28 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
   assert call_kwargs["setup_image_gcs_uri"] == "gs://images/setup.png"
   assert call_kwargs["punchline_image_gcs_uri"] == "gs://images/punchline.png"
   assert isinstance(call_kwargs["teller_character"],
-                    joke_operations.PosableCat)
+                    joke_operations.PosableCharacter)
   assert isinstance(call_kwargs["listener_character"],
-                    joke_operations.PosableCat)
+                    joke_operations.PosableCharacter)
+  assert call_kwargs[
+    "teller_character"].definition.key == "20260212_232209__cat___orange_tabby"
+  assert call_kwargs[
+    "listener_character"].definition.key == "20260212_232209__cat___orange_tabby"
+  assert call_kwargs[
+    "teller_voice"] == joke_operations.audio_voices.Voice.GEMINI_LEDA
+  assert call_kwargs[
+    "listener_voice"] == joke_operations.audio_voices.Voice.GEMINI_PUCK
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
+  assert mock_firestore.get_posable_character_def.call_count == 2
+  mock_firestore.get_posable_character_def.assert_called_with(
+    "20260212_232209__cat___orange_tabby")
 
 
 def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   monkeypatch,
   mock_cloud_storage,
+  mock_firestore,
 ):
 
   joke = models.PunnyJoke(
@@ -1740,7 +1758,14 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   call_kwargs = create_video_mock.call_args.kwargs
   assert call_kwargs["intro_sequence"] is not None
   assert call_kwargs["response_sequence"] is not None
+  assert call_kwargs[
+    "teller_voice"] == joke_operations.audio_voices.Voice.GEMINI_LEDA
+  assert call_kwargs[
+    "listener_voice"] == joke_operations.audio_voices.Voice.GEMINI_PUCK
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
+  assert mock_firestore.get_posable_character_def.call_count == 2
+  mock_firestore.get_posable_character_def.assert_called_with(
+    "20260212_232209__cat___orange_tabby")
 
 
 def test_generate_joke_video_requires_images():
@@ -2149,11 +2174,13 @@ def test_build_lipsync_sequence_uses_actual_audio_duration(
       wf.setnchannels(1)
       wf.setsampwidth(2)
       wf.setframerate(sr)
-      wf.writeframes(array.array("h", [1000] * int(sr * duration_sec)).tobytes())
+      wf.writeframes(
+        array.array("h", [1000] * int(sr * duration_sec)).tobytes())
       # pylint: enable=no-member
     return buffer.getvalue()
 
-  mock_cloud_storage.download_bytes_from_gcs.return_value = _make_wav_bytes(0.5)
+  mock_cloud_storage.download_bytes_from_gcs.return_value = _make_wav_bytes(
+    0.5)
   monkeypatch.setattr(
     joke_operations.mouth_event_detection,
     "detect_mouth_events",
@@ -2167,14 +2194,15 @@ def test_build_lipsync_sequence_uses_actual_audio_duration(
   )
 
   assert sequence.sequence_sound_events[0].end_time == pytest.approx(0.5,
-                                                                      abs=0.01)
+                                                                     abs=0.01)
 
 
 def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fails(
   monkeypatch,
   mock_cloud_storage,
 ):
-  mock_cloud_storage.download_bytes_from_gcs.side_effect = ValueError("missing")
+  mock_cloud_storage.download_bytes_from_gcs.side_effect = ValueError(
+    "missing")
   monkeypatch.setattr(
     joke_operations.mouth_event_detection,
     "detect_mouth_events",
@@ -2188,7 +2216,7 @@ def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fa
   )
 
   assert sequence.sequence_sound_events[0].end_time == pytest.approx(0.33,
-                                                                      abs=0.001)
+                                                                     abs=0.001)
 
 
 def _make_laugh_wav_bytes(
@@ -2202,7 +2230,8 @@ def _make_laugh_wav_bytes(
   samples = [0] * max(1, total_samples)
   for start_sec, end_sec, amplitude in pulses:
     start_idx = max(0, int(round(float(start_sec) * float(sample_rate))))
-    end_idx = min(total_samples, int(round(float(end_sec) * float(sample_rate))))
+    end_idx = min(total_samples,
+                  int(round(float(end_sec) * float(sample_rate))))
     for idx in range(start_idx, end_idx):
       samples[idx] = int(amplitude) if idx % 2 == 0 else -int(amplitude)
   with wave.open(buffer, "wb") as wf:
@@ -2227,12 +2256,13 @@ def test_build_laugh_sequence_sets_static_face_tracks(mock_cloud_storage):
   mock_cloud_storage.download_bytes_from_gcs.return_value = wav_bytes
 
   sequence = joke_operations.build_laugh_sequence("gs://audio/laugh.wav")
-  duration_sec = joke_operations.audio_operations.get_wav_duration_sec(wav_bytes)
+  duration_sec = joke_operations.audio_operations.get_wav_duration_sec(
+    wav_bytes)
 
   assert len(sequence.sequence_sound_events) == 1
   assert sequence.sequence_sound_events[0].start_time == pytest.approx(0.0)
-  assert sequence.sequence_sound_events[0].end_time == pytest.approx(duration_sec,
-                                                                      abs=0.001)
+  assert sequence.sequence_sound_events[0].end_time == pytest.approx(
+    duration_sec, abs=0.001)
   assert sequence.sequence_sound_events[0].gcs_uri == "gs://audio/laugh.wav"
 
   assert len(sequence.sequence_left_eye_open) == 1
@@ -2250,13 +2280,12 @@ def test_build_laugh_sequence_sets_static_face_tracks(mock_cloud_storage):
   assert len(sequence.sequence_mouth_state) == 1
   assert sequence.sequence_mouth_state[0].mouth_state.value == "OPEN"
   assert sequence.sequence_mouth_state[0].start_time == pytest.approx(0.0)
-  assert sequence.sequence_mouth_state[0].end_time == pytest.approx(duration_sec,
-                                                                     abs=0.001)
+  assert sequence.sequence_mouth_state[0].end_time == pytest.approx(
+    duration_sec, abs=0.001)
 
 
 def test_build_laugh_sequence_keeps_head_at_zero_during_initial_and_trailing_silence(
-  mock_cloud_storage,
-):
+  mock_cloud_storage, ):
   wav_bytes = _make_laugh_wav_bytes(
     duration_sec=2.2,
     pulses=[
@@ -2273,7 +2302,8 @@ def test_build_laugh_sequence_keeps_head_at_zero_during_initial_and_trailing_sil
   initial_pose = animator.sample_pose(0.15)
   trailing_pose = animator.sample_pose(2.0)
   assert initial_pose.head_transform.translate_y == pytest.approx(0.0, abs=0.2)
-  assert trailing_pose.head_transform.translate_y == pytest.approx(0.0, abs=0.2)
+  assert trailing_pose.head_transform.translate_y == pytest.approx(0.0,
+                                                                   abs=0.2)
   assert initial_pose.left_eye_open is False
   assert trailing_pose.left_eye_open is False
   assert initial_pose.right_eye_open is False
@@ -2304,10 +2334,10 @@ def test_build_laugh_sequence_hits_peaks_and_midpoints(mock_cloud_storage):
   assert animator.sample_pose(0.93).head_transform.translate_y > 7.5
   assert animator.sample_pose(1.33).head_transform.translate_y > 7.5
 
-  assert animator.sample_pose(0.73).head_transform.translate_y == pytest.approx(
-    0.0, abs=1.5)
-  assert animator.sample_pose(1.13).head_transform.translate_y == pytest.approx(
-    0.0, abs=1.5)
+  assert animator.sample_pose(
+    0.73).head_transform.translate_y == pytest.approx(0.0, abs=1.5)
+  assert animator.sample_pose(
+    1.13).head_transform.translate_y == pytest.approx(0.0, abs=1.5)
 
 
 def test_build_laugh_sequence_detects_variable_amplitude_peaks(
@@ -2331,9 +2361,9 @@ def test_build_laugh_sequence_detects_variable_amplitude_peaks(
   )
 
   peak_target_events = [
-    event for event in sequence.sequence_head_transform
-    if abs(float(event.target_transform.translate_y) -
-           float(laugh_translate_y)) < 1e-6
+    event for event in sequence.sequence_head_transform if abs(
+      float(event.target_transform.translate_y) -
+      float(laugh_translate_y)) < 1e-6
   ]
   assert len(peak_target_events) == 5
 

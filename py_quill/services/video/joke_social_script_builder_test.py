@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 from common import models
 from common.posable_character import PosableCharacter
 from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceSoundEvent)
 from PIL import Image
+from services import audio_voices
 from services.video import joke_social_script_builder
 from services.video.script import TimedCharacterSequence
 
@@ -55,20 +58,39 @@ def _spoken_items(script) -> list[TimedCharacterSequence]:
   ]
 
 
+def _load_firestore_sequence(sequence_id: str) -> PosableCharacterSequence:
+  if sequence_id == "pop_in":
+    return _sound_sequence(0.1, "gs://bucket/pop_in.wav")
+  if sequence_id == "GEMINI_LEDA_giggle1":
+    return _sound_sequence(0.3, "gs://bucket/leda_giggle.wav")
+  if sequence_id == "GEMINI_PUCK_giggle1":
+    return _sound_sequence(0.3, "gs://bucket/puck_giggle.wav")
+  raise AssertionError(f"Unexpected sequence id: {sequence_id}")
+
+
 def test_portrait_character_layout_bottom_aligns_to_tallest():
   teller = _SizedCharacter(width=220, height=300)
   listener = _SizedCharacter(width=120, height=140)
-  script = joke_social_script_builder.build_portrait_joke_scene_script(
-    setup_image_gcs_uri="gs://bucket/setup.png",
-    punchline_image_gcs_uri="gs://bucket/punchline.png",
-    teller_character=teller,
-    listener_character=listener,
-    intro_sequence=None,
-    setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
-    response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
-    punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
-    drumming_duration_sec=0.0,
-  )
+  with patch.object(
+    joke_social_script_builder,
+    "_load_sequence_from_firestore",
+    side_effect=_load_firestore_sequence,
+  ), patch.object(joke_social_script_builder.random,
+                  "randint",
+                  return_value=1):
+    script = joke_social_script_builder.build_portrait_joke_scene_script(
+      setup_image_gcs_uri="gs://bucket/setup.png",
+      punchline_image_gcs_uri="gs://bucket/punchline.png",
+      teller_character=teller,
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
+      listener_character=listener,
+      listener_voice=audio_voices.Voice.GEMINI_PUCK,
+      intro_sequence=None,
+      setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
+      response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
+      punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
+      drumming_duration_sec=0.0,
+    )
 
   spoken_by_actor: dict[str, TimedCharacterSequence] = {}
   for item in _spoken_items(script):
@@ -84,17 +106,26 @@ def test_portrait_character_layout_bottom_aligns_to_tallest():
 def test_portrait_character_layout_uses_proportional_horizontal_slots():
   teller = _SizedCharacter(width=200, height=240)
   listener = _SizedCharacter(width=100, height=240)
-  script = joke_social_script_builder.build_portrait_joke_scene_script(
-    setup_image_gcs_uri="gs://bucket/setup.png",
-    punchline_image_gcs_uri="gs://bucket/punchline.png",
-    teller_character=teller,
-    listener_character=listener,
-    intro_sequence=None,
-    setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
-    response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
-    punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
-    drumming_duration_sec=0.0,
-  )
+  with patch.object(
+    joke_social_script_builder,
+    "_load_sequence_from_firestore",
+    side_effect=_load_firestore_sequence,
+  ), patch.object(joke_social_script_builder.random,
+                  "randint",
+                  return_value=1):
+    script = joke_social_script_builder.build_portrait_joke_scene_script(
+      setup_image_gcs_uri="gs://bucket/setup.png",
+      punchline_image_gcs_uri="gs://bucket/punchline.png",
+      teller_character=teller,
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
+      listener_character=listener,
+      listener_voice=audio_voices.Voice.GEMINI_PUCK,
+      intro_sequence=None,
+      setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
+      response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
+      punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
+      drumming_duration_sec=0.0,
+    )
 
   spoken_by_actor: dict[str, TimedCharacterSequence] = {}
   for item in _spoken_items(script):

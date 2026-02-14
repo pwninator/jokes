@@ -18,7 +18,6 @@ from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceMouthEvent,
                                                SequenceSoundEvent,
                                                SequenceTransformEvent)
-from common.posable_characters import PosableCat
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
@@ -34,6 +33,7 @@ _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
 _JOKE_AUDIO_INTRO_LINE = "Hey... want to hear a joke?"
 _JOKE_AUDIO_PRE_SETUP_DRUMMING_SEC = 1.0
+_DEFAULT_POSABLE_CHARACTER_DEF_ID = "20260212_232209__cat___orange_tabby"
 _LIP_SYNC_METADATA_INTRO = "animation_lip_sync_intro"
 _LIP_SYNC_METADATA_SETUP = "animation_lip_sync_setup"
 _LIP_SYNC_METADATA_RESPONSE = "animation_lip_sync_response"
@@ -231,6 +231,16 @@ class JokePopulationError(JokeOperationsError):
 
 
 SafetyCheckError = joke_operation_prompts.SafetyCheckError
+
+
+def _create_default_video_character() -> PosableCharacter:
+  """Build the default video character from Firestore."""
+  character_def = firestore.get_posable_character_def(
+    _DEFAULT_POSABLE_CHARACTER_DEF_ID)
+  if character_def is None:
+    raise ValueError("Default posable character definition not found: " +
+                     _DEFAULT_POSABLE_CHARACTER_DEF_ID)
+  return PosableCharacter.from_def(character_def)
 
 
 def initialize_joke(
@@ -992,7 +1002,8 @@ def generate_joke_video_from_audio_uris(
   clip_timing: JokeAudioTiming | None = None,
   audio_generation_metadata: models.SingleGenerationMetadata | None = None,
   temp_output: bool = False,
-  character_class: Callable[[], PosableCharacter] | None = PosableCat,
+  character_class: Callable[[], PosableCharacter]
+  | None = (_create_default_video_character),
 ) -> tuple[str, models.GenerationMetadata]:
   """Generate a portrait video for a joke using existing audio clips."""
   if not joke.setup_text or not joke.punchline_text:
@@ -1031,7 +1042,7 @@ def generate_joke_video_from_audio_uris(
     timing=clip_timing.punchline if clip_timing else None,
   )
   if character_class is None:
-    teller_character = PosableCat()
+    teller_character = _create_default_video_character()
     listener_character = None
     intro_sequence = None
     response_sequence = None
@@ -1043,7 +1054,10 @@ def generate_joke_video_from_audio_uris(
       setup_image_gcs_uri=setup_image_gcs_uri,
       punchline_image_gcs_uri=punchline_image_gcs_uri,
       teller_character=teller_character,
+      teller_voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
       listener_character=listener_character,
+      listener_voice=(DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE
+                      if listener_character is not None else None),
       intro_sequence=intro_sequence,
       setup_sequence=setup_sequence,
       response_sequence=response_sequence,
@@ -1762,11 +1776,14 @@ def generate_joke_video(
     setup_image_url)
   punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     punchline_image_url)
+  turns_template = script_template or DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
+  rendered_turns = _render_dialog_turns_from_template(joke, turns_template)
+  teller_voice, listener_voice = _resolve_joke_video_voices(rendered_turns)
 
   lip_sync = get_joke_lip_sync_media(
     joke=joke,
     temp_output=temp_output,
-    script_template=script_template,
+    script_template=turns_template,
     audio_model=audio_model,
     allow_partial=allow_partial,
   )
@@ -1793,13 +1810,18 @@ def generate_joke_video(
     raise ValueError("Missing required setup/punchline lip-sync data")
   setup_sequence = lip_sync.setup_sequence
   punchline_sequence = lip_sync.punchline_sequence
+  has_listener = lip_sync.response_sequence is not None
 
+  teller_character = _create_default_video_character()
+  listener_character = (_create_default_video_character()
+                        if has_listener else None)
   video_gcs_uri, video_generation_metadata = gen_video.create_portrait_character_video(
     setup_image_gcs_uri=setup_image_gcs_uri,
     punchline_image_gcs_uri=punchline_image_gcs_uri,
-    teller_character=PosableCat(),
-    listener_character=PosableCat()
-    if lip_sync.response_sequence is not None else None,
+    teller_character=teller_character,
+    teller_voice=teller_voice,
+    listener_character=listener_character,
+    listener_voice=listener_voice if has_listener else None,
     intro_sequence=lip_sync.intro_sequence,
     setup_sequence=setup_sequence,
     response_sequence=lip_sync.response_sequence,
@@ -1856,6 +1878,24 @@ def _render_dialog_turns_from_template(
       ))
 
   return rendered
+
+
+def _resolve_joke_video_voices(
+  turns: list[audio_client.DialogTurn],
+) -> tuple[audio_voices.Voice, audio_voices.Voice]:
+  """Resolve teller/listener voices from ordered rendered dialog turns."""
+  if not turns:
+    raise ValueError("At least one rendered dialog turn is required")
+
+  distinct_voices: list[audio_voices.Voice] = []
+  for turn in turns:
+    if turn.voice not in distinct_voices:
+      distinct_voices.append(turn.voice)
+
+  teller_voice = distinct_voices[0]
+  listener_voice = (distinct_voices[1]
+                    if len(distinct_voices) > 1 else distinct_voices[0])
+  return teller_voice, listener_voice
 
 
 def _select_audio_model_for_turns(

@@ -171,6 +171,15 @@ class PosableCharacterSequence:
   sequence_right_hand_masking_enabled: list[SequenceBooleanEvent] = field(
     default_factory=list)
 
+  @property
+  def duration_sec(self) -> float:
+    """Return max end_time across all sequence tracks."""
+    max_end = 0.0
+    for track in self._all_tracks():
+      for event in track:
+        max_end = max(max_end, float(event.end_time))
+    return max_end
+
   def validate(self) -> None:
     """Validate that events in each track are sorted and non-overlapping."""
     self._validate_track(self.sequence_left_eye_open, "sequence_left_eye_open")
@@ -218,6 +227,26 @@ class PosableCharacterSequence:
           f"Overlapping events in track '{track_name}' at index {i}: " +
           f"start_time {event.start_time} < previous end_time {last_end_time}")
       last_end_time = event.end_time
+
+  def _all_tracks(self) -> tuple[list[Any], ...]:
+    """Return all event tracks in this sequence."""
+    return (
+      self.sequence_left_eye_open,
+      self.sequence_right_eye_open,
+      self.sequence_mouth_state,
+      self.sequence_left_hand_visible,
+      self.sequence_right_hand_visible,
+      self.sequence_left_hand_transform,
+      self.sequence_right_hand_transform,
+      self.sequence_head_transform,
+      self.sequence_surface_line_offset,
+      self.sequence_mask_boundary_offset,
+      self.sequence_sound_events,
+      self.sequence_surface_line_visible,
+      self.sequence_head_masking_enabled,
+      self.sequence_left_hand_masking_enabled,
+      self.sequence_right_hand_masking_enabled,
+    )
 
   def to_dict(self, include_key: bool = False) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""

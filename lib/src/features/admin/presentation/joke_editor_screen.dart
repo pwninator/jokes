@@ -51,7 +51,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   Joke? _latestJoke;
   String? _selectedSetupImageUrl;
   String? _selectedPunchlineImageUrl;
-  String _imageQuality = 'low';
+  String _imageQuality = 'medium_mini';
   bool _regenerateSceneIdeas = false;
 
   String? get _resolvedJokeId => _currentJokeId ?? widget.jokeId;
@@ -445,9 +445,15 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
             border: OutlineInputBorder(),
           ),
           items: const [
-            DropdownMenuItem(value: 'low', child: Text('Low (fast)')),
-            DropdownMenuItem(value: 'medium', child: Text('Medium')),
-            DropdownMenuItem(value: 'high', child: Text('High (slow)')),
+            DropdownMenuItem(value: 'low_mini', child: Text('low_mini')),
+            DropdownMenuItem(value: 'medium_mini', child: Text('medium_mini')),
+            DropdownMenuItem(value: 'high_mini', child: Text('high_mini')),
+            DropdownMenuItem(value: 'low', child: Text('low')),
+            DropdownMenuItem(value: 'medium', child: Text('medium')),
+            DropdownMenuItem(value: 'high', child: Text('high')),
+            DropdownMenuItem(value: 'low_15', child: Text('low_15')),
+            DropdownMenuItem(value: 'medium_15', child: Text('medium_15')),
+            DropdownMenuItem(value: 'high_15', child: Text('high_15')),
           ],
           onChanged: (val) {
             if (val != null) {

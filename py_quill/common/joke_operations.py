@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import array
 import datetime
 import random
+import sys
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Callable, Literal
 
 from common import (audio_operations, audio_timing, image_generation, models,
                     utils)
-from common.posable_character import PosableCharacter
+from common.posable_character import MouthState, PosableCharacter, Transform
 from common.posable_character_sequence import (PosableCharacterSequence,
+                                               SequenceBooleanEvent,
                                                SequenceMouthEvent,
-                                               SequenceSoundEvent)
+                                               SequenceSoundEvent,
+                                               SequenceTransformEvent)
 from common.posable_characters import PosableCat
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
@@ -85,6 +89,66 @@ _MIME_TYPE_CONFIG: dict[str, tuple[str, str]] = {
   "image/png": ("PNG", "png"),
   "image/jpeg": ("JPEG", "jpg"),
 }
+
+# Envelope frame hop in seconds.
+# Effect: lower tracks rapid peaks better; higher smooths timing and reduces CPU.
+# Tune when peaks are missed because laughter pulses are very short or overly dense.
+# Typical range: 0.005 to 0.030 sec.
+_LAUGH_ENVELOPE_HOP_SEC = 0.01
+
+# Smoothing window size (frames) applied to the amplitude envelope.
+# Effect: higher suppresses jitter/noise but can flatten small laughs.
+# Tune when detection is too noisy (increase) or too sluggish/misses weak peaks (decrease).
+# Typical range: 1 to 7 frames.
+_LAUGH_SMOOTH_WINDOW_FRAMES = 3
+
+# Percentile used to estimate active-region noise floor.
+# Effect: higher raises baseline and can ignore quiet laughs; lower is more sensitive.
+# Tune when quiet laugh tails are dropped (decrease) or background noise triggers activity (increase).
+# Typical range: 5 to 30.
+_LAUGH_ACTIVE_NOISE_PERCENTILE = 15.0
+
+# Percentile used to estimate active-region peak level.
+# Effect: controls estimated dynamic range; higher is less affected by mid-level energy.
+# Tune when dynamic range estimation is unstable across recordings.
+# Typical range: 85 to 99.
+_LAUGH_ACTIVE_PEAK_PERCENTILE = 95.0
+
+# Fraction of dynamic range added above noise floor for activity threshold.
+# Effect: higher requires stronger energy to consider audio "active."
+# Tune when initial/trailing silence leaks into activity (increase) or weak laughs are missed (decrease).
+# Typical range: 0.05 to 0.30.
+_LAUGH_ACTIVE_THRESHOLD_FRACTION = 0.12
+
+# Absolute minimum amplitude delta added above noise floor for activity threshold.
+# Effect: floor guardrail against very low-level hum being marked active.
+# Tune when low-level noise still creates fake activity (increase) or quiet files detect nothing (decrease).
+# Typical range: 100 to 2000 (16-bit PCM amplitude units).
+_LAUGH_ACTIVE_MIN_DELTA = 300.0
+
+# Window (seconds) around a candidate peak used to find local valleys for prominence.
+# Effect: larger window measures prominence against broader context, reducing micro-peaks.
+# Tune when tiny ripples are over-counted (increase) or close laugh syllables collapse (decrease).
+# Typical range: 0.08 to 0.40 sec.
+_LAUGH_LOCAL_VALLEY_WINDOW_SEC = 0.20
+
+# Minimum prominence as fraction of estimated dynamic range.
+# Effect: higher keeps only stronger peaks; lower allows weaker pulses.
+# Tune when decaying laugh tails are missed (decrease) or noise peaks slip in (increase).
+# Typical range: 0.03 to 0.35.
+_LAUGH_MIN_PROMINENCE_FRACTION = 0.10
+
+# Absolute minimum prominence in amplitude units.
+# Effect: hard floor so tiny fluctuations are never considered peaks.
+# Tune when quiet recordings need more sensitivity (decrease) or noisy clips need stricter filtering (increase).
+# Typical range: 50 to 3000 (16-bit PCM amplitude units).
+_LAUGH_MIN_PROMINENCE_ABS = 250.0
+
+# Minimum allowed spacing between accepted peaks.
+# Effect: higher merges nearby peaks; lower captures rapid "ha-ha" bursts.
+# Tune when peak count is too high from double-detections (increase) or too low for fast laughter (decrease).
+# Typical range: 0.05 to 0.35 sec.
+_LAUGH_MIN_PEAK_SPACING_SEC = 0.10
 
 
 @dataclass(frozen=True)
@@ -673,14 +737,14 @@ def generate_joke_audio(
   audio_model: audio_client.AudioModel | None = None,
   allow_partial: bool = False,
 ) -> JokeAudioResult:
-  """Generate a full dialog WAV plus split clips and upload as public files.
+  """Generate a full dialog WAV plus split clips.
 
   Flow:
-  - Generate a single multi-speaker dialog WAV in the *temp* bucket.
-  - Upload the full dialog WAV to the public audio bucket.
+  - Generate a single multi-speaker dialog WAV and keep its returned GCS URI.
+  - Download the dialog WAV bytes for splitting.
   - Split the WAV into 4 clips: intro, setup, response, and punchline.
-  - Upload all 4 clips to the public audio bucket and return their GCS URIs,
-    plus the generation metadata from the TTS call.
+  - Upload all 4 clips and return their GCS URIs, plus generation metadata from
+    the TTS call.
 
   If allow_partial is True and timing/splitting fails, returns the full
   dialog WAV (dialog_gcs_uri) and leaves split clip URIs and clip timing as
@@ -718,18 +782,11 @@ def generate_joke_audio(
       "turn_voices": [str(turn.voice.name) for turn in dialog_turns],
     },
   )
-  temp_dialog_gcs_uri = audio_result.gcs_uri
+  dialog_gcs_uri = audio_result.gcs_uri
   audio_generation_metadata = audio_result.metadata
 
-  dialog_wav_bytes = cloud_storage.download_bytes_from_gcs(temp_dialog_gcs_uri)
-
-  dialog_gcs_uri = cloud_storage.get_audio_gcs_uri(
-    f"joke_{joke_id_for_filename}_dialog",
-    "wav",
-  )
-  _ = cloud_storage.upload_bytes_to_gcs(dialog_wav_bytes,
-                                        dialog_gcs_uri,
-                                        content_type="audio/wav")
+  dialog_wav_bytes = cloud_storage.get_and_convert_wave_bytes_from_gcs(
+    dialog_gcs_uri)
 
   timing: JokeAudioTiming | None = None
   intro_wav: bytes | None = None
@@ -787,6 +844,7 @@ def generate_joke_audio(
     cloud_storage.get_audio_gcs_uri(
       f"joke_{joke_id_for_filename}_intro",
       "wav",
+      temp=temp_output,
     ),
     content_type="audio/wav") if intro_wav else None
 
@@ -795,6 +853,7 @@ def generate_joke_audio(
     cloud_storage.get_audio_gcs_uri(
       f"joke_{joke_id_for_filename}_setup",
       "wav",
+      temp=temp_output,
     ),
     content_type="audio/wav")
   response_gcs_uri = cloud_storage.upload_bytes_to_gcs(
@@ -802,6 +861,7 @@ def generate_joke_audio(
     cloud_storage.get_audio_gcs_uri(
       f"joke_{joke_id_for_filename}_response",
       "wav",
+      temp=temp_output,
     ),
     content_type="audio/wav")
   punchline_gcs_uri = cloud_storage.upload_bytes_to_gcs(
@@ -809,6 +869,7 @@ def generate_joke_audio(
     cloud_storage.get_audio_gcs_uri(
       f"joke_{joke_id_for_filename}_punchline",
       "wav",
+      temp=temp_output,
     ),
     content_type="audio/wav")
 
@@ -1273,12 +1334,375 @@ def _build_lipsync_sequence(
           mouth_state=event.mouth_shape,
         ))
   sequence = PosableCharacterSequence(
-    transcript=str(transcript),
+    transcript=transcript,
     sequence_mouth_state=mouth_events,
     sequence_sound_events=sound_events,
   )
   sequence.validate()
   return sequence
+
+
+def build_laugh_sequence(
+  audio_gcs_uri: str,
+  laugh_translate_y: int = 10,
+) -> PosableCharacterSequence:
+  """Build a laughter animation sequence from audio waveform peaks."""
+  resolved_audio_uri = str(audio_gcs_uri or "").strip()
+  if not resolved_audio_uri:
+    raise ValueError("audio_gcs_uri is required")
+
+  try:
+    audio_bytes = cloud_storage.get_and_convert_wave_bytes_from_gcs(
+      resolved_audio_uri)
+  except Exception as exc:  # pylint: disable=broad-except
+    raise ValueError(
+      f"Could not load laugh audio from {resolved_audio_uri}") from exc
+
+  envelope, frame_hop_sec, duration_sec = _decode_wav_to_peak_envelope(
+    audio_bytes)
+  duration_sec = max(0.01, float(duration_sec))
+  active_start_idx, active_end_idx, _ = _find_active_window(envelope)
+  peak_times = _detect_laugh_peak_times(
+    envelope=envelope,
+    frame_hop_sec=frame_hop_sec,
+    active_start_idx=active_start_idx,
+    active_end_idx=active_end_idx,
+    duration_sec=duration_sec,
+  )
+
+  sequence = PosableCharacterSequence(
+    transcript="laugh",
+    sequence_left_eye_open=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=float(duration_sec),
+        value=False,
+      )
+    ],
+    sequence_right_eye_open=[
+      SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=float(duration_sec),
+        value=False,
+      )
+    ],
+    sequence_mouth_state=[
+      SequenceMouthEvent(
+        start_time=0.0,
+        end_time=float(duration_sec),
+        mouth_state=MouthState.OPEN,
+      )
+    ],
+    sequence_head_transform=_build_laugh_head_transform_events(
+      peak_times=peak_times,
+      active_start_idx=active_start_idx,
+      active_end_idx=active_end_idx,
+      frame_hop_sec=frame_hop_sec,
+      duration_sec=duration_sec,
+      laugh_translate_y=float(laugh_translate_y),
+    ),
+    sequence_sound_events=[
+      SequenceSoundEvent(
+        start_time=0.0,
+        end_time=float(duration_sec),
+        gcs_uri=resolved_audio_uri,
+        volume=1.0,
+      )
+    ],
+  )
+  sequence.validate()
+  return sequence
+
+
+def _build_laugh_head_transform_events(
+  *,
+  peak_times: list[float],
+  active_start_idx: int,
+  active_end_idx: int,
+  frame_hop_sec: float,
+  duration_sec: float,
+  laugh_translate_y: float,
+) -> list[SequenceTransformEvent]:
+  """Build head transform events that bob up at peaks and return to baseline."""
+  if not peak_times:
+    return []
+
+  events: list[SequenceTransformEvent] = []
+  active_start_time = (0.0 if active_end_idx < active_start_idx else _to_time(
+    active_start_idx,
+    frame_hop_sec,
+    duration_sec,
+  ))
+  active_end_time = (float(duration_sec)
+                     if active_end_idx < active_start_idx else _to_time(
+                       active_end_idx,
+                       frame_hop_sec,
+                       duration_sec,
+                     ))
+
+  first_peak = max(0.0, float(peak_times[0]))
+  first_start = min(first_peak, max(0.0, float(active_start_time)))
+  if first_start >= first_peak:
+    first_start = max(0.0, first_peak - max(frame_hop_sec, 0.01))
+  _append_head_transform_event(
+    events,
+    start_time=first_start,
+    end_time=first_peak,
+    target_translate_y=float(laugh_translate_y),
+  )
+
+  for idx in range(len(peak_times) - 1):
+    current_peak = float(peak_times[idx])
+    next_peak = float(peak_times[idx + 1])
+    midpoint = (current_peak + next_peak) / 2.0
+    _append_head_transform_event(
+      events,
+      start_time=current_peak,
+      end_time=midpoint,
+      target_translate_y=0.0,
+    )
+    _append_head_transform_event(
+      events,
+      start_time=midpoint,
+      end_time=next_peak,
+      target_translate_y=float(laugh_translate_y),
+    )
+
+  last_peak = float(peak_times[-1])
+  active_end_time = max(active_end_time, last_peak + frame_hop_sec)
+  tail_midpoint = min(float(duration_sec), (last_peak + active_end_time) / 2.0)
+  _append_head_transform_event(
+    events,
+    start_time=last_peak,
+    end_time=tail_midpoint,
+    target_translate_y=0.0,
+  )
+  return events
+
+
+def _append_head_transform_event(
+  events: list[SequenceTransformEvent],
+  *,
+  start_time: float,
+  end_time: float,
+  target_translate_y: float,
+) -> None:
+  start_time = max(0.0, float(start_time))
+  end_time = max(0.0, float(end_time))
+  if end_time <= start_time:
+    return
+  events.append(
+    SequenceTransformEvent(
+      start_time=start_time,
+      end_time=end_time,
+      target_transform=Transform(translate_y=float(target_translate_y), ),
+    ))
+
+
+def _decode_wav_to_peak_envelope(
+  audio_bytes: bytes, ) -> tuple[list[float], float, float]:
+  """Decode WAV bytes and return a smoothed per-frame amplitude envelope."""
+  try:
+    params, frames = audio_operations.read_wav_bytes(audio_bytes)
+  except Exception as exc:  # pylint: disable=broad-except
+    raise ValueError("Could not decode WAV audio for laugh sequence") from exc
+
+  framerate = int(params.framerate)
+  nframes = int(params.nframes)
+  nchannels = int(params.nchannels)
+  sampwidth = int(params.sampwidth)
+
+  if framerate <= 0:
+    raise ValueError("WAV framerate must be positive")
+  if nframes <= 0:
+    raise ValueError("WAV audio has no frames")
+  if sampwidth != 2:
+    raise ValueError(
+      f"Unsupported WAV sample width for laugh analysis: {sampwidth}")
+
+  samples = array.array("h")
+  samples.frombytes(frames)
+  if sys.byteorder == "big":
+    samples.byteswap()
+  if not samples:
+    raise ValueError("WAV audio has no samples")
+
+  frame_hop_samples = max(1, int(round(framerate * _LAUGH_ENVELOPE_HOP_SEC)))
+  frame_hop_sec = float(frame_hop_samples) / float(framerate)
+  samples_per_frame = max(1, frame_hop_samples * max(1, nchannels))
+  total_samples = len(samples)
+
+  envelope: list[float] = []
+  frame_start = 0
+  while frame_start < total_samples:
+    frame_end = min(total_samples, frame_start + samples_per_frame)
+    peak = 0.0
+    for sample_index in range(frame_start, frame_end):
+      value = abs(int(samples[sample_index]))
+      if value > peak:
+        peak = float(value)
+    envelope.append(float(peak))
+    frame_start = frame_end
+
+  if not envelope:
+    raise ValueError("Could not compute laugh envelope from WAV audio")
+
+  smoothed_envelope = _moving_average(
+    envelope,
+    window_frames=_LAUGH_SMOOTH_WINDOW_FRAMES,
+  )
+  duration_sec = float(nframes) / float(framerate)
+  return smoothed_envelope, float(frame_hop_sec), float(duration_sec)
+
+
+def _find_active_window(envelope: list[float]) -> tuple[int, int, float]:
+  """Find the start/end frame indices containing non-silent laugh activity."""
+  if not envelope:
+    return 0, -1, 0.0
+
+  noise_floor = _percentile(envelope, _LAUGH_ACTIVE_NOISE_PERCENTILE)
+  peak_level = _percentile(envelope, _LAUGH_ACTIVE_PEAK_PERCENTILE)
+  dynamic_range = max(1.0, float(peak_level) - float(noise_floor))
+  threshold = max(
+    float(noise_floor) + (dynamic_range * _LAUGH_ACTIVE_THRESHOLD_FRACTION),
+    float(noise_floor) + _LAUGH_ACTIVE_MIN_DELTA,
+  )
+
+  active_indices = [
+    idx for idx, value in enumerate(envelope)
+    if float(value) >= float(threshold)
+  ]
+  if not active_indices:
+    return 0, -1, float(threshold)
+  return min(active_indices), max(active_indices), float(threshold)
+
+
+def _detect_laugh_peak_times(
+  *,
+  envelope: list[float],
+  frame_hop_sec: float,
+  active_start_idx: int,
+  active_end_idx: int,
+  duration_sec: float,
+) -> list[float]:
+  """Detect dominant laugh peaks across changing amplitude levels."""
+  if not envelope or active_end_idx < active_start_idx:
+    return []
+
+  active_values = envelope[active_start_idx:active_end_idx + 1]
+  if not active_values:
+    return []
+
+  noise_floor = _percentile(active_values, _LAUGH_ACTIVE_NOISE_PERCENTILE)
+  peak_level = _percentile(active_values, _LAUGH_ACTIVE_PEAK_PERCENTILE)
+  dynamic_range = max(1.0, float(peak_level) - float(noise_floor))
+  min_prominence = max(
+    dynamic_range * _LAUGH_MIN_PROMINENCE_FRACTION,
+    _LAUGH_MIN_PROMINENCE_ABS,
+  )
+  valley_window_frames = max(
+    1, int(round(_LAUGH_LOCAL_VALLEY_WINDOW_SEC / max(frame_hop_sec, 1e-6))))
+
+  peak_candidates: list[int] = []
+  for idx in range(active_start_idx, active_end_idx + 1):
+    current = float(envelope[idx])
+    previous = float(envelope[idx - 1]) if idx > 0 else current
+    following = float(envelope[idx + 1]) if idx < (len(envelope) -
+                                                   1) else current
+    is_local_peak = current >= previous and current > following
+    if not is_local_peak or current <= noise_floor:
+      continue
+
+    left_start = max(active_start_idx, idx - valley_window_frames)
+    right_end = min(active_end_idx, idx + valley_window_frames)
+    left_valley = min(float(v) for v in envelope[left_start:idx + 1])
+    right_valley = min(float(v) for v in envelope[idx:right_end + 1])
+    prominence = current - max(left_valley, right_valley)
+    if prominence >= float(min_prominence):
+      peak_candidates.append(idx)
+
+  min_spacing_frames = max(
+    1, int(round(_LAUGH_MIN_PEAK_SPACING_SEC / max(frame_hop_sec, 1e-6))))
+  peak_indices = _coalesce_peaks_with_min_spacing(
+    peak_candidates,
+    envelope=envelope,
+    min_spacing_frames=min_spacing_frames,
+  )
+
+  if not peak_indices:
+    strongest_idx = max(
+      range(active_start_idx, active_end_idx + 1),
+      key=lambda idx: float(envelope[idx]),
+    )
+    peak_indices = [int(strongest_idx)]
+
+  return [
+    _to_time(idx, frame_hop_sec, duration_sec) for idx in sorted(peak_indices)
+  ]
+
+
+def _coalesce_peaks_with_min_spacing(
+  peak_indices: list[int],
+  *,
+  envelope: list[float],
+  min_spacing_frames: int,
+) -> list[int]:
+  """Keep strongest peaks while enforcing minimum spacing in frames."""
+  if not peak_indices:
+    return []
+  spacing = max(1, int(min_spacing_frames))
+  unique_peaks = sorted(set(int(idx) for idx in peak_indices))
+  by_strength = sorted(unique_peaks,
+                       key=lambda idx: (-float(envelope[idx]), idx))
+  selected: list[int] = []
+  for candidate in by_strength:
+    if all(
+        abs(int(candidate) - int(chosen)) >= spacing for chosen in selected):
+      selected.append(int(candidate))
+  return sorted(selected)
+
+
+def _to_time(
+  frame_index: int,
+  frame_hop_sec: float,
+  duration_sec: float,
+) -> float:
+  """Convert frame index to clip time (seconds)."""
+  center_time = (float(frame_index) + 0.5) * float(frame_hop_sec)
+  return min(float(duration_sec), max(0.0, center_time))
+
+
+def _moving_average(values: list[float], *, window_frames: int) -> list[float]:
+  """Return centered moving-average smoothed values."""
+  if not values:
+    return []
+  if window_frames <= 1:
+    return [float(value) for value in values]
+  half_window = max(0, int(window_frames) // 2)
+  smoothed: list[float] = []
+  for idx in range(len(values)):
+    start = max(0, idx - half_window)
+    end = min(len(values), idx + half_window + 1)
+    subset = values[start:end]
+    smoothed.append(sum(float(v) for v in subset) / float(len(subset)))
+  return smoothed
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+  """Compute percentile using linear interpolation between nearest ranks."""
+  if not values:
+    return 0.0
+  ordered = sorted(float(value) for value in values)
+  if len(ordered) == 1:
+    return ordered[0]
+  p = max(0.0, min(100.0, float(percentile)))
+  position = (p / 100.0) * (len(ordered) - 1)
+  lower_index = int(position)
+  upper_index = min(len(ordered) - 1, lower_index + 1)
+  lower_value = ordered[lower_index]
+  upper_value = ordered[upper_index]
+  weight = position - lower_index
+  return (lower_value * (1.0 - weight)) + (upper_value * weight)
 
 
 def _resolve_sound_event_end_time_sec(
@@ -1296,7 +1720,8 @@ def _resolve_sound_event_end_time_sec(
 def _get_audio_duration_sec_from_gcs(audio_gcs_uri: str) -> float | None:
   """Load clip bytes and compute duration (seconds), or None on failure."""
   try:
-    audio_bytes = cloud_storage.download_bytes_from_gcs(str(audio_gcs_uri))
+    audio_bytes = cloud_storage.get_and_convert_wave_bytes_from_gcs(
+      audio_gcs_uri)
     duration_sec = audio_operations.get_wav_duration_sec(audio_bytes)
     if duration_sec <= 0:
       return None

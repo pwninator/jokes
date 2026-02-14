@@ -259,10 +259,10 @@ def get_list_param(req: flask.Request, param_name: str) -> list[str]:
       return [str(value)]
     return []
 
-  if hasattr(req, "form"):
+  if req.form:
     return [str(item) for item in req.form.getlist(param_name) if str(item)]
 
-  if hasattr(req, "args"):
+  if req.args:
     value = req.args.get(param_name)
     if value:
       return [str(value)]

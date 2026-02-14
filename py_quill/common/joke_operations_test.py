@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
 from common import audio_timing, joke_operations, models
+from common.character_animator import CharacterAnimator
 from google.api_core import datetime_helpers
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
@@ -33,6 +34,8 @@ def mock_image_client_fixture(monkeypatch):
 def mock_cloud_storage_fixture(monkeypatch):
   """Fixture that mocks the cloud_storage service."""
   mock_cloud_storage = Mock()
+  mock_cloud_storage.get_and_convert_wave_bytes_from_gcs.side_effect = (
+    lambda gcs_uri: mock_cloud_storage.download_bytes_from_gcs(gcs_uri))
   monkeypatch.setattr(joke_operations, 'cloud_storage', mock_cloud_storage)
   return mock_cloud_storage
 
@@ -1284,13 +1287,12 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   )
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
-  dialog_uri = "gs://public/audio/dialog.wav"
+  dialog_uri = "gs://temp/dialog.wav"
   intro_uri = "gs://public/audio/intro.wav"
   setup_uri = "gs://public/audio/setup.wav"
   response_uri = "gs://public/audio/response.wav"
   punchline_uri = "gs://public/audio/punchline.wav"
   mock_cloud_storage.get_audio_gcs_uri.side_effect = [
-    dialog_uri,
     intro_uri,
     setup_uri,
     response_uri,
@@ -1321,7 +1323,6 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert result.generation_metadata == generation_metadata
   assert result.clip_timing is not None
   assert [u[0] for u in uploaded] == [
-    dialog_uri,
     intro_uri,
     setup_uri,
     response_uri,
@@ -1330,7 +1331,7 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert all(u[2] == "audio/wav" for u in uploaded)
   assert all(u[1][:4] == b"RIFF" for u in uploaded)
 
-  # Verify we split out the non-silence regions.
+  # Verify we split and retain expected pause context with 0.5s search radius.
   def num_frames(wav_bytes: bytes) -> int:
     with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
       # pylint: disable=no-member
@@ -1339,8 +1340,9 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert num_frames(uploaded[0][1]) == int(rate * 3.75)
   assert 0 < num_frames(uploaded[1][1]) < int(rate * 0.3)
   assert 0 < num_frames(uploaded[2][1]) < int(rate * 0.3)
-  assert 0 < num_frames(uploaded[3][1]) < int(rate * 0.2)
-  assert 0 < num_frames(uploaded[4][1]) < int(rate * 0.5)
+  # Later clips can include substantial leading pause by design.
+  assert int(rate * 0.8) < num_frames(uploaded[3][1]) < int(rate * 1.2)
+  assert int(rate * 1.0) < num_frames(uploaded[4][1]) < int(rate * 1.4)
 
 
 def test_generate_joke_audio_uses_turn_templates(monkeypatch,
@@ -1427,7 +1429,6 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch,
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   mock_cloud_storage.get_audio_gcs_uri.side_effect = [
-    "gs://public/audio/dialog.wav",
     "gs://public/audio/intro.wav",
     "gs://public/audio/setup.wav",
     "gs://public/audio/response.wav",
@@ -1562,8 +1563,7 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
                       Mock(side_effect=ValueError("split failed")))
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
-  dialog_uri = "gs://public/audio/dialog.wav"
-  mock_cloud_storage.get_audio_gcs_uri.return_value = dialog_uri
+  dialog_uri = "gs://temp/dialog.wav"
 
   uploaded: list[tuple[str, bytes, str]] = []
 
@@ -1589,7 +1589,7 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
   assert result.generation_metadata == generation_metadata
   assert result.clip_timing is None
 
-  assert [u[0] for u in uploaded] == [dialog_uri]
+  assert uploaded == []
 
 
 def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
@@ -1605,7 +1605,7 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
   video_metadata = models.SingleGenerationMetadata(model_name="video-model")
   monkeypatch.setattr(
     joke_operations,
-    "generate_joke_lip_sync_media",
+    "get_joke_lip_sync_media",
     Mock(return_value=joke_operations.JokeLipSyncResult(
       dialog_gcs_uri="gs://audio/dialog.wav",
       intro_audio_gcs_uri="gs://audio/intro.wav",
@@ -1689,7 +1689,7 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   audio_metadata = models.SingleGenerationMetadata(model_name="audio-model")
   video_metadata = models.SingleGenerationMetadata(model_name="video-model")
   monkeypatch.setattr(
-    joke_operations, "generate_joke_lip_sync_media",
+    joke_operations, "get_joke_lip_sync_media",
     Mock(return_value=joke_operations.JokeLipSyncResult(
       dialog_gcs_uri="gs://audio/dialog.wav",
       intro_audio_gcs_uri="gs://audio/intro.wav",
@@ -1846,7 +1846,8 @@ def test_generate_joke_audio_uses_scan_and_split_with_timing(
   )
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = wav_bytes
-  mock_cloud_storage.get_audio_gcs_uri.side_effect = lambda x, y: f"gs://{x}.{y}"
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = (
+    lambda x, y, temp=False: f"gs://{x}.{y}")
   mock_cloud_storage.upload_bytes_to_gcs.return_value = None
 
   joke = models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
@@ -1854,20 +1855,14 @@ def test_generate_joke_audio_uses_scan_and_split_with_timing(
 
   assert result.clip_timing.intro[0].start_time == pytest.approx(0.0, abs=0.1)
   # Check timings.
-  # Setup: split at (0.3+1.3)/2 = 0.8, trim 0.5 => offset 1.3.
-  # Setup word starts at 1.3 - 1.3 = 0.0.
+  # With a wide split search radius, some clips retain leading pause.
   assert result.clip_timing.setup[0].start_time == pytest.approx(0.0, abs=0.1)
 
-  # Response:
-  # Split at (1.8+2.8)/2 = 2.3, trim 0.5 => offset 2.8.
-  # Response word starts at 2.8 - 2.8 = 0.0.
   assert result.clip_timing.response[0].start_time == pytest.approx(0.0,
                                                                     abs=0.1)
 
-  # Punchline:
-  # Split at (3.3+4.3)/2 = 3.8, trim 0.5 => offset 4.3.
-  # Punchline word starts at 4.3 - 4.3 = 0.0.
-  assert result.clip_timing.punchline[0].start_time == pytest.approx(0.0,
+  # Final clip keeps a larger leading gap in this fixture.
+  assert result.clip_timing.punchline[0].start_time == pytest.approx(1.0,
                                                                      abs=0.1)
 
 
@@ -1939,8 +1934,8 @@ def test_split_joke_dialog_wav_by_timing_returns_one_clip_per_voice_segment():
   assert len(split_timing) == len(timing.voice_segments)
   assert all(chunk[:4] == b"RIFF" for chunk in split_wavs)
   assert split_timing[0][0].start_time == pytest.approx(0.0, abs=0.1)
-  assert split_timing[1][0].start_time == pytest.approx(0.0, abs=0.1)
-  assert split_timing[2][0].start_time == pytest.approx(0.0, abs=0.1)
+  assert split_timing[1][0].start_time == pytest.approx(0.2, abs=0.1)
+  assert split_timing[2][0].start_time == pytest.approx(0.4, abs=0.1)
 
 
 def test_split_joke_dialog_wav_by_timing_does_not_group_by_dialogue_input_index(
@@ -2129,7 +2124,8 @@ def test_generate_joke_audio_clamps_negative_shifted_word_timing(
   )
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = b"dialog"
-  mock_cloud_storage.get_audio_gcs_uri.side_effect = lambda x, y: f"gs://{x}.{y}"
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = (
+    lambda x, y, temp=False: f"gs://{x}.{y}")
   mock_cloud_storage.upload_bytes_to_gcs.return_value = None
 
   joke = models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
@@ -2193,3 +2189,162 @@ def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fa
 
   assert sequence.sequence_sound_events[0].end_time == pytest.approx(0.33,
                                                                       abs=0.001)
+
+
+def _make_laugh_wav_bytes(
+  *,
+  duration_sec: float,
+  sample_rate: int = 24000,
+  pulses: list[tuple[float, float, int]],
+) -> bytes:
+  buffer = io.BytesIO()
+  total_samples = int(round(float(duration_sec) * float(sample_rate)))
+  samples = [0] * max(1, total_samples)
+  for start_sec, end_sec, amplitude in pulses:
+    start_idx = max(0, int(round(float(start_sec) * float(sample_rate))))
+    end_idx = min(total_samples, int(round(float(end_sec) * float(sample_rate))))
+    for idx in range(start_idx, end_idx):
+      samples[idx] = int(amplitude) if idx % 2 == 0 else -int(amplitude)
+  with wave.open(buffer, "wb") as wf:
+    # pylint: disable=no-member
+    wf.setnchannels(1)
+    wf.setsampwidth(2)
+    wf.setframerate(sample_rate)
+    wf.writeframes(array.array("h", samples).tobytes())
+    # pylint: enable=no-member
+  return buffer.getvalue()
+
+
+def test_build_laugh_sequence_sets_static_face_tracks(mock_cloud_storage):
+  wav_bytes = _make_laugh_wav_bytes(
+    duration_sec=1.8,
+    pulses=[
+      (0.45, 0.52, 28000),
+      (0.78, 0.85, 23000),
+      (1.12, 1.19, 18000),
+    ],
+  )
+  mock_cloud_storage.download_bytes_from_gcs.return_value = wav_bytes
+
+  sequence = joke_operations.build_laugh_sequence("gs://audio/laugh.wav")
+  duration_sec = joke_operations.audio_operations.get_wav_duration_sec(wav_bytes)
+
+  assert len(sequence.sequence_sound_events) == 1
+  assert sequence.sequence_sound_events[0].start_time == pytest.approx(0.0)
+  assert sequence.sequence_sound_events[0].end_time == pytest.approx(duration_sec,
+                                                                      abs=0.001)
+  assert sequence.sequence_sound_events[0].gcs_uri == "gs://audio/laugh.wav"
+
+  assert len(sequence.sequence_left_eye_open) == 1
+  assert sequence.sequence_left_eye_open[0].value is False
+  assert sequence.sequence_left_eye_open[0].start_time == pytest.approx(0.0)
+  assert sequence.sequence_left_eye_open[0].end_time == pytest.approx(
+    duration_sec, abs=0.001)
+
+  assert len(sequence.sequence_right_eye_open) == 1
+  assert sequence.sequence_right_eye_open[0].value is False
+  assert sequence.sequence_right_eye_open[0].start_time == pytest.approx(0.0)
+  assert sequence.sequence_right_eye_open[0].end_time == pytest.approx(
+    duration_sec, abs=0.001)
+
+  assert len(sequence.sequence_mouth_state) == 1
+  assert sequence.sequence_mouth_state[0].mouth_state.value == "OPEN"
+  assert sequence.sequence_mouth_state[0].start_time == pytest.approx(0.0)
+  assert sequence.sequence_mouth_state[0].end_time == pytest.approx(duration_sec,
+                                                                     abs=0.001)
+
+
+def test_build_laugh_sequence_keeps_head_at_zero_during_initial_and_trailing_silence(
+  mock_cloud_storage,
+):
+  wav_bytes = _make_laugh_wav_bytes(
+    duration_sec=2.2,
+    pulses=[
+      (0.54, 0.60, 26000),
+      (0.84, 0.90, 22000),
+      (1.14, 1.20, 18000),
+    ],
+  )
+  mock_cloud_storage.download_bytes_from_gcs.return_value = wav_bytes
+
+  sequence = joke_operations.build_laugh_sequence("gs://audio/laugh.wav")
+  animator = CharacterAnimator(sequence)
+
+  initial_pose = animator.sample_pose(0.15)
+  trailing_pose = animator.sample_pose(2.0)
+  assert initial_pose.head_transform.translate_y == pytest.approx(0.0, abs=0.2)
+  assert trailing_pose.head_transform.translate_y == pytest.approx(0.0, abs=0.2)
+  assert initial_pose.left_eye_open is False
+  assert trailing_pose.left_eye_open is False
+  assert initial_pose.right_eye_open is False
+  assert trailing_pose.right_eye_open is False
+  assert initial_pose.mouth_state.value == "OPEN"
+  assert trailing_pose.mouth_state.value == "OPEN"
+
+
+def test_build_laugh_sequence_hits_peaks_and_midpoints(mock_cloud_storage):
+  laugh_translate_y = 12
+  wav_bytes = _make_laugh_wav_bytes(
+    duration_sec=1.9,
+    pulses=[
+      (0.50, 0.56, 29000),
+      (0.90, 0.96, 26000),
+      (1.30, 1.36, 23000),
+    ],
+  )
+  mock_cloud_storage.download_bytes_from_gcs.return_value = wav_bytes
+
+  sequence = joke_operations.build_laugh_sequence(
+    "gs://audio/laugh.wav",
+    laugh_translate_y=laugh_translate_y,
+  )
+  animator = CharacterAnimator(sequence)
+
+  assert animator.sample_pose(0.53).head_transform.translate_y > 7.5
+  assert animator.sample_pose(0.93).head_transform.translate_y > 7.5
+  assert animator.sample_pose(1.33).head_transform.translate_y > 7.5
+
+  assert animator.sample_pose(0.73).head_transform.translate_y == pytest.approx(
+    0.0, abs=1.5)
+  assert animator.sample_pose(1.13).head_transform.translate_y == pytest.approx(
+    0.0, abs=1.5)
+
+
+def test_build_laugh_sequence_detects_variable_amplitude_peaks(
+    mock_cloud_storage):
+  laugh_translate_y = 11
+  wav_bytes = _make_laugh_wav_bytes(
+    duration_sec=2.2,
+    pulses=[
+      (0.38, 0.44, 31000),
+      (0.66, 0.72, 14000),
+      (0.94, 1.00, 24000),
+      (1.22, 1.28, 10000),
+      (1.50, 1.56, 7000),
+    ],
+  )
+  mock_cloud_storage.download_bytes_from_gcs.return_value = wav_bytes
+
+  sequence = joke_operations.build_laugh_sequence(
+    "gs://audio/laugh.wav",
+    laugh_translate_y=laugh_translate_y,
+  )
+
+  peak_target_events = [
+    event for event in sequence.sequence_head_transform
+    if abs(float(event.target_transform.translate_y) -
+           float(laugh_translate_y)) < 1e-6
+  ]
+  assert len(peak_target_events) == 5
+
+  animator = CharacterAnimator(sequence)
+  peak_sample_times = [0.41, 0.69, 0.97, 1.25, 1.53]
+  for sample_time in peak_sample_times:
+    assert animator.sample_pose(sample_time).head_transform.translate_y > 4.0
+
+
+def test_build_laugh_sequence_raises_for_invalid_wav(mock_cloud_storage):
+  mock_cloud_storage.download_bytes_from_gcs.return_value = b"not-a-wav"
+
+  with pytest.raises(ValueError, match="decode WAV"):
+    _ = joke_operations.build_laugh_sequence("gs://audio/bad.wav")

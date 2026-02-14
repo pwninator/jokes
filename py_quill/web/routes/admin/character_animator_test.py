@@ -26,6 +26,7 @@ def test_character_animator_page(mock_get_sequences, mock_get_defs, client, monk
   response = client.get('/admin/character-animator')
   assert response.status_code == 200
   assert b'Character Animator' in response.data
+  assert b'Laugh' in response.data
 
 @patch('services.firestore.get_posable_character_def')
 @patch('services.firestore.get_posable_character_sequence')

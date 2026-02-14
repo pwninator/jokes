@@ -7,7 +7,7 @@ import datetime
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 from common import utils
 
@@ -87,13 +87,13 @@ A sequence of setup and punchline images to be shown in a swipeable carousel. Th
   def __new__(cls, value: str, description: str):
     obj = object.__new__(cls)
     obj._value_ = value
-    obj._description = description
+    obj._description = description  # pyright: ignore[reportAttributeAccessIssue]
     return obj
 
   @property
   def description(self) -> str:
     """Human-friendly description of the post layout."""
-    return self._description
+    return cast(str, self._description)
 
 
 class SocialPlatform(Enum):
@@ -120,7 +120,7 @@ class SingleGenerationMetadata:
     return not self.model_name
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     return dataclasses.asdict(self)
 
@@ -161,9 +161,9 @@ class GenerationMetadata:
   @property
   def counts_and_costs_by_model(self) -> dict[str, tuple[int, float]]:
     """Costs by model."""
-    result = {}
+    result: dict[str, tuple[int, float]] = {}
     for generation in self.generations:
-      result.setdefault(generation.model_name, (0, 0))
+      _ = result.setdefault(generation.model_name, (0, 0))
       count, cost = result[generation.model_name]
       result[generation.model_name] = (count + 1, cost + generation.cost)
     return result
@@ -179,7 +179,7 @@ class GenerationMetadata:
     return result
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     costs_by_model = {}
     total_cost = 0
@@ -197,7 +197,7 @@ class GenerationMetadata:
     }
 
   @classmethod
-  def from_dict(cls, data: list[dict[str, Any]] | None) -> GenerationMetadata:
+  def from_dict(cls, data: dict[str, Any] | None) -> GenerationMetadata:
     """Create GenerationMetadata from Firestore dictionary."""
     if not data:
       return cls()

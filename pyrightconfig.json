@@ -6,6 +6,9 @@
   "exclude": [
     "**/*_test.py"
   ],
+  "ignore": [
+    "**/*_test.py"
+  ],
   "executionEnvironments": [
     {
       "root": "py_quill"

@@ -30,6 +30,7 @@ class JokeCreationOp(str, Enum):
   SOCIAL = "social"
   PRINTABLE_NOTE = "printable_note"
   ANIMATION = "animation"
+  ANIMATION_LAUGH = "animation_laugh"
   CHARACTER = "character"
 
 
@@ -66,6 +67,8 @@ def joke_creation_process(req: flask.Request) -> flask.Response:
       return _run_printable_sheet_proc(req)
     if op == JokeCreationOp.ANIMATION:
       return _run_character_animation_op(req)
+    if op == JokeCreationOp.ANIMATION_LAUGH:
+      return _run_character_animation_laugh(req)
     if op == JokeCreationOp.CHARACTER:
       return _run_character_def_op(req)
 
@@ -164,7 +167,16 @@ def _parse_tuner_audio_options(
            | None, bool]:
   """Parse shared audio-related options for audio/video tuner endpoints."""
   raw_script_template = get_param(req, 'script_template')
-  script_template_input = cast(list[dict[str, object]], raw_script_template)
+  script_template_input: list[dict[str, object]] | None = None
+  if raw_script_template is not None:
+    if not isinstance(raw_script_template, list):
+      raise ValueError("script_template must be a list")
+    list_script_template: list[object] = cast(list[object],
+                                              raw_script_template)
+    for idx, item in enumerate(list_script_template):
+      if not isinstance(item, dict):
+        raise ValueError(f"Dialog turn {idx + 1} must be an object")
+    script_template_input = cast(list[dict[str, object]], list_script_template)
 
   script_template = _parse_dialog_turn_templates(script_template_input)
   audio_model_value = (get_param(req, 'audio_model') or "").strip()
@@ -422,6 +434,8 @@ def _run_joke_creation_proc(req: flask.Request) -> flask.Response:
   setup_image_url = get_str_param(req, 'setup_image_url')
   punchline_image_url = get_str_param(req, 'punchline_image_url')
   seasonal = get_str_param(req, 'seasonal')
+  if seasonal:
+    seasonal = seasonal.strip()
   tags_str = get_str_param(req, 'tags')
   admin_owned = get_bool_param(req, 'admin_owned', False)
 
@@ -605,6 +619,39 @@ def _run_character_animation_op(req: flask.Request) -> flask.Response:
                           req=req)
   except Exception as exc:  # pylint: disable=broad-except
     error_string = (f"Error upserting character sequence: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string, error_type="internal_error", req=req)
+
+
+def _run_character_animation_laugh(req: flask.Request) -> flask.Response:
+  """Build a laugh sequence from audio and return it for editor overwrite."""
+  if req.method != 'POST':
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
+  audio_gcs_uri = (get_param(req, "audio_gcs_uri") or "").strip()
+  if not audio_gcs_uri:
+    return error_response("audio_gcs_uri is required",
+                          error_type="invalid_request",
+                          status=400,
+                          req=req)
+
+  try:
+    sequence = joke_operations.build_laugh_sequence(
+      audio_gcs_uri=audio_gcs_uri, )
+    return success_response(
+      sequence.to_dict(include_key=True),
+      req=req,
+    )
+  except ValueError as exc:
+    return error_response(str(exc),
+                          error_type="invalid_request",
+                          status=400,
+                          req=req)
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error building laugh animation sequence: {str(exc)}\n"
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string, error_type="internal_error", req=req)

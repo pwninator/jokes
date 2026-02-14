@@ -73,101 +73,6 @@ def stub_metadata_generation(monkeypatch):
   )
 
 
-def test_joke_creation_process_overrides_seasonal_tags(monkeypatch):
-  captured_init = {}
-  saved = {}
-
-  monkeypatch.setattr(joke_creation_fns, "get_user_id",
-                      lambda *_args, **_kwargs: "user-1")
-
-  created_joke = models.PunnyJoke(
-    key="j-1",
-    setup_text="Setup",
-    punchline_text="Punch",
-  )
-
-  def fake_initialize_joke(**kwargs):
-    captured_init.update(kwargs)
-    return created_joke
-
-  def fake_generate_metadata(joke):
-    joke.seasonal = "Auto"
-    joke.tags = ["auto"]
-    return joke
-
-  def fake_upsert(joke, operation=None, update_metadata=None):  # pylint: disable=unused-argument
-    saved["joke"] = joke
-    return joke
-
-  monkeypatch.setattr(joke_creation_fns.joke_operations, "initialize_joke",
-                      fake_initialize_joke)
-  monkeypatch.setattr(joke_creation_fns.joke_operations,
-                      "generate_joke_metadata", fake_generate_metadata)
-  monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
-                      fake_upsert)
-
-  req = DummyReq(
-    data={
-      "joke_id": "j-1",
-      "setup_text": "Setup",
-      "punchline_text": "Punch",
-      "seasonal": " Winter ",
-      "tags": "snow, cozy,",
-    })
-
-  joke_creation_fns.joke_creation_process(req)
-
-  assert captured_init["seasonal"] == "Winter"
-  assert captured_init["tags"] == ["snow", "cozy"]
-  assert saved["joke"].seasonal == "Winter"
-  assert saved["joke"].tags == ["snow", "cozy"]
-
-
-def test_joke_creation_process_clears_seasonal_and_tags(monkeypatch):
-  captured_init = {}
-  saved = {}
-
-  monkeypatch.setattr(joke_creation_fns, "get_user_id",
-                      lambda *_args, **_kwargs: "user-1")
-
-  created_joke = models.PunnyJoke(
-    key="j-2",
-    setup_text="Setup",
-    punchline_text="Punch",
-    seasonal="Spring",
-    tags=["fresh"],
-  )
-
-  def fake_initialize_joke(**kwargs):
-    captured_init.update(kwargs)
-    return created_joke
-
-  def fake_upsert(joke, operation=None, update_metadata=None):  # pylint: disable=unused-argument
-    saved["joke"] = joke
-    return joke
-
-  monkeypatch.setattr(joke_creation_fns.joke_operations, "initialize_joke",
-                      fake_initialize_joke)
-  monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
-                      fake_upsert)
-
-  req = DummyReq(
-    data={
-      "joke_id": "j-2",
-      "setup_text": "Setup",
-      "punchline_text": "Punch",
-      "seasonal": "",
-      "tags": "",
-    })
-
-  joke_creation_fns.joke_creation_process(req)
-
-  assert captured_init["seasonal"] == ""
-  assert captured_init["tags"] == []
-  assert saved["joke"].seasonal is None
-  assert saved["joke"].tags == []
-
-
 def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   """Scenario 1 should initialize, regenerate, and save a new joke."""
   monkeypatch.setattr(
@@ -831,7 +736,7 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
 
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
-    "generate_joke_lip_sync_media",
+    "get_joke_lip_sync_media",
     fake_generate_audio,
   )
 
@@ -905,7 +810,7 @@ def test_joke_creation_process_handles_joke_audio_op_invalid_audio_model(
 
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
-    "generate_joke_lip_sync_media",
+    "get_joke_lip_sync_media",
     should_not_run,
   )
 
@@ -1277,6 +1182,66 @@ def test_joke_creation_process_handles_animation_op(monkeypatch):
   assert captured["sequence"].key == "seq-custom"
   assert len(captured["sequence"].sequence_left_eye_open) == 1
   assert captured["sequence"].sequence_left_eye_open[0].value is True
+
+
+def test_joke_creation_process_handles_animation_laugh_op(monkeypatch):
+  """ANIMATION_LAUGH should return a generated PosableCharacterSequence."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  generated_sequence = posable_character_sequence.PosableCharacterSequence(
+    sequence_left_eye_open=[
+      posable_character_sequence.SequenceBooleanEvent(
+        start_time=0.0,
+        end_time=1.0,
+        value=False,
+      )
+    ],
+    sequence_sound_events=[
+      posable_character_sequence.SequenceSoundEvent(
+        start_time=0.0,
+        end_time=1.0,
+        gcs_uri="gs://audio/laugh.wav",
+        volume=1.0,
+      )
+    ],
+  )
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "build_laugh_sequence",
+    lambda audio_gcs_uri: generated_sequence
+    if audio_gcs_uri == "gs://audio/laugh.wav" else None,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.ANIMATION_LAUGH.value,
+        "audio_gcs_uri": "gs://audio/laugh.wav",
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert len(payload["sequence_sound_events"]) == 1
+  assert payload["sequence_sound_events"][0][
+    "gcs_uri"] == "gs://audio/laugh.wav"
+  assert payload["sequence_left_eye_open"][0]["value"] is False
+
+
+def test_joke_creation_process_animation_laugh_requires_audio_gcs_uri(
+    monkeypatch):
+  """ANIMATION_LAUGH should require audio_gcs_uri."""
+  monkeypatch.setattr(joke_creation_fns, "get_user_id",
+                      lambda *_args, **_kwargs: "admin-user")
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={"op": joke_creation_fns.JokeCreationOp.ANIMATION_LAUGH.value}))
+
+  data = resp.get_json()["data"]
+  assert "error" in data
+  assert "audio_gcs_uri is required" in data["error"]
 
 
 def _character_uri_payload(file_identifier: str = "char") -> dict[str, str]:

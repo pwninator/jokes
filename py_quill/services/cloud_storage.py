@@ -3,8 +3,11 @@
 import datetime
 import re
 from io import BytesIO
-from typing import TypedDict
+from typing import Any, TypedDict, cast
 
+import librosa
+import numpy as np
+import soundfile as sf
 from common import config
 from google.cloud import storage as gcs
 from PIL import Image
@@ -184,6 +187,44 @@ def download_bytes_from_gcs(gcs_uri: str) -> bytes:
 
   # Download the bytes
   return blob.download_as_bytes()
+
+
+def get_and_convert_wave_bytes_from_gcs(gcs_uri: str) -> bytes:
+  """Download audio bytes from GCS and return WAV bytes.
+
+  If the file extension is already .wav, bytes are returned unchanged.
+  Otherwise the clip is decoded and re-encoded to WAV PCM16.
+  """
+  audio_bytes = download_bytes_from_gcs(gcs_uri)
+  _bucket_name, blob_name = parse_gcs_uri(gcs_uri)
+  extension = blob_name.rsplit(".", 1)[-1].lower() if "." in blob_name else ""
+  if extension == "wav":
+    return audio_bytes
+
+  try:
+    audio_data, sample_rate = cast(
+      tuple[np.ndarray[Any, Any], int],
+      librosa.load(BytesIO(audio_bytes), sr=None, mono=False))
+  except Exception as exc:  # pylint: disable=broad-except
+    raise ValueError(f"Could not decode audio from {gcs_uri}") from exc
+
+  if int(sample_rate) <= 0:
+    raise ValueError(f"Invalid sample rate while decoding {gcs_uri}")
+
+  # librosa returns shape (channels, samples) for multi-channel audio.
+  if getattr(audio_data, "ndim", 1) == 2:
+    audio_data = audio_data.T
+
+  wav_buffer = BytesIO()
+  try:
+    sf.write(wav_buffer,
+             audio_data,
+             sample_rate,
+             format="WAV",
+             subtype="PCM_16")
+  except Exception as exc:  # pylint: disable=broad-except
+    raise ValueError(f"Could not convert audio to WAV for {gcs_uri}") from exc
+  return wav_buffer.getvalue()
 
 
 def download_image_from_gcs(gcs_uri_or_url: str) -> Image.Image:

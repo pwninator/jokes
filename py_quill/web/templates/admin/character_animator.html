@@ -62,6 +62,11 @@
   </div>
 
   <div class="control-group">
+    <input type="text" id="laugh-audio-uri-input" placeholder="Laugh Audio GCS URI" style="padding: 8px; min-width: 280px;">
+    <button id="laugh-btn" class="text-button">Laugh</button>
+  </div>
+
+  <div class="control-group">
     <input type="text" id="seq-id-input" placeholder="Sequence ID" style="padding: 8px;" disabled>
     <button id="save-btn" class="text-button primary">Save Sequence</button>
   </div>
@@ -233,6 +238,8 @@
 
   const loadBtn = document.getElementById('load-btn');
   const newSeqBtn = document.getElementById('new-seq-btn');
+  const laughBtn = document.getElementById('laugh-btn');
+  const laughAudioUriInput = document.getElementById('laugh-audio-uri-input');
   const saveBtn = document.getElementById('save-btn');
   const playBtn = document.getElementById('play-btn');
   const pauseBtn = document.getElementById('pause-btn');
@@ -691,8 +698,64 @@
       }
   }
 
+  async function applyLaughSequence() {
+      if (!editor || !animator) {
+          alert('Load or create a sequence first.');
+          return;
+      }
+
+      const audioGcsUri = laughAudioUriInput.value.trim();
+      if (!audioGcsUri) {
+          alert('Please enter a laugh audio GCS URI.');
+          return;
+      }
+
+      const shouldOverwrite = confirm(
+          'Overwrite all timeline tracks with a generated laugh sequence?'
+      );
+      if (!shouldOverwrite) {
+          return;
+      }
+
+      laughBtn.disabled = true;
+      const originalText = laughBtn.textContent;
+      laughBtn.textContent = 'Generating...';
+
+      try {
+          const formData = new FormData();
+          formData.append('op', 'animation_laugh');
+          formData.append('audio_gcs_uri', audioGcsUri);
+
+          const resp = await fetch('/joke_creation_process', {
+              method: 'POST',
+              body: formData
+          });
+
+          if (!resp.ok) {
+              const text = await resp.text();
+              throw new Error(text);
+          }
+
+          const result = await resp.json();
+          const generatedSequence = normalizeSequenceData(result.data || {});
+
+          editor.sequenceData = generatedSequence;
+          editor.render();
+          await animator.updateSequence(generatedSequence);
+          animator.seek(0);
+          setSequenceDirty(true);
+      } catch (e) {
+          console.error(e);
+          alert('Error generating laugh sequence: ' + e.message);
+      } finally {
+          laughBtn.disabled = false;
+          laughBtn.textContent = originalText;
+      }
+  }
+
   loadBtn.addEventListener('click', loadExistingSequence);
   newSeqBtn.addEventListener('click', createNewSequence);
+  laughBtn.addEventListener('click', applyLaughSequence);
   saveBtn.addEventListener('click', saveSequence);
   playBtn.addEventListener('click', () => animator?.play());
   pauseBtn.addEventListener('click', () => animator?.pause());

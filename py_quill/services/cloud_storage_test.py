@@ -2,6 +2,7 @@
 
 from io import BytesIO
 
+import numpy as np
 from PIL import Image
 from services import cloud_storage
 
@@ -202,6 +203,77 @@ def test_download_image_from_gcs_accepts_http_url(monkeypatch):
   assert captured_url["url"] == http_url
   assert image.size == (4, 4)
   assert image.mode == "RGB"
+
+
+def test_get_and_convert_wave_bytes_from_gcs_returns_wav_unchanged(
+    monkeypatch):
+  expected_bytes = b"wav-bytes"
+  monkeypatch.setattr(cloud_storage, "download_bytes_from_gcs",
+                      lambda _uri: expected_bytes)
+
+  def fail_load(*_args, **_kwargs):
+    raise AssertionError("librosa.load should not run for .wav inputs")
+
+  monkeypatch.setattr(cloud_storage.librosa, "load", fail_load)
+
+  result = cloud_storage.get_and_convert_wave_bytes_from_gcs(
+    "gs://audio-bucket/laugh_track.WAV")
+  assert result == expected_bytes
+
+
+def test_get_and_convert_wave_bytes_from_gcs_converts_non_wav(monkeypatch):
+  source_bytes = b"mp3-bytes"
+  source_waveform = np.array(
+    [[0.2, -0.2, 0.0], [0.1, -0.1, 0.0]],
+    dtype=np.float32,
+  )
+  captured: dict[str, object] = {}
+  monkeypatch.setattr(cloud_storage, "download_bytes_from_gcs",
+                      lambda _uri: source_bytes)
+
+  def fake_load(buffer: BytesIO, sr: int | None, mono: bool):
+    assert buffer.getvalue() == source_bytes
+    assert sr is None
+    assert mono is False
+    return source_waveform, 24000
+
+  def fake_write(buffer: BytesIO, data, sample_rate: int, format: str,
+                 subtype: str):
+    captured["shape"] = tuple(data.shape)
+    captured["sample_rate"] = sample_rate
+    captured["format"] = format
+    captured["subtype"] = subtype
+    buffer.write(b"converted-wav")
+
+  monkeypatch.setattr(cloud_storage.librosa, "load", fake_load)
+  monkeypatch.setattr(cloud_storage.sf, "write", fake_write)
+
+  result = cloud_storage.get_and_convert_wave_bytes_from_gcs(
+    "gs://audio-bucket/laugh_track.mp3")
+
+  assert result == b"converted-wav"
+  assert captured["shape"] == (3, 2)
+  assert captured["sample_rate"] == 24000
+  assert captured["format"] == "WAV"
+  assert captured["subtype"] == "PCM_16"
+
+
+def test_get_and_convert_wave_bytes_from_gcs_raises_for_decode_failure(
+    monkeypatch):
+  monkeypatch.setattr(cloud_storage, "download_bytes_from_gcs",
+                      lambda _uri: b"not-audio")
+
+  def fake_load(*_args, **_kwargs):
+    raise ValueError("bad audio")
+
+  monkeypatch.setattr(cloud_storage.librosa, "load", fake_load)
+
+  try:
+    _ = cloud_storage.get_and_convert_wave_bytes_from_gcs(
+      "gs://audio-bucket/laugh_track.mp3")
+    assert False, "Should have raised ValueError"
+  except ValueError as e:
+    assert "Could not decode audio" in str(e)
 
 
 def test_get_storage_googleapis_public_url_formats_url():

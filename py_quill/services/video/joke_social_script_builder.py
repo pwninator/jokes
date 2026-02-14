@@ -75,6 +75,7 @@ _PORTRAIT_CHARACTER_RECT = SceneRect(
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_SETUP_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
+_LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC = 0.7
 _VIDEO_TAIL_SEC = 2.0
 _POP_IN_SEQUENCE_ID = "pop_in"
 _GIGGLE_VARIANT_MIN = 1
@@ -358,8 +359,11 @@ def _build_character_dialogs(
   tracks.append((teller_character, teller_dialogs))
 
   if listener_character:
+    listener_pop_in_start_sec = (
+      timeline.pop_in_end_sec +
+      _LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC)
     listener_dialogs: list[tuple[float, PosableCharacterSequence]] = [
-      (timeline.pop_in_start_sec, pop_in_sequence)
+      (listener_pop_in_start_sec, pop_in_sequence)
     ]
     if response_sequence and timeline.response_start_sec is not None:
       listener_dialogs.append((timeline.response_start_sec, response_sequence))

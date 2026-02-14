@@ -38,22 +38,6 @@ _LIP_SYNC_METADATA_SETUP = "animation_lip_sync_setup"
 _LIP_SYNC_METADATA_RESPONSE = "animation_lip_sync_response"
 _LIP_SYNC_METADATA_PUNCHLINE = "animation_lip_sync_punchline"
 
-DEFAULT_JOKE_AUDIO_SCRIPT_TEMPLATE = """You are generating audio. DO NOT speak any instructions.
-ONLY speak the lines under TRANSCRIPT, using the specified speakers.
-
-AUDIO PROFILE:
-- Two 8-year-old kids on a school playground at recess.
-- Natural, clear kid voices. Light and playful.
-
-TRANSCRIPT:
-Sam: [playfully, slightly slowly to build intrigue] Hey... want to hear a joke? {setup_text}
-[1 second silence]
-Riley: [curiously] what?
-[1 second silence]
-Sam: [excitedly, holding back laughter] {punchline_text}
-Riley: [giggles]
-"""
-
 DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME = "Sam"
 DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = audio_voices.Voice.GEMINI_LEDA
 DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME = "Riley"
@@ -64,8 +48,7 @@ DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = audio_voices.Voice.GEMINI_PUCK
 DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE: list[audio_client.DialogTurn] = [
   audio_client.DialogTurn(
     voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
-    script=
-    "[playfully, slightly slowly to build intrigue] Hey... want to hear a joke?",
+    script="[playfully] Hey! want to hear a joke?",
     pause_sec_after=1.0,
   ),
   audio_client.DialogTurn(

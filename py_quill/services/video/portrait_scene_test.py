@@ -612,9 +612,11 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
     if item.sequence.sequence_sound_events[0].gcs_uri.endswith("pop_in.wav")
   ]
   assert len(pop_in_items) == 2
-  for item in pop_in_items:
-    assert item.start_time_sec == pytest.approx(0.0)
-    assert item.end_time_sec == pytest.approx(0.3)
+  pop_in_by_actor_id = {item.actor_id: item for item in pop_in_items}
+  assert pop_in_by_actor_id["actor_0"].start_time_sec == pytest.approx(0.0)
+  assert pop_in_by_actor_id["actor_0"].end_time_sec == pytest.approx(0.3)
+  assert pop_in_by_actor_id["actor_1"].start_time_sec == pytest.approx(1.3)
+  assert pop_in_by_actor_id["actor_1"].end_time_sec == pytest.approx(1.6)
 
   laugh_items = [
     item for item in spoken_items

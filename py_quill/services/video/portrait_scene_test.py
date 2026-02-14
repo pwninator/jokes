@@ -444,7 +444,7 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
     and item.sequence.sequence_left_hand_transform
     and item.sequence.sequence_right_hand_transform
   ]
-  assert len(drumming_items) == 2
+  assert len(drumming_items) == 4
 
   drumming_by_actor: dict[str, list[TimedCharacterSequence]] = {}
   for item in drumming_items:
@@ -453,9 +453,11 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
 
   for actor_items in drumming_by_actor.values():
     actor_items.sort(key=lambda item: float(item.start_time_sec))
-    assert len(actor_items) == 1
-    assert actor_items[0].start_time_sec == pytest.approx(3.6)
-    assert actor_items[0].end_time_sec == pytest.approx(5.6)
+    assert len(actor_items) == 2
+    assert actor_items[0].start_time_sec == pytest.approx(0.6)
+    assert actor_items[0].end_time_sec == pytest.approx(1.4)
+    assert actor_items[1].start_time_sec == pytest.approx(4.4)
+    assert actor_items[1].end_time_sec == pytest.approx(6.4)
 
 
 def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():

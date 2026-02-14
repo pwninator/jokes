@@ -98,7 +98,7 @@ def get_user_id(
     id_token = parts[1]
 
     try:
-      decoded_token = auth.verify_id_token(id_token)
+      decoded_token = cast(dict[str, object], auth.verify_id_token(id_token))
     except Exception as e:
       logger.error(f"Error verifying ID token '{id_token}': {e}")
       raise AuthError("Invalid authorization token") from e
@@ -117,7 +117,7 @@ def get_user_id(
     raise AuthError("Admin privileges required")
   if not allow_unauthenticated and not uid:
     raise AuthError("Authorization required")
-  return uid
+  return cast(str, uid) if uid else None
 
 
 def _has_admin_role(claims: dict | None) -> bool:
@@ -151,7 +151,7 @@ def _get_session_claims(
     return None
   try:
     decoded = cast(
-      dict[str, Any],
+      dict[str, object],
       auth.verify_session_cookie(session_cookie, check_revoked=True))
   except Exception as e:
     raise AuthError("Invalid session cookie") from e
@@ -225,7 +225,9 @@ def get_param(
   """Get a parameter from the request."""
   if req.is_json:
     json_data = req.get_json()
-    data = json_data.get('data', {}) if isinstance(json_data, dict) else {}
+    data = cast(
+      dict[str, object],
+      json_data.get('data', {}) if isinstance(json_data, dict) else {})
     val = data.get(param_name, default)
   else:
     val = req.args.get(param_name, default)

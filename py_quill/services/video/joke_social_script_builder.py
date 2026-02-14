@@ -71,6 +71,7 @@ _PORTRAIT_CHARACTER_RECT = SceneRect(
   height_px=_PORTRAIT_CHARACTER_BAND_HEIGHT_PX,
 )
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
+_JOKE_AUDIO_SETUP_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
 _VIDEO_TAIL_SEC = 2.0
 
@@ -253,7 +254,8 @@ def _resolve_portrait_timeline(
     response_sequence) if response_sequence is not None else 0.0
   punchline_duration = _sequence_duration_sec(punchline_sequence)
 
-  setup_start = float(intro_duration)
+  setup_start = float(intro_duration + _JOKE_AUDIO_SETUP_GAP_SEC
+                      if intro_sequence is not None else intro_duration)
   setup_end = float(setup_start + setup_duration)
   response_start: float | None = None
   response_end: float | None = None

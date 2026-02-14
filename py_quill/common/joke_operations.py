@@ -997,7 +997,7 @@ def generate_joke_video_from_audio_uris(
   return video_gcs_uri, generation_metadata
 
 
-def generate_joke_lip_sync_media(
+def get_joke_lip_sync_media(
   joke: models.PunnyJoke,
   *,
   temp_output: bool = False,
@@ -1338,7 +1338,7 @@ def generate_joke_video(
   punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     punchline_image_url)
 
-  lip_sync = generate_joke_lip_sync_media(
+  lip_sync = get_joke_lip_sync_media(
     joke=joke,
     temp_output=temp_output,
     script_template=script_template,

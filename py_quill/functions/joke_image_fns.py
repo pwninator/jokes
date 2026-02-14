@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import flask
 from common import image_operations
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_bool_param, get_param
@@ -13,9 +14,9 @@ _DEFAULT_TOP_JOKES_LIMIT = 5
 
 
 def _json_response(payload: dict[str, object], *,
-                   status: int) -> https_fn.Response:
+                   status: int) -> flask.Response:
   """Return a JSON HTTP response."""
-  return https_fn.Response(
+  return flask.Response(
     json.dumps(payload),
     status=status,
     mimetype='application/json',
@@ -26,10 +27,10 @@ def _json_response(payload: dict[str, object], *,
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
 )
-def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
+def create_ad_assets(req: flask.Request) -> flask.Response:
   """HTTP endpoint to generate landscape ad creatives for jokes."""
   if req.path == "/__/health":
-    return https_fn.Response("OK", status=200)
+    return flask.Response("OK", status=200)
 
   if req.method not in ['GET', 'POST']:
     return _json_response(
@@ -63,7 +64,7 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
       'popularity_score_recent',
       num_jokes_limit,
     )
-    joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
+    joke_ids = [joke.key for joke in top_jokes if joke.key]
     if not joke_ids:
       return _json_response(
         {
@@ -153,4 +154,4 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
   </body>
 </html>"""
 
-  return https_fn.Response(html, status=200, mimetype='text/html')
+  return flask.Response(html, status=200, mimetype='text/html')

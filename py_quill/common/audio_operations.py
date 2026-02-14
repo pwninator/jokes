@@ -176,7 +176,8 @@ def find_best_split_point(
   search_end_sec: float,
 ) -> float:
   """Find the best split point in the given window based on minimum RMS energy."""
-  y, sr = sf.read(io.BytesIO(wav_bytes))
+  y, sr = cast(tuple[np.ndarray[Any, Any], int],
+               sf.read(io.BytesIO(wav_bytes)))
   start_sample = int(search_start_sec * sr)
   end_sample = int(search_end_sec * sr)
 
@@ -216,15 +217,18 @@ def trim_silence(wav_bytes: bytes) -> tuple[bytes, float]:
   Returns:
     A tuple of (trimmed_wav_bytes, leading_silence_duration_sec).
   """
-  y, sample_rate = cast(tuple[np.ndarray, int], sf.read(io.BytesIO(wav_bytes)))
-  trimmed_y, index = librosa.effects.trim(
-    y,
-    top_db=SILENCE_TRIM_TOP_DB,
-    ref=SILENCE_TRIM_REF,
-    aggregate=SILENCE_TRIM_AGGREGATE,
-    frame_length=SILENCE_TRIM_FRAME_LENGTH,
-    hop_length=SILENCE_TRIM_HOP_LENGTH,
-  )
+  y, sample_rate = cast(tuple[np.ndarray[Any, Any], int],
+                        sf.read(io.BytesIO(wav_bytes)))
+  trimmed_y, index = cast(
+    tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]],
+    librosa.effects.trim(
+      y,
+      top_db=SILENCE_TRIM_TOP_DB,
+      ref=SILENCE_TRIM_REF,
+      aggregate=SILENCE_TRIM_AGGREGATE,
+      frame_length=SILENCE_TRIM_FRAME_LENGTH,
+      hop_length=SILENCE_TRIM_HOP_LENGTH,
+    ))
   # index is [start_sample, end_sample] (exclusive)
   start_sample = index[0]
 
@@ -236,7 +240,8 @@ def trim_silence(wav_bytes: bytes) -> tuple[bytes, float]:
 def split_wav_at_point(wav_bytes: bytes,
                        split_point_sec: float) -> tuple[bytes, bytes]:
   """Split a WAV into two parts at the given timestamp."""
-  y, sr = sf.read(io.BytesIO(wav_bytes))
+  y, sr = cast(tuple[np.ndarray[Any, Any], int],
+               sf.read(io.BytesIO(wav_bytes)))
   split_sample = int(split_point_sec * sr)
   split_sample = max(0, min(len(y), split_sample))
 
@@ -334,13 +339,7 @@ def read_wav_bytes(wav_bytes: bytes) -> tuple[Any, bytes]:
     if (frame_size_bytes > 0 and expected_len > len(frames)
         and len(frames) % frame_size_bytes == 0):
       inferred_nframes = len(frames) // frame_size_bytes
-      if hasattr(params, "_replace"):
-        params = params._replace(nframes=inferred_nframes)
-      else:
-        try:
-          params.nframes = inferred_nframes
-        except Exception:
-          pass
+      params = params._replace(nframes=inferred_nframes)
     else:
       raise ValueError(
         f"Unexpected WAV frame byte length: expected={expected_len} got={len(frames)}"

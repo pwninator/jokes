@@ -301,7 +301,7 @@ def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
   try:
     script_template, audio_model, allow_partial = _parse_tuner_audio_options(
       req)
-    lip_sync = joke_operations.generate_joke_lip_sync_media(
+    lip_sync = joke_operations.get_joke_lip_sync_media(
       joke,
       temp_output=True,
       script_template=script_template,

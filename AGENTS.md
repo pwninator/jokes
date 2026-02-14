@@ -108,6 +108,7 @@ test/
 **Python**:
 - Keep names clear, functions small, docstrings concise
 - Match existing style in `py_quill/`
+- Avoid redundant casts when type hints already guarantee the value type (for example, do not add `float(...)` around an already typed `float` value).
 
 ### 3.3. Widget Keys (Flutter)
 

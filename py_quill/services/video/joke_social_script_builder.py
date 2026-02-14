@@ -125,7 +125,7 @@ def build_portrait_joke_scene_script(
   listener_voice: audio_voices.Voice | None = None,
   intro_sequence: PosableCharacterSequence | None = None,
   response_sequence: PosableCharacterSequence | None = None,
-  drumming_duration_sec: float = 2.0,
+  drumming_duration_sec: float = 0.0,
 ) -> SceneScript:
   """Build the portrait joke `SceneScript` from prebuilt character sequences."""
   pop_in_sequence = _load_sequence_from_firestore(_POP_IN_SEQUENCE_ID)

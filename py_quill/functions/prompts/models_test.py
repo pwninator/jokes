@@ -1,11 +1,10 @@
 """Unit tests for models."""
 
 import pytest
-from py_quill.common.models import (Character, GenerationMetadata, Image,
-                                      ReadingLevel, SingleGenerationMetadata,
-                                      StoryCharacterData, StoryData,
-                                      StoryIllustrationData,
-                                      StoryLearningConceptData, StoryPageData)
+from common.models import (Character, GenerationMetadata, Image, ReadingLevel,
+                           SingleGenerationMetadata, StoryCharacterData,
+                           StoryData, StoryIllustrationData,
+                           StoryLearningConceptData, StoryPageData)
 
 
 class TestReadingLevel:
@@ -29,14 +28,15 @@ class TestSingleGenerationMetadata:
 
   def setup_method(self):
     """Set up test data."""
-    self.metadata = SingleGenerationMetadata(
-        label="Test Generation",
-        model_name="gpt-4",
-        token_counts={"prompt": 100, "completion": 50},
-        generation_time_sec=1.5,
-        cost=0.02,
-        retry_count=1
-    )
+    self.metadata = SingleGenerationMetadata(label="Test Generation",
+                                             model_name="gpt-4",
+                                             token_counts={
+                                               "prompt": 100,
+                                               "completion": 50
+                                             },
+                                             generation_time_sec=1.5,
+                                             cost=0.02,
+                                             retry_count=1)
     self.empty_metadata = SingleGenerationMetadata()
 
   def test_is_empty(self):
@@ -47,24 +47,30 @@ class TestSingleGenerationMetadata:
   def test_as_dict(self):
     """Test conversion to dictionary."""
     expected = {
-        'label': "Test Generation",
-        'model_name': "gpt-4",
-        'token_counts': {"prompt": 100, "completion": 50},
-        'generation_time_sec': 1.5,
-        'cost': 0.02,
-        'retry_count': 1
+      'label': "Test Generation",
+      'model_name': "gpt-4",
+      'token_counts': {
+        "prompt": 100,
+        "completion": 50
+      },
+      'generation_time_sec': 1.5,
+      'cost': 0.02,
+      'retry_count': 1
     }
     assert self.metadata.as_dict == expected
 
   def test_from_dict(self):
     """Test creation from dictionary."""
     data = {
-        'label': "Test Generation",
-        'model_name': "gpt-4",
-        'token_counts': {"prompt": 100, "completion": 50},
-        'generation_time_sec': 1.5,
-        'cost': 0.02,
-        'retry_count': 1
+      'label': "Test Generation",
+      'model_name': "gpt-4",
+      'token_counts': {
+        "prompt": 100,
+        "completion": 50
+      },
+      'generation_time_sec': 1.5,
+      'cost': 0.02,
+      'retry_count': 1
     }
     metadata = SingleGenerationMetadata.from_dict(data)
     assert metadata.label == "Test Generation"
@@ -80,13 +86,11 @@ class TestGenerationMetadata:
 
   def setup_method(self):
     """Set up test data."""
-    self.single_gen = SingleGenerationMetadata(
-        label="Test",
-        model_name="gpt-4",
-        token_counts={"prompt": 100},
-        generation_time_sec=1.0,
-        cost=0.01
-    )
+    self.single_gen = SingleGenerationMetadata(label="Test",
+                                               model_name="gpt-4",
+                                               token_counts={"prompt": 100},
+                                               generation_time_sec=1.0,
+                                               cost=0.01)
     self.metadata = GenerationMetadata()
 
   def test_add_generation_single(self):
@@ -127,14 +131,16 @@ class TestGenerationMetadata:
   def test_from_dict(self):
     """Test creation from dictionary."""
     data = {
-        'generations': [{
-            'label': "Test",
-            'model_name': "gpt-4",
-            'token_counts': {"prompt": 100},
-            'generation_time_sec': 1.0,
-            'cost': 0.01,
-            'retry_count': 0
-        }]
+      'generations': [{
+        'label': "Test",
+        'model_name': "gpt-4",
+        'token_counts': {
+          "prompt": 100
+        },
+        'generation_time_sec': 1.0,
+        'cost': 0.01,
+        'retry_count': 0
+      }]
     }
     metadata = GenerationMetadata.from_dict(data)
     assert len(metadata.generations) == 1
@@ -151,16 +157,14 @@ class TestImage:
 
   def setup_method(self):
     """Set up test data."""
-    self.image = Image(
-        key="test_key",
-        url="http://example.com/image.jpg",
-        original_prompt="A test prompt",
-        final_prompt="A refined prompt",
-        owner_user_id="user123",
-        generation_metadata=GenerationMetadata(),
-        gemini_evaluation={"score": 0.9},
-        generation_id="gen123"
-    )
+    self.image = Image(key="test_key",
+                       url="http://example.com/image.jpg",
+                       original_prompt="A test prompt",
+                       final_prompt="A refined prompt",
+                       owner_user_id="user123",
+                       generation_metadata=GenerationMetadata(),
+                       gemini_evaluation={"score": 0.9},
+                       generation_id="gen123")
 
   def test_is_success(self):
     """Test is_success property."""
@@ -181,13 +185,15 @@ class TestImage:
   def test_from_dict(self):
     """Test creation from dictionary."""
     data = {
-        'url': "http://example.com/image.jpg",
-        'original_prompt': "A test prompt",
-        'final_prompt': "A refined prompt",
-        'owner_user_id': "user123",
-        'generation_metadata': {},
-        'gemini_evaluation': {"score": 0.9},
-        'generation_id': "gen123"
+      'url': "http://example.com/image.jpg",
+      'original_prompt': "A test prompt",
+      'final_prompt': "A refined prompt",
+      'owner_user_id': "user123",
+      'generation_metadata': {},
+      'gemini_evaluation': {
+        "score": 0.9
+      },
+      'generation_id': "gen123"
     }
     image = Image.from_dict(data, key="test_key")
     assert image.key == "test_key"
@@ -205,19 +211,18 @@ class TestCharacter:
   def setup_method(self):
     """Set up test data."""
     self.character = Character(
-        key="char123",
-        name="Alice",
-        age=10,
-        gender="female",
-        user_description="A curious girl",
-        tagline="Always ready for adventure",
-        sanitized_description="A friendly and curious girl",
-        portrait_description="Wearing a blue dress",
-        portrait_image_key="portrait123",
-        all_portrait_image_keys=["portrait123"],
-        owner_user_id="user123",
-        generation_metadata=GenerationMetadata()
-    )
+      key="char123",
+      name="Alice",
+      age=10,
+      gender="female",
+      user_description="A curious girl",
+      tagline="Always ready for adventure",
+      sanitized_description="A friendly and curious girl",
+      portrait_description="Wearing a blue dress",
+      portrait_image_key="portrait123",
+      all_portrait_image_keys=["portrait123"],
+      owner_user_id="user123",
+      generation_metadata=GenerationMetadata())
 
   def test_description_xml(self):
     """Test description_xml property."""
@@ -233,19 +238,17 @@ A friendly and curious girl
 
   def test_description_xml_no_gender(self):
     """Test description_xml with empty gender."""
-    character = Character(
-        key="char123",
-        name="Alex",
-        age=8,
-        gender="",
-        user_description="A creative child",
-        tagline="Creating wonders",
-        sanitized_description="A creative child",
-        portrait_description="Short brown hair",
-        portrait_image_key="portrait456",
-        all_portrait_image_keys=["portrait456"],
-        owner_user_id="user123"
-    )
+    character = Character(key="char123",
+                          name="Alex",
+                          age=8,
+                          gender="",
+                          user_description="A creative child",
+                          tagline="Creating wonders",
+                          sanitized_description="A creative child",
+                          portrait_description="Short brown hair",
+                          portrait_image_key="portrait456",
+                          all_portrait_image_keys=["portrait456"],
+                          owner_user_id="user123")
     expected = """<character>
 <name>Alex</name>
 <age>8</age>
@@ -257,9 +260,9 @@ A creative child
 
   def test_get_full_description_no_gender(self):
     """Test get_full_description with non-binary gender."""
-    result = Character.get_full_description(
-        "Alex", 8, "non-binary", "Short brown hair", "A creative child"
-    )
+    result = Character.get_full_description("Alex", 8, "non-binary",
+                                            "Short brown hair",
+                                            "A creative child")
     expected = "Name: Alex. Age: 8 year old. Description: A creative child Short brown hair"
     assert result == expected
 
@@ -283,17 +286,17 @@ A creative child
   def test_from_dict(self):
     """Test creation from dictionary."""
     data = {
-        'name': "Alice",
-        'age': 10,
-        'gender': "female",
-        'user_description': "A curious girl",
-        'tagline': "Always ready for adventure",
-        'sanitized_description': "A friendly and curious girl",
-        'portrait_description': "Wearing a blue dress",
-        'portrait_image_key': "portrait123",
-        'all_portrait_image_keys': ["portrait123"],
-        'owner_user_id': "user123",
-        'generation_metadata': {}
+      'name': "Alice",
+      'age': 10,
+      'gender': "female",
+      'user_description': "A curious girl",
+      'tagline': "Always ready for adventure",
+      'sanitized_description': "A friendly and curious girl",
+      'portrait_description': "Wearing a blue dress",
+      'portrait_image_key': "portrait123",
+      'all_portrait_image_keys': ["portrait123"],
+      'owner_user_id': "user123",
+      'generation_metadata': {}
     }
     character = Character.from_dict(data, key="char123")
     assert character.key == "char123"
@@ -306,50 +309,49 @@ A creative child
   def test_update(self):
     """Test updating character fields."""
     new_character = Character(
-        key="char456",
-        name="Alice 2.0",
-        age=11,
-        gender="female",
-        user_description="An even more curious girl",
-        tagline="Adventure awaits",
-        sanitized_description="A very friendly and curious girl",
-        portrait_description="Wearing a red dress",
-        portrait_image_key="portrait456",
-        all_portrait_image_keys=["portrait456"],
-        owner_user_id="user123",
-        generation_metadata=GenerationMetadata()
-    )
+      key="char456",
+      name="Alice 2.0",
+      age=11,
+      gender="female",
+      user_description="An even more curious girl",
+      tagline="Adventure awaits",
+      sanitized_description="A very friendly and curious girl",
+      portrait_description="Wearing a red dress",
+      portrait_image_key="portrait456",
+      all_portrait_image_keys=["portrait456"],
+      owner_user_id="user123",
+      generation_metadata=GenerationMetadata())
     self.character.update(new_character)
     assert self.character.name == "Alice 2.0"
     assert self.character.age == 11
     assert self.character.user_description == "An even more curious girl"
     assert self.character.portrait_image_key == "portrait456"
-    assert self.character.all_portrait_image_keys == ["portrait456", "portrait123"]
+    assert self.character.all_portrait_image_keys == [
+      "portrait456", "portrait123"
+    ]
 
   def test_update_with_generation_metadata(self):
     """Test updating with generation metadata."""
     self.character.generation_metadata = None
     new_character = Character(
-        key="char456",
-        name="Alice 2.0",
-        age=11,
-        gender="female",
-        user_description="An even more curious girl",
-        tagline="Adventure awaits",
-        sanitized_description="A very friendly and curious girl",
-        portrait_description="Wearing a red dress",
-        portrait_image_key="portrait456",
-        all_portrait_image_keys=["portrait456"],
-        owner_user_id="user123",
-        generation_metadata=GenerationMetadata()
-    )
-    new_character.generation_metadata.add_generation(SingleGenerationMetadata(
-        label="Test",
-        model_name="gpt-4",
-        token_counts={"prompt": 100},
-        generation_time_sec=1.0,
-        cost=0.01
-    ))
+      key="char456",
+      name="Alice 2.0",
+      age=11,
+      gender="female",
+      user_description="An even more curious girl",
+      tagline="Adventure awaits",
+      sanitized_description="A very friendly and curious girl",
+      portrait_description="Wearing a red dress",
+      portrait_image_key="portrait456",
+      all_portrait_image_keys=["portrait456"],
+      owner_user_id="user123",
+      generation_metadata=GenerationMetadata())
+    new_character.generation_metadata.add_generation(
+      SingleGenerationMetadata(label="Test",
+                               model_name="gpt-4",
+                               token_counts={"prompt": 100},
+                               generation_time_sec=1.0,
+                               cost=0.01))
     self.character.update(new_character)
     assert self.character.generation_metadata is not None
     assert len(self.character.generation_metadata.generations) == 1
@@ -360,11 +362,9 @@ class TestStoryCharacterData:
 
   def test_initialization(self):
     """Test initialization with all fields."""
-    character = StoryCharacterData(
-        name="Bob",
-        visual="Tall with curly hair",
-        humor="Makes silly puns"
-    )
+    character = StoryCharacterData(name="Bob",
+                                   visual="Tall with curly hair",
+                                   humor="Makes silly puns")
     assert character.name == "Bob"
     assert character.visual == "Tall with curly hair"
     assert character.humor == "Makes silly puns"
@@ -378,25 +378,21 @@ class TestStoryCharacterData:
 
   def test_as_dict(self):
     """Test conversion to dictionary."""
-    character = StoryCharacterData(
-        name="Bob",
-        visual="Tall with curly hair",
-        humor="Makes silly puns"
-    )
+    character = StoryCharacterData(name="Bob",
+                                   visual="Tall with curly hair",
+                                   humor="Makes silly puns")
     expected_dict = {
-        'name': "Bob",
-        'visual': "Tall with curly hair",
-        'humor': "Makes silly puns"
+      'name': "Bob",
+      'visual': "Tall with curly hair",
+      'humor': "Makes silly puns"
     }
     assert character.as_dict == expected_dict
 
   def test_as_xml(self):
     """Test conversion to XML format."""
-    character = StoryCharacterData(
-        name="Bob",
-        visual="Tall with curly hair",
-        humor="Makes silly puns"
-    )
+    character = StoryCharacterData(name="Bob",
+                                   visual="Tall with curly hair",
+                                   humor="Makes silly puns")
     expected_xml = """<character>
   <name>Bob</name>
   <visual_description>Tall with curly hair</visual_description>
@@ -407,9 +403,9 @@ class TestStoryCharacterData:
   def test_from_dict(self):
     """Test creation from dictionary."""
     data = {
-        'name': "Bob",
-        'visual': "Tall with curly hair",
-        'humor': "Makes silly puns"
+      'name': "Bob",
+      'visual': "Tall with curly hair",
+      'humor': "Makes silly puns"
     }
     character = StoryCharacterData.from_dict(data)
     assert character.name == "Bob"
@@ -426,10 +422,7 @@ class TestStoryCharacterData:
 
   def test_from_dict_with_partial_fields(self):
     """Test creation from dictionary with only some fields."""
-    data = {
-        'name': "Bob",
-        'visual': "Tall with curly hair"
-    }
+    data = {'name': "Bob", 'visual': "Tall with curly hair"}
     character = StoryCharacterData.from_dict(data)
     assert character.name == "Bob"
     assert character.visual == "Tall with curly hair"
@@ -442,9 +435,8 @@ class TestStoryIllustrationData:
   def test_initialization(self):
     """Test initialization with specific field values."""
     illustration = StoryIllustrationData(
-        description="A beautiful sunset over mountains",
-        characters=["Alice", "Bob"]
-    )
+      description="A beautiful sunset over mountains",
+      characters=["Alice", "Bob"])
     assert illustration.description == "A beautiful sunset over mountains"
     assert illustration.characters == ["Alice", "Bob"]
 
@@ -457,20 +449,19 @@ class TestStoryIllustrationData:
   def test_as_dict(self):
     """Test conversion to dictionary."""
     illustration = StoryIllustrationData(
-        description="A beautiful sunset over mountains",
-        characters=["Alice", "Bob"]
-    )
+      description="A beautiful sunset over mountains",
+      characters=["Alice", "Bob"])
     expected_dict = {
-        'description': "A beautiful sunset over mountains",
-        'characters': ["Alice", "Bob"]
+      'description': "A beautiful sunset over mountains",
+      'characters': ["Alice", "Bob"]
     }
     assert illustration.as_dict == expected_dict
 
   def test_from_dict(self):
     """Test creation from dictionary."""
     data = {
-        'description': "A beautiful sunset over mountains",
-        'characters': ["Alice", "Bob"]
+      'description': "A beautiful sunset over mountains",
+      'characters': ["Alice", "Bob"]
     }
     illustration = StoryIllustrationData.from_dict(data)
     assert illustration.description == "A beautiful sunset over mountains"
@@ -498,16 +489,12 @@ class TestStoryPageData:
 
   def test_initialization(self):
     """Test initialization with all fields."""
-    illustration = StoryIllustrationData(
-        description="A classroom scene",
-        characters=["Teacher", "Students"]
-    )
-    page = StoryPageData(
-        illustration=illustration,
-        text="It was a bright morning in the classroom.",
-        humor="The teacher's hat kept falling off",
-        page_number=3
-    )
+    illustration = StoryIllustrationData(description="A classroom scene",
+                                         characters=["Teacher", "Students"])
+    page = StoryPageData(illustration=illustration,
+                         text="It was a bright morning in the classroom.",
+                         humor="The teacher's hat kept falling off",
+                         page_number=3)
     assert page.illustration == illustration
     assert page.text == "It was a bright morning in the classroom."
     assert page.humor == "The teacher's hat kept falling off"
@@ -525,16 +512,12 @@ class TestStoryPageData:
 
   def test_as_dict(self):
     """Test conversion to dictionary."""
-    illustration = StoryIllustrationData(
-        description="A classroom scene",
-        characters=["Teacher", "Students"]
-    )
-    page = StoryPageData(
-        illustration=illustration,
-        text="It was a bright morning in the classroom.",
-        humor="The teacher's hat kept falling off",
-        page_number=3
-    )
+    illustration = StoryIllustrationData(description="A classroom scene",
+                                         characters=["Teacher", "Students"])
+    page = StoryPageData(illustration=illustration,
+                         text="It was a bright morning in the classroom.",
+                         humor="The teacher's hat kept falling off",
+                         page_number=3)
     result = page.as_dict
     assert result['text'] == "It was a bright morning in the classroom."
     assert result['humor'] == "The teacher's hat kept falling off"
@@ -549,10 +532,9 @@ class TestStoryLearningConceptData:
   def test_initialization(self):
     """Test initialization with all fields."""
     concept = StoryLearningConceptData(
-        explanation="Photosynthesis is how plants make food",
-        plot="The characters help a wilting plant",
-        demonstration="They observe the plant growing stronger in sunlight"
-    )
+      explanation="Photosynthesis is how plants make food",
+      plot="The characters help a wilting plant",
+      demonstration="They observe the plant growing stronger in sunlight")
     assert concept.explanation == "Photosynthesis is how plants make food"
     assert concept.plot == "The characters help a wilting plant"
     assert concept.demonstration == "They observe the plant growing stronger in sunlight"
@@ -567,14 +549,13 @@ class TestStoryLearningConceptData:
   def test_as_dict(self):
     """Test conversion to dictionary."""
     concept = StoryLearningConceptData(
-        explanation="Photosynthesis is how plants make food",
-        plot="The characters help a wilting plant",
-        demonstration="They observe the plant growing stronger in sunlight"
-    )
+      explanation="Photosynthesis is how plants make food",
+      plot="The characters help a wilting plant",
+      demonstration="They observe the plant growing stronger in sunlight")
     expected_dict = {
-        'explanation': "Photosynthesis is how plants make food",
-        'plot': "The characters help a wilting plant",
-        'demonstration': "They observe the plant growing stronger in sunlight"
+      'explanation': "Photosynthesis is how plants make food",
+      'plot': "The characters help a wilting plant",
+      'demonstration': "They observe the plant growing stronger in sunlight"
     }
     assert concept.as_dict == expected_dict
 
@@ -587,34 +568,43 @@ class TestStoryData:
   def setup_method(self):
     """Set up test data."""
     self.story = StoryData(
-        title="The Forest Fire Mystery",
-        tone="A blend of Inside Out and Wall-E",
-        characters={
-            "Jenny": StoryCharacterData(
-                name="Jenny",
-                visual="Jenny is a curious 7-year-old Asian girl with a black ponytail",
-                humor="Jenny's enthusiasm for science leads her to narrate everything like a nature documentary"
-            ),
-            "Ignis": StoryCharacterData(
-                name="Ignis",
-                visual="A small crimson dragon with gleaming gold scales",
-                humor="Despite being a dragon, Ignis is hilariously overcautious about fire safety"
-            )
-        },
-        learning_concepts={
-            "Forest Layers": StoryLearningConceptData(
-                explanation="A forest has different layers like a giant layer cake",
-                plot="Jenny must travel through each forest layer to find magical ingredients",
-                demonstration="As Jenny climbs through the understory, she encounters shade-loving ferns"
-            ),
-            "Fire Triangle": StoryLearningConceptData(
-                explanation="Fire needs three things to burn: fuel, oxygen, and heat",
-                plot="Ignis can't breathe fire because one element of the fire triangle is missing",
-                demonstration="Through trial and error with Ignis's fire breathing attempts"
-            )
-        },
-        outline="Once upon a time in a magical forest..."
-    )
+      title="The Forest Fire Mystery",
+      tone="A blend of Inside Out and Wall-E",
+      characters={
+        "Jenny":
+        StoryCharacterData(
+          name="Jenny",
+          visual=
+          "Jenny is a curious 7-year-old Asian girl with a black ponytail",
+          humor=
+          "Jenny's enthusiasm for science leads her to narrate everything like a nature documentary"
+        ),
+        "Ignis":
+        StoryCharacterData(
+          name="Ignis",
+          visual="A small crimson dragon with gleaming gold scales",
+          humor=
+          "Despite being a dragon, Ignis is hilariously overcautious about fire safety"
+        )
+      },
+      learning_concepts={
+        "Forest Layers":
+        StoryLearningConceptData(
+          explanation="A forest has different layers like a giant layer cake",
+          plot=
+          "Jenny must travel through each forest layer to find magical ingredients",
+          demonstration=
+          "As Jenny climbs through the understory, she encounters shade-loving ferns"
+        ),
+        "Fire Triangle":
+        StoryLearningConceptData(
+          explanation="Fire needs three things to burn: fuel, oxygen, and heat",
+          plot=
+          "Ignis can't breathe fire because one element of the fire triangle is missing",
+          demonstration=
+          "Through trial and error with Ignis's fire breathing attempts")
+      },
+      outline="Once upon a time in a magical forest...")
 
   def test_is_empty(self):
     """Test is_empty property."""
@@ -714,22 +704,14 @@ class TestStoryDataUpdate:
 
   def test_update_pages(self):
     """Test updating pages list."""
-    page1 = StoryPageData(
-        illustration=StoryIllustrationData(
-            description="Page 1 Illustration",
-            characters=["Alex"]
-        ),
-        text="Page 1 Text",
-        humor="Page 1 Humor"
-    )
-    page2 = StoryPageData(
-        illustration=StoryIllustrationData(
-            description="Page 2 Illustration",
-            characters=["Bob"]
-        ),
-        text="Page 2 Text",
-        humor="Page 2 Humor"
-    )
+    page1 = StoryPageData(illustration=StoryIllustrationData(
+      description="Page 1 Illustration", characters=["Alex"]),
+                          text="Page 1 Text",
+                          humor="Page 1 Humor")
+    page2 = StoryPageData(illustration=StoryIllustrationData(
+      description="Page 2 Illustration", characters=["Bob"]),
+                          text="Page 2 Text",
+                          humor="Page 2 Humor")
 
     # Add initial page
     self.base_data.pages = [page1]
@@ -746,9 +728,7 @@ class TestStoryDataUpdate:
   def test_update_cover_illustration(self):
     """Test updating cover illustration."""
     self.update_data.cover_illustration = StoryIllustrationData(
-        description="New Cover",
-        characters=["Alex", "Bob"]
-    )
+      description="New Cover", characters=["Alex", "Bob"])
 
     updated_keys = self.base_data.update(self.update_data)
 
@@ -760,20 +740,15 @@ class TestStoryDataUpdate:
     """Test updating character descriptions."""
     # Initial character
     self.base_data.characters = {
-        "Alex": StoryCharacterData(
-            name="Alex",
-            visual="Young boy",
-            humor="Clumsy"
-        )
+      "Alex": StoryCharacterData(name="Alex",
+                                 visual="Young boy",
+                                 humor="Clumsy")
     }
 
     # Update with new character
     self.update_data.characters = {
-        "Bob": StoryCharacterData(
-            name="Bob",
-            visual="Old wizard",
-            humor="Forgetful"
-        )
+      "Bob":
+      StoryCharacterData(name="Bob", visual="Old wizard", humor="Forgetful")
     }
 
     updated_keys = self.base_data.update(self.update_data)
@@ -787,27 +762,28 @@ class TestStoryDataUpdate:
     """Test updating learning concepts."""
     # Initial concept
     self.base_data.learning_concepts = {
-        "Photosynthesis": StoryLearningConceptData(
-            explanation="Plants make food from sunlight",
-            plot="Characters help a plant grow",
-            demonstration="Shows the process step by step"
-        )
+      "Photosynthesis":
+      StoryLearningConceptData(explanation="Plants make food from sunlight",
+                               plot="Characters help a plant grow",
+                               demonstration="Shows the process step by step")
     }
 
     # Update with new concept
     self.update_data.learning_concepts = {
-        "Water Cycle": StoryLearningConceptData(
-            explanation="Water moves in a cycle",
-            plot="Characters follow a water droplet",
-            demonstration="Shows evaporation and condensation"
-        )
+      "Water Cycle":
+      StoryLearningConceptData(
+        explanation="Water moves in a cycle",
+        plot="Characters follow a water droplet",
+        demonstration="Shows evaporation and condensation")
     }
 
     updated_keys = self.base_data.update(self.update_data)
 
     assert len(self.base_data.learning_concepts) == 2
-    assert self.base_data.learning_concepts["Photosynthesis"].explanation == "Plants make food from sunlight"
-    assert self.base_data.learning_concepts["Water Cycle"].explanation == "Water moves in a cycle"
+    assert self.base_data.learning_concepts[
+      "Photosynthesis"].explanation == "Plants make food from sunlight"
+    assert self.base_data.learning_concepts[
+      "Water Cycle"].explanation == "Water moves in a cycle"
     assert updated_keys == {"learning_concepts"}
 
   def test_update_empty_fields(self):
@@ -822,27 +798,20 @@ class TestStoryDataUpdate:
     # Set up initial data
     self.base_data.title = "Original Title"
     self.base_data.characters = {
-        "Alex": StoryCharacterData(
-            name="Alex",
-            visual="Young boy",
-            humor="Clumsy"
-        )
+      "Alex": StoryCharacterData(name="Alex",
+                                 visual="Young boy",
+                                 humor="Clumsy")
     }
 
     # Set up update data
     self.update_data.title = "New Title"
     self.update_data.tagline = "New Tagline"
     self.update_data.characters = {
-        "Bob": StoryCharacterData(
-            name="Bob",
-            visual="Old wizard",
-            humor="Forgetful"
-        )
+      "Bob":
+      StoryCharacterData(name="Bob", visual="Old wizard", humor="Forgetful")
     }
     self.update_data.cover_illustration = StoryIllustrationData(
-        description="New Cover",
-        characters=["Alex", "Bob"]
-    )
+      description="New Cover", characters=["Alex", "Bob"])
 
     updated_keys = self.base_data.update(self.update_data)
 
@@ -851,4 +820,6 @@ class TestStoryDataUpdate:
     assert self.base_data.tagline == "New Tagline"
     assert len(self.base_data.characters) == 2
     assert self.base_data.cover_illustration.description == "New Cover"
-    assert updated_keys == {"title", "tagline", "characters", "cover_illustration"}
+    assert updated_keys == {
+      "title", "tagline", "characters", "cover_illustration"
+    }

@@ -9,7 +9,7 @@ from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceSoundEvent)
 from PIL import Image
 from services import audio_voices
-from services.video import joke_social_script_builder
+from services.video import joke_social_script_builder, script_utils
 from services.video.script import TimedCharacterSequence
 
 
@@ -58,7 +58,9 @@ def _spoken_items(script) -> list[TimedCharacterSequence]:
   ]
 
 
-def _load_firestore_sequence(sequence_id: str) -> PosableCharacterSequence:
+def _load_firestore_sequence(
+    sequence_id: str = script_utils.POP_IN_SEQUENCE_ID
+) -> PosableCharacterSequence:
   if sequence_id == "pop_in":
     return _sound_sequence(0.1, "gs://bucket/pop_in.wav")
   if sequence_id == "GEMINI_LEDA_giggle1":
@@ -72,10 +74,10 @@ def test_portrait_character_layout_bottom_aligns_to_tallest():
   teller = _SizedCharacter(width=220, height=300)
   listener = _SizedCharacter(width=120, height=140)
   with patch.object(
-      joke_social_script_builder,
-      "_load_sequence_from_firestore",
+      script_utils,
+      "load_sequence_from_firestore",
       side_effect=_load_firestore_sequence,
-  ), patch.object(joke_social_script_builder.random, "randint",
+  ), patch.object(script_utils.random, "randint",
                   return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
@@ -105,10 +107,10 @@ def test_portrait_character_layout_uses_proportional_horizontal_slots():
   teller = _SizedCharacter(width=200, height=240)
   listener = _SizedCharacter(width=100, height=240)
   with patch.object(
-      joke_social_script_builder,
-      "_load_sequence_from_firestore",
+      script_utils,
+      "load_sequence_from_firestore",
       side_effect=_load_firestore_sequence,
-  ), patch.object(joke_social_script_builder.random, "randint",
+  ), patch.object(script_utils.random, "randint",
                   return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",

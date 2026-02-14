@@ -8,7 +8,8 @@ from common.posable_character_sequence import (
   SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
 from PIL import Image
 from services import audio_voices
-from services.video import joke_social_script_builder, scene_video_renderer
+from services.video import (joke_social_script_builder, scene_video_renderer,
+                            script_utils)
 from services.video.script import (SceneCanvas, SceneRect, SceneScript,
                                    TimedCharacterSequence, TimedImage)
 
@@ -62,7 +63,9 @@ def _simple_sequence() -> PosableCharacterSequence:
   return sequence
 
 
-def _load_firestore_sequence(sequence_id: str) -> PosableCharacterSequence:
+def _load_firestore_sequence(
+    sequence_id: str = script_utils.POP_IN_SEQUENCE_ID
+) -> PosableCharacterSequence:
   if sequence_id == "pop_in":
     sequence = PosableCharacterSequence(sequence_sound_events=[
       SequenceSoundEvent(
@@ -590,10 +593,10 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
     _DummyCharacter,
     "get_image",
     return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
-  ), patch.object(joke_social_script_builder,
-                  "_load_sequence_from_firestore",
+  ), patch.object(script_utils,
+                  "load_sequence_from_firestore",
                   side_effect=_load_firestore_sequence), \
-      patch.object(joke_social_script_builder.random, "randint", return_value=1):
+      patch.object(script_utils.random, "randint", return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
@@ -622,8 +625,8 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
   assert pop_in_by_actor_id["actor_0"].start_time_sec == pytest.approx(0.0)
   assert pop_in_by_actor_id["actor_0"].end_time_sec == pytest.approx(0.3)
   listener_pop_in_start_sec = (
-    pop_in_by_actor_id["actor_0"].end_time_sec + joke_social_script_builder.
-    _LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC)  # pylint: disable=protected-access
+    pop_in_by_actor_id["actor_0"].end_time_sec +
+    script_utils.LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC)
   assert pop_in_by_actor_id["actor_1"].start_time_sec == pytest.approx(
     listener_pop_in_start_sec)
   assert pop_in_by_actor_id["actor_1"].end_time_sec == pytest.approx(
@@ -670,10 +673,10 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
     _DummyCharacter,
     "get_image",
     return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
-  ), patch.object(joke_social_script_builder,
-                  "_load_sequence_from_firestore",
+  ), patch.object(script_utils,
+                  "load_sequence_from_firestore",
                   side_effect=_load_firestore_sequence), \
-      patch.object(joke_social_script_builder.random, "randint", return_value=1):
+      patch.object(script_utils.random, "randint", return_value=1):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",

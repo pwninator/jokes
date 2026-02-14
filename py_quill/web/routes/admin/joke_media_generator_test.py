@@ -39,8 +39,12 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   assert 'id="turn3-voice-eleven"' in html
   assert 'id="turn3-script"' in html
   assert 'id="turn3-pause-after"' in html
+  assert 'id="turn4-voice-gemini"' in html
+  assert 'id="turn4-voice-eleven"' in html
+  assert 'id="turn4-script"' in html
+  assert 'id="turn4-pause-after"' in html
   assert html.count(
-    f'value="{gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.name}" selected') == 2
+    f'value="{gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.name}" selected') == 3
   assert html.count(
     f'value="{gen_audio.Voice.ELEVENLABS_MINNIE.name}" selected') == 1
   assert 'id="generate-audio-button"' in html

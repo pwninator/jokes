@@ -3,6 +3,7 @@
 import datetime
 import re
 from io import BytesIO
+from typing import TypedDict
 
 from common import config
 from google.cloud import storage as gcs
@@ -16,6 +17,12 @@ _IMAGE_EXTENSION_CONFIG: dict[str, tuple[str, str]] = {
   "jpeg": ("JPEG", "image/jpeg"),
   "webp": ("WEBP", "image/webp"),
 }
+
+
+class _CdnUrlKwargs(TypedDict, total=False):
+  width: int
+  image_format: str
+  quality: int
 
 
 def _normalize_image_extension(extension: str) -> str:
@@ -110,7 +117,7 @@ def upload_image_to_gcs(
     resolved_gcs_uri = get_image_gcs_uri(file_name_base, normalized_extension)
   else:
     # Validate format early (and fail fast) without doing any uploads.
-    parse_gcs_uri(resolved_gcs_uri)
+    _ = parse_gcs_uri(resolved_gcs_uri)
   buffer = BytesIO()
   image.save(buffer, format=format_name)
   image_bytes = buffer.getvalue()
@@ -122,7 +129,7 @@ def upload_image_to_gcs(
 def upload_file_to_gcs(
   file_path: str,
   gcs_uri: str,
-  content_type: str = None,
+  content_type: str | None = None,
 ) -> str:
   """Upload a file to Google Cloud Storage.
   
@@ -349,7 +356,7 @@ def get_cdn_url_params(cdn_url: str) -> dict[str, str]:
     raise ValueError(f"Invalid CDN URL format: {cdn_url}")
 
   params_str = match.group(1)
-  params = {}
+  params: dict[str, str] = {}
   for param in params_str.split(','):
     key, value = param.split('=', 1)
     params[key] = value
@@ -377,26 +384,22 @@ def set_cdn_url_params(
   # Extract GCS URI from the URL
   gcs_uri = extract_gcs_uri_from_image_url(cdn_url)
 
-  # Get existing params from the URL
-  params = get_cdn_url_params(cdn_url)
+  # Build typed kwargs from existing URL params, then apply explicit overrides.
+  existing_params = get_cdn_url_params(cdn_url)
+  kwargs: _CdnUrlKwargs = {}
+  if 'width' in existing_params:
+    kwargs['width'] = int(existing_params['width'])
+  if 'format' in existing_params:
+    kwargs['image_format'] = existing_params['format']
+  if 'quality' in existing_params:
+    kwargs['quality'] = int(existing_params['quality'])
 
-  # Update params with new values (only if specified)
   if width is not None:
-    params['width'] = str(width)
+    kwargs['width'] = width
   if image_format is not None:
-    params['format'] = image_format
+    kwargs['image_format'] = image_format
   if quality is not None:
-    params['quality'] = str(quality)
-
-  # Build kwargs dict, only including params that exist
-  # (let get_public_image_cdn_url use its defaults for missing ones)
-  kwargs = {}
-  if 'width' in params:
-    kwargs['width'] = int(params['width'])
-  if 'format' in params:
-    kwargs['image_format'] = params['format']
-  if 'quality' in params:
-    kwargs['quality'] = int(params['quality'])
+    kwargs['quality'] = quality
 
   # Reconstruct the URL using get_public_image_cdn_url
   return get_public_image_cdn_url(gcs_uri, **kwargs)

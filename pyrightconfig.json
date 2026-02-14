@@ -3,6 +3,9 @@
   "include": [
     "py_quill"
   ],
+  "exclude": [
+    "**/*_test.py"
+  ],
   "executionEnvironments": [
     {
       "root": "py_quill"
@@ -10,5 +13,8 @@
   ],
   "reportImplicitRelativeImport": "none",
   "reportMissingTypeStubs": "none",
-  "reportUnknownMemberType": "none"
+  "reportUnknownMemberType": "none",
+  "reportAny": "none",
+  "reportExplicitAny": "none",
+  "reportImplicitStringConcatenation": "none"
 }

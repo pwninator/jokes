@@ -15,7 +15,7 @@ import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar, override
 
 import httpx
 import librosa
@@ -192,7 +192,7 @@ class AudioClient(ABC, Generic[_T]):
           internal.file_extension,
           temp=temp_output,
         )
-        cloud_storage.upload_bytes_to_gcs(
+        _ = cloud_storage.upload_bytes_to_gcs(
           internal.audio_bytes,
           output_gcs_uri,
           content_type=internal.content_type,
@@ -251,7 +251,7 @@ class AudioClient(ABC, Generic[_T]):
         retry_count += 1
         if retry_count > self.max_retries:
           raise AudioGenerationError(
-            f"Audio call to {self.model.value} ({label}) failed after "
+            f"Audio call to {self.model.value} ({label}) failed after " +
             f"{self.max_retries} retries:\n{e}") from e
 
         delay = min(max_delay,
@@ -358,11 +358,11 @@ def _apply_pause_markers(
 class GeminiAudioClient(AudioClient[genai.Client]):
   """Gemini speech generation client (Google GenAI SDK, API-key auth)."""
 
-  _SPEAKER_NAMES = ("Alex", "Sam")
+  _SPEAKER_NAMES: tuple[str, str] = ("Alex", "Sam")
 
-  _AUDIO_SAMPLE_RATE_HZ = 24000
-  _AUDIO_SAMPLE_WIDTH_BYTES = 2
-  _AUDIO_CHANNELS = 1
+  _AUDIO_SAMPLE_RATE_HZ: int = 24000
+  _AUDIO_SAMPLE_WIDTH_BYTES: int = 2
+  _AUDIO_CHANNELS: int = 1
 
   # https://ai.google.dev/gemini-api/docs/pricing (Speech generation)
   GENERATION_COSTS: dict[AudioModel, dict[str, float]] = {
@@ -376,9 +376,11 @@ class GeminiAudioClient(AudioClient[genai.Client]):
     },
   }
 
+  @override
   def _create_model_client(self) -> genai.Client:
     return genai.Client(api_key=config.get_gemini_api_key())
 
+  @override
   def _generate_multi_turn_dialog_internal(
     self,
     *,
@@ -544,24 +546,20 @@ class GeminiAudioClient(AudioClient[genai.Client]):
   def _extract_pcm_bytes(
       response: genai_types.GenerateContentResponse) -> bytes:
     try:
-      data = response.candidates[0].content.parts[0].inline_data.data
+      if not response.candidates:
+        raise AudioGenerationError("No candidates in Gemini response")
+      candidate = response.candidates[0]
+      if not candidate.content or not candidate.content.parts:
+        raise AudioGenerationError("No content or parts in Gemini candidate")
+      part = candidate.content.parts[0]
+      if not part.inline_data or not part.inline_data.data:
+        raise AudioGenerationError("No inline data in Gemini part")
+      data = part.inline_data.data
     except Exception as e:
       raise AudioGenerationError(
         f"Gemini response missing inline audio data: {e}") from e
 
-    if isinstance(data, bytes):
-      return data
-
-    if isinstance(data, str):
-      try:
-        return base64.b64decode(data)
-      except Exception as e:
-        raise AudioGenerationError(
-          f"Gemini returned inline audio data as a non-base64 string: {e}"
-        ) from e
-
-    raise AudioGenerationError(
-      f"Gemini returned inline audio data with unexpected type: {type(data)}")
+    return data
 
   @staticmethod
   def _extract_token_counts(

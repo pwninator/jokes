@@ -5,12 +5,13 @@ import wave
 from unittest.mock import MagicMock, patch
 
 import pytest
-from common import audio_timing, models
+from common import models
 from common.mouth_events import MouthEvent
 from common.posable_character import MouthState, PosableCharacter
+from common.posable_character_sequence import (PosableCharacterSequence,
+                                               SequenceSoundEvent)
 from PIL import Image
 from services import gen_video
-from services.video import scene_video_renderer as portrait_scene
 from services.video.mouth import apply_forced_closures
 
 
@@ -381,57 +382,51 @@ def test_apply_forced_closures_single_syllable():
 
 
 def test_create_portrait_character_video_uploads_mp4():
-  joke_images = [
-    ("gs://bucket/image1.png", 0.0),
-    ("gs://bucket/image2.png", 0.2),
-  ]
-  timing = [
-    audio_timing.WordTiming(word="hi",
-                            start_time=0.0,
-                            end_time=0.1,
-                            char_timings=[])
-  ]
-  character_dialogs = [
-    (_DummyCharacter(), [("gs://bucket/audio1.wav", 0.0, "hello world", timing)
-                         ]),
-    (_DummyCharacter(), [("gs://bucket/audio2.wav", 0.2, "hi there", timing)]),
-  ]
-  upload_mock = MagicMock()
+  setup_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.2,
+      gcs_uri="gs://bucket/audio1.wav",
+      volume=1.0,
+    )
+  ])
+  punchline_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.2,
+      end_time=0.4,
+      gcs_uri="gs://bucket/audio2.wav",
+      volume=1.0,
+    )
+  ])
+  setup_sequence.validate()
+  punchline_sequence.validate()
+  script_stub = MagicMock(duration_sec=2.0)
+  metadata_stub = models.SingleGenerationMetadata(
+    label="create_portrait_character_video",
+    model_name="moviepy",
+    token_counts={
+      "num_images": 5,
+      "num_audio_files": 2,
+      "num_characters": 2,
+    },
+  )
+  create_scene_mock = MagicMock(return_value=("gs://files/video/portrait.mp4",
+                                              metadata_stub))
   get_uri_mock = MagicMock(return_value="gs://files/video/portrait.mp4")
-
-  def download_bytes(uri):
-    if uri.endswith(".wav"):
-      return _make_wav_bytes(duration_sec=0.4)
-    return _make_png_bytes()
-
-  def download_image(_uri):
-    return Image.new("RGBA", (32, 32), color=(0, 255, 0, 255))
-
-  detect_calls: list[object] = []
-
-  def detect_stub(_wav_bytes, *, mode: str, transcript=None, timing=None):
-    detect_calls.append((mode, transcript, timing))
-    return []
 
   with patch.object(gen_video.utils, "is_emulator", return_value=False), \
       patch.object(gen_video.cloud_storage, "get_video_gcs_uri", get_uri_mock), \
-      patch.object(gen_video.cloud_storage, "download_bytes_from_gcs",
-                   side_effect=download_bytes), \
-      patch.object(gen_video.cloud_storage, "download_image_from_gcs",
-                   side_effect=download_image), \
-      patch.object(gen_video.mouth_event_detection,
-                   "detect_mouth_events",
-                   side_effect=detect_stub), \
-      patch.object(gen_video.cloud_storage, "upload_file_to_gcs",
-                   upload_mock), \
-      patch.object(portrait_scene, "VideoClip", _FakeVideoClip), \
-      patch.object(portrait_scene, "AudioFileClip", _FakeAudioFileClip), \
-      patch.object(portrait_scene, "CompositeAudioClip", _FakeCompositeAudioClip):
+      patch.object(gen_video.joke_social_script_builder,
+                   "build_portrait_joke_scene_script",
+                   return_value=script_stub) as build_script_mock, \
+      patch.object(gen_video, "generate_scene_video", create_scene_mock):
     gcs_uri, metadata = gen_video.create_portrait_character_video(
-      joke_images=joke_images,
-      character_dialogs=character_dialogs,
-      footer_background_gcs_uri="gs://bucket/footer.png",
-      total_duration_sec=0.6,
+      setup_image_gcs_uri="gs://bucket/image1.png",
+      punchline_image_gcs_uri="gs://bucket/image2.png",
+      teller_character=_DummyCharacter(),
+      listener_character=_DummyCharacter(),
+      setup_sequence=setup_sequence,
+      punchline_sequence=punchline_sequence,
       output_filename_base="portrait",
       temp_output=True,
     )
@@ -441,24 +436,8 @@ def test_create_portrait_character_video_uploads_mp4():
   assert metadata.token_counts["num_images"] == 5
   assert metadata.token_counts["num_audio_files"] == 2
   assert metadata.token_counts["num_characters"] == 2
-  assert [mode for mode, _transcript, _timing in detect_calls] == [
-    "timing",
-    "timing",
-  ]
-  assert {transcript
-          for _mode, transcript, _timing in detect_calls} == {
-            "hello world",
-            "hi there",
-          }
+  build_script_mock.assert_called_once()
+  create_scene_mock.assert_called_once()
 
   get_uri_mock.assert_called_once()
   assert get_uri_mock.call_args.kwargs["temp"] is True
-  upload_mock.assert_called_once()
-  uploaded_path = upload_mock.call_args.args[0]
-  uploaded_uri = upload_mock.call_args.args[1]
-  uploaded_content_type = upload_mock.call_args.kwargs["content_type"]
-  assert uploaded_uri == "gs://files/video/portrait.mp4"
-  assert uploaded_content_type == "video/mp4"
-  assert uploaded_path.endswith("scene.mp4")
-
-

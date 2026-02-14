@@ -220,7 +220,8 @@ class Image:
   model_thought: str | None = None
   error: str | None = None
   owner_user_id: str | None = None
-  generation_metadata: GenerationMetadata | None = None
+  generation_metadata: GenerationMetadata = field(
+    default_factory=GenerationMetadata)
   gemini_evaluation: dict | None = None
   generation_id: str | None = None
 
@@ -289,7 +290,8 @@ class Character:
   portrait_image_key: str | None
   all_portrait_image_keys: list[str]
   owner_user_id: str
-  generation_metadata: GenerationMetadata | None = None
+  generation_metadata: GenerationMetadata = field(
+    default_factory=GenerationMetadata)
 
   @property
   def is_public(self) -> bool:
@@ -1272,7 +1274,7 @@ class PunnyJoke:
 
     self.punchline_image_url = url
 
-  def to_dict(self, include_key: bool = False) -> dict:
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore/response serialization.
 
     - Serializes `state` enum to its string value
@@ -1282,13 +1284,11 @@ class PunnyJoke:
     data = dataclasses.asdict(self)
 
     # Ensure enums are serialized to their string values
-    if isinstance(self.state, JokeState):
-      data['state'] = self.state.value
-    if isinstance(self.admin_rating, JokeAdminRating):
-      data['admin_rating'] = self.admin_rating.value
+    data['state'] = self.state.value
+    data['admin_rating'] = self.admin_rating.value
 
     # Ensure generation_metadata is serialized via as_dict
-    if self.generation_metadata is not None:
+    if self.generation_metadata:
       data['generation_metadata'] = self.generation_metadata.as_dict
     else:
       data['generation_metadata'] = {}
@@ -1353,7 +1353,7 @@ class PosableCharacterDef:
   right_eye_open_gcs_uri: str = ""
   right_eye_closed_gcs_uri: str = ""
 
-  def to_dict(self, include_key: bool = False) -> dict:
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     data = dataclasses.asdict(self)
     if not include_key:
@@ -1361,7 +1361,8 @@ class PosableCharacterDef:
     return data
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> 'PosableCharacterDef':
+  def from_firestore_dict(cls, data: dict[str, object],
+                          key: str) -> PosableCharacterDef:
     """Create a PosableCharacterDef from a Firestore dictionary."""
     if not data:
       data = {}

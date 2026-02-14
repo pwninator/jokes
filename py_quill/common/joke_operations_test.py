@@ -1,16 +1,16 @@
 """Tests for the joke_operations module."""
+import array
 import datetime
+import io
+import wave
 from io import BytesIO
 from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
-from common import joke_operations, models
+from common import audio_timing, joke_operations, models
 from google.api_core import datetime_helpers
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
-import io
-import wave
-import array
 
 
 @pytest.fixture(name='mock_firestore')
@@ -1211,12 +1211,56 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
 
   rate = 24000
   one_second_silence = array.array("h", [0] * rate).tobytes()
+  intro_audio = array.array("h", [500] * int(rate * 0.15)).tobytes()
   setup_audio = array.array("h", [1000] * int(rate * 0.2)).tobytes()
   response_audio = array.array("h", [2000] * int(rate * 0.1)).tobytes()
   punchline_audio = array.array("h", [3000] * int(rate * 0.3)).tobytes()
-  dialog_frames = (setup_audio + one_second_silence + response_audio +
-                   one_second_silence + punchline_audio)
+  dialog_frames = (intro_audio + one_second_silence + setup_audio +
+                   one_second_silence + response_audio + one_second_silence +
+                   punchline_audio)
   dialog_wav_bytes = make_wav_bytes(dialog_frames, rate=rate)
+  timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.15,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=1.15,
+        end_time_seconds=1.35,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=2.35,
+        end_time_seconds=2.45,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=3.45,
+        end_time_seconds=3.75,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming("intro", 0.0, 0.15, char_timings=[]),
+      audio_timing.WordTiming("setup", 1.15, 1.35, char_timings=[]),
+      audio_timing.WordTiming("response", 2.35, 2.45, char_timings=[]),
+      audio_timing.WordTiming("punchline", 3.45, 3.75, char_timings=[]),
+    ],
+  )
 
   generation_metadata = models.SingleGenerationMetadata(
     model_name="gemini-tts",
@@ -1231,7 +1275,7 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
     joke_operations.audio_client.AudioGenerationResult(
       gcs_uri="gs://temp/dialog.wav",
       metadata=generation_metadata,
-      timing=None,
+      timing=timing,
     ))
   monkeypatch.setattr(
     joke_operations.audio_client,
@@ -1241,11 +1285,13 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   dialog_uri = "gs://public/audio/dialog.wav"
+  intro_uri = "gs://public/audio/intro.wav"
   setup_uri = "gs://public/audio/setup.wav"
   response_uri = "gs://public/audio/response.wav"
   punchline_uri = "gs://public/audio/punchline.wav"
   mock_cloud_storage.get_audio_gcs_uri.side_effect = [
     dialog_uri,
+    intro_uri,
     setup_uri,
     response_uri,
     punchline_uri,
@@ -1268,13 +1314,15 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   result = joke_operations.generate_joke_audio(joke)
 
   assert result.dialog_gcs_uri == dialog_uri
+  assert result.intro_gcs_uri == intro_uri
   assert result.setup_gcs_uri == setup_uri
   assert result.response_gcs_uri == response_uri
   assert result.punchline_gcs_uri == punchline_uri
   assert result.generation_metadata == generation_metadata
-  assert result.clip_timing is None
+  assert result.clip_timing is not None
   assert [u[0] for u in uploaded] == [
     dialog_uri,
+    intro_uri,
     setup_uri,
     response_uri,
     punchline_uri,
@@ -1288,13 +1336,15 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
       # pylint: disable=no-member
       return wf.getnframes()
 
-  assert num_frames(uploaded[0][1]) == int(rate * 2.6)
-  assert num_frames(uploaded[1][1]) == int(rate * 0.2)
-  assert num_frames(uploaded[2][1]) == int(rate * 0.1)
-  assert num_frames(uploaded[3][1]) == int(rate * 0.3)
+  assert num_frames(uploaded[0][1]) == int(rate * 3.75)
+  assert 0 < num_frames(uploaded[1][1]) < int(rate * 0.3)
+  assert 0 < num_frames(uploaded[2][1]) < int(rate * 0.3)
+  assert 0 < num_frames(uploaded[3][1]) < int(rate * 0.2)
+  assert 0 < num_frames(uploaded[4][1]) < int(rate * 0.5)
 
 
-def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage):
+def test_generate_joke_audio_uses_turn_templates(monkeypatch,
+                                                 mock_cloud_storage):
 
   def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
     buffer = io.BytesIO()
@@ -1309,12 +1359,56 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage
 
   rate = 24000
   one_second_silence = array.array("h", [0] * rate).tobytes()
+  intro_audio = array.array("h", [500] * int(rate * 0.15)).tobytes()
   setup_audio = array.array("h", [1000] * int(rate * 0.2)).tobytes()
   response_audio = array.array("h", [2000] * int(rate * 0.1)).tobytes()
   punchline_audio = array.array("h", [3000] * int(rate * 0.3)).tobytes()
-  dialog_frames = (setup_audio + one_second_silence + response_audio +
-                   one_second_silence + punchline_audio)
+  dialog_frames = (intro_audio + one_second_silence + setup_audio +
+                   one_second_silence + response_audio + one_second_silence +
+                   punchline_audio)
   dialog_wav_bytes = make_wav_bytes(dialog_frames, rate=rate)
+  timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.15,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=1.15,
+        end_time_seconds=1.35,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=2.35,
+        end_time_seconds=2.45,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=3.45,
+        end_time_seconds=3.75,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming("intro", 0.0, 0.15, char_timings=[]),
+      audio_timing.WordTiming("setup", 1.15, 1.35, char_timings=[]),
+      audio_timing.WordTiming("response", 2.35, 2.45, char_timings=[]),
+      audio_timing.WordTiming("punchline", 3.45, 3.75, char_timings=[]),
+    ],
+  )
 
   generation_metadata = models.SingleGenerationMetadata(
     model_name="gemini-tts")
@@ -1323,7 +1417,7 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage
     joke_operations.audio_client.AudioGenerationResult(
       gcs_uri="gs://temp/dialog.wav",
       metadata=generation_metadata,
-      timing=None,
+      timing=timing,
     ))
   monkeypatch.setattr(
     joke_operations.audio_client,
@@ -1334,6 +1428,7 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   mock_cloud_storage.get_audio_gcs_uri.side_effect = [
     "gs://public/audio/dialog.wav",
+    "gs://public/audio/intro.wav",
     "gs://public/audio/setup.wav",
     "gs://public/audio/response.wav",
     "gs://public/audio/punchline.wav",
@@ -1348,17 +1443,22 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage
 
   script_template = [
     joke_operations.audio_client.DialogTurn(
-      voice=joke_operations.gen_audio.Voice.GEMINI_KORE,
+      voice=joke_operations.audio_voices.Voice.GEMINI_KORE,
+      script="Intro line",
+      pause_sec_after=1.0,
+    ),
+    joke_operations.audio_client.DialogTurn(
+      voice=joke_operations.audio_voices.Voice.GEMINI_KORE,
       script="{setup_text}",
       pause_sec_after=1.0,
     ),
     joke_operations.audio_client.DialogTurn(
-      voice=joke_operations.gen_audio.Voice.GEMINI_PUCK,
+      voice=joke_operations.audio_voices.Voice.GEMINI_PUCK,
       script="what?",
       pause_sec_after=1.0,
     ),
     joke_operations.audio_client.DialogTurn(
-      voice=joke_operations.gen_audio.Voice.GEMINI_KORE,
+      voice=joke_operations.audio_voices.Voice.GEMINI_KORE,
       script="{punchline_text}\n[giggles]",
     ),
   ]
@@ -1371,10 +1471,14 @@ def test_generate_joke_audio_uses_turn_templates(monkeypatch, mock_cloud_storage
   mock_client.generate_multi_turn_dialog.assert_called_once()
   call_kwargs = mock_client.generate_multi_turn_dialog.call_args.kwargs
   turns = call_kwargs["turns"]
-  assert [(t.voice, t.script, t.pause_sec_before, t.pause_sec_after) for t in turns] == [
-    (joke_operations.gen_audio.Voice.GEMINI_KORE, "Setup text", None, 1.0),
-    (joke_operations.gen_audio.Voice.GEMINI_PUCK, "what?", None, 1.0),
-    (joke_operations.gen_audio.Voice.GEMINI_KORE, "Punchline text\n[giggles]", None, None),
+  assert [
+    (t.voice, t.script, t.pause_sec_before, t.pause_sec_after) for t in turns
+  ] == [
+    (joke_operations.audio_voices.Voice.GEMINI_KORE, "Intro line", None, 1.0),
+    (joke_operations.audio_voices.Voice.GEMINI_KORE, "Setup text", None, 1.0),
+    (joke_operations.audio_voices.Voice.GEMINI_PUCK, "what?", None, 1.0),
+    (joke_operations.audio_voices.Voice.GEMINI_KORE,
+     "Punchline text\n[giggles]", None, None),
   ]
 
 
@@ -1396,13 +1500,57 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
 
   dialog_wav_bytes = make_wav_bytes(array.array("h", [1000] * 100).tobytes())
 
-  generation_metadata = models.SingleGenerationMetadata(model_name="gemini-tts")
+  timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.1,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=1.1,
+        end_time_seconds=1.2,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=2.2,
+        end_time_seconds=2.3,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=3.3,
+        end_time_seconds=3.4,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming("intro", 0.0, 0.1, char_timings=[]),
+      audio_timing.WordTiming("setup", 1.1, 1.2, char_timings=[]),
+      audio_timing.WordTiming("response", 2.2, 2.3, char_timings=[]),
+      audio_timing.WordTiming("punchline", 3.3, 3.4, char_timings=[]),
+    ],
+  )
+
+  generation_metadata = models.SingleGenerationMetadata(
+    model_name="gemini-tts")
   mock_client = Mock()
   mock_client.generate_multi_turn_dialog.return_value = (
     joke_operations.audio_client.AudioGenerationResult(
       gcs_uri="gs://temp/dialog.wav",
       metadata=generation_metadata,
-      timing=None,
+      timing=timing,
     ))
   monkeypatch.setattr(
     joke_operations.audio_client,
@@ -1410,11 +1558,8 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
     Mock(return_value=mock_client),
   )
 
-  monkeypatch.setattr(
-    joke_operations.audio_operations,
-    "split_wav_on_silence",
-    Mock(side_effect=ValueError("split failed")),
-  )
+  monkeypatch.setattr(joke_operations, "_split_joke_dialog_wav_by_timing",
+                      Mock(side_effect=ValueError("split failed")))
 
   mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
   dialog_uri = "gs://public/audio/dialog.wav"
@@ -1437,28 +1582,17 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
   result = joke_operations.generate_joke_audio(joke, allow_partial=True)
 
   assert result.dialog_gcs_uri == dialog_uri
+  assert result.intro_gcs_uri is None
   assert result.setup_gcs_uri is None
   assert result.response_gcs_uri is None
   assert result.punchline_gcs_uri is None
   assert result.generation_metadata == generation_metadata
   assert result.clip_timing is None
+
   assert [u[0] for u in uploaded] == [dialog_uri]
 
 
 def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
-
-  def make_wav_bytes(duration_sec: float, *, rate: int = 10) -> bytes:
-    frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wf:
-      # pylint: disable=no-member
-      wf.setnchannels(1)
-      wf.setsampwidth(2)
-      wf.setframerate(rate)
-      wf.writeframes(frames)
-      # pylint: enable=no-member
-    return buffer.getvalue()
-
   joke = models.PunnyJoke(
     key="joke-42",
     setup_text="Setup",
@@ -1471,16 +1605,41 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
   video_metadata = models.SingleGenerationMetadata(model_name="video-model")
   monkeypatch.setattr(
     joke_operations,
-    "generate_joke_audio",
-    Mock(
-      return_value=joke_operations.JokeAudioResult(
-        dialog_gcs_uri="gs://audio/dialog.wav",
-        setup_gcs_uri="gs://audio/setup.wav",
-        response_gcs_uri="gs://audio/response.wav",
-        punchline_gcs_uri="gs://audio/punchline.wav",
-        generation_metadata=audio_metadata,
-        clip_timing=None,
-      )),
+    "generate_joke_lip_sync_media",
+    Mock(return_value=joke_operations.JokeLipSyncResult(
+      dialog_gcs_uri="gs://audio/dialog.wav",
+      intro_audio_gcs_uri="gs://audio/intro.wav",
+      setup_audio_gcs_uri="gs://audio/setup.wav",
+      response_audio_gcs_uri="gs://audio/response.wav",
+      punchline_audio_gcs_uri="gs://audio/punchline.wav",
+      transcripts=joke_operations.JokeAudioTranscripts(
+        intro="intro",
+        setup="setup",
+        response="response",
+        punchline="punchline",
+      ),
+      intro_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/intro.wav",
+        transcript="intro",
+        timing=None,
+      ),
+      setup_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/setup.wav",
+        transcript="setup",
+        timing=None,
+      ),
+      response_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/response.wav",
+        transcript="response",
+        timing=None,
+      ),
+      punchline_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/punchline.wav",
+        transcript="punchline",
+        timing=None,
+      ),
+      audio_generation_metadata=audio_metadata,
+    )),
   )
 
   create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
@@ -1492,44 +1651,24 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage):
     "gs://images/setup.png",
     "gs://images/punchline.png",
   ]
-  mock_cloud_storage.download_bytes_from_gcs.side_effect = [
-    make_wav_bytes(1.0),
-    make_wav_bytes(0.5),
-    make_wav_bytes(2.0),
-  ]
+  result = joke_operations.generate_joke_video(joke)
 
-  video_uri, metadata = joke_operations.generate_joke_video(joke)
-
-  assert video_uri == "gs://videos/joke.mp4"
-  assert [gen.model_name for gen in metadata.generations] == [
+  assert result.video_gcs_uri == "gs://videos/joke.mp4"
+  assert [
+    gen.model_name for gen in result.video_generation_metadata.generations
+  ] == [
     "audio-model",
     "video-model",
   ]
 
-  expected_images = [
-    ("gs://images/setup.png", 0.0),
-    ("gs://images/punchline.png", 3.3),
-  ]
-  expected_setup_punchline_audio = [
-    ("gs://audio/setup.wav", 0.0, "Hey want to hear a joke? Setup", None),
-    ("gs://audio/punchline.wav", 3.3, "Punchline", None),
-  ]
-  expected_response_audio = [
-    ("gs://audio/response.wav", 1.8, "what?", None),
-  ]
-
   create_video_mock.assert_called_once()
   call_kwargs = create_video_mock.call_args.kwargs
-  assert call_kwargs["joke_images"] == expected_images
-  assert call_kwargs["footer_background_gcs_uri"].startswith("gs://")
-  assert len(call_kwargs["character_dialogs"]) == 2
-  first_character, first_audio = call_kwargs["character_dialogs"][0]
-  second_character, second_audio = call_kwargs["character_dialogs"][1]
-  assert isinstance(first_character, joke_operations.PosableCat)
-  assert isinstance(second_character, joke_operations.PosableCat)
-  assert first_audio == expected_setup_punchline_audio
-  assert second_audio == expected_response_audio
-  assert call_kwargs["total_duration_sec"] == pytest.approx(7.3)
+  assert call_kwargs["setup_image_gcs_uri"] == "gs://images/setup.png"
+  assert call_kwargs["punchline_image_gcs_uri"] == "gs://images/punchline.png"
+  assert isinstance(call_kwargs["teller_character"],
+                    joke_operations.PosableCat)
+  assert isinstance(call_kwargs["listener_character"],
+                    joke_operations.PosableCat)
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
 
@@ -1538,18 +1677,6 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   monkeypatch,
   mock_cloud_storage,
 ):
-
-  def make_wav_bytes(duration_sec: float, *, rate: int = 10) -> bytes:
-    frames = array.array("h", [0] * int(rate * duration_sec)).tobytes()
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wf:
-      # pylint: disable=no-member
-      wf.setnchannels(1)
-      wf.setsampwidth(2)
-      wf.setframerate(rate)
-      wf.writeframes(frames)
-      # pylint: enable=no-member
-    return buffer.getvalue()
 
   joke = models.PunnyJoke(
     key="joke-42",
@@ -1561,51 +1688,37 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
 
   audio_metadata = models.SingleGenerationMetadata(model_name="audio-model")
   video_metadata = models.SingleGenerationMetadata(model_name="video-model")
-  setup_timing = [
-    joke_operations.audio_timing.WordTiming("hey", 0.00, 0.20, char_timings=[]),
-    joke_operations.audio_timing.WordTiming("want",
-                                            0.20,
-                                            0.40,
-                                            char_timings=[]),
-    joke_operations.audio_timing.WordTiming("to", 0.40, 0.50, char_timings=[]),
-    joke_operations.audio_timing.WordTiming("hear",
-                                            0.50,
-                                            0.70,
-                                            char_timings=[]),
-    joke_operations.audio_timing.WordTiming("a", 0.70, 0.78, char_timings=[]),
-    joke_operations.audio_timing.WordTiming("joke", 0.78, 0.95, char_timings=[]),
-    joke_operations.audio_timing.WordTiming("setup",
-                                            0.95,
-                                            1.40,
-                                            char_timings=[]),
-  ]
-  response_timing = [
-    joke_operations.audio_timing.WordTiming("what", 0.00, 0.20, char_timings=[])
-  ]
-  punchline_timing = [
-    joke_operations.audio_timing.WordTiming("punchline",
-                                            0.00,
-                                            0.60,
-                                            char_timings=[])
-  ]
   monkeypatch.setattr(
-    joke_operations,
-    "generate_joke_audio",
-    Mock(
-      return_value=joke_operations.JokeAudioResult(
-        dialog_gcs_uri="gs://audio/dialog.wav",
-        setup_gcs_uri="gs://audio/setup.wav",
-        response_gcs_uri="gs://audio/response.wav",
-        punchline_gcs_uri="gs://audio/punchline.wav",
-        generation_metadata=audio_metadata,
-        clip_timing=joke_operations.JokeAudioTiming(
-          setup=setup_timing,
-          response=response_timing,
-          punchline=punchline_timing,
-        ),
-      )))
+    joke_operations, "generate_joke_lip_sync_media",
+    Mock(return_value=joke_operations.JokeLipSyncResult(
+      dialog_gcs_uri="gs://audio/dialog.wav",
+      intro_audio_gcs_uri="gs://audio/intro.wav",
+      setup_audio_gcs_uri="gs://audio/setup.wav",
+      response_audio_gcs_uri="gs://audio/response.wav",
+      punchline_audio_gcs_uri="gs://audio/punchline.wav",
+      transcripts=joke_operations.JokeAudioTranscripts(
+        intro="intro",
+        setup="setup",
+        response="response",
+        punchline="punchline",
+      ),
+      intro_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/intro.wav", transcript="intro", timing=None),
+      setup_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/setup.wav", transcript="setup", timing=None),
+      response_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/response.wav",
+        transcript="response",
+        timing=None),
+      punchline_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/punchline.wav",
+        transcript="punchline",
+        timing=None),
+      audio_generation_metadata=audio_metadata,
+    )))
 
-  create_video_mock = Mock(return_value=("gs://videos/joke.mp4", video_metadata))
+  create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
+                                         video_metadata))
   monkeypatch.setattr(joke_operations.gen_video,
                       "create_portrait_character_video", create_video_mock)
 
@@ -1613,48 +1726,21 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
     "gs://images/setup.png",
     "gs://images/punchline.png",
   ]
-  mock_cloud_storage.download_bytes_from_gcs.side_effect = [
-    make_wav_bytes(2.0),
-    make_wav_bytes(0.5),
-    make_wav_bytes(1.0),
-  ]
-  mock_cloud_storage.get_audio_gcs_uri.side_effect = (
-    lambda file_name_base, extension, temp=False:
-    f"gs://audio/{file_name_base}.{extension}")
-  mock_cloud_storage.upload_bytes_to_gcs.return_value = None
+  result = joke_operations.generate_joke_video(joke)
 
-  video_uri, metadata = joke_operations.generate_joke_video(joke)
-
-  assert video_uri == "gs://videos/joke.mp4"
-  assert [gen.model_name for gen in metadata.generations] == [
+  assert result.video_gcs_uri == "gs://videos/joke.mp4"
+  assert [
+    gen.model_name for gen in result.video_generation_metadata.generations
+  ] == [
     "audio-model",
     "video-model",
   ]
 
   create_video_mock.assert_called_once()
   call_kwargs = create_video_mock.call_args.kwargs
-  assert len(call_kwargs["character_dialogs"]) == 2
-
-  first_character, first_audio = call_kwargs["character_dialogs"][0]
-  second_character, second_audio = call_kwargs["character_dialogs"][1]
-  assert isinstance(first_character, joke_operations.PosableCat)
-  assert isinstance(second_character, joke_operations.PosableCat)
-
-  assert len(first_audio) == 3
-  assert first_audio[0][0].startswith("gs://audio/joke_joke-42_intro")
-  assert first_audio[0][1] == pytest.approx(0.0)
-  assert first_audio[0][2] == "Hey... want to hear a joke?"
-  assert first_audio[1][0].startswith("gs://audio/joke_joke-42_setup_line")
-  assert first_audio[1][1] == pytest.approx(1.95, abs=1e-3)
-  assert first_audio[1][2] == "Setup"
-  assert first_audio[2] == ("gs://audio/punchline.wav", 5.3, "Punchline",
-                            punchline_timing)
-  assert second_audio == [("gs://audio/response.wav", 3.8, "what?",
-                           response_timing)]
-
-  assert call_kwargs["total_duration_sec"] == pytest.approx(8.3)
+  assert call_kwargs["intro_sequence"] is not None
+  assert call_kwargs["response_sequence"] is not None
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
-  assert mock_cloud_storage.upload_bytes_to_gcs.call_count == 2
 
 
 def test_generate_joke_video_requires_images():
@@ -1668,8 +1754,8 @@ def test_generate_joke_video_requires_images():
 
 
 def test_generate_joke_audio_uses_scan_and_split_with_timing(
-    monkeypatch,
-    mock_cloud_storage,
+  monkeypatch,
+  mock_cloud_storage,
 ):
   """Verify that scan-and-split is used when timing is present."""
 
@@ -1692,48 +1778,57 @@ def test_generate_joke_audio_uses_scan_and_split_with_timing(
   def _sil(dur):
     return array.array("h", [0] * int(sr * dur)).tobytes()
 
-  # 0.0-0.5s: Tone (Setup)
-  # 0.5-1.5s: Silence (1.0s)
-  # 1.5-2.0s: Tone (Response)
-  # 2.0-3.0s: Silence (1.0s)
-  # 3.0-3.5s: Tone (Punchline)
-  wav_frames = _tone(0.5) + _sil(1.0) + _tone(0.5) + _sil(1.0) + _tone(0.5)
+  # 0.0-0.3s: Tone (Intro)
+  # 0.3-1.3s: Silence (1.0s)
+  # 1.3-1.8s: Tone (Setup)
+  # 1.8-2.8s: Silence (1.0s)
+  # 2.8-3.3s: Tone (Response)
+  # 3.3-4.3s: Silence (1.0s)
+  # 4.3-4.8s: Tone (Punchline)
+  wav_frames = (_tone(0.3) + _sil(1.0) + _tone(0.5) + _sil(1.0) + _tone(0.5) +
+                _sil(1.0) + _tone(0.5))
   wav_bytes = make_wav_bytes(wav_frames, rate=sr)
 
-  timing = joke_operations.audio_timing.TtsTiming(
+  timing = audio_timing.TtsTiming(
     voice_segments=[
-      joke_operations.audio_timing.VoiceSegment(
+      audio_timing.VoiceSegment(
         voice_id="v1",
         start_time_seconds=0.0,
-        end_time_seconds=0.5,
+        end_time_seconds=0.3,
         word_start_index=0,
         word_end_index=1,
         dialogue_input_index=0,
       ),
-      joke_operations.audio_timing.VoiceSegment(
-        voice_id="v2",
-        start_time_seconds=1.5,
-        end_time_seconds=2.0,
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=1.3,
+        end_time_seconds=1.8,
         word_start_index=1,
         word_end_index=2,
         dialogue_input_index=1,
       ),
-      joke_operations.audio_timing.VoiceSegment(
-        voice_id="v1",
-        start_time_seconds=3.0,
-        end_time_seconds=3.5,
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=2.8,
+        end_time_seconds=3.3,
         word_start_index=2,
         word_end_index=3,
         dialogue_input_index=2,
       ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=4.3,
+        end_time_seconds=4.8,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
     ],
     normalized_alignment=[
-      joke_operations.audio_timing.WordTiming(
-        "setup", 0.0, 0.5, char_timings=[]),
-      joke_operations.audio_timing.WordTiming(
-        "response", 1.5, 2.0, char_timings=[]),
-      joke_operations.audio_timing.WordTiming(
-        "punchline", 3.0, 3.5, char_timings=[]),
+      audio_timing.WordTiming("intro", 0.0, 0.3, char_timings=[]),
+      audio_timing.WordTiming("setup", 1.3, 1.8, char_timings=[]),
+      audio_timing.WordTiming("response", 2.8, 3.3, char_timings=[]),
+      audio_timing.WordTiming("punchline", 4.3, 4.8, char_timings=[]),
     ],
   )
 
@@ -1757,82 +1852,241 @@ def test_generate_joke_audio_uses_scan_and_split_with_timing(
   joke = models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
   result = joke_operations.generate_joke_audio(joke)
 
+  assert result.clip_timing.intro[0].start_time == pytest.approx(0.0, abs=0.1)
   # Check timings.
-  # Setup: started at 0.0. Lead trim is 0.0. Offset 0.0.
-  # Setup word starts at 0.0 - 0.0 = 0.0.
+  # Setup: split at (0.3+1.3)/2 = 0.8, trim 0.5 => offset 1.3.
+  # Setup word starts at 1.3 - 1.3 = 0.0.
   assert result.clip_timing.setup[0].start_time == pytest.approx(0.0, abs=0.1)
 
   # Response:
-  # Gap 1 center: (0.5+1.5)/2 = 1.0. Window 0.8-1.2. Split at 0.8 (start of window in silence).
-  # Response clip starts at 0.8.
-  # Audio in clip starts at 1.5. So leading silence in clip is 1.5 - 0.8 = 0.7.
-  # Trim removes 0.7s.
-  # Total offset = Split (0.8) + Trim (0.7) = 1.5.
-  # Response word starts at 1.5 - 1.5 = 0.0.
-  assert result.clip_timing.response[0].start_time == pytest.approx(
-    0.0, abs=0.1)
+  # Split at (1.8+2.8)/2 = 2.3, trim 0.5 => offset 2.8.
+  # Response word starts at 2.8 - 2.8 = 0.0.
+  assert result.clip_timing.response[0].start_time == pytest.approx(0.0,
+                                                                    abs=0.1)
 
   # Punchline:
-  # Gap 2 center: (2.0+3.0)/2 = 2.5. Window 2.3-2.7. Split at 2.3.
-  # Punchline clip starts at 2.3.
-  # Audio starts at 3.0. Lead silence 0.7.
-  # Total offset = 2.3 + 0.7 = 3.0.
-  # Punchline word starts at 3.0 - 3.0 = 0.0.
-  assert result.clip_timing.punchline[0].start_time == pytest.approx(
-    0.0, abs=0.1)
+  # Split at (3.3+4.3)/2 = 3.8, trim 0.5 => offset 4.3.
+  # Punchline word starts at 4.3 - 4.3 = 0.0.
+  assert result.clip_timing.punchline[0].start_time == pytest.approx(0.0,
+                                                                     abs=0.1)
 
 
-def test_generate_joke_audio_clamps_negative_shifted_word_timing(
-    monkeypatch,
-    mock_cloud_storage,
-):
-  """Clip-local timing is clamped to non-negative after split/trim offsets."""
-  timing = joke_operations.audio_timing.TtsTiming(
+def test_split_joke_dialog_wav_by_timing_returns_one_clip_per_voice_segment():
+
+  def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  sr = 24000
+
+  def _tone(sec: float, amp: int = 1000) -> bytes:
+    return array.array("h", [amp] * int(sr * sec)).tobytes()
+
+  def _sil(sec: float) -> bytes:
+    return array.array("h", [0] * int(sr * sec)).tobytes()
+
+  wav_bytes = make_wav_bytes(
+    _tone(0.20) + _sil(0.25) + _tone(0.15) + _sil(0.25) + _tone(0.10),
+    rate=sr,
+  )
+  timing = audio_timing.TtsTiming(
     voice_segments=[
-      joke_operations.audio_timing.VoiceSegment(
+      audio_timing.VoiceSegment(
         voice_id="v1",
         start_time_seconds=0.0,
-        end_time_seconds=0.6,
+        end_time_seconds=0.2,
         word_start_index=0,
         word_end_index=1,
         dialogue_input_index=0,
       ),
-      joke_operations.audio_timing.VoiceSegment(
-        voice_id="v2",
-        start_time_seconds=1.0,
-        end_time_seconds=1.5,
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.45,
+        end_time_seconds=0.60,
         word_start_index=1,
         word_end_index=2,
         dialogue_input_index=1,
       ),
-      joke_operations.audio_timing.VoiceSegment(
-        voice_id="v1",
-        start_time_seconds=2.0,
-        end_time_seconds=2.5,
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=0.85,
+        end_time_seconds=0.95,
         word_start_index=2,
         word_end_index=3,
         dialogue_input_index=2,
       ),
     ],
     normalized_alignment=[
-      joke_operations.audio_timing.WordTiming(
-        "setup",
-        0.1,
-        0.4,
-        char_timings=[
-          joke_operations.audio_timing.CharTiming("s", 0.12, 0.18),
-        ],
+      audio_timing.WordTiming("one", 0.0, 0.2, char_timings=[]),
+      audio_timing.WordTiming("two", 0.45, 0.60, char_timings=[]),
+      audio_timing.WordTiming("three", 0.85, 0.95, char_timings=[]),
+    ],
+  )
+
+  split_wavs, split_timing = joke_operations._split_joke_dialog_wav_by_timing(
+    wav_bytes,
+    timing,
+  )
+
+  assert len(split_wavs) == len(timing.voice_segments)
+  assert len(split_timing) == len(timing.voice_segments)
+  assert all(chunk[:4] == b"RIFF" for chunk in split_wavs)
+  assert split_timing[0][0].start_time == pytest.approx(0.0, abs=0.1)
+  assert split_timing[1][0].start_time == pytest.approx(0.0, abs=0.1)
+  assert split_timing[2][0].start_time == pytest.approx(0.0, abs=0.1)
+
+
+def test_split_joke_dialog_wav_by_timing_does_not_group_by_dialogue_input_index(
+):
+
+  def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  sr = 24000
+
+  def _tone(sec: float, amp: int = 1200) -> bytes:
+    return array.array("h", [amp] * int(sr * sec)).tobytes()
+
+  def _sil(sec: float) -> bytes:
+    return array.array("h", [0] * int(sr * sec)).tobytes()
+
+  wav_bytes = make_wav_bytes(
+    _tone(0.12) + _sil(0.20) + _tone(0.12) + _sil(0.20) + _tone(0.12) +
+    _sil(0.20) + _tone(0.12),
+    rate=sr,
+  )
+  timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.12,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
       ),
-      joke_operations.audio_timing.WordTiming(
-        "response",
-        1.1,
-        1.3,
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.32,
+        end_time_seconds=0.44,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=0.64,
+        end_time_seconds=0.76,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=0.96,
+        end_time_seconds=1.08,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=1,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming("a", 0.0, 0.12, char_timings=[]),
+      audio_timing.WordTiming("b", 0.32, 0.44, char_timings=[]),
+      audio_timing.WordTiming("c", 0.64, 0.76, char_timings=[]),
+      audio_timing.WordTiming("d", 0.96, 1.08, char_timings=[]),
+    ],
+  )
+
+  split_wavs, split_timing = joke_operations._split_joke_dialog_wav_by_timing(
+    wav_bytes,
+    timing,
+  )
+
+  assert len(split_wavs) == len(timing.voice_segments)
+  assert [words[0].word for words in split_timing] == ["a", "b", "c", "d"]
+
+
+def test_generate_joke_audio_clamps_negative_shifted_word_timing(
+  monkeypatch,
+  mock_cloud_storage,
+):
+  """Clip-local timing is clamped to non-negative after split/trim offsets."""
+  timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.2,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.6,
+        end_time_seconds=1.2,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=1.8,
+        end_time_seconds=2.3,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=2.8,
+        end_time_seconds=3.3,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming(
+        "intro",
+        0.0,
+        0.2,
         char_timings=[],
       ),
-      joke_operations.audio_timing.WordTiming(
-        "punchline",
+      audio_timing.WordTiming(
+        "setup",
+        0.7,
+        1.0,
+        char_timings=[
+          audio_timing.CharTiming("s", 0.72, 0.78),
+        ],
+      ),
+      audio_timing.WordTiming(
+        "response",
+        1.9,
         2.1,
-        2.4,
+        char_timings=[],
+      ),
+      audio_timing.WordTiming(
+        "punchline",
+        2.9,
+        3.2,
         char_timings=[],
       ),
     ],
@@ -1856,16 +2110,20 @@ def test_generate_joke_audio_clamps_negative_shifted_word_timing(
     "split_audio",
     Mock(return_value=[
       joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"intro",
+        offset_sec=0.0,
+      ),
+      joke_operations.audio_operations.SplitAudioSegment(
         wav_bytes=b"setup",
         offset_sec=0.8,
       ),
       joke_operations.audio_operations.SplitAudioSegment(
         wav_bytes=b"response",
-        offset_sec=1.0,
+        offset_sec=1.8,
       ),
       joke_operations.audio_operations.SplitAudioSegment(
         wav_bytes=b"punchline",
-        offset_sec=2.0,
+        offset_sec=2.8,
       ),
     ]),
   )
@@ -1881,3 +2139,57 @@ def test_generate_joke_audio_clamps_negative_shifted_word_timing(
   assert result.clip_timing.setup[0].start_time == 0.0
   assert result.clip_timing.setup[0].end_time >= 0.0
   assert result.clip_timing.setup[0].char_timings[0].start_time == 0.0
+
+
+def test_build_lipsync_sequence_uses_actual_audio_duration(
+  monkeypatch,
+  mock_cloud_storage,
+):
+
+  def _make_wav_bytes(duration_sec: float, sr: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(sr)
+      wf.writeframes(array.array("h", [1000] * int(sr * duration_sec)).tobytes())
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  mock_cloud_storage.download_bytes_from_gcs.return_value = _make_wav_bytes(0.5)
+  monkeypatch.setattr(
+    joke_operations.mouth_event_detection,
+    "detect_mouth_events",
+    Mock(return_value=[]),
+  )
+
+  sequence = joke_operations._build_lipsync_sequence(
+    audio_gcs_uri="gs://audio/setup.wav",
+    transcript="Setup",
+    timing=[audio_timing.WordTiming("setup", 0.0, 0.2, char_timings=[])],
+  )
+
+  assert sequence.sequence_sound_events[0].end_time == pytest.approx(0.5,
+                                                                      abs=0.01)
+
+
+def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fails(
+  monkeypatch,
+  mock_cloud_storage,
+):
+  mock_cloud_storage.download_bytes_from_gcs.side_effect = ValueError("missing")
+  monkeypatch.setattr(
+    joke_operations.mouth_event_detection,
+    "detect_mouth_events",
+    Mock(return_value=[]),
+  )
+
+  sequence = joke_operations._build_lipsync_sequence(
+    audio_gcs_uri="gs://audio/setup.wav",
+    transcript="Setup",
+    timing=[audio_timing.WordTiming("setup", 0.0, 0.33, char_timings=[])],
+  )
+
+  assert sequence.sequence_sound_events[0].end_time == pytest.approx(0.33,
+                                                                      abs=0.001)

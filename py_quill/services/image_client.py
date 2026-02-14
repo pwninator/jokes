@@ -310,7 +310,7 @@ def get_client(
   model: ImageModel,
   file_name_base: str,
   **kwargs: Any,
-) -> type[ImageClient]:
+) -> ImageClient[Any]:
   """Get the appropriate image client for the given model."""
   match model.provider:
     case ImageProvider.IMAGEN:
@@ -338,8 +338,6 @@ def get_client(
                                    model=model,
                                    file_name_base=file_name_base,
                                    **kwargs)
-    case _:
-      raise ValueError(f"Unknown image provider: {model.provider}")
 
 
 @dataclass(kw_only=True)
@@ -534,7 +532,7 @@ User UID: {user_uid}
       image.generation_metadata.add_generation(generation_metadata)
       if save_to_firestore:
         logger.info(f"Updating image {image.key} with upscaled version.")
-        firestore.update_image(image)
+        _ = firestore.update_image(image)
       return image
     else:
       new_image = models.Image(
@@ -547,7 +545,7 @@ User UID: {user_uid}
       new_image.generation_metadata.add_generation(generation_metadata)
       if save_to_firestore:
         logger.info("Creating new image with upscaled version.")
-        firestore.create_image(new_image)
+        _ = firestore.create_image(new_image)
       return new_image
 
   def outpaint_image(
@@ -647,7 +645,7 @@ User UID: {user_uid}
 
     if save_to_firestore:
       logger.info("Creating new image with outpainted version.")
-      firestore.create_image(new_image)
+      _ = firestore.create_image(new_image)
 
     return new_image
 

@@ -2,11 +2,12 @@
 
 import json
 from http.cookies import SimpleCookie
-from typing import Any
+from typing import Any, cast
 
+import flask
 from common import config, utils
 from firebase_admin import auth
-from firebase_functions import https_fn, logger
+from firebase_functions import logger
 
 
 class AuthError(Exception):
@@ -38,7 +39,7 @@ def _allowed_origins() -> set[str]:
     }
 
 
-def get_cors_headers(req: https_fn.Request | None) -> dict[str, str]:
+def get_cors_headers(req: flask.Request | None) -> dict[str, str]:
   """Return CORS headers only for allowed origins."""
   if not req:
     return {}
@@ -56,11 +57,11 @@ def get_cors_headers(req: https_fn.Request | None) -> dict[str, str]:
   return {}
 
 
-def handle_cors_preflight(req: https_fn.Request) -> https_fn.Response | None:
+def handle_cors_preflight(req: flask.Request) -> flask.Response | None:
   """Handle OPTIONS requests for CORS preflight."""
   if req.method == "OPTIONS":
     cors_headers = get_cors_headers(req) or _CORS_HEADERS
-    return https_fn.Response(
+    return flask.Response(
       "",
       status=204,
       headers=cors_headers,
@@ -68,16 +69,16 @@ def handle_cors_preflight(req: https_fn.Request) -> https_fn.Response | None:
   return None
 
 
-def handle_health_check(req: https_fn.Request) -> https_fn.Response | None:
+def handle_health_check(req: flask.Request) -> flask.Response | None:
   """Handle health check requests."""
   if req.path == "/__/health":
     cors_headers = get_cors_headers(req)
-    return https_fn.Response("OK", status=200, headers=cors_headers)
+    return flask.Response("OK", status=200, headers=cors_headers)
   return None
 
 
 def get_user_id(
-  req: https_fn.Request,
+  req: flask.Request,
   allow_unauthenticated: bool = False,
   require_admin: bool = False,
 ) -> str | None:
@@ -123,7 +124,7 @@ def _has_admin_role(claims: dict | None) -> bool:
   return bool(claims and claims.get('role') == 'admin')
 
 
-def _get_session_cookie(req: https_fn.Request) -> str | None:
+def _get_session_cookie(req: flask.Request) -> str | None:
   if hasattr(req, "cookies"):
     session_cookie = req.cookies.get(config.SESSION_COOKIE_NAME)
     if session_cookie:
@@ -143,29 +144,32 @@ def _get_session_cookie(req: https_fn.Request) -> str | None:
     return None
 
 
-def _get_session_claims(req: https_fn.Request) -> tuple[str, dict] | None:
+def _get_session_claims(
+    req: flask.Request) -> tuple[str, dict[str, object]] | None:
   session_cookie = _get_session_cookie(req)
   if not session_cookie:
     return None
   try:
-    decoded = auth.verify_session_cookie(session_cookie, check_revoked=True)
+    decoded = cast(
+      dict[str, Any],
+      auth.verify_session_cookie(session_cookie, check_revoked=True))
   except Exception as e:
     raise AuthError("Invalid session cookie") from e
   uid = decoded.get('uid')
   if not uid:
     raise AuthError("Session cookie missing uid claim")
-  return uid, decoded
+  return cast(str, uid), decoded
 
 
 def success_response(
   data: dict[str, Any],
-  req: https_fn.Request | None = None,
+  req: flask.Request | None = None,
   status: int = 200,
-) -> https_fn.Response:
+) -> flask.Response:
   """Return a success response with CORS headers."""
   logger.info(f"Success response: {data}")
   cors_headers = get_cors_headers(req)
-  return https_fn.Response(
+  return flask.Response(
     json.dumps({"data": data}),
     status=status,
     headers=cors_headers,
@@ -177,9 +181,9 @@ def error_response(
   message: str,
   *,
   error_type: str | None = None,
-  req: https_fn.Request | None = None,
+  req: flask.Request | None = None,
   status: int = 500,
-) -> https_fn.Response:
+) -> flask.Response:
   """Return an error response with optional typed error code and CORS headers."""
   logger.error(f"Error response: {message} ({error_type})")
   payload: dict[str, Any] = {"error": message}
@@ -187,7 +191,7 @@ def error_response(
     payload["error_type"] = error_type
 
   cors_headers = get_cors_headers(req)
-  return https_fn.Response(
+  return flask.Response(
     json.dumps({"data": payload}),
     status=status,
     headers=cors_headers,
@@ -197,12 +201,12 @@ def error_response(
 
 def html_response(
   html_content: str,
-  req: https_fn.Request | None = None,
+  req: flask.Request | None = None,
   status: int = 200,
-) -> https_fn.Response:
+) -> flask.Response:
   """Return an HTML response with CORS headers."""
   cors_headers = get_cors_headers(req)
-  return https_fn.Response(
+  return flask.Response(
     html_content,
     status=status,
     headers={
@@ -213,7 +217,7 @@ def html_response(
 
 
 def get_param(
-  req: https_fn.Request,
+  req: flask.Request,
   param_name: str,
   default: Any | None = None,
   required: bool = False,
@@ -239,12 +243,14 @@ def get_param(
   return val
 
 
-def get_list_param(req: https_fn.Request, param_name: str) -> list[str]:
+def get_list_param(req: flask.Request, param_name: str) -> list[str]:
   """Get a list parameter from JSON, form, or query args."""
   if req.is_json:
     json_data = req.get_json()
-    data = json_data.get('data', {}) if isinstance(json_data, dict) else {}
-    value = data.get(param_name, [])
+    data = cast(
+      dict[str, object],
+      json_data.get('data', {}) if isinstance(json_data, dict) else {})
+    value = cast(list[object] | str, data.get(param_name, []))
     if isinstance(value, list):
       return [str(item) for item in value if str(item)]
     if value:
@@ -252,16 +258,7 @@ def get_list_param(req: https_fn.Request, param_name: str) -> list[str]:
     return []
 
   if hasattr(req, "form"):
-    form = req.form
-    getlist = getattr(form, "getlist", None)
-    if callable(getlist):
-      return [str(item) for item in getlist(param_name) if str(item)]
-    if isinstance(form, dict):
-      value = form.get(param_name, [])
-      if isinstance(value, list):
-        return [str(item) for item in value if str(item)]
-      if value:
-        return [str(value)]
+    return [str(item) for item in req.form.getlist(param_name) if str(item)]
 
   if hasattr(req, "args"):
     value = req.args.get(param_name)
@@ -270,8 +267,24 @@ def get_list_param(req: https_fn.Request, param_name: str) -> list[str]:
   return []
 
 
+def get_str_param(
+  req: flask.Request,
+  param_name: str,
+  default: str | None = None,
+  required: bool = False,
+) -> str | None:
+  """Get a string parameter from the request.
+
+  Falls back to the provided default if the parameter is missing.
+  """
+  value = get_param(req, param_name, default, required=required)
+  if value is None:
+    return default
+  return str(value)
+
+
 def get_bool_param(
-  req: https_fn.Request,
+  req: flask.Request,
   param_name: str,
   default: bool = False,
   required: bool = False,
@@ -287,7 +300,7 @@ def get_bool_param(
 
 
 def get_int_param(
-  req: https_fn.Request,
+  req: flask.Request,
   param_name: str,
   default: int = 0,
   required: bool = False,
@@ -309,7 +322,7 @@ def get_int_param(
 
 
 def get_float_param(
-  req: https_fn.Request,
+  req: flask.Request,
   param_name: str,
   default: float = 0.0,
   required: bool = False,

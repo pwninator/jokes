@@ -10,11 +10,11 @@ from firebase_admin import firestore, firestore_async
 from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
                                     FieldFilter, Query, Transaction,
-                                    transactional)
+                                    transactional, AsyncClient, Client)
 from google.cloud.firestore_v1.field_path import FieldPath
 
-_db = None  # pylint: disable=invalid-name
-_async_db = None  # pylint: disable=invalid-name
+_db: Client | None = None  # pylint: disable=invalid-name
+_async_db: AsyncClient | None = None  # pylint: disable=invalid-name
 
 OPERATION = "_operation"
 OPERATION_TIMESTAMP = "_operation_timestamp"
@@ -55,7 +55,7 @@ JOKE_FIELDS_TO_LOG = {
 UNCATEGORIZED_CATEGORY_ID = "_uncategorized"
 
 
-def get_async_db() -> firestore_async.client:
+def get_async_db() -> AsyncClient:
   """Get the firestore async client."""
   global _async_db
   if _async_db is None:
@@ -63,7 +63,7 @@ def get_async_db() -> firestore_async.client:
   return _async_db
 
 
-def db() -> firestore.client:
+def db() -> Client:
   """Get the firestore client."""
   global _db  # pylint: disable=global-statement
   if _db is None:
@@ -1360,8 +1360,7 @@ def delete_character(character_id: str) -> bool:
 
 
 def upsert_posable_character_def(
-  character_def: models.PosableCharacterDef,
-) -> models.PosableCharacterDef:
+  character_def: models.PosableCharacterDef, ) -> models.PosableCharacterDef:
   """Upsert a posable character definition using its existing key."""
   if not character_def.key:
     raise ValueError("PosableCharacterDef key is required for upsert")
@@ -1369,7 +1368,8 @@ def upsert_posable_character_def(
   def_data = character_def.to_dict(include_key=False)
   def_data['last_modification_time'] = SERVER_TIMESTAMP
 
-  def_ref = db().collection('posable_character_defs').document(character_def.key)
+  def_ref = db().collection('posable_character_defs').document(
+    character_def.key)
   if not def_ref.get().exists:
     def_data['creation_time'] = SERVER_TIMESTAMP
   def_ref.set(def_data, merge=True)
@@ -1377,25 +1377,25 @@ def upsert_posable_character_def(
 
 
 def get_posable_character_def(
-  character_def_id: str,
-) -> models.PosableCharacterDef | None:
+  character_def_id: str, ) -> models.PosableCharacterDef | None:
   """Get a posable character definition."""
   if not character_def_id:
     return None
-  doc = db().collection('posable_character_defs').document(character_def_id).get()
+  doc = db().collection('posable_character_defs').document(
+    character_def_id).get()
   if not getattr(doc, 'exists', False):
     return None
 
-  return models.PosableCharacterDef.from_firestore_dict(
-    doc.to_dict() or {}, key=doc.id)
+  return models.PosableCharacterDef.from_firestore_dict(doc.to_dict() or {},
+                                                        key=doc.id)
 
 
 def get_posable_character_defs() -> list[models.PosableCharacterDef]:
   """Get all posable character definitions."""
   docs = db().collection('posable_character_defs').stream()
   return [
-    models.PosableCharacterDef.from_firestore_dict(
-      doc.to_dict(), key=doc.id) for doc in docs if doc.exists
+    models.PosableCharacterDef.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists
   ]
 
 
@@ -1405,7 +1405,8 @@ def get_posable_character_sequence(
   """Get a posable character sequence."""
   if not sequence_id:
     return None
-  doc = db().collection('posable_character_sequences').document(sequence_id).get()
+  doc = db().collection('posable_character_sequences').document(
+    sequence_id).get()
   if not getattr(doc, 'exists', False):
     return None
 

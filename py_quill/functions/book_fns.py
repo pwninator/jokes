@@ -12,10 +12,9 @@ from common import config, models, utils
 from firebase_functions import firestore_fn, https_fn, logger, options
 from functions.prompts import (illustration_descriptions, joke_prompts,
                                reference_material, story)
-from functions.prompts.story_prompt import ReadingLevel
 from google.cloud.firestore import (DELETE_FIELD, SERVER_TIMESTAMP,
                                     CollectionReference, DocumentSnapshot)
-from services import firestore, gen_audio, leonardo, wikipedia
+from services import audio_voices, firestore, gen_audio, leonardo, wikipedia
 from services.llm_client import LlmModel
 
 _NONE = ()
@@ -28,12 +27,12 @@ _ADVANCED_TEXT_MODELS = (
   # LlmModel.GEMINI_2_5_PRO,
   LlmModel.CLAUDE_3_7_SONNET, )
 
-_BASIC_VOICE_MODELS = (gen_audio.Voice.EN_US_STANDARD_FEMALE_1, )
+_BASIC_VOICE_MODELS = (audio_voices.Voice.EN_US_STANDARD_FEMALE_1, )
 # Enhanced voices are now the same as basic, so no point in using them
 # _ENHANCED_VOICE_MODELS = (
-#     gen_audio.Voice.EN_US_NEURAL2_FEMALE_1,
+#     audio_voices.Voice.EN_US_NEURAL2_FEMALE_1,
 # )
-_ADVANCED_VOICE_MODELS = (gen_audio.Voice.EN_US_CHIRP3_HD_FEMALE_LEDA, )
+_ADVANCED_VOICE_MODELS = (audio_voices.Voice.EN_US_CHIRP3_HD_FEMALE_LEDA, )
 
 _NUM_RECENT_STORIES = 50
 
@@ -44,7 +43,7 @@ class StoryMode(enum.Enum):
   def __init__(
     self,
     text_models: list[LlmModel],
-    voice_models: list[gen_audio.Voice],
+    voice_models: list[audio_voices.Voice],
   ):
     self._text_models = text_models
     self._voice_models = voice_models
@@ -55,7 +54,7 @@ class StoryMode(enum.Enum):
     return self._text_models
 
   @property
-  def voice_models(self) -> list[gen_audio.Voice]:
+  def voice_models(self) -> list[audio_voices.Voice]:
     """Get the voice models for this story mode."""
     return self._voice_models
 
@@ -466,7 +465,7 @@ def _generate_page_audio(
   audio_voice_str = book_data.get('audio_voice')
   if audio_voice_str:
     try:
-      audio_voice = gen_audio.Voice[audio_voice_str]
+      audio_voice = audio_voices.Voice[audio_voice_str]
     except KeyError:
       _add_minor_error(book_ref,
                        f"Invalid audio_voice value: {audio_voice_str}.")
@@ -969,7 +968,7 @@ def _populate_book(doc_snapshot: DocumentSnapshot,
 def _get_and_validate_book_params(
   book_data: dict[str, Any],
   doc_snapshot: DocumentSnapshot,
-) -> tuple[str, str, str, list[str], list[str], LlmModel, ReadingLevel]:
+) -> tuple[str, str, str, list[str], list[str], LlmModel, models.ReadingLevel]:
   """Get the book parameters from the book data."""
   if not book_data:
     raise ValueError("No book data found")
@@ -996,8 +995,8 @@ def _get_and_validate_book_params(
   })
 
   reading_level_value = book_data.get('reading_level',
-                                      ReadingLevel.THIRD.value)
-  reading_level = ReadingLevel.from_value(reading_level_value)
+                                      models.ReadingLevel.THIRD.value)
+  reading_level = models.ReadingLevel.from_value(reading_level_value)
 
   return (
     owner_user_id,
@@ -1033,7 +1032,7 @@ def _get_reference_material(
   book_ref: firestore_fn.DocumentReference,
   story_prompt: str,
   characters: list[models.Character],
-  reading_level: ReadingLevel,
+  reading_level: models.ReadingLevel,
   recent_stories: list[dict[str, str]],
 ) -> tuple[str, str, str, dict[str, Any], models.GenerationMetadata]:
   """Get relevant educational reference material for a story prompt.
@@ -1395,8 +1394,8 @@ def _store_jokes_batch(jokes_collection: CollectionReference,
 def _get_models_for_story_mode(
   story_mode: StoryMode | str,
   text_model_override: LlmModel | str | None = None,
-  voice_model_override: gen_audio.Voice | str | None = None,
-) -> tuple[LlmModel, gen_audio.Voice | None]:
+  voice_model_override: audio_voices.Voice | str | None = None,
+) -> tuple[LlmModel, audio_voices.Voice | None]:
   """Get the models for a given story mode.
 
   Args:
@@ -1427,7 +1426,7 @@ def _get_models_for_story_mode(
 
   if voice_model_override:
     if isinstance(voice_model_override, str):
-      voice_model_override = gen_audio.Voice[voice_model_override]
+      voice_model_override = audio_voices.Voice[voice_model_override]
     voice_model = voice_model_override
   elif story_mode.voice_models:
     voice_model = random.choice(story_mode.voice_models)

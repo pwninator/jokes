@@ -165,7 +165,7 @@
       </select>
     </div>
     <div class="turn-grid">
-      {% for idx in range(3) %}
+      {% for idx in range(4) %}
         {% set turn = default_dialog_turns[idx] if default_dialog_turns and (default_dialog_turns|length > idx) else {} %}
         <div class="turn-row">
           <div>
@@ -305,6 +305,12 @@
         elevenVoice: document.getElementById('turn3-voice-eleven'),
         script: document.getElementById('turn3-script'),
         pauseAfter: document.getElementById('turn3-pause-after'),
+      },
+      {
+        geminiVoice: document.getElementById('turn4-voice-gemini'),
+        elevenVoice: document.getElementById('turn4-voice-eleven'),
+        script: document.getElementById('turn4-script'),
+        pauseAfter: document.getElementById('turn4-pause-after'),
       },
     ];
 
@@ -448,8 +454,8 @@
         return;
       }
 
-      // Gemini defaults: keep 1s pauses after setup + response to help splitting.
-      [dialogTurns[0], dialogTurns[1]].forEach((row) => {
+      // Gemini defaults: keep 1s pauses after intro + setup + response.
+      [dialogTurns[0], dialogTurns[1], dialogTurns[2]].forEach((row) => {
         if (!row?.pauseAfter) return;
         if (String(row.pauseAfter.value || '').trim() === '') {
           row.pauseAfter.value = '1.0';

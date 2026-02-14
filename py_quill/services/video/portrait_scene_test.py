@@ -381,29 +381,42 @@ def test_scene_renderer_uses_half_open_image_windows():
 def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
   left_character = _DummyCharacter()
   right_character = _DummyCharacter()
-  intro_timing = [
-    audio_timing.WordTiming("hey", 0.0, 0.3, char_timings=[]),
-    audio_timing.WordTiming("joke", 0.3, 0.6, char_timings=[]),
-  ]
-  setup_timing = [
-    audio_timing.WordTiming("setup", 0.0, 0.5, char_timings=[]),
-  ]
-  response_timing = [
-    audio_timing.WordTiming("what", 0.0, 0.2, char_timings=[]),
-  ]
-  punchline_timing = [
-    audio_timing.WordTiming("punchline", 0.0, 0.5, char_timings=[]),
-  ]
-  character_dialogs = [
-    (left_character, [
-      ("gs://bucket/intro.wav", 0.0, "Hey... want to hear a joke?", intro_timing),
-      ("gs://bucket/setup.wav", 1.6, "Setup line", setup_timing),
-      ("gs://bucket/punchline.wav", 4.0, "Punchline line", punchline_timing),
-    ]),
-    (right_character, [
-      ("gs://bucket/response.wav", 3.0, "what?", response_timing),
-    ]),
-  ]
+  intro_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.6,
+      gcs_uri="gs://bucket/intro.wav",
+      volume=1.0,
+    )
+  ])
+  setup_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.5,
+      gcs_uri="gs://bucket/setup.wav",
+      volume=1.0,
+    )
+  ])
+  response_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.2,
+      gcs_uri="gs://bucket/response.wav",
+      volume=1.0,
+    )
+  ])
+  punchline_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.5,
+      gcs_uri="gs://bucket/punchline.wav",
+      volume=1.0,
+    )
+  ])
+  intro_sequence.validate()
+  setup_sequence.validate()
+  response_sequence.validate()
+  punchline_sequence.validate()
 
   with patch.object(
     _DummyCharacter,
@@ -411,15 +424,14 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
     return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
   ):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
-      joke_images=[
-        ("gs://bucket/setup.png", 0.0),
-        ("gs://bucket/punchline.png", 4.0),
-      ],
-      character_dialogs=character_dialogs,
-      footer_background_gcs_uri="gs://bucket/footer.png",
-      total_duration_sec=6.5,
-      detect_mouth_events_fn=lambda *_args, **_kwargs: [],
-      include_drumming=True,
+      setup_image_gcs_uri="gs://bucket/setup.png",
+      punchline_image_gcs_uri="gs://bucket/punchline.png",
+      teller_character=left_character,
+      listener_character=right_character,
+      intro_sequence=intro_sequence,
+      setup_sequence=setup_sequence,
+      response_sequence=response_sequence,
+      punchline_sequence=punchline_sequence,
       drumming_duration_sec=2.0,
     )
 
@@ -432,7 +444,7 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
     and item.sequence.sequence_left_hand_transform
     and item.sequence.sequence_right_hand_transform
   ]
-  assert len(drumming_items) == 4
+  assert len(drumming_items) == 2
 
   drumming_by_actor: dict[str, list[TimedCharacterSequence]] = {}
   for item in drumming_items:
@@ -441,22 +453,31 @@ def test_build_portrait_joke_scene_script_adds_intro_and_end_drumming():
 
   for actor_items in drumming_by_actor.values():
     actor_items.sort(key=lambda item: float(item.start_time_sec))
-    assert actor_items[0].start_time_sec == pytest.approx(0.6)
-    assert actor_items[0].end_time_sec == pytest.approx(1.6)
-    assert actor_items[1].start_time_sec == pytest.approx(4.5)
-    assert actor_items[1].end_time_sec == pytest.approx(6.5)
+    assert len(actor_items) == 1
+    assert actor_items[0].start_time_sec == pytest.approx(3.6)
+    assert actor_items[0].end_time_sec == pytest.approx(5.6)
 
 
 def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
   character = _DummyCharacter()
-  timing = [
-    audio_timing.WordTiming("hello", 0.0, 0.2, char_timings=[]),
-  ]
-  character_dialogs = [
-    (character, [
-      ("gs://bucket/audio.wav", 0.0, "hello", timing),
-    ]),
-  ]
+  setup_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.2,
+      gcs_uri="gs://bucket/audio.wav",
+      volume=1.0,
+    )
+  ])
+  punchline_sequence = PosableCharacterSequence(sequence_sound_events=[
+    SequenceSoundEvent(
+      start_time=0.0,
+      end_time=0.2,
+      gcs_uri="gs://bucket/audio2.wav",
+      volume=1.0,
+    )
+  ])
+  setup_sequence.validate()
+  punchline_sequence.validate()
 
   with patch.object(
     _DummyCharacter,
@@ -464,19 +485,16 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
     return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
   ):
     script = joke_social_script_builder.build_portrait_joke_scene_script(
-      joke_images=[
-        ("gs://bucket/setup.png", 0.0),
-      ],
-      character_dialogs=character_dialogs,
-      footer_background_gcs_uri="gs://bucket/footer.png",
-      total_duration_sec=1.0,
-      detect_mouth_events_fn=lambda *_args, **_kwargs: [],
-      include_drumming=False,
+      setup_image_gcs_uri="gs://bucket/setup.png",
+      punchline_image_gcs_uri="gs://bucket/punchline.png",
+      teller_character=character,
+      setup_sequence=setup_sequence,
+      punchline_sequence=punchline_sequence,
       drumming_duration_sec=0.0,
     )
 
   image_items = [item for item in script.items if isinstance(item, TimedImage)]
-  assert len(image_items) == 4
+  assert len(image_items) == 5
 
   banner_item = next(item for item in image_items
                      if item.gcs_uri.endswith("icon_words_transparent_light.png"))
@@ -492,7 +510,7 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
   )
 
   footer_items = [item for item in image_items
-                  if item.gcs_uri == "gs://bucket/footer.png"]
+                  if item.gcs_uri.endswith("blank_paper.png")]
   assert len(footer_items) == 2
 
   top_banner_background_item = next(item for item in footer_items

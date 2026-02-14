@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from dataclasses import dataclass
 
-from common import audio_timing
-from common.mouth_events import MouthEvent
-from common.posable_character import MouthState, PosableCharacter
-from common.posable_character_sequence import (PosableCharacterSequence,
-                                               SequenceMouthEvent,
-                                               SequenceSoundEvent)
-from services.video.script import (SceneCanvas, SceneRect, SceneScript,
-                                   TimedCharacterSequence, TimedImage)
+from common.posable_character import PosableCharacter
+from common.posable_character_sequence import PosableCharacterSequence
+from services.video.script import (FitMode, SceneCanvas, SceneRect,
+                                   SceneScript, TimedCharacterSequence,
+                                   TimedImage)
 
 _PORTRAIT_VIDEO_WIDTH_PX = 1080
 _PORTRAIT_VIDEO_HEIGHT_PX = 1920
@@ -20,6 +17,8 @@ _PORTRAIT_CHARACTER_LAYER_Z_INDEX = 30
 _PORTRAIT_BANNER_BACKGROUND_Z_INDEX = 30
 _PORTRAIT_BANNER_LOGO_Z_INDEX = 40
 _PORTRAIT_FOOTER_BACKGROUND_Z_INDEX = 10
+_PORTRAIT_FOOTER_BACKGROUND_GCS_URI = (
+  "gs://images.quillsstorybook.com/_joke_assets/blank_paper.png")
 
 _PORTRAIT_BANNER_HEIGHT_PX = 240
 _PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX = 80
@@ -27,6 +26,7 @@ _PORTRAIT_IMAGE_HEIGHT_PX = 1080
 _PORTRAIT_CHARACTER_GAP_PX = 120
 _PORTRAIT_CHARACTER_BAND_HEIGHT_PX = 300
 _PORTRAIT_BOTTOM_SAFE_MARGIN_PX = 120
+_PORTRAIT_CHARACTER_SIDE_MARGIN_PX = 80
 
 _PORTRAIT_IMAGE_TOP_PX = _PORTRAIT_BANNER_HEIGHT_PX
 _PORTRAIT_IMAGE_BOTTOM_PX = _PORTRAIT_IMAGE_TOP_PX + _PORTRAIT_IMAGE_HEIGHT_PX
@@ -48,7 +48,8 @@ _PORTRAIT_BANNER_RECT = SceneRect(
 _PORTRAIT_BANNER_LOGO_RECT = SceneRect(
   x_px=_PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX,
   y_px=0,
-  width_px=_PORTRAIT_VIDEO_WIDTH_PX - (_PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX * 2),
+  width_px=_PORTRAIT_VIDEO_WIDTH_PX -
+  (_PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX * 2),
   height_px=_PORTRAIT_BANNER_HEIGHT_PX,
 )
 _PORTRAIT_TOP_RECT = SceneRect(
@@ -69,17 +70,28 @@ _PORTRAIT_CHARACTER_RECT = SceneRect(
   width_px=_PORTRAIT_VIDEO_WIDTH_PX,
   height_px=_PORTRAIT_CHARACTER_BAND_HEIGHT_PX,
 )
-_INTRO_DIALOG_TRANSCRIPT = "hey... want to hear a joke?"
+_JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
+_JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
+_VIDEO_TAIL_SEC = 2.0
 
-CharacterDialog = tuple[
-  str,
-  float,
-  str,
-  list[audio_timing.WordTiming] | None,
-]
-CharacterDialogTracks = list[tuple[PosableCharacter | None,
-                                   list[CharacterDialog]]]
-DetectMouthEventsFn = Callable[..., list[MouthEvent]]
+
+@dataclass(frozen=True)
+class PortraitJokeTimeline:
+  """Resolved timeline for a portrait joke scene."""
+
+  intro_start_sec: float | None
+  intro_end_sec: float | None
+  setup_start_sec: float
+  setup_end_sec: float
+  response_start_sec: float | None
+  response_end_sec: float | None
+  punchline_start_sec: float
+  punchline_end_sec: float
+  intro_drumming_start_sec: float | None
+  intro_drumming_end_sec: float | None
+  tail_drumming_start_sec: float | None
+  tail_drumming_end_sec: float | None
+  total_duration_sec: float
 
 
 def _validate_portrait_layout() -> None:
@@ -93,93 +105,80 @@ _validate_portrait_layout()
 
 def build_portrait_joke_scene_script(
   *,
-  joke_images: list[tuple[str, float]],
-  character_dialogs: CharacterDialogTracks,
-  footer_background_gcs_uri: str,
-  total_duration_sec: float,
-  detect_mouth_events_fn: DetectMouthEventsFn,
-  include_drumming: bool = True,
+  setup_image_gcs_uri: str,
+  punchline_image_gcs_uri: str,
+  teller_character: PosableCharacter,
+  setup_sequence: PosableCharacterSequence,
+  punchline_sequence: PosableCharacterSequence,
+  listener_character: PosableCharacter | None = None,
+  intro_sequence: PosableCharacterSequence | None = None,
+  response_sequence: PosableCharacterSequence | None = None,
   drumming_duration_sec: float = 2.0,
 ) -> SceneScript:
-  """Build the portrait joke `SceneScript` with timed images and characters."""
-  image_items = _build_timed_image_items(
-    joke_images,
-    total_duration_sec=float(total_duration_sec),
-    rect=_PORTRAIT_TOP_RECT,
-    fit_mode="fill",
-    z_index=_PORTRAIT_IMAGE_LAYER_Z_INDEX,
+  """Build the portrait joke `SceneScript` from prebuilt character sequences."""
+  timeline = _resolve_portrait_timeline(
+    intro_sequence=intro_sequence,
+    setup_sequence=setup_sequence,
+    response_sequence=response_sequence,
+    punchline_sequence=punchline_sequence,
+    drumming_duration_sec=drumming_duration_sec,
   )
-  image_items.extend(
-    _build_portrait_background_image_items(
-      footer_background_gcs_uri=str(footer_background_gcs_uri),
-      total_duration_sec=float(total_duration_sec),
+
+  timed_images: list[TimedImage] = []
+  timed_images.extend(
+    _build_joke_image_items(
+      setup_image_gcs_uri=str(setup_image_gcs_uri),
+      punchline_image_gcs_uri=str(punchline_image_gcs_uri),
+      timeline=timeline,
     ))
-  return _build_portrait_scene_script(
-    image_items=image_items,
-    character_dialogs=character_dialogs,
-    duration_sec=float(total_duration_sec),
-    include_drumming=bool(include_drumming),
-    drumming_duration_sec=float(drumming_duration_sec),
-    detect_mouth_events_fn=detect_mouth_events_fn,
-  )
+  timed_images.extend(_build_background_image_items(timeline=timeline))
 
-
-def _build_portrait_scene_script(
-  *,
-  image_items: list[TimedImage],
-  character_dialogs: CharacterDialogTracks,
-  duration_sec: float,
-  include_drumming: bool,
-  drumming_duration_sec: float,
-  detect_mouth_events_fn: DetectMouthEventsFn,
-) -> SceneScript:
-  """Build a portrait script by composing image and character layers."""
-  actor_rects = _build_portrait_actor_rects(character_dialogs)
-  character_items = _build_timed_character_sequence_items(
-    character_dialogs,
-    actor_rects=actor_rects,
-    total_duration_sec=float(duration_sec),
-    include_drumming=bool(include_drumming),
-    drumming_duration_sec=float(drumming_duration_sec),
+  character_items = _build_character_dialogs(
+    teller_character=teller_character,
+    listener_character=listener_character,
+    intro_sequence=intro_sequence,
+    setup_sequence=setup_sequence,
+    response_sequence=response_sequence,
+    punchline_sequence=punchline_sequence,
+    timeline=timeline,
     z_index=_PORTRAIT_CHARACTER_LAYER_Z_INDEX,
-    detect_mouth_events_fn=detect_mouth_events_fn,
   )
+
   script = SceneScript(
     canvas=SceneCanvas(
       width_px=_PORTRAIT_VIDEO_WIDTH_PX,
       height_px=_PORTRAIT_VIDEO_HEIGHT_PX,
     ),
-    items=[*image_items, *character_items],
-    duration_sec=float(duration_sec),
+    items=[*timed_images, *character_items],
+    duration_sec=timeline.total_duration_sec,
   )
   script.validate()
   return script
 
 
-def _build_portrait_background_image_items(
+def _build_background_image_items(
   *,
-  footer_background_gcs_uri: str,
-  total_duration_sec: float,
+  timeline: PortraitJokeTimeline,
 ) -> list[TimedImage]:
   """Build static portrait background layers (banner bg, logo, footer bg)."""
   return [
     _build_static_image_item(
-      gcs_uri=str(footer_background_gcs_uri),
-      duration_sec=float(total_duration_sec),
+      gcs_uri=_PORTRAIT_FOOTER_BACKGROUND_GCS_URI,
+      duration_sec=timeline.total_duration_sec,
       z_index=_PORTRAIT_BANNER_BACKGROUND_Z_INDEX,
       rect=_PORTRAIT_BANNER_RECT,
       fit_mode="fill",
     ),
     _build_static_image_item(
       gcs_uri=_PORTRAIT_BANNER_GCS_URI,
-      duration_sec=float(total_duration_sec),
+      duration_sec=timeline.total_duration_sec,
       z_index=_PORTRAIT_BANNER_LOGO_Z_INDEX,
       rect=_PORTRAIT_BANNER_LOGO_RECT,
       fit_mode="contain",
     ),
     _build_static_image_item(
-      gcs_uri=str(footer_background_gcs_uri),
-      duration_sec=float(total_duration_sec),
+      gcs_uri=_PORTRAIT_FOOTER_BACKGROUND_GCS_URI,
+      duration_sec=timeline.total_duration_sec,
       z_index=_PORTRAIT_FOOTER_BACKGROUND_Z_INDEX,
       rect=_PORTRAIT_FOOTER_RECT,
       fit_mode="fill",
@@ -193,7 +192,7 @@ def _build_static_image_item(
   duration_sec: float,
   z_index: int,
   rect: SceneRect,
-  fit_mode: str,
+  fit_mode: FitMode,
 ) -> TimedImage:
   """Build a static image layer spanning the entire script duration."""
   return TimedImage(
@@ -206,59 +205,132 @@ def _build_static_image_item(
   )
 
 
-def _build_timed_image_items(
-  images: list[tuple[str, float]],
+def _build_joke_image_items(
   *,
-  total_duration_sec: float,
-  rect: SceneRect,
-  fit_mode: str,
-  z_index: int,
+  setup_image_gcs_uri: str,
+  punchline_image_gcs_uri: str,
+  timeline: PortraitJokeTimeline,
 ) -> list[TimedImage]:
-  """Convert ordered image starts into timed image items."""
-  items: list[TimedImage] = []
-  for index, (gcs_uri, start_time) in enumerate(images):
-    end_time = float(total_duration_sec)
-    if index < len(images) - 1:
-      end_time = float(images[index + 1][1])
-    items.append(
-      TimedImage(
-        gcs_uri=str(gcs_uri),
-        start_time_sec=float(start_time),
-        end_time_sec=float(end_time),
-        z_index=int(z_index),
-        rect=rect,
-        fit_mode=fit_mode,
-      ))
-  return items
+  """Build timed setup/punchline image items from timeline."""
+  return [
+    TimedImage(
+      gcs_uri=str(setup_image_gcs_uri),
+      start_time_sec=0.0,
+      end_time_sec=float(timeline.punchline_start_sec),
+      z_index=int(_PORTRAIT_IMAGE_LAYER_Z_INDEX),
+      rect=_PORTRAIT_TOP_RECT,
+      fit_mode="fill",
+    ),
+    TimedImage(
+      gcs_uri=str(punchline_image_gcs_uri),
+      start_time_sec=float(timeline.punchline_start_sec),
+      end_time_sec=float(timeline.total_duration_sec),
+      z_index=int(_PORTRAIT_IMAGE_LAYER_Z_INDEX),
+      rect=_PORTRAIT_TOP_RECT,
+      fit_mode="fill",
+    ),
+  ]
 
 
-def _build_timed_character_sequence_items(
-  character_dialogs: CharacterDialogTracks,
+def _resolve_portrait_timeline(
   *,
-  actor_rects: dict[int, SceneRect],
-  total_duration_sec: float,
-  include_drumming: bool,
+  intro_sequence: PosableCharacterSequence | None,
+  setup_sequence: PosableCharacterSequence,
+  response_sequence: PosableCharacterSequence | None,
+  punchline_sequence: PosableCharacterSequence,
   drumming_duration_sec: float,
+) -> PortraitJokeTimeline:
+  """Resolve all key script timestamps, including drumming windows."""
+  intro_start: float | None = None
+  intro_end: float | None = None
+  intro_duration = _sequence_duration_sec(
+    intro_sequence) if intro_sequence is not None else 0.0
+  if intro_sequence is not None:
+    intro_start = 0.0
+    intro_end = float(intro_duration)
+  setup_duration = _sequence_duration_sec(setup_sequence)
+  response_duration = _sequence_duration_sec(
+    response_sequence) if response_sequence is not None else 0.0
+  punchline_duration = _sequence_duration_sec(punchline_sequence)
+
+  setup_start = float(intro_duration)
+  setup_end = float(setup_start + setup_duration)
+  response_start: float | None = None
+  response_end: float | None = None
+  punchline_start = float(setup_end + _JOKE_AUDIO_PUNCHLINE_GAP_SEC)
+  if response_sequence is not None:
+    response_start = float(setup_end + _JOKE_AUDIO_RESPONSE_GAP_SEC)
+    response_end = float(response_start + response_duration)
+    punchline_start = float(response_end + _JOKE_AUDIO_PUNCHLINE_GAP_SEC)
+  punchline_end = float(punchline_start + punchline_duration)
+  total_duration = float(punchline_end + _VIDEO_TAIL_SEC)
+
+  intro_drum_start: float | None = None
+  intro_drum_end: float | None = None
+  if (intro_start is not None and intro_end is not None
+      and setup_start > intro_end):
+    intro_drum_start = float(intro_end)
+    intro_drum_end = float(setup_start)
+
+  tail_drum_start: float | None = None
+  tail_drum_end: float | None = None
+  if float(drumming_duration_sec) > 0:
+    tail_drum_start = max(float(punchline_end),
+                          float(total_duration) - float(drumming_duration_sec))
+    tail_drum_end = float(total_duration)
+
+  return PortraitJokeTimeline(
+    intro_start_sec=intro_start,
+    intro_end_sec=intro_end,
+    setup_start_sec=float(setup_start),
+    setup_end_sec=float(setup_end),
+    response_start_sec=float(response_start)
+    if response_start is not None else None,
+    response_end_sec=float(response_end) if response_end is not None else None,
+    punchline_start_sec=float(punchline_start),
+    punchline_end_sec=float(punchline_end),
+    intro_drumming_start_sec=intro_drum_start,
+    intro_drumming_end_sec=intro_drum_end,
+    tail_drumming_start_sec=tail_drum_start,
+    tail_drumming_end_sec=tail_drum_end,
+    total_duration_sec=float(total_duration),
+  )
+
+
+def _build_character_dialogs(
+  *,
+  teller_character: PosableCharacter,
+  listener_character: PosableCharacter | None,
+  intro_sequence: PosableCharacterSequence | None,
+  setup_sequence: PosableCharacterSequence,
+  response_sequence: PosableCharacterSequence | None,
+  punchline_sequence: PosableCharacterSequence,
+  timeline: PortraitJokeTimeline,
   z_index: int,
-  detect_mouth_events_fn: DetectMouthEventsFn,
 ) -> list[TimedCharacterSequence]:
-  """Compile dialog clips into timed character sequence items."""
+  """Build timed character sequence items for teller/listener tracks."""
+  tracks: list[tuple[PosableCharacter,
+                     list[tuple[float, PosableCharacterSequence]]]] = []
+
+  teller_dialogs: list[tuple[float, PosableCharacterSequence]] = []
+  if intro_sequence is not None:
+    teller_dialogs.append((0.0, intro_sequence))
+  teller_dialogs.extend([
+    (float(timeline.setup_start_sec), setup_sequence),
+    (float(timeline.punchline_start_sec), punchline_sequence),
+  ])
+  tracks.append((teller_character, teller_dialogs))
+
+  if listener_character and response_sequence and timeline.response_start_sec:
+    listener_dialogs = [(timeline.response_start_sec, response_sequence)]
+    tracks.append((listener_character, listener_dialogs))
+
   items: list[TimedCharacterSequence] = []
-  intro_drumming_window = (_resolve_intro_drumming_window(character_dialogs)
-                           if include_drumming else None)
-  for actor_index, (character, dialogs) in enumerate(character_dialogs):
-    if character is None:
-      continue
+  actor_rects = _build_actor_rects_for_tracks(tracks)
+  for actor_index, (character, dialogs) in enumerate(tracks):
     actor_id = f"actor_{actor_index}"
     actor_rect = actor_rects[actor_index]
-    latest_actor_end = 0.0
-    for gcs_uri, start_time, transcript, timing in dialogs:
-      sequence = _build_lipsync_sequence_for_dialog(
-        audio_gcs_uri=str(gcs_uri),
-        transcript=str(transcript),
-        timing=timing,
-        detect_mouth_events_fn=detect_mouth_events_fn,
-      )
+    for start_time, sequence in dialogs:
       duration_sec = _sequence_duration_sec(sequence)
       items.append(
         TimedCharacterSequence(
@@ -271,158 +343,85 @@ def _build_timed_character_sequence_items(
           rect=actor_rect,
           fit_mode="contain",
         ))
-      latest_actor_end = max(latest_actor_end,
-                             float(start_time) + float(duration_sec))
 
-    if intro_drumming_window is not None:
-      intro_start, intro_end = intro_drumming_window
-      if float(intro_end) > float(intro_start):
-        intro_drumming_sequence = _build_drumming_sequence(
-          duration_sec=float(intro_end) - float(intro_start))
-        items.append(
-          TimedCharacterSequence(
-            actor_id=actor_id,
-            character=character,
-            sequence=intro_drumming_sequence,
-            start_time_sec=float(intro_start),
-            end_time_sec=float(intro_end),
-            z_index=int(z_index),
-            rect=actor_rect,
-            fit_mode="contain",
-          ))
+    if (timeline.intro_drumming_start_sec is not None
+        and timeline.intro_drumming_end_sec is not None and
+        timeline.intro_drumming_end_sec > timeline.intro_drumming_start_sec):
+      intro_drumming_sequence = _build_drumming_sequence(
+        duration_sec=float(timeline.intro_drumming_end_sec) -
+        float(timeline.intro_drumming_start_sec))
+      items.append(
+        TimedCharacterSequence(
+          actor_id=actor_id,
+          character=character,
+          sequence=intro_drumming_sequence,
+          start_time_sec=float(timeline.intro_drumming_start_sec),
+          end_time_sec=float(timeline.intro_drumming_end_sec),
+          z_index=int(z_index),
+          rect=actor_rect,
+          fit_mode="contain",
+        ))
 
-    if include_drumming and float(drumming_duration_sec) > 0:
-      start = max(float(latest_actor_end),
-                  float(total_duration_sec) - float(drumming_duration_sec))
-      end = float(total_duration_sec)
-      if end > start:
-        drumming_sequence = _build_drumming_sequence(duration_sec=float(end -
-                                                                        start))
-        items.append(
-          TimedCharacterSequence(
-            actor_id=actor_id,
-            character=character,
-            sequence=drumming_sequence,
-            start_time_sec=float(start),
-            end_time_sec=float(end),
-            z_index=int(z_index),
-            rect=actor_rect,
-            fit_mode="contain",
-          ))
+    if (timeline.tail_drumming_start_sec is not None
+        and timeline.tail_drumming_end_sec is not None
+        and timeline.tail_drumming_end_sec > timeline.tail_drumming_start_sec):
+      tail_drumming_sequence = _build_drumming_sequence(
+        duration_sec=float(timeline.tail_drumming_end_sec) -
+        float(timeline.tail_drumming_start_sec))
+      items.append(
+        TimedCharacterSequence(
+          actor_id=actor_id,
+          character=character,
+          sequence=tail_drumming_sequence,
+          start_time_sec=float(timeline.tail_drumming_start_sec),
+          end_time_sec=float(timeline.tail_drumming_end_sec),
+          z_index=int(z_index),
+          rect=actor_rect,
+          fit_mode="contain",
+        ))
 
   return items
 
 
-def _resolve_intro_drumming_window(
-  character_dialogs: CharacterDialogTracks, ) -> tuple[float, float] | None:
-  """Return the `[start, end)` window between intro and setup line, if present."""
-  intro_token = _normalize_dialog_transcript(_INTRO_DIALOG_TRANSCRIPT)
-  for _character, dialogs in character_dialogs:
-    if len(dialogs) < 2:
-      continue
-    for index in range(len(dialogs) - 1):
-      _intro_gcs_uri, intro_start, intro_transcript, intro_timing = dialogs[
-        index]
-      _setup_gcs_uri, setup_start, _setup_transcript, _setup_timing = dialogs[
-        index + 1]
-      if _normalize_dialog_transcript(intro_transcript) != intro_token:
-        continue
-      intro_end = float(intro_start) + _estimate_dialog_duration_sec(
-        intro_timing)
-      if float(setup_start) > float(intro_end):
-        return float(intro_end), float(setup_start)
-  return None
+def _build_actor_rects_for_tracks(
+  tracks: list[tuple[PosableCharacter, list[tuple[float,
+                                                  PosableCharacterSequence]]]],
+) -> list[SceneRect]:
+  """Build actor rects with proportional horizontal allocation and bottom alignment."""
+  if not tracks:
+    return []
 
+  actor_sizes: list[tuple[int, int]] = []
+  for character, _dialogs in tracks:
+    actor_sizes.append(
+      (character.definition.width, character.definition.height))
 
-def _normalize_dialog_transcript(transcript: str) -> str:
-  letters = [ch for ch in str(transcript).lower() if ch.isalnum()]
-  return "".join(letters)
+  tallest_height = max(height for _width, height in actor_sizes)
+  left_bound = int(_PORTRAIT_CHARACTER_RECT.x_px +
+                   _PORTRAIT_CHARACTER_SIDE_MARGIN_PX)
+  right_bound = int(_PORTRAIT_CHARACTER_RECT.x_px +
+                    _PORTRAIT_CHARACTER_RECT.width_px -
+                    _PORTRAIT_CHARACTER_SIDE_MARGIN_PX)
+  available_width = max(1, right_bound - left_bound)
+  total_width = max(1, sum(width for width, _height in actor_sizes))
 
-
-def _build_lipsync_sequence_for_dialog(
-  *,
-  audio_gcs_uri: str,
-  transcript: str,
-  timing: list[audio_timing.WordTiming] | None,
-  detect_mouth_events_fn: DetectMouthEventsFn,
-) -> PosableCharacterSequence:
-  """Build a single-dialog sequence with local-time mouth and sound events."""
-  sound_end = _estimate_dialog_duration_sec(timing)
-  sound_events = [
-    SequenceSoundEvent(
-      start_time=0.0,
-      end_time=float(sound_end),
-      gcs_uri=str(audio_gcs_uri),
-      volume=1.0,
-    )
-  ]
-
-  mouth_events: list[SequenceMouthEvent] = []
-  if timing:
-    detected_events = detect_mouth_events_fn(
-      b"",
-      mode="timing",
-      transcript=str(transcript),
-      timing=timing,
-    )
-    for event in detected_events:
-      start_time = max(0.0, float(event.start_time))
-      end_time = min(float(sound_end), float(event.end_time))
-      if end_time <= start_time:
-        continue
-      mouth_events.append(
-        SequenceMouthEvent(
-          start_time=start_time,
-          end_time=end_time,
-          mouth_state=event.mouth_shape,
-        ))
-
-  sequence = PosableCharacterSequence(
-    sequence_mouth_state=mouth_events,
-    sequence_sound_events=sound_events,
-  )
-  sequence.validate()
-  return sequence
-
-
-def _build_portrait_actor_rects(
-  character_dialogs: CharacterDialogTracks, ) -> dict[int, SceneRect]:
-  """Resolve deterministic actor rects for footer character placement."""
-  actor_entries = [(index, character)
-                   for index, (character,
-                               _dialogs) in enumerate(character_dialogs)
-                   if character is not None]
-  if not actor_entries:
-    return {}
-
-  spacing = float(
-    _PORTRAIT_CHARACTER_RECT.width_px) / float(len(actor_entries) + 1)
-  actor_rects: dict[int, SceneRect] = {}
-  for slot_index, (actor_index, character) in enumerate(actor_entries):
-    center_x = float(
-      _PORTRAIT_CHARACTER_RECT.x_px) + (spacing * float(slot_index + 1))
-    pose_before = character.pose_state
-    try:
-      character.set_pose(mouth_state=MouthState.OPEN)
-      sprite = character.get_image()
-    finally:
-      character.pose_state = pose_before
-
-    scale = 1.0
-    if sprite.height > _PORTRAIT_CHARACTER_RECT.height_px:
-      scale = float(_PORTRAIT_CHARACTER_RECT.height_px) / float(sprite.height)
-    target_width = max(1, int(round(float(sprite.width) * float(scale))))
-    target_height = max(1, int(round(float(sprite.height) * float(scale))))
-    x = int(round(center_x - (float(target_width) / 2.0)))
-    # Keep the top of each character aligned to a fixed offset below the image.
-    y = int(_PORTRAIT_CHARACTER_RECT.y_px)
-    actor_rects[actor_index] = SceneRect(
-      x_px=x,
-      y_px=y,
-      width_px=target_width,
-      height_px=target_height,
-    )
-  return actor_rects
+  rects: list[SceneRect] = []
+  cursor_x = float(left_bound)
+  for width_px, height_px in actor_sizes:
+    slot_width = float(available_width) * (float(width_px) /
+                                           float(total_width))
+    center_x = cursor_x + (slot_width / 2.0)
+    y = int(_PORTRAIT_CHARACTER_RECT.y_px + (tallest_height - height_px))
+    x = int(round(float(center_x) - (float(width_px) / 2.0)))
+    rects.append(
+      SceneRect(
+        x_px=x,
+        y_px=int(y),
+        width_px=int(width_px),
+        height_px=int(height_px),
+      ))
+    cursor_x += slot_width
+  return rects
 
 
 def _build_drumming_sequence(
@@ -498,14 +497,3 @@ def _sequence_duration_sec(sequence: PosableCharacterSequence) -> float:
     for event in track:
       max_end = max(max_end, float(event.end_time))
   return max_end
-
-
-def _estimate_dialog_duration_sec(
-  timing: list[audio_timing.WordTiming] | None, ) -> float:
-  """Estimate clip duration in seconds from provider timing metadata."""
-  if not timing:
-    return 0.01
-  latest_end = 0.0
-  for word_timing in timing:
-    latest_end = max(latest_end, float(word_timing.end_time))
-  return max(0.01, latest_end)

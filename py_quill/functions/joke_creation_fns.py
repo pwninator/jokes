@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import traceback
 from enum import Enum
+from typing import cast
 
+import flask
 from agents import constants
 from common import (image_generation, joke_notes_sheet_operations,
                     joke_operations, models, posable_character_sequence, utils)
@@ -13,10 +15,10 @@ from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
                                       get_bool_param, get_list_param,
-                                      get_param, get_user_id,
+                                      get_param, get_str_param, get_user_id,
                                       handle_cors_preflight,
                                       handle_health_check, success_response)
-from services import audio_client, cloud_storage, firestore, gen_audio
+from services import audio_client, audio_voices, cloud_storage, firestore
 
 
 class JokeCreationOp(str, Enum):
@@ -36,7 +38,7 @@ class JokeCreationOp(str, Enum):
   min_instances=1,
   timeout_sec=600,
 )
-def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
+def joke_creation_process(req: flask.Request) -> flask.Response:
   """Handle joke creation scenarios for text entry, suggestions, and images."""
   try:
     if response := _handle_admin_request(req):
@@ -101,33 +103,17 @@ def _filter_reference_images(selected_urls: list[str],
 
 
 def _parse_dialog_turn_templates(
-  script_template: object | None, ) -> list[audio_client.DialogTurn] | None:
+  script_template: list[dict[str, object]] | None,
+) -> list[audio_client.DialogTurn] | None:
   """Parse dialog turn templates from request payload."""
   if script_template is None:
     return None
 
-  raw = script_template
-  if isinstance(raw, str):
-    if not raw.strip():
-      return None
-    try:
-      raw = json.loads(raw)
-    except json.JSONDecodeError as exc:
-      raise ValueError(
-        "script_template must be a JSON array of dialog turns") from exc
-
-  if not isinstance(raw, list):
-    raise ValueError("script_template must be a list of dialog turns")
-
   turns: list[audio_client.DialogTurn] = []
-  for idx, item in enumerate(raw):
-    if not isinstance(item, dict):
-      raise ValueError(f"Dialog turn {idx + 1} must be an object")
-
-    voice_raw = (item.get("voice") if isinstance(item, dict) else None)
-    script_raw = (item.get("script") if isinstance(item, dict) else None)
-    pause_after_raw = (item.get("pause_sec_after")
-                       if isinstance(item, dict) else None)
+  for idx, item in enumerate(script_template):
+    voice_raw = item.get("voice")
+    script_raw = item.get("script")
+    pause_after_raw = item.get("pause_sec_after")
 
     voice_str = str(voice_raw or "").strip()
     script_str = str(script_raw or "").strip()
@@ -142,11 +128,13 @@ def _parse_dialog_turn_templates(
     if not script_str:
       raise ValueError(f"Dialog turn {idx + 1} script is required")
 
-    parsed_voice: object
+    parsed_voice: audio_voices.Voice
     try:
-      parsed_voice = gen_audio.Voice.from_identifier(voice_str)
-    except ValueError:
-      parsed_voice = voice_str
+      parsed_voice = audio_voices.Voice.from_identifier(voice_str)
+    except ValueError as exc:
+      raise ValueError(
+        f"Dialog turn {idx + 1} voice must be a valid voice identifier"
+      ) from exc
 
     pause_after: float | None = None
     if pause_after_raw is not None and pause_after_str:
@@ -170,7 +158,27 @@ def _parse_dialog_turn_templates(
   return turns
 
 
-def _handle_admin_request(req: https_fn.Request) -> https_fn.Response | None:
+def _parse_tuner_audio_options(
+  req: flask.Request,
+) -> tuple[list[audio_client.DialogTurn] | None, audio_client.AudioModel
+           | None, bool]:
+  """Parse shared audio-related options for audio/video tuner endpoints."""
+  raw_script_template = get_param(req, 'script_template')
+  script_template_input = cast(list[dict[str, object]], raw_script_template)
+
+  script_template = _parse_dialog_turn_templates(script_template_input)
+  audio_model_value = (get_param(req, 'audio_model') or "").strip()
+  audio_model = None
+  if audio_model_value:
+    try:
+      audio_model = audio_client.AudioModel(audio_model_value)
+    except ValueError as exc:
+      raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
+  allow_partial = get_bool_param(req, "allow_partial", False)
+  return script_template, audio_model, allow_partial
+
+
+def _handle_admin_request(req: flask.Request) -> flask.Response | None:
   if response := handle_cors_preflight(req):
     return response
   if response := handle_health_check(req):
@@ -183,18 +191,18 @@ def _handle_admin_request(req: https_fn.Request) -> https_fn.Response | None:
 
   try:
     if not utils.is_emulator():
-      get_user_id(req, allow_unauthenticated=False, require_admin=True)
+      _ = get_user_id(req, allow_unauthenticated=False, require_admin=True)
   except AuthError:
     return error_response('Unauthorized', status=403, req=req)
 
   return None
 
 
-def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
+def _run_joke_image_tuner(req: flask.Request) -> flask.Response:
   """Generate setup/punchline images for prompt tuning."""
 
-  setup_prompt = (get_param(req, 'setup_image_prompt') or "").strip()
-  punchline_prompt = (get_param(req, 'punchline_image_prompt') or "").strip()
+  setup_prompt = get_str_param(req, 'setup_image_prompt')
+  punchline_prompt = get_str_param(req, 'punchline_image_prompt')
   if not setup_prompt or not punchline_prompt:
     return error_response(
       'setup_image_prompt and punchline_image_prompt are required',
@@ -203,7 +211,8 @@ def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  image_quality = get_param(req, 'image_quality', 'medium_mini')
+  image_quality = get_str_param(req, 'image_quality',
+                                'medium_mini') or 'medium_mini'
   selected_setup_reference_images = _filter_reference_images(
     get_list_param(req, 'setup_reference_images'),
     constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
@@ -264,7 +273,7 @@ def _run_joke_image_tuner(req: https_fn.Request) -> https_fn.Response:
     return error_response(error_string, error_type='internal_error', req=req)
 
 
-def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
+def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
   """Generate joke audio clips (setup/response/punchline) for tuning."""
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}',
@@ -289,20 +298,10 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  allow_partial = get_bool_param(req, "allow_partial", False)
-
   try:
-    script_template = _parse_dialog_turn_templates(
-      get_param(req, 'script_template'))
-    audio_model_value = (get_param(req, 'audio_model') or "").strip()
-    audio_model = None
-    if audio_model_value:
-      try:
-        audio_model = audio_client.AudioModel(audio_model_value)
-      except ValueError as exc:
-        raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
-
-    audio_result = joke_operations.generate_joke_audio(
+    script_template, audio_model, allow_partial = _parse_tuner_audio_options(
+      req)
+    lip_sync = joke_operations.generate_joke_lip_sync_media(
       joke,
       temp_output=True,
       script_template=script_template,
@@ -311,20 +310,16 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
     )
 
     payload: dict[str, object] = {
-      "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
-      "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
-      "response_audio_gcs_uri": audio_result.response_gcs_uri,
-      "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
-      "audio_generation_metadata":
-      audio_result.generation_metadata.as_dict
-      if audio_result.generation_metadata else {},
+      "dialog_audio_gcs_uri": lip_sync.dialog_gcs_uri,
+      "intro_audio_gcs_uri": lip_sync.intro_audio_gcs_uri,
+      "setup_audio_gcs_uri": lip_sync.setup_audio_gcs_uri,
+      "response_audio_gcs_uri": lip_sync.response_audio_gcs_uri,
+      "punchline_audio_gcs_uri": lip_sync.punchline_audio_gcs_uri,
+      "audio_generation_metadata": lip_sync.audio_generation_metadata.as_dict
+      if lip_sync.audio_generation_metadata else {},
     }
-    if allow_partial and (not audio_result.setup_gcs_uri
-                          or not audio_result.response_gcs_uri
-                          or not audio_result.punchline_gcs_uri):
-      payload["error"] = (
-        "Generated dialog audio but could not split on silence; returning the full dialog WAV only."
-      )
+    if allow_partial and lip_sync.partial_error:
+      payload["error"] = lip_sync.partial_error
       payload["error_stage"] = "audio_split"
 
     return success_response(
@@ -343,7 +338,7 @@ def _run_joke_audio_tuner(req: https_fn.Request) -> https_fn.Response:
     return error_response(error_string, error_type='internal_error', req=req)
 
 
-def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
+def _run_joke_video_tuner(req: flask.Request) -> flask.Response:
   """Generate joke video for prompt tuning."""
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}',
@@ -368,100 +363,31 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
       req=req,
     )
 
-  allow_partial = get_bool_param(req, "allow_partial", False)
-  audio_generation_metadata = None
-  generation_metadata = models.GenerationMetadata()
   try:
-    script_template = _parse_dialog_turn_templates(
-      get_param(req, 'script_template'))
-    audio_model_value = (get_param(req, 'audio_model') or "").strip()
-    audio_model = None
-    if audio_model_value:
-      try:
-        audio_model = audio_client.AudioModel(audio_model_value)
-      except ValueError as exc:
-        raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
-
-    audio_result = joke_operations.generate_joke_audio(
+    script_template, audio_model, allow_partial = _parse_tuner_audio_options(
+      req)
+    result = joke_operations.generate_joke_video(
       joke,
       temp_output=True,
       script_template=script_template,
       audio_model=audio_model,
       allow_partial=allow_partial,
     )
-    audio_generation_metadata = audio_result.generation_metadata
-    generation_metadata.add_generation(audio_result.generation_metadata)
-
-    if (not audio_result.setup_gcs_uri or not audio_result.response_gcs_uri
-        or not audio_result.punchline_gcs_uri):
-      if allow_partial:
-        return success_response(
-          {
-            "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
-            "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
-            "response_audio_gcs_uri": audio_result.response_gcs_uri,
-            "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
-            "audio_generation_metadata":
-            audio_result.generation_metadata.as_dict
-            if audio_result.generation_metadata else {},
-            "video_generation_metadata": generation_metadata.as_dict,
-            "error":
-            "Generated dialog audio but could not split on silence; returning the full dialog WAV only.",
-            "error_stage": "audio_split",
-          },
-          req=req,
-        )
-
-      return error_response(
-        "Audio generation did not return split clip URIs",
-        error_type="internal_error",
-        req=req,
-      )
-
-    try:
-      video_gcs_uri, generation_metadata = (
-        joke_operations.generate_joke_video_from_audio_uris(
-          joke,
-          setup_audio_gcs_uri=audio_result.setup_gcs_uri,
-          response_audio_gcs_uri=audio_result.response_gcs_uri,
-          punchline_audio_gcs_uri=audio_result.punchline_gcs_uri,
-          clip_timing=audio_result.clip_timing,
-          audio_generation_metadata=audio_generation_metadata,
-          temp_output=True,
-        ))
-    except Exception as exc:  # pylint: disable=broad-except
-      error_string = f"Error generating video: {exc}"
-      logger.error(f"{error_string}\n{traceback.format_exc()}")
-      if allow_partial:
-        return success_response(
-          {
-            "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
-            "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
-            "response_audio_gcs_uri": audio_result.response_gcs_uri,
-            "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
-            "audio_generation_metadata":
-            audio_result.generation_metadata.as_dict
-            if audio_result.generation_metadata else {},
-            "video_generation_metadata": generation_metadata.as_dict,
-            "error": error_string,
-            "error_stage": "video_generation",
-          },
-          req=req,
-        )
-      raise
 
     return success_response(
       {
-        "video_gcs_uri": video_gcs_uri,
-        "dialog_audio_gcs_uri": audio_result.dialog_gcs_uri,
-        "setup_audio_gcs_uri": audio_result.setup_gcs_uri,
-        "response_audio_gcs_uri": audio_result.response_gcs_uri,
-        "punchline_audio_gcs_uri": audio_result.punchline_gcs_uri,
-        "audio_generation_metadata":
-        audio_result.generation_metadata.as_dict
-        if audio_result.generation_metadata else {},
-        "video_generation_metadata":
-        generation_metadata.as_dict if generation_metadata else {},
+        "video_gcs_uri": result.video_gcs_uri,
+        "dialog_audio_gcs_uri": result.dialog_audio_gcs_uri,
+        "intro_audio_gcs_uri": result.intro_audio_gcs_uri,
+        "setup_audio_gcs_uri": result.setup_audio_gcs_uri,
+        "response_audio_gcs_uri": result.response_audio_gcs_uri,
+        "punchline_audio_gcs_uri": result.punchline_audio_gcs_uri,
+        "audio_generation_metadata": result.audio_generation_metadata.as_dict
+        if result.audio_generation_metadata else {},
+        "video_generation_metadata": result.video_generation_metadata.as_dict
+        if result.video_generation_metadata else {},
+        "error": result.error,
+        "error_stage": result.error_stage,
       },
       req=req,
     )
@@ -471,25 +397,13 @@ def _run_joke_video_tuner(req: https_fn.Request) -> https_fn.Response:
                           status=400,
                           req=req)
   except Exception as exc:  # pylint: disable=broad-except
-    if allow_partial:
-      error_string = f"Error handling joke video tuning: {str(exc)}"
-      logger.error(f"{error_string}\n{traceback.format_exc()}")
-      return success_response(
-        {
-          "video_generation_metadata": generation_metadata.as_dict,
-          "error": error_string,
-          "error_stage": "internal_error",
-        },
-        req=req,
-      )
-
     error_string = (f"Error handling joke video tuning: {str(exc)}\n"
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string, error_type='internal_error', req=req)
 
 
-def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
+def _run_joke_creation_proc(req: flask.Request) -> flask.Response:
   """Handle joke creation process."""
   try:
     user_id = get_user_id(req, allow_unauthenticated=False)
@@ -497,23 +411,24 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
     return error_response('User not authenticated', status=401, req=req)
 
   # Joke input data
-  joke_id = get_param(req, 'joke_id')
-  setup_text = get_param(req, 'setup_text')
-  punchline_text = get_param(req, 'punchline_text')
-  setup_scene_idea = get_param(req, 'setup_scene_idea')
-  punchline_scene_idea = get_param(req, 'punchline_scene_idea')
-  setup_image_description = get_param(req, 'setup_image_description')
-  punchline_image_description = get_param(req, 'punchline_image_description')
-  setup_image_url = get_param(req, 'setup_image_url')
-  punchline_image_url = get_param(req, 'punchline_image_url')
-  raw_seasonal = get_param(req, 'seasonal')
-  raw_tags = get_param(req, 'tags')
+  joke_id = get_str_param(req, 'joke_id')
+  setup_text = get_str_param(req, 'setup_text')
+  punchline_text = get_str_param(req, 'punchline_text')
+  setup_scene_idea = get_str_param(req, 'setup_scene_idea')
+  punchline_scene_idea = get_str_param(req, 'punchline_scene_idea')
+  setup_image_description = get_str_param(req, 'setup_image_description')
+  punchline_image_description = get_str_param(req,
+                                              'punchline_image_description')
+  setup_image_url = get_str_param(req, 'setup_image_url')
+  punchline_image_url = get_str_param(req, 'punchline_image_url')
+  seasonal = get_str_param(req, 'seasonal')
+  tags_str = get_str_param(req, 'tags')
   admin_owned = get_bool_param(req, 'admin_owned', False)
 
   # Modifiers
-  setup_suggestion = get_param(req, 'setup_suggestion')
-  punchline_suggestion = get_param(req, 'punchline_suggestion')
-  image_quality = get_param(req, 'image_quality', 'medium_mini')
+  setup_suggestion = get_str_param(req, 'setup_suggestion')
+  punchline_suggestion = get_str_param(req, 'punchline_suggestion')
+  image_quality = get_str_param(req, 'image_quality', 'medium_mini')
 
   # Action flags
   regenerate_scene_ideas = get_bool_param(req, 'regenerate_scene_ideas', False)
@@ -526,53 +441,38 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
 
   if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
     return error_response(
-      f'Invalid image_quality: {image_quality}. Must be one of: '
+      f'Invalid image_quality: {image_quality}. Must be one of: ' +
       f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}',
       req=req,
       status=400)
 
-  seasonal_provided = raw_seasonal is not None
-  seasonal_value = None
-  seasonal_arg = None
-  if seasonal_provided:
-    seasonal_value = str(raw_seasonal).strip() or None
-    seasonal_arg = seasonal_value if seasonal_value is not None else ''
-
   tags = None
-  tags_provided = raw_tags is not None
-  if tags_provided:
-    if isinstance(raw_tags, str):
-      raw_tags_value = raw_tags.strip()
-      tags = [
-        t.strip() for t in raw_tags_value.replace('\n', ',').split(',')
-        if t.strip()
-      ]
-    else:
-      try:
-        tags = [str(t).strip() for t in raw_tags if str(t).strip()]
-      except TypeError:
-        tags = []
+  if tags_str is not None:
+    tags = [
+      t.strip() for t in tags_str.replace('\n', ',').split(',') if t.strip()
+    ]
 
   # Joke initialization and patching
+  init_kwargs: dict[str, object] = {
+    "joke_id": joke_id,
+    "user_id": user_id,
+    "admin_owned": admin_owned,
+    "setup_text": setup_text,
+    "punchline_text": punchline_text,
+    "setup_scene_idea": setup_scene_idea,
+    "punchline_scene_idea": punchline_scene_idea,
+    "setup_image_description": setup_image_description,
+    "punchline_image_description": punchline_image_description,
+    "setup_image_url": setup_image_url,
+    "punchline_image_url": punchline_image_url,
+  }
+  if seasonal is not None:
+    init_kwargs["seasonal"] = seasonal
+  if tags is not None:
+    init_kwargs["tags"] = tags
   try:
-    init_kwargs = {
-      "joke_id": joke_id,
-      "user_id": user_id,
-      "admin_owned": admin_owned,
-      "setup_text": setup_text,
-      "punchline_text": punchline_text,
-      "setup_scene_idea": setup_scene_idea,
-      "punchline_scene_idea": punchline_scene_idea,
-      "setup_image_description": setup_image_description,
-      "punchline_image_description": punchline_image_description,
-      "setup_image_url": setup_image_url,
-      "punchline_image_url": punchline_image_url,
-    }
-    if seasonal_provided:
-      init_kwargs["seasonal"] = seasonal_arg
-    if tags_provided:
-      init_kwargs["tags"] = tags
-    joke = joke_operations.initialize_joke(**init_kwargs)
+    joke = joke_operations.initialize_joke(
+      **init_kwargs)  # pyright: ignore[reportArgumentType]
   except joke_operations.JokeNotFoundError as exc:
     return error_response(str(exc), req=req, status=404)
   except ValueError:
@@ -585,18 +485,9 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
   operation = None
   has_suggestions = bool(setup_suggestion or punchline_suggestion)
 
-  if seasonal_provided:
-    joke.seasonal = seasonal_value
-  if tags_provided:
-    joke.tags = tags
-
   # Generate metadata if text is provided
   if setup_text or punchline_text:
     joke = joke_operations.generate_joke_metadata(joke)
-    if seasonal_provided:
-      joke.seasonal = seasonal_value
-    if tags_provided:
-      joke.tags = tags
 
   # Generate scene ideas for new jokes or when requested
   if (not joke_id) or regenerate_scene_ideas:
@@ -635,7 +526,7 @@ def _run_joke_creation_proc(req: https_fn.Request) -> https_fn.Response:
     return error_response('Failed to save joke', req=req, status=500)
 
 
-def _run_printable_sheet_proc(req: https_fn.Request) -> https_fn.Response:
+def _run_printable_sheet_proc(req: flask.Request) -> flask.Response:
   """Create a manual printable notes sheet from selected jokes."""
 
   if req.method != 'POST':
@@ -678,7 +569,7 @@ def _run_printable_sheet_proc(req: https_fn.Request) -> https_fn.Response:
   )
 
 
-def _run_character_animation_op(req: https_fn.Request) -> https_fn.Response:
+def _run_character_animation_op(req: flask.Request) -> flask.Response:
   """Upsert a character animation sequence."""
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}',
@@ -719,7 +610,7 @@ def _run_character_animation_op(req: https_fn.Request) -> https_fn.Response:
     return error_response(error_string, error_type="internal_error", req=req)
 
 
-def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
+def _run_character_def_op(req: flask.Request) -> flask.Response:
   """Upsert a posable character definition."""
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}',
@@ -809,8 +700,7 @@ def _run_character_def_op(req: https_fn.Request) -> https_fn.Response:
 
 
 def _validate_character_assets_and_get_dimensions(
-  asset_uris: dict[str, str],
-) -> tuple[int, int]:
+  asset_uris: dict[str, str], ) -> tuple[int, int]:
   """Verify character assets exist, are valid images, and share dimensions.
 
   Note: `surface_line_gcs_uri` is allowed to have different dimensions than the
@@ -826,7 +716,8 @@ def _validate_character_assets_and_get_dimensions(
     image = None
     try:
       image = cloud_storage.download_image_from_gcs(uri)
-      image.load()  # Force decode to fail early on invalid/corrupt images.
+      # Force decode to fail early on invalid/corrupt images.
+      image.load()  # pyright: ignore[reportUnusedCallResult]
       size = image.size
     except Exception as exc:  # pylint: disable=broad-except
       raise ValueError(
@@ -845,8 +736,8 @@ def _validate_character_assets_and_get_dimensions(
 
     if size != expected_size:
       raise ValueError(
-        f"All character assets must have matching dimensions. "
-        f"{field_name} is {size[0]}x{size[1]}, "
+        "All character assets must have matching dimensions. " +
+        f"{field_name} is {size[0]}x{size[1]}, " +
         f"but {expected_field} is {expected_size[0]}x{expected_size[1]}.")
 
   if expected_size is None:

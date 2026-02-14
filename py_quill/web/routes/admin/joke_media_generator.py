@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import flask
-
 from common import joke_operations
 from functions import auth_helpers, joke_creation_fns
-from services import audio_client, gen_audio
+from services import audio_client, audio_voices
 from web.routes import web_bp
 from web.routes.admin import joke_feed_utils
 
@@ -15,7 +14,8 @@ from web.routes.admin import joke_feed_utils
 @auth_helpers.require_admin
 def admin_joke_media_generator():
   """Render the joke media generator (generation happens client-side)."""
-  gemini_voices = gen_audio.Voice.voices_for_model(gen_audio.VoiceModel.GEMINI)
+  gemini_voices = audio_voices.Voice.voices_for_model(
+    audio_voices.VoiceModel.GEMINI)
   gemini_voice_options = [{
     "value":
     voice.name,
@@ -23,8 +23,8 @@ def admin_joke_media_generator():
     f"{voice.voice_name} ({voice.gender.value})",
   } for voice in gemini_voices]
 
-  elevenlabs_voices = gen_audio.Voice.voices_for_model(
-    gen_audio.VoiceModel.ELEVENLABS)
+  elevenlabs_voices = audio_voices.Voice.voices_for_model(
+    audio_voices.VoiceModel.ELEVENLABS)
   elevenlabs_voice_options = [{
     "value":
     voice.name,
@@ -38,7 +38,7 @@ def admin_joke_media_generator():
   } for model in audio_client.AudioModel]
 
   default_dialog_turns = []
-  for turn in joke_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE[:3]:
+  for turn in joke_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE[:4]:
     default_dialog_turns.append({
       "voice":
       str(getattr(turn.voice, "name", turn.voice)),
@@ -57,9 +57,10 @@ def admin_joke_media_generator():
     audio_models=audio_model_options,
     default_audio_model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value,
     default_elevenlabs_voice_names=[
-      gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
-      gen_audio.Voice.ELEVENLABS_MINNIE.name,
-      gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
+      audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
+      audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
+      audio_voices.Voice.ELEVENLABS_MINNIE.name,
+      audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
     ],
     gemini_voices=gemini_voice_options,
     elevenlabs_voices=elevenlabs_voice_options,

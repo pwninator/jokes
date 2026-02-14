@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, override
 
 from common.posable_character import MouthState, Transform
 
@@ -58,6 +58,7 @@ class SequenceMouthEvent(SequenceEvent):
   """Event for mouth state."""
   mouth_state: MouthState
 
+  @override
   def to_dict(self) -> dict[str, Any]:
     data = super().to_dict()
     data["mouth_state"] = self.mouth_state.value
@@ -112,6 +113,7 @@ class SequenceSoundEvent(SequenceEvent):
   gcs_uri: str = ""
   volume: float = 1.0
 
+  @override
   def validate(self) -> None:
     super().validate()
     if float(self.end_time) <= float(self.start_time):
@@ -135,6 +137,7 @@ class PosableCharacterSequence:
   """Complete animation sequence for a posable character."""
 
   key: str | None = None
+  transcript: str | None = None
 
   # Tracks (prefixed with sequence_ for sorting/identification)
   sequence_left_eye_open: list[SequenceBooleanEvent] = field(
@@ -212,13 +215,15 @@ class PosableCharacterSequence:
       event.validate()
       if event.start_time < last_end_time:
         raise ValueError(
-          f"Overlapping events in track '{track_name}' at index {i}: "
+          f"Overlapping events in track '{track_name}' at index {i}: " +
           f"start_time {event.start_time} < previous end_time {last_end_time}")
       last_end_time = event.end_time
 
   def to_dict(self, include_key: bool = False) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     data = {
+      "transcript":
+      self.transcript,
       "sequence_left_eye_open":
       [e.to_dict() for e in self.sequence_left_eye_open],
       "sequence_right_eye_open":
@@ -244,10 +249,12 @@ class PosableCharacterSequence:
       [e.to_dict() for e in self.sequence_surface_line_visible],
       "sequence_head_masking_enabled":
       [e.to_dict() for e in self.sequence_head_masking_enabled],
-      "sequence_left_hand_masking_enabled":
-      [e.to_dict() for e in self.sequence_left_hand_masking_enabled],
-      "sequence_right_hand_masking_enabled":
-      [e.to_dict() for e in self.sequence_right_hand_masking_enabled],
+      "sequence_left_hand_masking_enabled": [
+        e.to_dict() for e in self.sequence_left_hand_masking_enabled
+      ],
+      "sequence_right_hand_masking_enabled": [
+        e.to_dict() for e in self.sequence_right_hand_masking_enabled
+      ],
     }
     if include_key and self.key:
       data["key"] = self.key
@@ -263,6 +270,7 @@ class PosableCharacterSequence:
 
     return cls(
       key=key if key else data.get("key"),
+      transcript=data.get("transcript"),
       sequence_left_eye_open=[
         SequenceBooleanEvent.from_dict(e)
         for e in data.get("sequence_left_eye_open", [])

@@ -8,15 +8,17 @@ import tempfile
 import time
 import traceback
 
-from common import audio_timing, models, utils
+from common import models, utils
 from common.posable_character import PosableCharacter
+from common.posable_character_sequence import PosableCharacterSequence
 from firebase_functions import logger
-from moviepy import (AudioFileClip, CompositeAudioClip, CompositeVideoClip,
-                     ImageClip)
+from moviepy.audio.AudioClip import CompositeAudioClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
+from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+from moviepy.video.VideoClip import ImageClip
 from services import cloud_storage
-from services import mouth_event_detection
-from services.video.scene_video_renderer import generate_scene_video
 from services.video import joke_social_script_builder
+from services.video.scene_video_renderer import generate_scene_video
 
 _DEFAULT_VIDEO_FPS = 24
 
@@ -74,8 +76,8 @@ def create_slideshow_video(
 
   image_clips: list[ImageClip] = []
   audio_clips: list[AudioFileClip] = []
-  video_clip = None
-  audio_composite = None
+  video_clip: CompositeVideoClip | None = None
+  audio_composite: CompositeAudioClip | None = None
 
   try:
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -95,9 +97,8 @@ def create_slideshow_video(
       base_size = _extract_base_size(image_paths)
       image_clips = _create_image_clips(normalized_images, image_paths,
                                         base_size, total_duration_sec)
-      video_clip = CompositeVideoClip(image_clips,
-                                      size=base_size).with_duration(
-                                        float(total_duration_sec))
+      video_clip = CompositeVideoClip(
+        image_clips, size=base_size).with_duration(total_duration_sec)
 
       if audio_paths:
         audio_clips = _create_audio_clips(normalized_audio, audio_paths)
@@ -113,7 +114,7 @@ def create_slideshow_video(
         logger=None,
       )
 
-      cloud_storage.upload_file_to_gcs(
+      _ = cloud_storage.upload_file_to_gcs(
         output_path,
         output_gcs_uri,
         content_type="video/mp4",
@@ -127,7 +128,7 @@ def create_slideshow_video(
         token_counts={
           "num_images": len(normalized_images),
           "num_audio_files": len(normalized_audio),
-          "video_duration_sec": int(float(total_duration_sec)),
+          "video_duration_sec": int(total_duration_sec),
           "output_file_size_bytes": file_size_bytes,
         },
         generation_time_sec=generation_time_sec,
@@ -140,8 +141,7 @@ def create_slideshow_video(
       return output_gcs_uri, metadata
 
   except Exception as e:
-    logger.error("Video generation failed:\n"
-                 f"{traceback.format_exc()}")
+    logger.error(f"Video generation failed:\n{traceback.format_exc()}")
     raise GenVideoError(f"Video generation failed: {e}") from e
   finally:
     for clip in image_clips:
@@ -167,16 +167,16 @@ def create_slideshow_video(
 
 
 def create_portrait_character_video(
-  joke_images: list[tuple[str, float]],
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]],
-  footer_background_gcs_uri: str,
-  total_duration_sec: float,
+  setup_image_gcs_uri: str,
+  punchline_image_gcs_uri: str,
+  teller_character: PosableCharacter,
+  setup_sequence: PosableCharacterSequence,
+  punchline_sequence: PosableCharacterSequence,
   output_filename_base: str,
+  listener_character: PosableCharacter | None = None,
+  intro_sequence: PosableCharacterSequence | None = None,
+  response_sequence: PosableCharacterSequence | None = None,
+  drumming_duration_sec: float = 2.0,
   temp_output: bool = False,
 ) -> tuple[str, models.SingleGenerationMetadata]:
   """Create a portrait video with animated character(s) in the footer.
@@ -198,19 +198,28 @@ def create_portrait_character_video(
     test_uri = f"gs://test_story_video_data/test_portrait_video_{random_suffix}.mp4"
     return test_uri, models.SingleGenerationMetadata()
 
-  normalized_images = _normalize_timed_assets(joke_images,
-                                              label="image",
-                                              allow_empty=False)
-  normalized_dialogs = _normalize_character_dialogs(character_dialogs)
-  flattened_audio = _flatten_character_audio(normalized_dialogs)
+  normalized_images = _normalize_timed_assets(
+    [
+      (setup_image_gcs_uri, 0.0),
+      (punchline_image_gcs_uri, 1.0),
+    ],
+    label="image",
+    allow_empty=False,
+  )
+  flattened_audio: list[tuple[str, float]] = []
+  for sequence in [
+      intro_sequence, setup_sequence, response_sequence, punchline_sequence
+  ]:
+    if sequence is None:
+      continue
+    flattened_audio.extend((sound.gcs_uri, sound.start_time)
+                           for sound in sequence.sequence_sound_events
+                           if sound.gcs_uri.strip())
   normalized_audio = _normalize_timed_assets(flattened_audio,
                                              label="audio",
                                              allow_empty=True)
 
-  _validate_video_duration(total_duration_sec)
   _validate_output_filename(output_filename_base)
-  _validate_image_timing(normalized_images, total_duration_sec)
-  _validate_audio_timing(normalized_audio, total_duration_sec)
 
   output_gcs_uri = cloud_storage.get_video_gcs_uri(
     output_filename_base,
@@ -220,33 +229,37 @@ def create_portrait_character_video(
 
   try:
     script = joke_social_script_builder.build_portrait_joke_scene_script(
-      joke_images=normalized_images,
-      character_dialogs=normalized_dialogs,
-      footer_background_gcs_uri=str(footer_background_gcs_uri),
-      total_duration_sec=float(total_duration_sec),
-      detect_mouth_events_fn=mouth_event_detection.detect_mouth_events,
-      include_drumming=True,
-      drumming_duration_sec=2.0,
+      setup_image_gcs_uri=setup_image_gcs_uri,
+      punchline_image_gcs_uri=punchline_image_gcs_uri,
+      teller_character=teller_character,
+      listener_character=listener_character,
+      intro_sequence=intro_sequence,
+      setup_sequence=setup_sequence,
+      response_sequence=response_sequence,
+      punchline_sequence=punchline_sequence,
+      drumming_duration_sec=drumming_duration_sec,
     )
+    _validate_video_duration(script.duration_sec)
+    _validate_image_timing(normalized_images, script.duration_sec)
+    _validate_audio_timing(normalized_audio, script.duration_sec)
     gcs_uri, metadata = generate_scene_video(
       script=script,
       output_gcs_uri=output_gcs_uri,
       label="create_portrait_character_video",
       fps=_DEFAULT_VIDEO_FPS,
     )
-    _log_video_response(
-      images=normalized_images,
-      audio_files=normalized_audio,
-      gcs_uri=gcs_uri,
-      metadata=metadata,
-      extra_log_data={
-        "num_characters":
-        len([c for c, _ in normalized_dialogs if c is not None]),
-      })
+    _log_video_response(images=normalized_images,
+                        audio_files=normalized_audio,
+                        gcs_uri=gcs_uri,
+                        metadata=metadata,
+                        extra_log_data={
+                          "num_characters":
+                          1 if listener_character is None else 2,
+                        })
     return gcs_uri, metadata
   except Exception as e:
-    logger.error("Portrait video generation failed:\n"
-                 f"{traceback.format_exc()}")
+    logger.error(
+      f"Portrait video generation failed:\n{traceback.format_exc()}")
     raise GenVideoError(f"Portrait video generation failed: {e}") from e
 
 
@@ -273,7 +286,7 @@ def _normalize_timed_assets(
     gcs_uri = str(gcs_uri).strip()
     if not gcs_uri:
       raise GenVideoError(f"{label.title()} GCS URI must be non-empty")
-    cloud_storage.parse_gcs_uri(gcs_uri)
+    _ = cloud_storage.parse_gcs_uri(gcs_uri)
 
     try:
       start_time = float(start_time)
@@ -291,21 +304,14 @@ def _normalize_timed_assets(
 
 
 def _validate_video_duration(total_duration_sec: float) -> None:
-  """Validate that total duration exists, is numeric, and is positive."""
-  if total_duration_sec is None:
-    raise GenVideoError("Total duration must be provided")
-  try:
-    total_duration_sec = float(total_duration_sec)
-  except (TypeError, ValueError) as e:
-    raise GenVideoError(
-      f"Total duration must be a number: {total_duration_sec}") from e
+  """Validate that total duration is positive."""
   if total_duration_sec <= 0:
     raise GenVideoError("Total duration must be greater than 0")
 
 
 def _validate_output_filename(output_filename_base: str) -> None:
   """Validate output filename base is non-empty."""
-  if not str(output_filename_base).strip():
+  if not output_filename_base.strip():
     raise GenVideoError("Output filename base must be non-empty")
 
 
@@ -314,7 +320,7 @@ def _validate_image_timing(images: list[tuple[str, float]],
   """Validate image schedule starts at 0 and is strictly increasing."""
   if images[0][1] > 0:
     raise GenVideoError("First image must start at 0 seconds")
-  if images[-1][1] >= float(total_duration_sec):
+  if images[-1][1] >= total_duration_sec:
     raise GenVideoError(
       "Last image start time must be less than total duration")
 
@@ -323,7 +329,7 @@ def _validate_image_timing(images: list[tuple[str, float]],
     next_start = images[index + 1][1]
     if next_start <= current_start:
       raise GenVideoError(
-        "Image start times must be strictly increasing (index "
+        "Image start times must be strictly increasing (index " +
         f"{index} -> {index + 1})")
 
 
@@ -331,7 +337,7 @@ def _validate_audio_timing(audio_files: list[tuple[str, float]],
                            total_duration_sec: float) -> None:
   """Validate each audio start falls before video end."""
   for index, (_, start_time) in enumerate(audio_files):
-    if float(start_time) >= float(total_duration_sec):
+    if start_time >= total_duration_sec:
       raise GenVideoError(
         f"Audio start time must be less than total duration (index {index})")
 
@@ -351,7 +357,7 @@ def _download_assets_to_temp(
     local_path = os.path.join(temp_dir, f"{prefix}_{index}{extension}")
     content_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
     with open(local_path, "wb") as file_handle:
-      file_handle.write(content_bytes)
+      _ = file_handle.write(content_bytes)
     paths.append(local_path)
   return paths
 
@@ -375,13 +381,12 @@ def _create_image_clips(
 ) -> list[ImageClip]:
   """Create timed image clips that fill the entire slideshow canvas."""
   clips: list[ImageClip] = []
-  for index, (gcs_uri, start_time) in enumerate(images):
+  for index, (_gcs_uri, start_time) in enumerate(images):
     path = image_paths[index]
-    duration = float(total_duration_sec) - float(start_time)
+    duration = total_duration_sec - start_time
     if index < len(images) - 1:
-      duration = float(images[index + 1][1]) - float(start_time)
-    clip = ImageClip(path).with_start(
-      float(start_time)).with_duration(duration)
+      duration = images[index + 1][1] - start_time
+    clip = ImageClip(path).with_start(start_time).with_duration(duration)
     clip = clip.resized(new_size=base_size)
     clips.append(clip)
   return clips
@@ -395,7 +400,7 @@ def _create_audio_clips(
   clips: list[AudioFileClip] = []
   for index, (_gcs_uri, start_time) in enumerate(audio_files):
     path = audio_paths[index]
-    clips.append(AudioFileClip(path).with_start(float(start_time)))
+    clips.append(AudioFileClip(path).with_start(start_time))
   return clips
 
 
@@ -435,90 +440,3 @@ def _log_video_response(
   except Exception:
     # Logging should never fail video generation.
     pass
-
-
-def _normalize_character_dialogs(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]],
-) -> list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-]]]]:
-  """Normalize dialog entries and enforce transcript consistency per clip key."""
-  if character_dialogs is None:
-    raise GenVideoError("character_dialogs must be provided")
-
-  normalized: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]] = []
-  for index, entry in enumerate(character_dialogs):
-    try:
-      character, dialogs = entry
-    except (TypeError, ValueError) as exc:
-      raise GenVideoError(
-        f"Invalid character dialog entry at index {index}: {entry}") from exc
-
-    transcript_by_key: dict[tuple[str, float], str] = {}
-    timing_by_key: dict[tuple[str, float],
-                        list[audio_timing.WordTiming] | None] = {}
-    timed_audio: list[tuple[str, float]] = []
-    for dialog_index, dialog_entry in enumerate(dialogs):
-      try:
-        gcs_uri, start_time, transcript, timing = dialog_entry
-      except (TypeError, ValueError) as exc:
-        raise GenVideoError(
-          "Invalid dialog entry for character at index "
-          f"{index} (dialog {dialog_index}): {dialog_entry}") from exc
-      if transcript is None:
-        raise GenVideoError(
-          "Transcript must be provided for character dialog "
-          f"{gcs_uri} @ {start_time} (character index {index})")
-      transcript_str = str(transcript)
-      key = (str(gcs_uri), float(start_time))
-      if key in transcript_by_key and transcript_by_key[key] != transcript_str:
-        raise GenVideoError(
-          "Duplicate (gcs_uri, start_time) with different transcripts for "
-          f"{gcs_uri} @ {start_time} (character index {index})")
-      transcript_by_key[key] = transcript_str
-      timing_by_key[key] = timing
-      timed_audio.append((str(gcs_uri), float(start_time)))
-
-    normalized_timed_audio = _normalize_timed_assets(
-      timed_audio,
-      label="character audio",
-      allow_empty=True,
-    )
-    normalized_dialogs_with_transcripts = [
-      (gcs_uri, start_time, transcript_by_key[(gcs_uri, start_time)],
-       timing_by_key[(gcs_uri, start_time)])
-      for (gcs_uri, start_time) in normalized_timed_audio
-    ]
-    normalized.append((character, normalized_dialogs_with_transcripts))
-
-  return normalized
-
-
-def _flatten_character_audio(
-  character_dialogs: list[tuple[PosableCharacter | None, list[tuple[
-    str,
-    float,
-    str,
-    list[audio_timing.WordTiming] | None,
-  ]]]],
-) -> list[tuple[str, float]]:
-  """Flatten normalized character dialogs into `(gcs_uri, start_time)` audio."""
-  flattened: list[tuple[str, float]] = []
-  for _, dialogs in character_dialogs:
-    flattened.extend(
-      (gcs_uri, float(start_time)) for gcs_uri, start_time, _, _ in dialogs)
-  return flattened
-

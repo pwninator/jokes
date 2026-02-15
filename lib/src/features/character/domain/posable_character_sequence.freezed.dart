@@ -249,6 +249,525 @@ abstract class _CharacterTransform implements CharacterTransform {
       throw _privateConstructorUsedError;
 }
 
+InitialPoseState _$InitialPoseStateFromJson(Map<String, dynamic> json) {
+  return _InitialPoseState.fromJson(json);
+}
+
+/// @nodoc
+mixin _$InitialPoseState {
+  bool? get leftEyeOpen => throw _privateConstructorUsedError;
+  bool? get rightEyeOpen => throw _privateConstructorUsedError;
+  MouthState? get mouthState => throw _privateConstructorUsedError;
+  bool? get leftHandVisible => throw _privateConstructorUsedError;
+  bool? get rightHandVisible => throw _privateConstructorUsedError;
+  CharacterTransform? get leftHandTransform =>
+      throw _privateConstructorUsedError;
+  CharacterTransform? get rightHandTransform =>
+      throw _privateConstructorUsedError;
+  CharacterTransform? get headTransform => throw _privateConstructorUsedError;
+  double? get surfaceLineOffset => throw _privateConstructorUsedError;
+  double? get maskBoundaryOffset => throw _privateConstructorUsedError;
+  bool? get surfaceLineVisible => throw _privateConstructorUsedError;
+  bool? get headMaskingEnabled => throw _privateConstructorUsedError;
+  bool? get leftHandMaskingEnabled => throw _privateConstructorUsedError;
+  bool? get rightHandMaskingEnabled => throw _privateConstructorUsedError;
+
+  /// Serializes this InitialPoseState to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $InitialPoseStateCopyWith<InitialPoseState> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $InitialPoseStateCopyWith<$Res> {
+  factory $InitialPoseStateCopyWith(
+    InitialPoseState value,
+    $Res Function(InitialPoseState) then,
+  ) = _$InitialPoseStateCopyWithImpl<$Res, InitialPoseState>;
+  @useResult
+  $Res call({
+    bool? leftEyeOpen,
+    bool? rightEyeOpen,
+    MouthState? mouthState,
+    bool? leftHandVisible,
+    bool? rightHandVisible,
+    CharacterTransform? leftHandTransform,
+    CharacterTransform? rightHandTransform,
+    CharacterTransform? headTransform,
+    double? surfaceLineOffset,
+    double? maskBoundaryOffset,
+    bool? surfaceLineVisible,
+    bool? headMaskingEnabled,
+    bool? leftHandMaskingEnabled,
+    bool? rightHandMaskingEnabled,
+  });
+
+  $CharacterTransformCopyWith<$Res>? get leftHandTransform;
+  $CharacterTransformCopyWith<$Res>? get rightHandTransform;
+  $CharacterTransformCopyWith<$Res>? get headTransform;
+}
+
+/// @nodoc
+class _$InitialPoseStateCopyWithImpl<$Res, $Val extends InitialPoseState>
+    implements $InitialPoseStateCopyWith<$Res> {
+  _$InitialPoseStateCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? leftEyeOpen = freezed,
+    Object? rightEyeOpen = freezed,
+    Object? mouthState = freezed,
+    Object? leftHandVisible = freezed,
+    Object? rightHandVisible = freezed,
+    Object? leftHandTransform = freezed,
+    Object? rightHandTransform = freezed,
+    Object? headTransform = freezed,
+    Object? surfaceLineOffset = freezed,
+    Object? maskBoundaryOffset = freezed,
+    Object? surfaceLineVisible = freezed,
+    Object? headMaskingEnabled = freezed,
+    Object? leftHandMaskingEnabled = freezed,
+    Object? rightHandMaskingEnabled = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            leftEyeOpen: freezed == leftEyeOpen
+                ? _value.leftEyeOpen
+                : leftEyeOpen // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            rightEyeOpen: freezed == rightEyeOpen
+                ? _value.rightEyeOpen
+                : rightEyeOpen // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            mouthState: freezed == mouthState
+                ? _value.mouthState
+                : mouthState // ignore: cast_nullable_to_non_nullable
+                      as MouthState?,
+            leftHandVisible: freezed == leftHandVisible
+                ? _value.leftHandVisible
+                : leftHandVisible // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            rightHandVisible: freezed == rightHandVisible
+                ? _value.rightHandVisible
+                : rightHandVisible // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            leftHandTransform: freezed == leftHandTransform
+                ? _value.leftHandTransform
+                : leftHandTransform // ignore: cast_nullable_to_non_nullable
+                      as CharacterTransform?,
+            rightHandTransform: freezed == rightHandTransform
+                ? _value.rightHandTransform
+                : rightHandTransform // ignore: cast_nullable_to_non_nullable
+                      as CharacterTransform?,
+            headTransform: freezed == headTransform
+                ? _value.headTransform
+                : headTransform // ignore: cast_nullable_to_non_nullable
+                      as CharacterTransform?,
+            surfaceLineOffset: freezed == surfaceLineOffset
+                ? _value.surfaceLineOffset
+                : surfaceLineOffset // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            maskBoundaryOffset: freezed == maskBoundaryOffset
+                ? _value.maskBoundaryOffset
+                : maskBoundaryOffset // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            surfaceLineVisible: freezed == surfaceLineVisible
+                ? _value.surfaceLineVisible
+                : surfaceLineVisible // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            headMaskingEnabled: freezed == headMaskingEnabled
+                ? _value.headMaskingEnabled
+                : headMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            leftHandMaskingEnabled: freezed == leftHandMaskingEnabled
+                ? _value.leftHandMaskingEnabled
+                : leftHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            rightHandMaskingEnabled: freezed == rightHandMaskingEnabled
+                ? _value.rightHandMaskingEnabled
+                : rightHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+          )
+          as $Val,
+    );
+  }
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CharacterTransformCopyWith<$Res>? get leftHandTransform {
+    if (_value.leftHandTransform == null) {
+      return null;
+    }
+
+    return $CharacterTransformCopyWith<$Res>(_value.leftHandTransform!, (
+      value,
+    ) {
+      return _then(_value.copyWith(leftHandTransform: value) as $Val);
+    });
+  }
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CharacterTransformCopyWith<$Res>? get rightHandTransform {
+    if (_value.rightHandTransform == null) {
+      return null;
+    }
+
+    return $CharacterTransformCopyWith<$Res>(_value.rightHandTransform!, (
+      value,
+    ) {
+      return _then(_value.copyWith(rightHandTransform: value) as $Val);
+    });
+  }
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CharacterTransformCopyWith<$Res>? get headTransform {
+    if (_value.headTransform == null) {
+      return null;
+    }
+
+    return $CharacterTransformCopyWith<$Res>(_value.headTransform!, (value) {
+      return _then(_value.copyWith(headTransform: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$InitialPoseStateImplCopyWith<$Res>
+    implements $InitialPoseStateCopyWith<$Res> {
+  factory _$$InitialPoseStateImplCopyWith(
+    _$InitialPoseStateImpl value,
+    $Res Function(_$InitialPoseStateImpl) then,
+  ) = __$$InitialPoseStateImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    bool? leftEyeOpen,
+    bool? rightEyeOpen,
+    MouthState? mouthState,
+    bool? leftHandVisible,
+    bool? rightHandVisible,
+    CharacterTransform? leftHandTransform,
+    CharacterTransform? rightHandTransform,
+    CharacterTransform? headTransform,
+    double? surfaceLineOffset,
+    double? maskBoundaryOffset,
+    bool? surfaceLineVisible,
+    bool? headMaskingEnabled,
+    bool? leftHandMaskingEnabled,
+    bool? rightHandMaskingEnabled,
+  });
+
+  @override
+  $CharacterTransformCopyWith<$Res>? get leftHandTransform;
+  @override
+  $CharacterTransformCopyWith<$Res>? get rightHandTransform;
+  @override
+  $CharacterTransformCopyWith<$Res>? get headTransform;
+}
+
+/// @nodoc
+class __$$InitialPoseStateImplCopyWithImpl<$Res>
+    extends _$InitialPoseStateCopyWithImpl<$Res, _$InitialPoseStateImpl>
+    implements _$$InitialPoseStateImplCopyWith<$Res> {
+  __$$InitialPoseStateImplCopyWithImpl(
+    _$InitialPoseStateImpl _value,
+    $Res Function(_$InitialPoseStateImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? leftEyeOpen = freezed,
+    Object? rightEyeOpen = freezed,
+    Object? mouthState = freezed,
+    Object? leftHandVisible = freezed,
+    Object? rightHandVisible = freezed,
+    Object? leftHandTransform = freezed,
+    Object? rightHandTransform = freezed,
+    Object? headTransform = freezed,
+    Object? surfaceLineOffset = freezed,
+    Object? maskBoundaryOffset = freezed,
+    Object? surfaceLineVisible = freezed,
+    Object? headMaskingEnabled = freezed,
+    Object? leftHandMaskingEnabled = freezed,
+    Object? rightHandMaskingEnabled = freezed,
+  }) {
+    return _then(
+      _$InitialPoseStateImpl(
+        leftEyeOpen: freezed == leftEyeOpen
+            ? _value.leftEyeOpen
+            : leftEyeOpen // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        rightEyeOpen: freezed == rightEyeOpen
+            ? _value.rightEyeOpen
+            : rightEyeOpen // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        mouthState: freezed == mouthState
+            ? _value.mouthState
+            : mouthState // ignore: cast_nullable_to_non_nullable
+                  as MouthState?,
+        leftHandVisible: freezed == leftHandVisible
+            ? _value.leftHandVisible
+            : leftHandVisible // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        rightHandVisible: freezed == rightHandVisible
+            ? _value.rightHandVisible
+            : rightHandVisible // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        leftHandTransform: freezed == leftHandTransform
+            ? _value.leftHandTransform
+            : leftHandTransform // ignore: cast_nullable_to_non_nullable
+                  as CharacterTransform?,
+        rightHandTransform: freezed == rightHandTransform
+            ? _value.rightHandTransform
+            : rightHandTransform // ignore: cast_nullable_to_non_nullable
+                  as CharacterTransform?,
+        headTransform: freezed == headTransform
+            ? _value.headTransform
+            : headTransform // ignore: cast_nullable_to_non_nullable
+                  as CharacterTransform?,
+        surfaceLineOffset: freezed == surfaceLineOffset
+            ? _value.surfaceLineOffset
+            : surfaceLineOffset // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        maskBoundaryOffset: freezed == maskBoundaryOffset
+            ? _value.maskBoundaryOffset
+            : maskBoundaryOffset // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        surfaceLineVisible: freezed == surfaceLineVisible
+            ? _value.surfaceLineVisible
+            : surfaceLineVisible // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        headMaskingEnabled: freezed == headMaskingEnabled
+            ? _value.headMaskingEnabled
+            : headMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        leftHandMaskingEnabled: freezed == leftHandMaskingEnabled
+            ? _value.leftHandMaskingEnabled
+            : leftHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        rightHandMaskingEnabled: freezed == rightHandMaskingEnabled
+            ? _value.rightHandMaskingEnabled
+            : rightHandMaskingEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _$InitialPoseStateImpl implements _InitialPoseState {
+  const _$InitialPoseStateImpl({
+    this.leftEyeOpen,
+    this.rightEyeOpen,
+    this.mouthState,
+    this.leftHandVisible,
+    this.rightHandVisible,
+    this.leftHandTransform,
+    this.rightHandTransform,
+    this.headTransform,
+    this.surfaceLineOffset,
+    this.maskBoundaryOffset,
+    this.surfaceLineVisible,
+    this.headMaskingEnabled,
+    this.leftHandMaskingEnabled,
+    this.rightHandMaskingEnabled,
+  });
+
+  factory _$InitialPoseStateImpl.fromJson(Map<String, dynamic> json) =>
+      _$$InitialPoseStateImplFromJson(json);
+
+  @override
+  final bool? leftEyeOpen;
+  @override
+  final bool? rightEyeOpen;
+  @override
+  final MouthState? mouthState;
+  @override
+  final bool? leftHandVisible;
+  @override
+  final bool? rightHandVisible;
+  @override
+  final CharacterTransform? leftHandTransform;
+  @override
+  final CharacterTransform? rightHandTransform;
+  @override
+  final CharacterTransform? headTransform;
+  @override
+  final double? surfaceLineOffset;
+  @override
+  final double? maskBoundaryOffset;
+  @override
+  final bool? surfaceLineVisible;
+  @override
+  final bool? headMaskingEnabled;
+  @override
+  final bool? leftHandMaskingEnabled;
+  @override
+  final bool? rightHandMaskingEnabled;
+
+  @override
+  String toString() {
+    return 'InitialPoseState(leftEyeOpen: $leftEyeOpen, rightEyeOpen: $rightEyeOpen, mouthState: $mouthState, leftHandVisible: $leftHandVisible, rightHandVisible: $rightHandVisible, leftHandTransform: $leftHandTransform, rightHandTransform: $rightHandTransform, headTransform: $headTransform, surfaceLineOffset: $surfaceLineOffset, maskBoundaryOffset: $maskBoundaryOffset, surfaceLineVisible: $surfaceLineVisible, headMaskingEnabled: $headMaskingEnabled, leftHandMaskingEnabled: $leftHandMaskingEnabled, rightHandMaskingEnabled: $rightHandMaskingEnabled)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$InitialPoseStateImpl &&
+            (identical(other.leftEyeOpen, leftEyeOpen) ||
+                other.leftEyeOpen == leftEyeOpen) &&
+            (identical(other.rightEyeOpen, rightEyeOpen) ||
+                other.rightEyeOpen == rightEyeOpen) &&
+            (identical(other.mouthState, mouthState) ||
+                other.mouthState == mouthState) &&
+            (identical(other.leftHandVisible, leftHandVisible) ||
+                other.leftHandVisible == leftHandVisible) &&
+            (identical(other.rightHandVisible, rightHandVisible) ||
+                other.rightHandVisible == rightHandVisible) &&
+            (identical(other.leftHandTransform, leftHandTransform) ||
+                other.leftHandTransform == leftHandTransform) &&
+            (identical(other.rightHandTransform, rightHandTransform) ||
+                other.rightHandTransform == rightHandTransform) &&
+            (identical(other.headTransform, headTransform) ||
+                other.headTransform == headTransform) &&
+            (identical(other.surfaceLineOffset, surfaceLineOffset) ||
+                other.surfaceLineOffset == surfaceLineOffset) &&
+            (identical(other.maskBoundaryOffset, maskBoundaryOffset) ||
+                other.maskBoundaryOffset == maskBoundaryOffset) &&
+            (identical(other.surfaceLineVisible, surfaceLineVisible) ||
+                other.surfaceLineVisible == surfaceLineVisible) &&
+            (identical(other.headMaskingEnabled, headMaskingEnabled) ||
+                other.headMaskingEnabled == headMaskingEnabled) &&
+            (identical(other.leftHandMaskingEnabled, leftHandMaskingEnabled) ||
+                other.leftHandMaskingEnabled == leftHandMaskingEnabled) &&
+            (identical(
+                  other.rightHandMaskingEnabled,
+                  rightHandMaskingEnabled,
+                ) ||
+                other.rightHandMaskingEnabled == rightHandMaskingEnabled));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    leftEyeOpen,
+    rightEyeOpen,
+    mouthState,
+    leftHandVisible,
+    rightHandVisible,
+    leftHandTransform,
+    rightHandTransform,
+    headTransform,
+    surfaceLineOffset,
+    maskBoundaryOffset,
+    surfaceLineVisible,
+    headMaskingEnabled,
+    leftHandMaskingEnabled,
+    rightHandMaskingEnabled,
+  );
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$InitialPoseStateImplCopyWith<_$InitialPoseStateImpl> get copyWith =>
+      __$$InitialPoseStateImplCopyWithImpl<_$InitialPoseStateImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$InitialPoseStateImplToJson(this);
+  }
+}
+
+abstract class _InitialPoseState implements InitialPoseState {
+  const factory _InitialPoseState({
+    final bool? leftEyeOpen,
+    final bool? rightEyeOpen,
+    final MouthState? mouthState,
+    final bool? leftHandVisible,
+    final bool? rightHandVisible,
+    final CharacterTransform? leftHandTransform,
+    final CharacterTransform? rightHandTransform,
+    final CharacterTransform? headTransform,
+    final double? surfaceLineOffset,
+    final double? maskBoundaryOffset,
+    final bool? surfaceLineVisible,
+    final bool? headMaskingEnabled,
+    final bool? leftHandMaskingEnabled,
+    final bool? rightHandMaskingEnabled,
+  }) = _$InitialPoseStateImpl;
+
+  factory _InitialPoseState.fromJson(Map<String, dynamic> json) =
+      _$InitialPoseStateImpl.fromJson;
+
+  @override
+  bool? get leftEyeOpen;
+  @override
+  bool? get rightEyeOpen;
+  @override
+  MouthState? get mouthState;
+  @override
+  bool? get leftHandVisible;
+  @override
+  bool? get rightHandVisible;
+  @override
+  CharacterTransform? get leftHandTransform;
+  @override
+  CharacterTransform? get rightHandTransform;
+  @override
+  CharacterTransform? get headTransform;
+  @override
+  double? get surfaceLineOffset;
+  @override
+  double? get maskBoundaryOffset;
+  @override
+  bool? get surfaceLineVisible;
+  @override
+  bool? get headMaskingEnabled;
+  @override
+  bool? get leftHandMaskingEnabled;
+  @override
+  bool? get rightHandMaskingEnabled;
+
+  /// Create a copy of InitialPoseState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$InitialPoseStateImplCopyWith<_$InitialPoseStateImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 SequenceBooleanEvent _$SequenceBooleanEventFromJson(Map<String, dynamic> json) {
   return _SequenceBooleanEvent.fromJson(json);
 }
@@ -1316,6 +1835,7 @@ PosableCharacterSequence _$PosableCharacterSequenceFromJson(
 /// @nodoc
 mixin _$PosableCharacterSequence {
   String? get key => throw _privateConstructorUsedError;
+  InitialPoseState? get initialPose => throw _privateConstructorUsedError;
   List<SequenceBooleanEvent> get sequenceLeftEyeOpen =>
       throw _privateConstructorUsedError;
   List<SequenceBooleanEvent> get sequenceRightEyeOpen =>
@@ -1366,6 +1886,7 @@ abstract class $PosableCharacterSequenceCopyWith<$Res> {
   @useResult
   $Res call({
     String? key,
+    InitialPoseState? initialPose,
     List<SequenceBooleanEvent> sequenceLeftEyeOpen,
     List<SequenceBooleanEvent> sequenceRightEyeOpen,
     List<SequenceMouthEvent> sequenceMouthState,
@@ -1382,6 +1903,8 @@ abstract class $PosableCharacterSequenceCopyWith<$Res> {
     List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled,
     List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled,
   });
+
+  $InitialPoseStateCopyWith<$Res>? get initialPose;
 }
 
 /// @nodoc
@@ -1403,6 +1926,7 @@ class _$PosableCharacterSequenceCopyWithImpl<
   @override
   $Res call({
     Object? key = freezed,
+    Object? initialPose = freezed,
     Object? sequenceLeftEyeOpen = null,
     Object? sequenceRightEyeOpen = null,
     Object? sequenceMouthState = null,
@@ -1425,6 +1949,10 @@ class _$PosableCharacterSequenceCopyWithImpl<
                 ? _value.key
                 : key // ignore: cast_nullable_to_non_nullable
                       as String?,
+            initialPose: freezed == initialPose
+                ? _value.initialPose
+                : initialPose // ignore: cast_nullable_to_non_nullable
+                      as InitialPoseState?,
             sequenceLeftEyeOpen: null == sequenceLeftEyeOpen
                 ? _value.sequenceLeftEyeOpen
                 : sequenceLeftEyeOpen // ignore: cast_nullable_to_non_nullable
@@ -1491,6 +2019,20 @@ class _$PosableCharacterSequenceCopyWithImpl<
           as $Val,
     );
   }
+
+  /// Create a copy of PosableCharacterSequence
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $InitialPoseStateCopyWith<$Res>? get initialPose {
+    if (_value.initialPose == null) {
+      return null;
+    }
+
+    return $InitialPoseStateCopyWith<$Res>(_value.initialPose!, (value) {
+      return _then(_value.copyWith(initialPose: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -1504,6 +2046,7 @@ abstract class _$$PosableCharacterSequenceImplCopyWith<$Res>
   @useResult
   $Res call({
     String? key,
+    InitialPoseState? initialPose,
     List<SequenceBooleanEvent> sequenceLeftEyeOpen,
     List<SequenceBooleanEvent> sequenceRightEyeOpen,
     List<SequenceMouthEvent> sequenceMouthState,
@@ -1520,6 +2063,9 @@ abstract class _$$PosableCharacterSequenceImplCopyWith<$Res>
     List<SequenceBooleanEvent> sequenceLeftHandMaskingEnabled,
     List<SequenceBooleanEvent> sequenceRightHandMaskingEnabled,
   });
+
+  @override
+  $InitialPoseStateCopyWith<$Res>? get initialPose;
 }
 
 /// @nodoc
@@ -1541,6 +2087,7 @@ class __$$PosableCharacterSequenceImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? key = freezed,
+    Object? initialPose = freezed,
     Object? sequenceLeftEyeOpen = null,
     Object? sequenceRightEyeOpen = null,
     Object? sequenceMouthState = null,
@@ -1563,6 +2110,10 @@ class __$$PosableCharacterSequenceImplCopyWithImpl<$Res>
             ? _value.key
             : key // ignore: cast_nullable_to_non_nullable
                   as String?,
+        initialPose: freezed == initialPose
+            ? _value.initialPose
+            : initialPose // ignore: cast_nullable_to_non_nullable
+                  as InitialPoseState?,
         sequenceLeftEyeOpen: null == sequenceLeftEyeOpen
             ? _value._sequenceLeftEyeOpen
             : sequenceLeftEyeOpen // ignore: cast_nullable_to_non_nullable
@@ -1634,6 +2185,7 @@ class __$$PosableCharacterSequenceImplCopyWithImpl<$Res>
 class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
   const _$PosableCharacterSequenceImpl({
     this.key,
+    this.initialPose,
     final List<SequenceBooleanEvent> sequenceLeftEyeOpen = const [],
     final List<SequenceBooleanEvent> sequenceRightEyeOpen = const [],
     final List<SequenceMouthEvent> sequenceMouthState = const [],
@@ -1670,6 +2222,8 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
 
   @override
   final String? key;
+  @override
+  final InitialPoseState? initialPose;
   final List<SequenceBooleanEvent> _sequenceLeftEyeOpen;
   @override
   @JsonKey()
@@ -1822,7 +2376,7 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
 
   @override
   String toString() {
-    return 'PosableCharacterSequence(key: $key, sequenceLeftEyeOpen: $sequenceLeftEyeOpen, sequenceRightEyeOpen: $sequenceRightEyeOpen, sequenceMouthState: $sequenceMouthState, sequenceLeftHandVisible: $sequenceLeftHandVisible, sequenceRightHandVisible: $sequenceRightHandVisible, sequenceLeftHandTransform: $sequenceLeftHandTransform, sequenceRightHandTransform: $sequenceRightHandTransform, sequenceHeadTransform: $sequenceHeadTransform, sequenceSurfaceLineOffset: $sequenceSurfaceLineOffset, sequenceMaskBoundaryOffset: $sequenceMaskBoundaryOffset, sequenceSoundEvents: $sequenceSoundEvents, sequenceSurfaceLineVisible: $sequenceSurfaceLineVisible, sequenceHeadMaskingEnabled: $sequenceHeadMaskingEnabled, sequenceLeftHandMaskingEnabled: $sequenceLeftHandMaskingEnabled, sequenceRightHandMaskingEnabled: $sequenceRightHandMaskingEnabled)';
+    return 'PosableCharacterSequence(key: $key, initialPose: $initialPose, sequenceLeftEyeOpen: $sequenceLeftEyeOpen, sequenceRightEyeOpen: $sequenceRightEyeOpen, sequenceMouthState: $sequenceMouthState, sequenceLeftHandVisible: $sequenceLeftHandVisible, sequenceRightHandVisible: $sequenceRightHandVisible, sequenceLeftHandTransform: $sequenceLeftHandTransform, sequenceRightHandTransform: $sequenceRightHandTransform, sequenceHeadTransform: $sequenceHeadTransform, sequenceSurfaceLineOffset: $sequenceSurfaceLineOffset, sequenceMaskBoundaryOffset: $sequenceMaskBoundaryOffset, sequenceSoundEvents: $sequenceSoundEvents, sequenceSurfaceLineVisible: $sequenceSurfaceLineVisible, sequenceHeadMaskingEnabled: $sequenceHeadMaskingEnabled, sequenceLeftHandMaskingEnabled: $sequenceLeftHandMaskingEnabled, sequenceRightHandMaskingEnabled: $sequenceRightHandMaskingEnabled)';
   }
 
   @override
@@ -1831,6 +2385,8 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
         (other.runtimeType == runtimeType &&
             other is _$PosableCharacterSequenceImpl &&
             (identical(other.key, key) || other.key == key) &&
+            (identical(other.initialPose, initialPose) ||
+                other.initialPose == initialPose) &&
             const DeepCollectionEquality().equals(
               other._sequenceLeftEyeOpen,
               _sequenceLeftEyeOpen,
@@ -1898,6 +2454,7 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
   int get hashCode => Object.hash(
     runtimeType,
     key,
+    initialPose,
     const DeepCollectionEquality().hash(_sequenceLeftEyeOpen),
     const DeepCollectionEquality().hash(_sequenceRightEyeOpen),
     const DeepCollectionEquality().hash(_sequenceMouthState),
@@ -1935,6 +2492,7 @@ class _$PosableCharacterSequenceImpl implements _PosableCharacterSequence {
 abstract class _PosableCharacterSequence implements PosableCharacterSequence {
   const factory _PosableCharacterSequence({
     final String? key,
+    final InitialPoseState? initialPose,
     final List<SequenceBooleanEvent> sequenceLeftEyeOpen,
     final List<SequenceBooleanEvent> sequenceRightEyeOpen,
     final List<SequenceMouthEvent> sequenceMouthState,
@@ -1957,6 +2515,8 @@ abstract class _PosableCharacterSequence implements PosableCharacterSequence {
 
   @override
   String? get key;
+  @override
+  InitialPoseState? get initialPose;
   @override
   List<SequenceBooleanEvent> get sequenceLeftEyeOpen;
   @override

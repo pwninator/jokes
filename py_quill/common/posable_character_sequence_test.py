@@ -2,7 +2,7 @@
 
 import unittest
 
-from common.posable_character import MouthState, Transform
+from common.posable_character import MouthState, PoseState, Transform
 from common.posable_character_sequence import (
   PosableCharacterSequence, SequenceBooleanEvent, SequenceFloatEvent,
   SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
@@ -13,6 +13,10 @@ class PosableCharacterSequenceTest(unittest.TestCase):
   def test_serialization(self):
     seq = PosableCharacterSequence(
       key="seq1",
+      initial_pose=PoseState(
+        mouth_state=MouthState.CLOSED,
+        head_transform=Transform(translate_y=120.0),
+      ),
       sequence_left_eye_open=[
         SequenceBooleanEvent(start_time=0.0, end_time=1.0, value=True),
         SequenceBooleanEvent(start_time=1.0, end_time=2.0, value=False),
@@ -46,6 +50,9 @@ class PosableCharacterSequenceTest(unittest.TestCase):
       ["translate_x"], 10)
     self.assertEqual(data["sequence_surface_line_offset"][0]["target_value"],
                      50.0)
+    self.assertEqual(data["initial_pose"]["mouth_state"], "CLOSED")
+    self.assertEqual(data["initial_pose"]["head_transform"]["translate_y"],
+                     120.0)
 
     seq2 = PosableCharacterSequence.from_dict(data)
     self.assertEqual(seq2.key, "seq1")
@@ -55,6 +62,33 @@ class PosableCharacterSequenceTest(unittest.TestCase):
       seq2.sequence_left_hand_transform[0].target_transform.translate_x, 10)
     self.assertEqual(seq2.sequence_surface_line_offset[0].target_value, 50.0)
     self.assertEqual(seq2.sequence_sound_events[0].volume, 0.8)
+    self.assertEqual(seq2.initial_pose.mouth_state, MouthState.CLOSED)
+    self.assertEqual(seq2.initial_pose.head_transform.translate_y, 120.0)
+
+  def test_initial_pose_partial_dict_uses_spec_defaults(self):
+    seq = PosableCharacterSequence.from_dict({
+      "initial_pose": {
+        "head_transform": {
+          "translate_y": 400.0,
+        }
+      }
+    })
+    self.assertIsNotNone(seq.initial_pose)
+    self.assertEqual(seq.initial_pose.mouth_state, MouthState.CLOSED)
+    self.assertEqual(seq.initial_pose.head_transform.translate_y, 400.0)
+
+  def test_build_pose_hold_sequence_sets_initial_pose_and_duration(self):
+    pose = PoseState(
+      mouth_state=MouthState.CLOSED,
+      head_transform=Transform(translate_y=400.0),
+    )
+    seq = PosableCharacterSequence.build_pose_hold_sequence(
+      pose=pose,
+      duration_sec=4.0,
+    )
+    self.assertEqual(seq.duration_sec, 4.0)
+    self.assertIsNotNone(seq.initial_pose)
+    self.assertEqual(seq.initial_pose.head_transform.translate_y, 400.0)
 
   def test_validation_overlap(self):
     seq = PosableCharacterSequence(sequence_left_eye_open=[

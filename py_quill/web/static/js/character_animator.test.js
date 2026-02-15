@@ -291,3 +291,68 @@ test('CharacterAnimator render loop applies masking independent of transforms', 
   animator._renderAtTime(1.5);
   assert.notEqual(leftHandClip.style.clipPath, 'inset(0px 0px 12px 0px)');
 });
+
+test('CharacterAnimator uses initial_pose as baseline before first events', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+  const sequence = {
+    initial_pose: {
+      mouth_state: 'O',
+      head_transform: { translate_x: 0, translate_y: 400, scale_x: 1, scale_y: 1 },
+    },
+    sequence_left_eye_open: [],
+    sequence_right_eye_open: [],
+    sequence_mouth_state: [],
+    sequence_left_hand_visible: [],
+    sequence_right_hand_visible: [],
+    sequence_left_hand_transform: [],
+    sequence_right_hand_transform: [],
+    sequence_head_transform: [
+      { start_time: 2, end_time: 3, target_transform: { translate_x: 0, translate_y: 450, scale_x: 1, scale_y: 1 } },
+    ],
+    sequence_surface_line_offset: [],
+    sequence_mask_boundary_offset: [],
+    sequence_surface_line_visible: [],
+    sequence_head_masking_enabled: [],
+    sequence_left_hand_masking_enabled: [],
+    sequence_right_hand_masking_enabled: [],
+    sequence_sound_events: [],
+  };
+
+  const animator = new CharacterAnimator(sequence, {}, minimalDefinition());
+  const pose = animator.samplePoseAtTime(1.0);
+  assert.equal(pose.mouth_state, 'O');
+  assert.equal(pose.head_transform.translate_y, 400);
+});
+
+test('CharacterAnimator terminal frame samples just before sequence end', async () => {
+  const { CharacterAnimator } = await loadCharacterAnimatorModule();
+  const sequence = {
+    sequence_left_eye_open: [],
+    sequence_right_eye_open: [],
+    sequence_mouth_state: [],
+    sequence_left_hand_visible: [],
+    sequence_right_hand_visible: [],
+    sequence_left_hand_transform: [],
+    sequence_right_hand_transform: [],
+    sequence_head_transform: [],
+    sequence_surface_line_offset: [],
+    sequence_mask_boundary_offset: [],
+    sequence_surface_line_visible: [],
+    sequence_head_masking_enabled: [],
+    sequence_left_hand_masking_enabled: [
+      { start_time: 0, end_time: 1, value: false },
+    ],
+    sequence_right_hand_masking_enabled: [],
+    sequence_sound_events: [],
+  };
+  const leftHandClip = { style: {} };
+  const animator = new CharacterAnimator(
+    sequence,
+    { leftHandClip },
+    minimalDefinition(),
+  );
+
+  animator._renderAtTime(1.0);
+  // At exact end, renderer should sample just before 1.0, preserving OFF.
+  assert.equal(leftHandClip.style.clipPath, 'none');
+});

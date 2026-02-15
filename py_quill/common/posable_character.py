@@ -52,7 +52,7 @@ class PoseState:
 
   left_eye_open: bool = True
   right_eye_open: bool = True
-  mouth_state: MouthState = MouthState.OPEN
+  mouth_state: MouthState = MouthState.CLOSED
   left_hand_visible: bool = True
   right_hand_visible: bool = True
   left_hand_transform: Transform = Transform()

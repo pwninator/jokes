@@ -87,7 +87,7 @@ class PosableCharacterTest(unittest.TestCase):
     character.set_pose(left_eye_open=False)
     self.assertFalse(character.left_eye_open)
     self.assertTrue(character.right_eye_open)
-    self.assertEqual(character.mouth_state, MouthState.OPEN)
+    self.assertEqual(character.mouth_state, MouthState.CLOSED)
 
   def test_set_pose_accepts_transform_tuples(self):
     character = self._build_character()
@@ -382,7 +382,7 @@ class PosableCharacterTest(unittest.TestCase):
 
     # Verify transient fields are initialized
     self.assertTrue(character.left_eye_open)
-    self.assertEqual(character.mouth_state, MouthState.OPEN)
+    self.assertEqual(character.mouth_state, MouthState.CLOSED)
     self.assertIsInstance(character._image_cache, dict)
 
     # Verify it works with get_image (mocking download)

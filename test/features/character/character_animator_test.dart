@@ -526,6 +526,64 @@ void main() {
     controller.dispose();
   });
 
+  test('CharacterAnimator applies initialPose defaults before first event', () {
+    final sequence = PosableCharacterSequence(
+      initialPose: const InitialPoseState(
+        mouthState: MouthState.o,
+        headTransform: CharacterTransform(translateY: 400.0),
+      ),
+      sequenceHeadTransform: [
+        SequenceTransformEvent(
+          startTime: 2.0,
+          endTime: 3.0,
+          targetTransform: CharacterTransform(translateY: 450.0),
+        ),
+      ],
+    );
+
+    final controller = AnimationController(vsync: const TestVSync());
+    final config = createConfig();
+    final animator = CharacterAnimator(
+      config: config,
+      sequence: sequence,
+      controller: controller,
+    );
+
+    // t = 1.0 (before first event start 2.0)
+    controller.value = 1.0 / 3.0;
+    expect(config.mouthState.value, MouthState.o);
+    expect(config.headTransform.value.getTranslation().y, closeTo(400.0, 0.001));
+
+    animator.dispose();
+    controller.dispose();
+  });
+
+  test('CharacterAnimator terminal frame samples just before sequence end', () {
+    final sequence = PosableCharacterSequence(
+      sequenceHeadMaskingEnabled: [
+        SequenceBooleanEvent(
+          startTime: 0.0,
+          endTime: 1.0,
+          value: false,
+        ),
+      ],
+    );
+
+    final controller = AnimationController(vsync: const TestVSync());
+    final config = createConfig();
+    final animator = CharacterAnimator(
+      config: config,
+      sequence: sequence,
+      controller: controller,
+    );
+
+    controller.value = 1.0;
+    expect(config.headMaskingEnabled.value, false);
+
+    animator.dispose();
+    controller.dispose();
+  });
+
   test('CharacterAnimator starts and stops audio by event window', () async {
     final sequence = PosableCharacterSequence(
       sequenceSoundEvents: [

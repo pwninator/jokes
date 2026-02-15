@@ -22,6 +22,7 @@ from services.video.script import (FitMode, SceneCanvas, SceneRect,
                                    TimedImage)
 
 _DEFAULT_VIDEO_FPS = 24
+_TERMINAL_SAMPLE_EPSILON_SEC = 1e-6
 _AUDIO_DURATION_COMPARISON_TOLERANCE_SEC = 0.001
 _AudioScheduleEntry = tuple[str, float, float, float]
 _DownloadedAudioEntry = tuple[str, float, float, float, str]
@@ -334,11 +335,34 @@ def _sample_actor_pose(*, render: _ActorRender, time_sec: float) -> PoseState:
       next_start_sec = render.clips[clip_index + 1].start_time_sec
     if time_sec < next_start_sec:
       local_time_sec = max(0.0, time_sec - clip.start_time_sec)
-      return clip.animator.sample_pose(local_time_sec)
+      safe_local_time_sec = _terminal_safe_sample_time(
+        local_time_sec=local_time_sec,
+        sequence_duration_sec=clip.animator.duration_sec,
+      )
+      return clip.animator.sample_pose(safe_local_time_sec)
 
   last_clip = render.clips[-1]
   local_time_sec = max(0.0, time_sec - last_clip.start_time_sec)
-  return last_clip.animator.sample_pose(local_time_sec)
+  safe_local_time_sec = _terminal_safe_sample_time(
+    local_time_sec=local_time_sec,
+    sequence_duration_sec=last_clip.animator.duration_sec,
+  )
+  return last_clip.animator.sample_pose(safe_local_time_sec)
+
+
+def _terminal_safe_sample_time(
+  *,
+  local_time_sec: float,
+  sequence_duration_sec: float,
+) -> float:
+  """Avoid exact end-time sampling to preserve final half-open event frame."""
+  if sequence_duration_sec <= 0:
+    return local_time_sec
+  if local_time_sec < sequence_duration_sec:
+    return local_time_sec
+  if abs(local_time_sec - sequence_duration_sec) <= _TERMINAL_SAMPLE_EPSILON_SEC:
+    return max(0.0, sequence_duration_sec - _TERMINAL_SAMPLE_EPSILON_SEC)
+  return local_time_sec
 
 
 def _extract_audio_schedule(

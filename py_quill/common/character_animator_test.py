@@ -7,10 +7,11 @@ import unittest
 from pathlib import Path
 
 from common.character_animator import CharacterAnimator
-from common.posable_character import MouthState
+from common.posable_character import MouthState, PoseState, Transform
 from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceBooleanEvent,
-                                               SequenceMouthEvent)
+                                               SequenceMouthEvent,
+                                               SequenceTransformEvent)
 
 
 def _fixture_path() -> Path:
@@ -152,6 +153,27 @@ class CharacterAnimatorTest(unittest.TestCase):
     sample = animator.sample_pose(1.5)
     self.assertEqual(sample.left_eye_open, True)
     self.assertEqual(sample.mouth_state, MouthState.CLOSED)
+
+  def test_initial_pose_overrides_track_defaults_before_events(self):
+    sequence = PosableCharacterSequence(
+      initial_pose=PoseState(
+        mouth_state=MouthState.O,
+        head_transform=Transform(translate_y=400.0),
+      ),
+      sequence_head_transform=[
+        SequenceTransformEvent(
+          start_time=2.0,
+          end_time=3.0,
+          target_transform=Transform(translate_y=450.0),
+        ),
+      ],
+    )
+    animator = CharacterAnimator(sequence)
+
+    # Before first event, sequence initial pose defines the baseline.
+    sample = animator.sample_pose(1.0)
+    self.assertEqual(sample.mouth_state, MouthState.O)
+    self.assertEqual(sample.head_transform.translate_y, 400.0)
 
 
 if __name__ == "__main__":

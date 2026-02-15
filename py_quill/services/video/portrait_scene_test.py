@@ -648,7 +648,7 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
     and item.sequence.sequence_left_hand_transform
     and item.sequence.sequence_right_hand_transform
   ]
-  assert len(non_spoken_transform_only_items) > 0
+  assert len(non_spoken_transform_only_items) == 0
 
   # Gap fillers should make each actor's timeline continuous from 0 to script end.
   items_by_actor: dict[str, list[TimedCharacterSequence]] = {}
@@ -858,6 +858,49 @@ def test_render_scene_frame_uses_defaults_between_sequence_windows():
     )
 
   assert character.mouth_state == MouthState.CLOSED
+
+
+def test_render_scene_frame_samples_just_before_sequence_end():
+  character = _DummyCharacter()
+  sequence = PosableCharacterSequence(sequence_head_masking_enabled=[
+    SequenceBooleanEvent(
+      start_time=0.0,
+      end_time=1.0,
+      value=False,
+    )
+  ])
+  sequence.validate()
+
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=64, height_px=64),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=sequence,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=20,
+        rect=SceneRect(x_px=0, y_px=0, width_px=64, height_px=64),
+      ),
+    ],
+    duration_sec=1.0,
+  )
+
+  actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
+  with patch.object(
+      _DummyCharacter,
+      "get_image",
+      return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ):
+    _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
+      time_sec=1.0,
+      canvas=script.canvas,
+      prepared_images=[],
+      actor_renders=actor_renders,
+    )
+
+  assert character.head_masking_enabled is False
 
 
 def test_render_scene_frame_resets_missing_track_on_next_sequence_start():

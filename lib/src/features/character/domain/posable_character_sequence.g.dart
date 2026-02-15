@@ -24,6 +24,62 @@ Map<String, dynamic> _$$CharacterTransformImplToJson(
   'scale_y': instance.scaleY,
 };
 
+_$InitialPoseStateImpl _$$InitialPoseStateImplFromJson(
+  Map<String, dynamic> json,
+) => _$InitialPoseStateImpl(
+  leftEyeOpen: json['left_eye_open'] as bool?,
+  rightEyeOpen: json['right_eye_open'] as bool?,
+  mouthState: $enumDecodeNullable(_$MouthStateEnumMap, json['mouth_state']),
+  leftHandVisible: json['left_hand_visible'] as bool?,
+  rightHandVisible: json['right_hand_visible'] as bool?,
+  leftHandTransform: json['left_hand_transform'] == null
+      ? null
+      : CharacterTransform.fromJson(
+          json['left_hand_transform'] as Map<String, dynamic>,
+        ),
+  rightHandTransform: json['right_hand_transform'] == null
+      ? null
+      : CharacterTransform.fromJson(
+          json['right_hand_transform'] as Map<String, dynamic>,
+        ),
+  headTransform: json['head_transform'] == null
+      ? null
+      : CharacterTransform.fromJson(
+          json['head_transform'] as Map<String, dynamic>,
+        ),
+  surfaceLineOffset: (json['surface_line_offset'] as num?)?.toDouble(),
+  maskBoundaryOffset: (json['mask_boundary_offset'] as num?)?.toDouble(),
+  surfaceLineVisible: json['surface_line_visible'] as bool?,
+  headMaskingEnabled: json['head_masking_enabled'] as bool?,
+  leftHandMaskingEnabled: json['left_hand_masking_enabled'] as bool?,
+  rightHandMaskingEnabled: json['right_hand_masking_enabled'] as bool?,
+);
+
+Map<String, dynamic> _$$InitialPoseStateImplToJson(
+  _$InitialPoseStateImpl instance,
+) => <String, dynamic>{
+  'left_eye_open': instance.leftEyeOpen,
+  'right_eye_open': instance.rightEyeOpen,
+  'mouth_state': _$MouthStateEnumMap[instance.mouthState],
+  'left_hand_visible': instance.leftHandVisible,
+  'right_hand_visible': instance.rightHandVisible,
+  'left_hand_transform': instance.leftHandTransform,
+  'right_hand_transform': instance.rightHandTransform,
+  'head_transform': instance.headTransform,
+  'surface_line_offset': instance.surfaceLineOffset,
+  'mask_boundary_offset': instance.maskBoundaryOffset,
+  'surface_line_visible': instance.surfaceLineVisible,
+  'head_masking_enabled': instance.headMaskingEnabled,
+  'left_hand_masking_enabled': instance.leftHandMaskingEnabled,
+  'right_hand_masking_enabled': instance.rightHandMaskingEnabled,
+};
+
+const _$MouthStateEnumMap = {
+  MouthState.closed: 'CLOSED',
+  MouthState.open: 'OPEN',
+  MouthState.o: 'O',
+};
+
 _$SequenceBooleanEventImpl _$$SequenceBooleanEventImplFromJson(
   Map<String, dynamic> json,
 ) => _$SequenceBooleanEventImpl(
@@ -54,12 +110,6 @@ Map<String, dynamic> _$$SequenceMouthEventImplToJson(
   'start_time': instance.startTime,
   'end_time': instance.endTime,
   'mouth_state': _$MouthStateEnumMap[instance.mouthState]!,
-};
-
-const _$MouthStateEnumMap = {
-  MouthState.closed: 'CLOSED',
-  MouthState.open: 'OPEN',
-  MouthState.o: 'O',
 };
 
 _$SequenceTransformEventImpl _$$SequenceTransformEventImplFromJson(
@@ -118,6 +168,9 @@ _$PosableCharacterSequenceImpl _$$PosableCharacterSequenceImplFromJson(
   Map<String, dynamic> json,
 ) => _$PosableCharacterSequenceImpl(
   key: json['key'] as String?,
+  initialPose: json['initial_pose'] == null
+      ? null
+      : InitialPoseState.fromJson(json['initial_pose'] as Map<String, dynamic>),
   sequenceLeftEyeOpen:
       (json['sequence_left_eye_open'] as List<dynamic>?)
           ?.map((e) => SequenceBooleanEvent.fromJson(e as Map<String, dynamic>))
@@ -205,6 +258,7 @@ Map<String, dynamic> _$$PosableCharacterSequenceImplToJson(
   _$PosableCharacterSequenceImpl instance,
 ) => <String, dynamic>{
   'key': instance.key,
+  'initial_pose': instance.initialPose,
   'sequence_left_eye_open': instance.sequenceLeftEyeOpen,
   'sequence_right_eye_open': instance.sequenceRightEyeOpen,
   'sequence_mouth_state': instance.sequenceMouthState,

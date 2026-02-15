@@ -29,6 +29,30 @@ class CharacterTransform with _$CharacterTransform {
 }
 
 @freezed
+class InitialPoseState with _$InitialPoseState {
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory InitialPoseState({
+    bool? leftEyeOpen,
+    bool? rightEyeOpen,
+    MouthState? mouthState,
+    bool? leftHandVisible,
+    bool? rightHandVisible,
+    CharacterTransform? leftHandTransform,
+    CharacterTransform? rightHandTransform,
+    CharacterTransform? headTransform,
+    double? surfaceLineOffset,
+    double? maskBoundaryOffset,
+    bool? surfaceLineVisible,
+    bool? headMaskingEnabled,
+    bool? leftHandMaskingEnabled,
+    bool? rightHandMaskingEnabled,
+  }) = _InitialPoseState;
+
+  factory InitialPoseState.fromJson(Map<String, dynamic> json) =>
+      _$InitialPoseStateFromJson(json);
+}
+
+@freezed
 class SequenceBooleanEvent with _$SequenceBooleanEvent {
   @JsonSerializable(fieldRename: FieldRename.snake)
   const factory SequenceBooleanEvent({
@@ -99,6 +123,7 @@ class PosableCharacterSequence with _$PosableCharacterSequence {
   @JsonSerializable(fieldRename: FieldRename.snake)
   const factory PosableCharacterSequence({
     String? key,
+    InitialPoseState? initialPose,
     @Default([]) List<SequenceBooleanEvent> sequenceLeftEyeOpen,
     @Default([]) List<SequenceBooleanEvent> sequenceRightEyeOpen,
     @Default([]) List<SequenceMouthEvent> sequenceMouthState,

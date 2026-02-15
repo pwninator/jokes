@@ -174,6 +174,178 @@
       return Number.isFinite(startTime) ? startTime : 0;
   }
 
+  const TRACK_TYPE_BY_NAME = {
+      sequence_head_transform: 'TRANSFORM',
+      sequence_left_hand_transform: 'TRANSFORM',
+      sequence_right_hand_transform: 'TRANSFORM',
+      sequence_left_eye_open: 'BOOLEAN',
+      sequence_right_eye_open: 'BOOLEAN',
+      sequence_mouth_state: 'MOUTH',
+      sequence_left_hand_visible: 'BOOLEAN',
+      sequence_right_hand_visible: 'BOOLEAN',
+      sequence_surface_line_offset: 'FLOAT',
+      sequence_mask_boundary_offset: 'FLOAT',
+      sequence_surface_line_visible: 'BOOLEAN',
+      sequence_head_masking_enabled: 'BOOLEAN',
+      sequence_left_hand_masking_enabled: 'BOOLEAN',
+      sequence_right_hand_masking_enabled: 'BOOLEAN',
+  };
+
+  function _isObject(value) {
+      return value && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function _parseTransformPromptValue(raw) {
+      const parts = raw.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+      if (parts.length !== 4) {
+          throw new Error('Expected format: tx,ty,sx,sy');
+      }
+      const [tx, ty, sx, sy] = parts.map((item) => Number(item));
+      if (![tx, ty, sx, sy].every(Number.isFinite)) {
+          throw new Error('Transform values must be numbers');
+      }
+      return { translate_x: tx, translate_y: ty, scale_x: sx, scale_y: sy };
+  }
+
+  function _getInitialPoseField(initialPose, trackName) {
+      if (!_isObject(initialPose)) {
+          return undefined;
+      }
+      const fieldByTrack = {
+          sequence_head_transform: 'head_transform',
+          sequence_left_hand_transform: 'left_hand_transform',
+          sequence_right_hand_transform: 'right_hand_transform',
+          sequence_left_eye_open: 'left_eye_open',
+          sequence_right_eye_open: 'right_eye_open',
+          sequence_mouth_state: 'mouth_state',
+          sequence_left_hand_visible: 'left_hand_visible',
+          sequence_right_hand_visible: 'right_hand_visible',
+          sequence_surface_line_offset: 'surface_line_offset',
+          sequence_mask_boundary_offset: 'mask_boundary_offset',
+          sequence_surface_line_visible: 'surface_line_visible',
+          sequence_head_masking_enabled: 'head_masking_enabled',
+          sequence_left_hand_masking_enabled: 'left_hand_masking_enabled',
+          sequence_right_hand_masking_enabled: 'right_hand_masking_enabled',
+      };
+      const fieldName = fieldByTrack[trackName];
+      return fieldName ? initialPose[fieldName] : undefined;
+  }
+
+  function _setInitialPoseField(sequenceData, trackName, parsedValue) {
+      const fieldByTrack = {
+          sequence_head_transform: 'head_transform',
+          sequence_left_hand_transform: 'left_hand_transform',
+          sequence_right_hand_transform: 'right_hand_transform',
+          sequence_left_eye_open: 'left_eye_open',
+          sequence_right_eye_open: 'right_eye_open',
+          sequence_mouth_state: 'mouth_state',
+          sequence_left_hand_visible: 'left_hand_visible',
+          sequence_right_hand_visible: 'right_hand_visible',
+          sequence_surface_line_offset: 'surface_line_offset',
+          sequence_mask_boundary_offset: 'mask_boundary_offset',
+          sequence_surface_line_visible: 'surface_line_visible',
+          sequence_head_masking_enabled: 'head_masking_enabled',
+          sequence_left_hand_masking_enabled: 'left_hand_masking_enabled',
+          sequence_right_hand_masking_enabled: 'right_hand_masking_enabled',
+      };
+      const fieldName = fieldByTrack[trackName];
+      if (!fieldName) {
+          return;
+      }
+      if (!_isObject(sequenceData.initial_pose)) {
+          sequenceData.initial_pose = {};
+      }
+      if (parsedValue === undefined) {
+          delete sequenceData.initial_pose[fieldName];
+          if (Object.keys(sequenceData.initial_pose).length === 0) {
+              delete sequenceData.initial_pose;
+          }
+          return;
+      }
+      sequenceData.initial_pose[fieldName] = parsedValue;
+  }
+
+  function _formatInitialStateLabel(trackName, value) {
+      const trackType = TRACK_TYPE_BY_NAME[trackName];
+      if (value === undefined || value === null) {
+          return '';
+      }
+      if (trackType === 'TRANSFORM' && _isObject(value)) {
+          const tx = Number(value.translate_x ?? 0);
+          const ty = Number(value.translate_y ?? 0);
+          const sx = Number(value.scale_x ?? 1);
+          const sy = Number(value.scale_y ?? 1);
+          return `${tx}, ${ty}, ${sx}, ${sy}`;
+      }
+      if (trackType === 'BOOLEAN') {
+          return value ? 'true' : 'false';
+      }
+      if (trackType === 'FLOAT') {
+          return String(Number(value));
+      }
+      return String(value);
+  }
+
+  function _promptForInitialState(trackName, currentValue) {
+      const trackType = TRACK_TYPE_BY_NAME[trackName];
+      if (!trackType) {
+          return { cancelled: true };
+      }
+
+      let promptText = '';
+      let initialText = '';
+      if (trackType === 'TRANSFORM') {
+          promptText = 'Initial state (tx,ty,sx,sy). Leave empty for default pose.';
+          initialText = _formatInitialStateLabel(trackName, currentValue);
+      } else if (trackType === 'BOOLEAN') {
+          promptText = 'Initial state (true/false). Leave empty for default pose.';
+          initialText = _formatInitialStateLabel(trackName, currentValue);
+      } else if (trackType === 'FLOAT') {
+          promptText = 'Initial state (number). Leave empty for default pose.';
+          initialText = _formatInitialStateLabel(trackName, currentValue);
+      } else if (trackType === 'MOUTH') {
+          promptText = 'Initial state (OPEN/CLOSED/O). Leave empty for default pose.';
+          initialText = _formatInitialStateLabel(trackName, currentValue);
+      } else {
+          return { cancelled: true };
+      }
+
+      const rawValue = window.prompt(promptText, initialText);
+      if (rawValue === null) {
+          return { cancelled: true };
+      }
+      const trimmed = rawValue.trim();
+      if (!trimmed) {
+          return { cancelled: false, value: undefined };
+      }
+
+      if (trackType === 'TRANSFORM') {
+          return { cancelled: false, value: _parseTransformPromptValue(trimmed) };
+      }
+      if (trackType === 'BOOLEAN') {
+          const lower = trimmed.toLowerCase();
+          if (lower !== 'true' && lower !== 'false') {
+              throw new Error('Boolean initial state must be true or false');
+          }
+          return { cancelled: false, value: lower === 'true' };
+      }
+      if (trackType === 'FLOAT') {
+          const num = Number(trimmed);
+          if (!Number.isFinite(num)) {
+              throw new Error('Float initial state must be a number');
+          }
+          return { cancelled: false, value: num };
+      }
+      if (trackType === 'MOUTH') {
+          const upper = trimmed.toUpperCase();
+          if (upper !== 'OPEN' && upper !== 'CLOSED' && upper !== 'O') {
+              throw new Error('Mouth initial state must be OPEN, CLOSED, or O');
+          }
+          return { cancelled: false, value: upper };
+      }
+      return { cancelled: true };
+  }
+
   function patchCharacterEditorBehavior() {
       if (CharacterEditor.__characterAnimatorPatched) {
           return;
@@ -197,14 +369,38 @@
 
           const trackElements = this.container.querySelectorAll('.editor-track');
           this.trackConfig.forEach((track, trackIndex) => {
-              if (track.type !== 'BOOLEAN') {
-                  return;
-              }
               const trackEl = trackElements[trackIndex];
               if (!trackEl) {
                   return;
               }
+              const label = trackEl.querySelector('.track-label');
+              if (label && TRACK_TYPE_BY_NAME[track.name]) {
+                  const initialValue = _getInitialPoseField(this.sequenceData?.initial_pose, track.name);
+                  const initialLabel = _formatInitialStateLabel(track.name, initialValue);
+                  const initialDisplay = initialLabel ? ` [${initialLabel}]` : '';
+                  label.textContent = `${track.label}${initialDisplay}`;
+                  label.style.cursor = 'pointer';
+                  label.title = 'Click to edit initial state for this track';
+                  label.onclick = () => {
+                      try {
+                          const result = _promptForInitialState(track.name, initialValue);
+                          if (result.cancelled) {
+                              return;
+                          }
+                          _setInitialPoseField(this.sequenceData, track.name, result.value);
+                          this.render();
+                          if (this.onUpdate) {
+                              this.onUpdate(this.sequenceData);
+                          }
+                      } catch (error) {
+                          window.alert(error.message || 'Invalid initial state value');
+                      }
+                  };
+              }
 
+              if (track.type !== 'BOOLEAN') {
+                  return;
+              }
               const blocks = trackEl.querySelectorAll('.event-block');
               const events = this.sequenceData[track.name] || [];
               blocks.forEach((block, eventIndex) => {
@@ -278,6 +474,7 @@
 
   function createEmptySequence() {
       return {
+          initial_pose: {},
           sequence_head_transform: [],
           sequence_left_hand_transform: [],
           sequence_right_hand_transform: [],
@@ -299,7 +496,13 @@
   function normalizeSequenceData(sequence) {
       const normalized = createEmptySequence();
       const source = sequence || {};
+      if (_isObject(source.initial_pose)) {
+          normalized.initial_pose = { ...source.initial_pose };
+      }
       Object.keys(normalized).forEach((trackName) => {
+          if (trackName === 'initial_pose') {
+              return;
+          }
           normalized[trackName] = Array.isArray(source[trackName]) ? source[trackName] : [];
       });
       return normalized;

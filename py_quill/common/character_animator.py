@@ -27,6 +27,7 @@ class CharacterAnimator:
   def __init__(self, sequence: PosableCharacterSequence):
     sequence.validate()
     self._sequence: PosableCharacterSequence = sequence
+    self._initial_pose: PoseState = sequence.initial_pose or PoseState()
     self._left_eye_track: list[SequenceBooleanEvent] = sorted(
       sequence.sequence_left_eye_open,
       key=lambda event: event.start_time,
@@ -98,53 +99,58 @@ class CharacterAnimator:
   def sample_pose(self, time_sec: float) -> PoseState:
     """Return the resolved pose state at `time_sec`."""
     return PoseState(
-      left_eye_open=self._sample_boolean(self._left_eye_track, time_sec, True),
+      left_eye_open=self._sample_boolean(self._left_eye_track, time_sec,
+                                         self._initial_pose.left_eye_open),
       right_eye_open=self._sample_boolean(self._right_eye_track, time_sec,
-                                          True),
+                                          self._initial_pose.right_eye_open),
       mouth_state=self._sample_mouth(self._mouth_track, time_sec,
-                                     MouthState.CLOSED),
-      left_hand_visible=self._sample_boolean(self._left_hand_visible_track,
-                                             time_sec, True),
-      right_hand_visible=self._sample_boolean(self._right_hand_visible_track,
-                                              time_sec, True),
+                                     self._initial_pose.mouth_state),
+      left_hand_visible=self._sample_boolean(
+        self._left_hand_visible_track, time_sec,
+        self._initial_pose.left_hand_visible),
+      right_hand_visible=self._sample_boolean(
+        self._right_hand_visible_track, time_sec,
+        self._initial_pose.right_hand_visible),
       left_hand_transform=self._sample_transform(
-        self._left_hand_transform_track, time_sec, Transform()),
+        self._left_hand_transform_track, time_sec,
+        self._initial_pose.left_hand_transform),
       right_hand_transform=self._sample_transform(
         self._right_hand_transform_track,
         time_sec,
-        Transform(),
+        self._initial_pose.right_hand_transform,
       ),
       head_transform=self._sample_transform(self._head_transform_track,
-                                            time_sec, Transform()),
+                                            time_sec,
+                                            self._initial_pose.head_transform),
       surface_line_offset=self._sample_float(
         self._surface_line_offset_track,
         time_sec,
-        50.0,
+        self._initial_pose.surface_line_offset,
       ),
       mask_boundary_offset=self._sample_float(
         self._mask_boundary_offset_track,
         time_sec,
-        50.0,
+        self._initial_pose.mask_boundary_offset,
       ),
       surface_line_visible=self._sample_boolean(
         self._surface_line_visible_track,
         time_sec,
-        True,
+        self._initial_pose.surface_line_visible,
       ),
       head_masking_enabled=self._sample_boolean(
         self._head_masking_enabled_track,
         time_sec,
-        True,
+        self._initial_pose.head_masking_enabled,
       ),
       left_hand_masking_enabled=self._sample_boolean(
         self._left_hand_masking_enabled_track,
         time_sec,
-        False,
+        self._initial_pose.left_hand_masking_enabled,
       ),
       right_hand_masking_enabled=self._sample_boolean(
         self._right_hand_masking_enabled_track,
         time_sec,
-        False,
+        self._initial_pose.right_hand_masking_enabled,
       ),
     )
 

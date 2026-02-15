@@ -9,6 +9,23 @@ const IDENTITY_TRANSFORM = Object.freeze({
   scale_y: 1,
 });
 
+const SPEC_DEFAULT_INITIAL_POSE = Object.freeze({
+  left_eye_open: true,
+  right_eye_open: true,
+  mouth_state: 'CLOSED',
+  left_hand_visible: true,
+  right_hand_visible: true,
+  left_hand_transform: IDENTITY_TRANSFORM,
+  right_hand_transform: IDENTITY_TRANSFORM,
+  head_transform: IDENTITY_TRANSFORM,
+  surface_line_offset: 50,
+  mask_boundary_offset: 50,
+  surface_line_visible: true,
+  head_masking_enabled: true,
+  left_hand_masking_enabled: false,
+  right_hand_masking_enabled: false,
+});
+
 function cloneTransform(transform) {
   return {
     translate_x: Number(transform.translate_x),
@@ -33,6 +50,8 @@ function normalizeTransform(transform) {
 function lerp(start, end, progress) {
   return start + ((end - start) * progress);
 }
+
+const TERMINAL_SAMPLE_EPSILON_SEC = 1e-6;
 
 function sortedByStart(events) {
   return [...events].sort((left, right) => {
@@ -104,6 +123,7 @@ export class CharacterAnimator {
       surfaceLine: this.domElements.surfaceLine,
     };
     this.characterDefinition = this._normalizeCharacterDefinition(characterDefinition || {});
+    this._initialPose = this._normalizeInitialPose(this.sequenceData.initial_pose);
     this.timeline = null;
     this.audioCache = new Map();
     this.activeSounds = new Set();
@@ -112,6 +132,35 @@ export class CharacterAnimator {
     this._gsap = null;
     this._validateCharacterDefinition();
     this._validateSequenceForSpec();
+  }
+
+  _normalizeInitialPose(initialPoseData) {
+    if (!initialPoseData || typeof initialPoseData !== 'object') {
+      return null;
+    }
+    return {
+      left_eye_open: Boolean(initialPoseData.left_eye_open ?? SPEC_DEFAULT_INITIAL_POSE.left_eye_open),
+      right_eye_open: Boolean(initialPoseData.right_eye_open ?? SPEC_DEFAULT_INITIAL_POSE.right_eye_open),
+      mouth_state: String(initialPoseData.mouth_state ?? SPEC_DEFAULT_INITIAL_POSE.mouth_state),
+      left_hand_visible: Boolean(initialPoseData.left_hand_visible ?? SPEC_DEFAULT_INITIAL_POSE.left_hand_visible),
+      right_hand_visible: Boolean(initialPoseData.right_hand_visible ?? SPEC_DEFAULT_INITIAL_POSE.right_hand_visible),
+      left_hand_transform: normalizeTransform(initialPoseData.left_hand_transform ?? SPEC_DEFAULT_INITIAL_POSE.left_hand_transform),
+      right_hand_transform: normalizeTransform(initialPoseData.right_hand_transform ?? SPEC_DEFAULT_INITIAL_POSE.right_hand_transform),
+      head_transform: normalizeTransform(initialPoseData.head_transform ?? SPEC_DEFAULT_INITIAL_POSE.head_transform),
+      surface_line_offset: Number(initialPoseData.surface_line_offset ?? SPEC_DEFAULT_INITIAL_POSE.surface_line_offset),
+      mask_boundary_offset: Number(initialPoseData.mask_boundary_offset ?? SPEC_DEFAULT_INITIAL_POSE.mask_boundary_offset),
+      surface_line_visible: Boolean(initialPoseData.surface_line_visible ?? SPEC_DEFAULT_INITIAL_POSE.surface_line_visible),
+      head_masking_enabled: Boolean(initialPoseData.head_masking_enabled ?? SPEC_DEFAULT_INITIAL_POSE.head_masking_enabled),
+      left_hand_masking_enabled: Boolean(initialPoseData.left_hand_masking_enabled ?? SPEC_DEFAULT_INITIAL_POSE.left_hand_masking_enabled),
+      right_hand_masking_enabled: Boolean(initialPoseData.right_hand_masking_enabled ?? SPEC_DEFAULT_INITIAL_POSE.right_hand_masking_enabled),
+    };
+  }
+
+  _initialOrDefault(key) {
+    if (!this._initialPose) {
+      return SPEC_DEFAULT_INITIAL_POSE[key];
+    }
+    return this._initialPose[key];
   }
 
   _normalizeCharacterDefinition(definition) {
@@ -154,20 +203,20 @@ export class CharacterAnimator {
   samplePoseAtTime(timeSec) {
     const t = asNumber(timeSec);
     return {
-      left_eye_open: this._sampleBooleanTrack('sequence_left_eye_open', t, true),
-      right_eye_open: this._sampleBooleanTrack('sequence_right_eye_open', t, true),
-      mouth_state: this._sampleMouthTrack(t),
-      left_hand_visible: this._sampleBooleanTrack('sequence_left_hand_visible', t, true),
-      right_hand_visible: this._sampleBooleanTrack('sequence_right_hand_visible', t, true),
-      left_hand_transform: this._sampleTransformTrack('sequence_left_hand_transform', t),
-      right_hand_transform: this._sampleTransformTrack('sequence_right_hand_transform', t),
-      head_transform: this._sampleTransformTrack('sequence_head_transform', t),
-      surface_line_offset: this._sampleFloatTrack('sequence_surface_line_offset', t, 50),
-      mask_boundary_offset: this._sampleFloatTrack('sequence_mask_boundary_offset', t, 50),
-      surface_line_visible: this._sampleBooleanTrack('sequence_surface_line_visible', t, true),
-      head_masking_enabled: this._sampleBooleanTrack('sequence_head_masking_enabled', t, true),
-      left_hand_masking_enabled: this._sampleBooleanTrack('sequence_left_hand_masking_enabled', t, false),
-      right_hand_masking_enabled: this._sampleBooleanTrack('sequence_right_hand_masking_enabled', t, false),
+      left_eye_open: this._sampleBooleanTrack('sequence_left_eye_open', t, this._initialOrDefault('left_eye_open')),
+      right_eye_open: this._sampleBooleanTrack('sequence_right_eye_open', t, this._initialOrDefault('right_eye_open')),
+      mouth_state: this._sampleMouthTrack(t, this._initialOrDefault('mouth_state')),
+      left_hand_visible: this._sampleBooleanTrack('sequence_left_hand_visible', t, this._initialOrDefault('left_hand_visible')),
+      right_hand_visible: this._sampleBooleanTrack('sequence_right_hand_visible', t, this._initialOrDefault('right_hand_visible')),
+      left_hand_transform: this._sampleTransformTrack('sequence_left_hand_transform', t, this._initialOrDefault('left_hand_transform')),
+      right_hand_transform: this._sampleTransformTrack('sequence_right_hand_transform', t, this._initialOrDefault('right_hand_transform')),
+      head_transform: this._sampleTransformTrack('sequence_head_transform', t, this._initialOrDefault('head_transform')),
+      surface_line_offset: this._sampleFloatTrack('sequence_surface_line_offset', t, this._initialOrDefault('surface_line_offset')),
+      mask_boundary_offset: this._sampleFloatTrack('sequence_mask_boundary_offset', t, this._initialOrDefault('mask_boundary_offset')),
+      surface_line_visible: this._sampleBooleanTrack('sequence_surface_line_visible', t, this._initialOrDefault('surface_line_visible')),
+      head_masking_enabled: this._sampleBooleanTrack('sequence_head_masking_enabled', t, this._initialOrDefault('head_masking_enabled')),
+      left_hand_masking_enabled: this._sampleBooleanTrack('sequence_left_hand_masking_enabled', t, this._initialOrDefault('left_hand_masking_enabled')),
+      right_hand_masking_enabled: this._sampleBooleanTrack('sequence_right_hand_masking_enabled', t, this._initialOrDefault('right_hand_masking_enabled')),
     };
   }
 
@@ -264,7 +313,7 @@ export class CharacterAnimator {
     return defaultValue;
   }
 
-  _sampleMouthTrack(timeSec) {
+  _sampleMouthTrack(timeSec, defaultValue) {
     const track = this._track('sequence_mouth_state');
     for (let eventIndex = 0; eventIndex < track.length; eventIndex += 1) {
       const event = track[eventIndex];
@@ -278,16 +327,16 @@ export class CharacterAnimator {
         break;
       }
     }
-    return 'CLOSED';
+    return defaultValue;
   }
 
-  _sampleTransformTrack(trackName, timeSec) {
+  _sampleTransformTrack(trackName, timeSec, defaultTransform) {
     const track = this._track(trackName);
     if (track.length === 0) {
-      return cloneTransform(IDENTITY_TRANSFORM);
+      return cloneTransform(defaultTransform);
     }
 
-    let previousTarget = cloneTransform(IDENTITY_TRANSFORM);
+    let previousTarget = cloneTransform(defaultTransform);
 
     for (let eventIndex = 0; eventIndex < track.length; eventIndex += 1) {
       const event = track[eventIndex];
@@ -352,6 +401,7 @@ export class CharacterAnimator {
    */
   async updateSequence(newSequenceData) {
     this.sequenceData = newSequenceData || {};
+    this._initialPose = this._normalizeInitialPose(this.sequenceData.initial_pose);
     // Invalidate cached sorted tracks so timeline rebuild uses fresh edits.
     this._sortedTrackCache.clear();
     // Start preloading any new audio
@@ -470,7 +520,7 @@ export class CharacterAnimator {
   }
 
   _renderAtTime(timeSec) {
-    const pose = this.samplePoseAtTime(timeSec);
+    const pose = this.samplePoseAtTime(this._terminalSafeSampleTime(timeSec));
 
     // Transforms
     this._applyTransform(this._dom.headTransform, pose.head_transform);
@@ -510,6 +560,18 @@ export class CharacterAnimator {
       }
       this._dom.mouth.src = uri;
     }
+  }
+
+  _terminalSafeSampleTime(timeSec) {
+    const durationSec = this.durationSec();
+    if (durationSec <= 0) {
+      return asNumber(timeSec);
+    }
+    const t = asNumber(timeSec);
+    if (t >= durationSec) {
+      return Math.max(0, durationSec - TERMINAL_SAMPLE_EPSILON_SEC);
+    }
+    return t;
   }
 
   _applyTransform(element, transform) {

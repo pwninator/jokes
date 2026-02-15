@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, override
+from typing import Any, cast, override
 
 from common.posable_character import MouthState, PoseState, Transform
 
@@ -60,7 +60,7 @@ class SequenceBooleanEvent(SequenceEvent):
   ) -> list[SequenceBooleanEvent]:
     """Return a shifted copy of boolean events."""
     return [
-      cls(
+      SequenceBooleanEvent(
         start_time=event.start_time + offset,
         end_time=event.end_time + offset,
         value=bool(event.value),
@@ -214,6 +214,7 @@ class PosableCharacterSequence:
 
   key: str | None = None
   transcript: str | None = None
+  initial_pose: PoseState | None = None
 
   # Tracks (prefixed with sequence_ for sorting/identification)
   sequence_left_eye_open: list[SequenceBooleanEvent] = field(
@@ -343,101 +344,16 @@ class PosableCharacterSequence:
     pose: PoseState,
     duration_sec: float,
   ) -> PosableCharacterSequence:
-    """Build a static-pose sequence with explicit events across `duration_sec`."""
+    """Build a static-pose sequence with explicit duration and initial pose."""
     end_time = max(0.0, duration_sec)
     sequence = cls(
+      initial_pose=pose,
+      # Any one non-sound track is sufficient to encode sequence duration.
       sequence_left_eye_open=[
-        SequenceBooleanEvent(start_time=0.0,
-                             end_time=end_time,
-                             value=pose.left_eye_open)
-      ],
-      sequence_right_eye_open=[
-        SequenceBooleanEvent(start_time=0.0,
-                             end_time=end_time,
-                             value=pose.right_eye_open)
-      ],
-      sequence_mouth_state=[
-        SequenceMouthEvent(
-          start_time=0.0,
-          end_time=end_time,
-          mouth_state=pose.mouth_state,
-        )
-      ],
-      sequence_left_hand_visible=[
         SequenceBooleanEvent(
           start_time=0.0,
           end_time=end_time,
-          value=pose.left_hand_visible,
-        )
-      ],
-      sequence_right_hand_visible=[
-        SequenceBooleanEvent(
-          start_time=0.0,
-          end_time=end_time,
-          value=pose.right_hand_visible,
-        )
-      ],
-      sequence_left_hand_transform=[
-        SequenceTransformEvent(
-          start_time=0.0,
-          end_time=end_time,
-          target_transform=pose.left_hand_transform,
-        )
-      ],
-      sequence_right_hand_transform=[
-        SequenceTransformEvent(
-          start_time=0.0,
-          end_time=end_time,
-          target_transform=pose.right_hand_transform,
-        )
-      ],
-      sequence_head_transform=[
-        SequenceTransformEvent(
-          start_time=0.0,
-          end_time=end_time,
-          target_transform=pose.head_transform,
-        )
-      ],
-      sequence_surface_line_offset=[
-        SequenceFloatEvent(
-          start_time=0.0,
-          end_time=end_time,
-          target_value=pose.surface_line_offset,
-        )
-      ],
-      sequence_mask_boundary_offset=[
-        SequenceFloatEvent(
-          start_time=0.0,
-          end_time=end_time,
-          target_value=pose.mask_boundary_offset,
-        )
-      ],
-      sequence_surface_line_visible=[
-        SequenceBooleanEvent(
-          start_time=0.0,
-          end_time=end_time,
-          value=pose.surface_line_visible,
-        )
-      ],
-      sequence_head_masking_enabled=[
-        SequenceBooleanEvent(
-          start_time=0.0,
-          end_time=end_time,
-          value=pose.head_masking_enabled,
-        )
-      ],
-      sequence_left_hand_masking_enabled=[
-        SequenceBooleanEvent(
-          start_time=0.0,
-          end_time=end_time,
-          value=pose.left_hand_masking_enabled,
-        )
-      ],
-      sequence_right_hand_masking_enabled=[
-        SequenceBooleanEvent(
-          start_time=0.0,
-          end_time=end_time,
-          value=pose.right_hand_masking_enabled,
+          value=pose.left_eye_open,
         )
       ],
     )
@@ -497,7 +413,7 @@ class PosableCharacterSequence:
 
   def to_dict(self, include_key: bool = False) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
-    data = {
+    data: dict[str, Any] = {
       "transcript":
       self.transcript,
       "sequence_left_eye_open":
@@ -532,6 +448,8 @@ class PosableCharacterSequence:
         e.to_dict() for e in self.sequence_right_hand_masking_enabled
       ],
     }
+    if self.initial_pose is not None:
+      data["initial_pose"] = _pose_state_to_dict(self.initial_pose)
     if include_key and self.key:
       data["key"] = self.key
     return data
@@ -547,6 +465,7 @@ class PosableCharacterSequence:
     return cls(
       key=key if key else data.get("key"),
       transcript=data.get("transcript"),
+      initial_pose=_parse_initial_pose_dict(data.get("initial_pose")),
       sequence_left_eye_open=[
         SequenceBooleanEvent.from_dict(e)
         for e in data.get("sequence_left_eye_open", [])
@@ -608,3 +527,150 @@ class PosableCharacterSequence:
         for e in data.get("sequence_right_hand_masking_enabled", [])
       ],
     )
+
+
+def _spec_default_pose_state() -> PoseState:
+  """Return canonical track defaults from the animator spec."""
+  return PoseState(
+    left_eye_open=True,
+    right_eye_open=True,
+    mouth_state=MouthState.CLOSED,
+    left_hand_visible=True,
+    right_hand_visible=True,
+    left_hand_transform=Transform(),
+    right_hand_transform=Transform(),
+    head_transform=Transform(),
+    surface_line_offset=50.0,
+    mask_boundary_offset=50.0,
+    surface_line_visible=True,
+    head_masking_enabled=True,
+    left_hand_masking_enabled=False,
+    right_hand_masking_enabled=False,
+  )
+
+
+def _pose_state_to_dict(pose: PoseState) -> dict[str, Any]:
+  return {
+    "left_eye_open": pose.left_eye_open,
+    "right_eye_open": pose.right_eye_open,
+    "mouth_state": pose.mouth_state.value,
+    "left_hand_visible": pose.left_hand_visible,
+    "right_hand_visible": pose.right_hand_visible,
+    "left_hand_transform": {
+      "translate_x": pose.left_hand_transform.translate_x,
+      "translate_y": pose.left_hand_transform.translate_y,
+      "scale_x": pose.left_hand_transform.scale_x,
+      "scale_y": pose.left_hand_transform.scale_y,
+    },
+    "right_hand_transform": {
+      "translate_x": pose.right_hand_transform.translate_x,
+      "translate_y": pose.right_hand_transform.translate_y,
+      "scale_x": pose.right_hand_transform.scale_x,
+      "scale_y": pose.right_hand_transform.scale_y,
+    },
+    "head_transform": {
+      "translate_x": pose.head_transform.translate_x,
+      "translate_y": pose.head_transform.translate_y,
+      "scale_x": pose.head_transform.scale_x,
+      "scale_y": pose.head_transform.scale_y,
+    },
+    "surface_line_offset": pose.surface_line_offset,
+    "mask_boundary_offset": pose.mask_boundary_offset,
+    "surface_line_visible": pose.surface_line_visible,
+    "head_masking_enabled": pose.head_masking_enabled,
+    "left_hand_masking_enabled": pose.left_hand_masking_enabled,
+    "right_hand_masking_enabled": pose.right_hand_masking_enabled,
+  }
+
+
+def _parse_transform_dict(value: object, default: Transform) -> Transform:
+  if not isinstance(value, dict):
+    return default
+  transform_data = cast(dict[str, object], value)
+  return Transform(
+    translate_x=_coerce_float(
+      transform_data.get("translate_x"), default.translate_x),
+    translate_y=_coerce_float(
+      transform_data.get("translate_y"), default.translate_y),
+    scale_x=_coerce_float(transform_data.get("scale_x"), default.scale_x),
+    scale_y=_coerce_float(transform_data.get("scale_y"), default.scale_y),
+  )
+
+
+def _parse_initial_pose_dict(data: object) -> PoseState | None:
+  if data is None:
+    return None
+  if not isinstance(data, dict):
+    raise ValueError("initial_pose must be an object when provided")
+  initial_pose_data = cast(dict[str, object], data)
+
+  default = _spec_default_pose_state()
+  mouth_state = _coerce_mouth_state(
+    initial_pose_data.get("mouth_state"), default.mouth_state)
+  return PoseState(
+    left_eye_open=_coerce_bool(
+      initial_pose_data.get("left_eye_open"), default.left_eye_open),
+    right_eye_open=_coerce_bool(
+      initial_pose_data.get("right_eye_open"), default.right_eye_open),
+    mouth_state=mouth_state,
+    left_hand_visible=_coerce_bool(initial_pose_data.get("left_hand_visible"),
+                                   default.left_hand_visible),
+    right_hand_visible=_coerce_bool(initial_pose_data.get("right_hand_visible"),
+                                    default.right_hand_visible),
+    left_hand_transform=_parse_transform_dict(
+      initial_pose_data.get("left_hand_transform"), default.left_hand_transform),
+    right_hand_transform=_parse_transform_dict(
+      initial_pose_data.get("right_hand_transform"), default.right_hand_transform),
+    head_transform=_parse_transform_dict(
+      initial_pose_data.get("head_transform"), default.head_transform),
+    surface_line_offset=_coerce_float(
+      initial_pose_data.get("surface_line_offset"), default.surface_line_offset),
+    mask_boundary_offset=_coerce_float(
+      initial_pose_data.get("mask_boundary_offset"), default.mask_boundary_offset),
+    surface_line_visible=_coerce_bool(
+      initial_pose_data.get("surface_line_visible"), default.surface_line_visible),
+    head_masking_enabled=_coerce_bool(
+      initial_pose_data.get("head_masking_enabled"), default.head_masking_enabled),
+    left_hand_masking_enabled=_coerce_bool(
+      initial_pose_data.get("left_hand_masking_enabled"),
+      default.left_hand_masking_enabled),
+    right_hand_masking_enabled=_coerce_bool(
+      initial_pose_data.get("right_hand_masking_enabled"),
+      default.right_hand_masking_enabled),
+  )
+
+
+def _coerce_bool(value: object, default: bool) -> bool:
+  if isinstance(value, bool):
+    return value
+  if isinstance(value, (int, float)):
+    return bool(value)
+  if isinstance(value, str):
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+      return True
+    if normalized in {"false", "0", "no", "off"}:
+      return False
+  return default
+
+
+def _coerce_float(value: object, default: float) -> float:
+  if isinstance(value, (int, float)):
+    return float(value)
+  if isinstance(value, str):
+    try:
+      return float(value)
+    except ValueError:
+      return default
+  return default
+
+
+def _coerce_mouth_state(value: object, default: MouthState) -> MouthState:
+  if isinstance(value, MouthState):
+    return value
+  if isinstance(value, str):
+    try:
+      return MouthState(value)
+    except ValueError:
+      return default
+  return default

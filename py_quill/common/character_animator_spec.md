@@ -21,6 +21,16 @@ The following implementations must strictly conform to this spec:
 - A sequence duration is the max of every event's `end_time`.
 - Sampling is random-access: callers may query any `t` in any order.
 
+### 1.1 Terminal-frame sampling
+
+- Event activity remains half-open (`start <= t < end`) per this spec.
+- When a renderer asks for the **final visual frame** at exact sequence duration
+  (`t == duration`), pose sampling must use a terminal-safe time:
+  `t_safe = max(0, duration - epsilon)`.
+- Canonical epsilon is `1e-6` seconds.
+- This terminal-safe adjustment is for **visual pose sampling only**; audio event
+  windowing semantics remain unchanged.
+
 ## 2. Event Interval Rules
 
 - For boolean and mouth tracks, an event is active when:
@@ -32,6 +42,16 @@ The following implementations must strictly conform to this spec:
   - eyes: `True`
   - hand visibility: `True`
   - mouth: `CLOSED`
+
+## 2.1 Optional Sequence Initial Pose
+
+- A sequence may provide `initial_pose`.
+- `initial_pose` overrides the per-track defaults used when no event is active.
+- If `initial_pose` is absent, implementations must use the defaults defined in
+  this spec.
+- `initial_pose` applies uniformly to:
+  - booleans + mouth (fallback when no active event)
+  - transform/float tracks (the baseline value before first event)
 
 ## 3. Transform Track Rules
 

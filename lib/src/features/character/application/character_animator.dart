@@ -1,6 +1,7 @@
 import 'dart:math' as math;
-import 'package:flutter/widgets.dart';
+
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/widgets.dart';
 import 'package:snickerdoodle/src/features/character/domain/posable_character_sequence.dart';
 
 /// This implementation must strictly conform to:
@@ -46,6 +47,8 @@ class CharacterAnimationConfig {
 ///
 /// Runtime behavior should match `py_quill/common/character_animator_spec.md`.
 class CharacterAnimator {
+  static const double _terminalSampleEpsilonSec = 1e-6;
+
   final CharacterAnimationConfig config;
   final PosableCharacterSequence sequence;
   final AnimationController _controller;
@@ -56,6 +59,33 @@ class CharacterAnimator {
   late final Animation<Matrix4> _headAnimation;
   late final Animation<Matrix4> _leftHandAnimation;
   late final Animation<Matrix4> _rightHandAnimation;
+
+  bool get _defaultLeftEyeOpen => sequence.initialPose?.leftEyeOpen ?? true;
+  bool get _defaultRightEyeOpen => sequence.initialPose?.rightEyeOpen ?? true;
+  MouthState get _defaultMouthState =>
+      sequence.initialPose?.mouthState ?? MouthState.closed;
+  bool get _defaultLeftHandVisible =>
+      sequence.initialPose?.leftHandVisible ?? true;
+  bool get _defaultRightHandVisible =>
+      sequence.initialPose?.rightHandVisible ?? true;
+  CharacterTransform get _defaultHeadTransform =>
+      sequence.initialPose?.headTransform ?? const CharacterTransform();
+  CharacterTransform get _defaultLeftHandTransform =>
+      sequence.initialPose?.leftHandTransform ?? const CharacterTransform();
+  CharacterTransform get _defaultRightHandTransform =>
+      sequence.initialPose?.rightHandTransform ?? const CharacterTransform();
+  double get _defaultSurfaceLineOffset =>
+      sequence.initialPose?.surfaceLineOffset ?? 50.0;
+  double get _defaultMaskBoundaryOffset =>
+      sequence.initialPose?.maskBoundaryOffset ?? 50.0;
+  bool get _defaultSurfaceLineVisible =>
+      sequence.initialPose?.surfaceLineVisible ?? true;
+  bool get _defaultHeadMaskingEnabled =>
+      sequence.initialPose?.headMaskingEnabled ?? true;
+  bool get _defaultLeftHandMaskingEnabled =>
+      sequence.initialPose?.leftHandMaskingEnabled ?? false;
+  bool get _defaultRightHandMaskingEnabled =>
+      sequence.initialPose?.rightHandMaskingEnabled ?? false;
 
   CharacterAnimator({
     required this.config,
@@ -80,14 +110,17 @@ class CharacterAnimator {
     _headAnimation = _buildTransformAnimation(
       sequence.sequenceHeadTransform,
       safeDuration,
+      _transformToMatrix(_defaultHeadTransform),
     );
     _leftHandAnimation = _buildTransformAnimation(
       sequence.sequenceLeftHandTransform,
       safeDuration,
+      _transformToMatrix(_defaultLeftHandTransform),
     );
     _rightHandAnimation = _buildTransformAnimation(
       sequence.sequenceRightHandTransform,
       safeDuration,
+      _transformToMatrix(_defaultRightHandTransform),
     );
   }
 
@@ -126,9 +159,10 @@ class CharacterAnimator {
   Animation<Matrix4> _buildTransformAnimation(
     List<SequenceTransformEvent> events,
     double totalDuration,
+    Matrix4 defaultMatrix,
   ) {
     if (events.isEmpty) {
-      return ConstantTween<Matrix4>(Matrix4.identity()).animate(_controller);
+      return ConstantTween<Matrix4>(defaultMatrix).animate(_controller);
     }
 
     // Sort events by start time
@@ -137,7 +171,7 @@ class CharacterAnimator {
 
     final List<TweenSequenceItem<Matrix4>> items = [];
     double currentTime = 0.0;
-    Matrix4 currentMatrix = Matrix4.identity();
+    Matrix4 currentMatrix = defaultMatrix;
 
     for (int i = 0; i < sortedEvents.length; i++) {
       final event = sortedEvents[i];
@@ -196,7 +230,7 @@ class CharacterAnimator {
     }
 
     if (items.isEmpty) {
-      return ConstantTween<Matrix4>(Matrix4.identity()).animate(_controller);
+      return ConstantTween<Matrix4>(defaultMatrix).animate(_controller);
     }
 
     return TweenSequence<Matrix4>(items).animate(_controller);
@@ -218,9 +252,29 @@ class CharacterAnimator {
     final durationSeconds =
         (_controller.duration?.inMilliseconds.toDouble() ?? 0.0) / 1000.0;
     final double t = _controller.value * durationSeconds;
+    final double safeDiscreteTime = _terminalSafeSampleTime(
+      t: t,
+      durationSec: durationSeconds,
+    );
 
-    _updateDiscreteProperties(t);
+    _updateDiscreteProperties(safeDiscreteTime);
     _updateAudio(t);
+  }
+
+  double _terminalSafeSampleTime({
+    required double t,
+    required double durationSec,
+  }) {
+    if (durationSec <= 0) {
+      return t;
+    }
+    if (t < durationSec) {
+      return t;
+    }
+    if ((t - durationSec).abs() <= _terminalSampleEpsilonSec) {
+      return math.max(0.0, durationSec - _terminalSampleEpsilonSec);
+    }
+    return t;
   }
 
   void _updateDiscreteProperties(double t) {
@@ -228,59 +282,59 @@ class CharacterAnimator {
     config.leftEyeOpen.value = _getBooleanValue(
       sequence.sequenceLeftEyeOpen,
       t,
-      true,
+      _defaultLeftEyeOpen,
     );
     config.rightEyeOpen.value = _getBooleanValue(
       sequence.sequenceRightEyeOpen,
       t,
-      true,
+      _defaultRightEyeOpen,
     );
     config.leftHandVisible.value = _getBooleanValue(
       sequence.sequenceLeftHandVisible,
       t,
-      true,
+      _defaultLeftHandVisible,
     );
     config.rightHandVisible.value = _getBooleanValue(
       sequence.sequenceRightHandVisible,
       t,
-      true,
+      _defaultRightHandVisible,
     );
     config.surfaceLineOffset.value = _getFloatValue(
       sequence.sequenceSurfaceLineOffset,
       t,
-      50.0,
+      _defaultSurfaceLineOffset,
     );
     config.maskBoundaryOffset.value = _getFloatValue(
       sequence.sequenceMaskBoundaryOffset,
       t,
-      50.0,
+      _defaultMaskBoundaryOffset,
     );
     config.surfaceLineVisible.value = _getBooleanValue(
       sequence.sequenceSurfaceLineVisible,
       t,
-      true,
+      _defaultSurfaceLineVisible,
     );
     config.headMaskingEnabled.value = _getBooleanValue(
       sequence.sequenceHeadMaskingEnabled,
       t,
-      true,
+      _defaultHeadMaskingEnabled,
     );
     config.leftHandMaskingEnabled.value = _getBooleanValue(
       sequence.sequenceLeftHandMaskingEnabled,
       t,
-      false,
+      _defaultLeftHandMaskingEnabled,
     );
     config.rightHandMaskingEnabled.value = _getBooleanValue(
       sequence.sequenceRightHandMaskingEnabled,
       t,
-      false,
+      _defaultRightHandMaskingEnabled,
     );
   }
 
   MouthState _getMouthState(double t) {
     // Spec: active window is [start, end) and track sorted by start_time.
     if (sequence.sequenceMouthState.isEmpty) {
-      return MouthState.closed;
+      return _defaultMouthState;
     }
     final sorted = List<SequenceMouthEvent>.from(sequence.sequenceMouthState)
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -294,7 +348,7 @@ class CharacterAnimator {
         break;
       }
     }
-    return MouthState.closed;
+    return _defaultMouthState;
   }
 
   bool _getBooleanValue(

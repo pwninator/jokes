@@ -294,103 +294,39 @@ from ..common import models
 
 ## 6. Key Features & Screens
 
-### 6.1. User-Facing Features
+Feature areas are stable, but concrete screen names/routes evolve often.
 
-**Jokes**:
-- `DailyJokesScreen`: Main feed of latest jokes
-- `SavedJokesScreen`: User's saved jokes
+High-level areas:
+- User feed/saved/discovery/search
+- Book creation
+- User feedback/settings/auth
+- Admin joke management, scheduling, categories, analytics, and feedback
 
-**Search & Discovery**:
-- `DiscoverScreen`: Browse by categories/trending
-- `SearchScreen`: Active search for jokes
-
-**User Features**:
-- `UserFeedbackScreen`: Submit feedback
-- `UserSettingsScreen`: Account settings, sign-in
-
-**Book Creator**:
-- `BookCreatorScreen`: Create joke book collections
-- `JokeSelectorScreen`: Select jokes for books
-
-### 6.2. Admin Features
-
-**Admin Dashboard**:
-- `JokeAdminScreen`: Main admin hub with navigation
-
-**Joke Management**:
-- `JokeManagementScreen`: Search, filter, manage all jokes
-- `JokeEditorScreen`: Create/edit individual jokes
-- `JokeCreatorScreen`: AI-assisted joke generation
-- `JokeSchedulerScreen`: Schedule jokes for publication
-- `DeepResearchScreen`: Bulk AI joke generation workflow
-
-**Categories**:
-- `JokeCategoriesScreen`: View all categories (responsive grid)
-- `JokeCategoryEditorScreen`: Edit category details/images
-
-**Analytics & Feedback**:
-- `UsersAnalyticsScreen`: User activity histograms
-- `JokeFeedbackScreen`: Review user feedback threads
-- `FeedbackConversationScreen`: View/reply to feedback
-
-**Auth**:
-- Anonymous browsing allowed
-- `AuthGuard` protects admin routes
-- Google Sign-In via settings screen
+Source of truth for current screen/route wiring:
+- `lib/src/config/router/app_router.dart`
 
 ## 7. Backend Cloud Functions
 
-### 7.1. Admin Functions (`admin_fns.py`)
+Cloud Functions are defined across files in `py_quill/functions/` and exported in `py_quill/main.py`.
 
-- `set_user_role`: Assign user roles (e.g., admin)
-
-### 7.2. Analytics Functions (`analytics_fns.py`)
-
-- `usage`: Track and update user activity stats
-
-### 7.3. Joke Functions (`joke_fns.py`)
-
-**HTTP Endpoints**:
-- `search_jokes`: Vector similarity search
-- `modify_joke_image`: Edit joke images via text instructions
-- `critique_jokes`: AI critique of jokes
-- `upscale_joke`: Upscale joke images
-- `send_daily_joke_scheduler/http`: Send FCM notifications
-
-**Firestore Triggers**:
-- `on_joke_write`: Update embeddings, popularity, search index
-- `on_joke_category_write`: Generate category images on description change
-
-### 7.4. Other Functions
-
-- `book_fns.py`: Joke book management
-- `character_fns.py`: Character management
-- `joke_book_fns.py`: Book contents/creation
-- `story_prompt_fns.py`: Story prompt generation
-- `user_fns.py`: User data management
-- `util_fns.py`: Utility functions
-- `web_fns.py`: Flask web layer (SEO pages, search)
-
-### 7.5. ADK Agents
-
-Located in `py_quill/agents/`:
-- `jokes_agent.py`: Primary joke generation
-- `categorizer_agent.py`: Joke categorization
-- `punny_joke_agents.py`: Pun creation
-- `updater_agent.py`: Content updates
+- `py_quill/functions/joke_creation_fns.py` is a main entry point for many joke-related operations.
+- Additional joke workflows are split across specialized modules (for example trigger/notification/image/auto maintenance files).
+- Always verify deployed/exported function names in `py_quill/main.py` (source of truth).
 
 ## 8. Flask Web Layer
 
 **Entry Point**: `py_quill/functions/web_fns.py` (exports `web`)
 
-**Routes**:
-- `GET /jokes/<topic>`: SEO-optimized topic page
-- `GET /sitemap.xml`: Sitemap for topic pages
-- `GET /search`: Simple search interface
+The `web` Cloud Function handles web traffic, and Firebase Hosting rewrites web requests to this function.
+
+Source of truth:
+- Hosting rewrites: `firebase.json`
+- Flask app/route registration: `py_quill/web/app.py`
+- Route handlers: `py_quill/web/routes/`
 
 **Templates** (`py_quill/web/templates/`):
-- `base.html`: Canonical link, OpenGraph/Twitter meta, responsive layout
-- `topic.html`: JSON-LD FAQPage, accessible reveal, lazy images
+- `base.html`: shared metadata/layout
+- route-specific templates (for example `topic.html`, `jokes.html`, `single_joke.html`)
 
 **SEO Requirements**:
 - Setup image/text visible; punchline in `<details><summary>`
@@ -436,8 +372,9 @@ Environment is pre-configured. No setup needed.
 - Python functions exported in `py_quill/main.py`
 - Flask served via `web` function
 - Firebase Hosting rewrites:
-  - `/jokes/**`, `/sitemap.xml` → Python HTTPS Function
-  - Static assets → Hosting/CDN
+  - Catch-all web requests are routed to the `web` HTTPS function
+  - Some paths may map to specific HTTPS functions first (check `firebase.json`)
+  - Static assets are served via Hosting/CDN
 - Keep timeouts/memory reasonable
 - Batch Firestore reads where possible
 
@@ -453,6 +390,7 @@ Environment is pre-configured. No setup needed.
 ### Python Change
 - [ ] Tests under `py_quill/**/*_test.py`
 - [ ] `pip install -r py_quill/requirements.txt`
+- [ ] `pip install -e py_quill`
 - [ ] `pytest py_quill` (all pass)
 - [ ] Verify headers/SEO (web layer changes)
 

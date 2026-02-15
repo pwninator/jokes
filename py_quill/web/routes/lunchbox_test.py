@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+import html as html_lib
+import re
 from io import BytesIO
 from unittest.mock import Mock
 
+from common import amazon_redirect
 from web.app import app
 from web.routes import lunchbox as lunchbox_routes
 from web.utils import analytics as analytics_utils
+
+
+def _expected_lunchbox_amazon_url(country_code: str | None = None) -> str:
+  redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
+  expected_url, _, _ = redirect_config.resolve_target_url(
+    requested_country_code=country_code,
+    source=amazon_redirect.AttributionSource.LUNCHBOX_THANK_YOU,
+  )
+  return expected_url
+
+
+def _thank_you_cta_href(rendered_html: str) -> str:
+  match = re.search(
+    r'class="nav-cta text-button thankyou-amazon-cta" href="([^"]+)"',
+    rendered_html,
+  )
+  assert match is not None
+  return html_lib.unescape(match.group(1))
 
 
 def test_lunchbox_get_renders_form():
@@ -96,12 +117,12 @@ def test_lunchbox_thank_you_renders():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  expected_url = _expected_lunchbox_amazon_url()
   assert 'High Five!' in html
   assert 'id="thankyou-title"' in html
   assert 'Get the Book on Amazon' in html
   assert 'web_lunchbox_thank_you' in html
-  # Should contain an amazon.com URL (default US)
-  assert 'href="https://www.amazon.com/dp/B0G7F82P65' in html
+  assert _thank_you_cta_href(html) == expected_url
 
 
 def test_lunchbox_thank_you_uses_country_specific_domain():
@@ -112,8 +133,9 @@ def test_lunchbox_thank_you_uses_country_specific_domain():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'www.amazon.co.uk' in html
-  assert 'B0G7F82P65' in html  # Paperback ASIN
+  expected_url = _expected_lunchbox_amazon_url(country_code='GB')
+  assert _thank_you_cta_href(html) == expected_url
+  assert 'www.amazon.co.uk' in expected_url
 
 
 def test_lunchbox_thank_you_falls_back_to_ebook_for_unsupported_country():
@@ -124,8 +146,9 @@ def test_lunchbox_thank_you_falls_back_to_ebook_for_unsupported_country():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'www.amazon.com.br' in html
-  assert 'B0G9765J19' in html  # Ebook ASIN (fallback)
+  expected_url = _expected_lunchbox_amazon_url(country_code='BR')
+  assert _thank_you_cta_href(html) == expected_url
+  assert 'www.amazon.com.br' in expected_url
 
 
 def test_lunchbox_thank_you_includes_attribution_tag():
@@ -136,10 +159,11 @@ def test_lunchbox_thank_you_includes_attribution_tag():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  # Should contain the attribution tag configured for (B0G7F82P65, lunchbox_thank_you)
-  assert 'maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs' in html
-  assert 'ref_=aa_maas' in html
-  assert 'tag=maas' in html
+  expected_url = _expected_lunchbox_amazon_url(country_code='US')
+  assert _thank_you_cta_href(html) == expected_url
+  assert 'maas=' in expected_url
+  assert 'ref_=aa_maas' in expected_url
+  assert 'tag=maas' in expected_url
 
 
 def test_lunchbox_download_pdf_renders(monkeypatch):

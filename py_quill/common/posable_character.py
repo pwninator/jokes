@@ -151,8 +151,6 @@ class PosableCharacter:
 
   @pose_state.setter
   def pose_state(self, value: PoseState) -> None:
-    if not isinstance(value, PoseState):
-      raise TypeError("pose_state must be a PoseState")
     self._pose_state = value
 
   @property

@@ -81,7 +81,7 @@ def _validate_portrait_layout() -> None:
 _validate_portrait_layout()
 
 
-def build_portrait_joke_scene_script(
+def build_script(
   *,
   setup_image_gcs_uri: str,
   punchline_image_gcs_uri: str,
@@ -120,7 +120,7 @@ def build_portrait_joke_scene_script(
       raise ValueError(
         f"{listener_voice.name} giggle sequence must have positive duration")
 
-  timeline = script_utils.resolve_portrait_timeline(
+  timeline = script_utils.resolve_timeline(
     pop_in_sequence=pop_in_sequence,
     intro_sequence=intro_sequence,
     setup_sequence=setup_sequence,
@@ -139,7 +139,7 @@ def build_portrait_joke_scene_script(
     ))
   timed_images.extend(_build_background_image_items(timeline=timeline))
 
-  character_items = script_utils.build_character_dialogs(
+  character_items = script_utils.build_character_sequences(
     teller_character=teller_character,
     listener_character=listener_character,
     pop_in_sequence=pop_in_sequence,
@@ -153,6 +153,8 @@ def build_portrait_joke_scene_script(
     z_index=_PORTRAIT_CHARACTER_LAYER_Z_INDEX,
     actor_band_rect=_PORTRAIT_CHARACTER_RECT,
     actor_side_margin_px=_PORTRAIT_CHARACTER_SIDE_MARGIN_PX,
+    extend_first_sequence=True,
+    surface_line_visible=True,
   )
 
   script = SceneScript(

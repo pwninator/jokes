@@ -17,7 +17,7 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.VideoClip import ImageClip
 from services import audio_voices, cloud_storage
-from services.video import joke_social_script_builder
+from services.video import joke_video_chars_on_top_script_builder
 from services.video.scene_video_renderer import generate_scene_video
 
 _DEFAULT_VIDEO_FPS = 24
@@ -229,7 +229,7 @@ def create_portrait_character_video(
   )
 
   try:
-    script = joke_social_script_builder.build_portrait_joke_scene_script(
+    script = joke_video_chars_on_top_script_builder.build_script(
       setup_image_gcs_uri=setup_image_gcs_uri,
       punchline_image_gcs_uri=punchline_image_gcs_uri,
       teller_character=teller_character,

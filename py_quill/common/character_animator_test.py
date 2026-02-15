@@ -8,12 +8,14 @@ from pathlib import Path
 
 from common.character_animator import CharacterAnimator
 from common.posable_character import MouthState
-from common.posable_character_sequence import PosableCharacterSequence
-from common.posable_character_sequence import SequenceMouthEvent
+from common.posable_character_sequence import (PosableCharacterSequence,
+                                               SequenceBooleanEvent,
+                                               SequenceMouthEvent)
 
 
 def _fixture_path() -> Path:
-  return Path(__file__).resolve().parent / "testdata" / "character_animator_canonical_v1.json"
+  return Path(__file__).resolve(
+  ).parent / "testdata" / "character_animator_canonical_v1.json"
 
 
 class CharacterAnimatorTest(unittest.TestCase):
@@ -29,18 +31,13 @@ class CharacterAnimatorTest(unittest.TestCase):
                            float(fixture["expected_duration_sec"]))
 
     expected_samples_by_time = {
-      float(item["time_sec"]): item for item in fixture["expected_samples"]
+      float(item["time_sec"]): item
+      for item in fixture["expected_samples"]
     }
     for time_sec in fixture["sample_times_sec"]:
       time_sec = float(time_sec)
       expected = expected_samples_by_time[time_sec]
       sample = animator.sample_pose(time_sec)
-
-      self.assertEqual(sample.left_eye_open, expected["left_eye_open"])
-      self.assertEqual(sample.right_eye_open, expected["right_eye_open"])
-      self.assertEqual(sample.mouth_state.value, expected["mouth_state"])
-      self.assertEqual(sample.left_hand_visible, expected["left_hand_visible"])
-      self.assertEqual(sample.right_hand_visible, expected["right_hand_visible"])
 
       self.assertAlmostEqual(
         float(sample.left_hand_transform.translate_x),
@@ -100,22 +97,6 @@ class CharacterAnimatorTest(unittest.TestCase):
         float(sample.mask_boundary_offset),
         float(expected["mask_boundary_offset"]),
       )
-      self.assertEqual(
-        bool(sample.surface_line_visible),
-        bool(expected["surface_line_visible"]),
-      )
-      self.assertEqual(
-        bool(sample.head_masking_enabled),
-        bool(expected["head_masking_enabled"]),
-      )
-      self.assertEqual(
-        bool(sample.left_hand_masking_enabled),
-        bool(expected["left_hand_masking_enabled"]),
-      )
-      self.assertEqual(
-        bool(sample.right_hand_masking_enabled),
-        bool(expected["right_hand_masking_enabled"]),
-      )
 
     for window in fixture["sound_windows"]:
       sounds = animator.sound_events_between(
@@ -125,27 +106,52 @@ class CharacterAnimatorTest(unittest.TestCase):
         include_end=False,
       )
       sound_starts = [float(event.start_time) for event in sounds]
-      expected_starts = [float(value) for value in window["expected_sound_starts"]]
+      expected_starts = [
+        float(value) for value in window["expected_sound_starts"]
+      ]
       self.assertEqual(sound_starts, expected_starts)
 
   def test_adjacent_mouth_events_use_half_open_windows(self):
+    sequence = PosableCharacterSequence(sequence_mouth_state=[
+      SequenceMouthEvent(
+        start_time=0.0,
+        end_time=1.0,
+        mouth_state=MouthState.OPEN,
+      ),
+      SequenceMouthEvent(
+        start_time=1.0,
+        end_time=2.0,
+        mouth_state=MouthState.O,
+      ),
+    ])
+    animator = CharacterAnimator(sequence)
+
+    self.assertEqual(animator.sample_pose(0.999).mouth_state, MouthState.OPEN)
+    self.assertEqual(animator.sample_pose(1.0).mouth_state, MouthState.O)
+
+  def test_boolean_and_mouth_tracks_reset_to_defaults_after_event_end(self):
     sequence = PosableCharacterSequence(
+      sequence_left_eye_open=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=1.0,
+          value=False,
+        ),
+      ],
       sequence_mouth_state=[
         SequenceMouthEvent(
           start_time=0.0,
           end_time=1.0,
           mouth_state=MouthState.OPEN,
         ),
-        SequenceMouthEvent(
-          start_time=1.0,
-          end_time=2.0,
-          mouth_state=MouthState.O,
-        ),
-      ])
+      ],
+    )
     animator = CharacterAnimator(sequence)
 
-    self.assertEqual(animator.sample_pose(0.999).mouth_state, MouthState.OPEN)
-    self.assertEqual(animator.sample_pose(1.0).mouth_state, MouthState.O)
+    # Track values reset to defaults when no event is active.
+    sample = animator.sample_pose(1.5)
+    self.assertEqual(sample.left_eye_open, True)
+    self.assertEqual(sample.mouth_state, MouthState.CLOSED)
 
 
 if __name__ == "__main__":

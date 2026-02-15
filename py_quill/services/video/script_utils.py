@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 import random
 from dataclasses import dataclass
 
-from common.posable_character import PosableCharacter
-from common.posable_character_sequence import PosableCharacterSequence
+from common.character_animator import CharacterAnimator
+from common.posable_character import PosableCharacter, PoseState
+from common.posable_character_sequence import (PosableCharacterSequence,
+                                               SequenceBooleanEvent)
 from services import audio_voices, firestore
 from services.video.script import (FitMode, SceneRect, TimedCharacterSequence,
                                    TimedImage)
@@ -59,7 +62,7 @@ def build_static_image_item(
   )
 
 
-def resolve_portrait_timeline(
+def resolve_timeline(
   *,
   pop_in_sequence: PosableCharacterSequence,
   intro_sequence: PosableCharacterSequence | None,
@@ -122,7 +125,7 @@ def resolve_portrait_timeline(
   )
 
 
-def build_character_dialogs(
+def build_character_sequences(
   *,
   teller_character: PosableCharacter,
   listener_character: PosableCharacter | None,
@@ -139,6 +142,8 @@ def build_character_dialogs(
   actor_side_margin_px: int,
   listener_pop_in_delay_after_teller_pop_in_end_sec:
   float = LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC,
+  extend_first_sequence: bool = False,
+  surface_line_visible: bool | None = None,
 ) -> list[TimedCharacterSequence]:
   """Build timed character sequence items for teller/listener tracks."""
   tracks: list[tuple[PosableCharacter,
@@ -179,13 +184,24 @@ def build_character_dialogs(
   for actor_index, (character, dialogs) in enumerate(tracks):
     actor_id = f"actor_{actor_index}"
     actor_rect = actor_rects[actor_index]
-    for start_time, sequence in dialogs:
-      duration_sec = sequence.duration_sec
+    dialog_entries = _fill_track_gaps(
+      dialogs=dialogs,
+      scene_end_sec=timeline.total_duration_sec,
+      extend_first_sequence=extend_first_sequence,
+    )
+    for start_time, sequence in dialog_entries:
+      resolved_sequence = sequence
+      if surface_line_visible is not None:
+        resolved_sequence = _with_surface_line_visibility(
+          sequence=resolved_sequence,
+          visible=surface_line_visible,
+        )
+      duration_sec = resolved_sequence.duration_sec
       items.append(
         TimedCharacterSequence(
           actor_id=actor_id,
           character=character,
-          sequence=sequence,
+          sequence=resolved_sequence,
           start_time_sec=start_time,
           end_time_sec=start_time + duration_sec,
           z_index=int(z_index),
@@ -194,6 +210,84 @@ def build_character_dialogs(
         ))
 
   return items
+
+
+def _fill_track_gaps(
+  *,
+  dialogs: list[tuple[float, PosableCharacterSequence]],
+  scene_end_sec: float,
+  extend_first_sequence: bool,
+) -> list[tuple[float, PosableCharacterSequence]]:
+  """Fill timeline gaps with explicit default-pose or first-pose clips."""
+  if not dialogs:
+    return []
+
+  sorted_dialogs = sorted(dialogs, key=lambda entry: entry[0])
+  _, first_sequence = sorted_dialogs[0]
+
+  out: list[tuple[float, PosableCharacterSequence]] = []
+  cursor_sec = 0.0
+  for index, (start_sec, sequence) in enumerate(sorted_dialogs):
+    if start_sec > cursor_sec:
+      gap_duration_sec = start_sec - cursor_sec
+      if index == 0 and extend_first_sequence:
+        out.append((cursor_sec,
+                    _build_first_pose_filler_sequence(
+                      first_sequence=first_sequence,
+                      duration_sec=gap_duration_sec,
+                    )))
+      else:
+        out.append(
+          (cursor_sec, _build_default_pose_filler_sequence(gap_duration_sec)))
+    out.append((start_sec, sequence))
+    cursor_sec = max(cursor_sec, start_sec + sequence.duration_sec)
+
+  if scene_end_sec > cursor_sec:
+    out.append(
+      (cursor_sec,
+       _build_default_pose_filler_sequence(scene_end_sec - cursor_sec)))
+
+  return out
+
+
+def _build_default_pose_filler_sequence(
+  duration_sec: float, ) -> PosableCharacterSequence:
+  """Build a sequence that keeps the character at its default pose."""
+  return PosableCharacterSequence.build_pose_hold_sequence(
+    pose=PoseState(),
+    duration_sec=duration_sec,
+  )
+
+
+def _build_first_pose_filler_sequence(
+  *,
+  first_sequence: PosableCharacterSequence,
+  duration_sec: float,
+) -> PosableCharacterSequence:
+  """Build a filler that holds the initial pose of the first sequence."""
+  animator = CharacterAnimator(first_sequence)
+  return PosableCharacterSequence.build_pose_hold_sequence(
+    pose=animator.sample_pose(0.0),
+    duration_sec=duration_sec,
+  )
+
+
+def _with_surface_line_visibility(
+  *,
+  sequence: PosableCharacterSequence,
+  visible: bool,
+) -> PosableCharacterSequence:
+  """Return a copy of `sequence` with surface line visibility fixed."""
+  updated = copy.deepcopy(sequence)
+  updated.sequence_surface_line_visible = [
+    SequenceBooleanEvent(
+      start_time=0.0,
+      end_time=max(0.0, updated.duration_sec),
+      value=visible,
+    )
+  ]
+  updated.validate()
+  return updated
 
 
 def load_sequence_from_firestore(

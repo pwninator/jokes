@@ -6,7 +6,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, override
 
-from common.posable_character import MouthState, Transform
+from common.posable_character import MouthState, PoseState, Transform
 
 
 @dataclass(kw_only=True)
@@ -335,6 +335,114 @@ class PosableCharacterSequence:
       out._append_shifted(sequence=sequence, offset=offset)
     out.validate()
     return out
+
+  @classmethod
+  def build_pose_hold_sequence(
+    cls,
+    *,
+    pose: PoseState,
+    duration_sec: float,
+  ) -> PosableCharacterSequence:
+    """Build a static-pose sequence with explicit events across `duration_sec`."""
+    end_time = max(0.0, duration_sec)
+    sequence = cls(
+      sequence_left_eye_open=[
+        SequenceBooleanEvent(start_time=0.0,
+                             end_time=end_time,
+                             value=pose.left_eye_open)
+      ],
+      sequence_right_eye_open=[
+        SequenceBooleanEvent(start_time=0.0,
+                             end_time=end_time,
+                             value=pose.right_eye_open)
+      ],
+      sequence_mouth_state=[
+        SequenceMouthEvent(
+          start_time=0.0,
+          end_time=end_time,
+          mouth_state=pose.mouth_state,
+        )
+      ],
+      sequence_left_hand_visible=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=end_time,
+          value=pose.left_hand_visible,
+        )
+      ],
+      sequence_right_hand_visible=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=end_time,
+          value=pose.right_hand_visible,
+        )
+      ],
+      sequence_left_hand_transform=[
+        SequenceTransformEvent(
+          start_time=0.0,
+          end_time=end_time,
+          target_transform=pose.left_hand_transform,
+        )
+      ],
+      sequence_right_hand_transform=[
+        SequenceTransformEvent(
+          start_time=0.0,
+          end_time=end_time,
+          target_transform=pose.right_hand_transform,
+        )
+      ],
+      sequence_head_transform=[
+        SequenceTransformEvent(
+          start_time=0.0,
+          end_time=end_time,
+          target_transform=pose.head_transform,
+        )
+      ],
+      sequence_surface_line_offset=[
+        SequenceFloatEvent(
+          start_time=0.0,
+          end_time=end_time,
+          target_value=pose.surface_line_offset,
+        )
+      ],
+      sequence_mask_boundary_offset=[
+        SequenceFloatEvent(
+          start_time=0.0,
+          end_time=end_time,
+          target_value=pose.mask_boundary_offset,
+        )
+      ],
+      sequence_surface_line_visible=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=end_time,
+          value=pose.surface_line_visible,
+        )
+      ],
+      sequence_head_masking_enabled=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=end_time,
+          value=pose.head_masking_enabled,
+        )
+      ],
+      sequence_left_hand_masking_enabled=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=end_time,
+          value=pose.left_hand_masking_enabled,
+        )
+      ],
+      sequence_right_hand_masking_enabled=[
+        SequenceBooleanEvent(
+          start_time=0.0,
+          end_time=end_time,
+          value=pose.right_hand_masking_enabled,
+        )
+      ],
+    )
+    sequence.validate()
+    return sequence
 
   def _append_shifted(
     self,

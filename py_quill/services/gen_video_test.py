@@ -416,8 +416,8 @@ def test_create_portrait_character_video_uploads_mp4():
 
   with patch.object(gen_video.utils, "is_emulator", return_value=False), \
       patch.object(gen_video.cloud_storage, "get_video_gcs_uri", get_uri_mock), \
-      patch.object(gen_video.joke_social_script_builder,
-                   "build_portrait_joke_scene_script",
+      patch.object(gen_video.joke_video_chars_on_top_script_builder,
+                   "build_script",
                    return_value=script_stub) as build_script_mock, \
       patch.object(gen_video, "generate_scene_video", create_scene_mock):
     gcs_uri, metadata = gen_video.create_portrait_character_video(

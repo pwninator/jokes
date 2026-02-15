@@ -12,7 +12,6 @@ import numpy as np
 from common import models
 from common.character_animator import CharacterAnimator
 from common.posable_character import PosableCharacter, PoseState
-from common.posable_character_sequence import PosableCharacterSequence
 from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.VideoClip import VideoClip
@@ -44,16 +43,117 @@ class _PreparedImage:
 
 
 @dataclass(frozen=True)
+class _ActorClip:
+  start_time_sec: float
+  end_time_sec: float
+  animator: CharacterAnimator
+
+
+@dataclass(frozen=True)
 class _ActorRender:
   actor_id: str
   source_order: int
   character: PosableCharacter
-  animator: CharacterAnimator
-  first_sequence_start_sec: float
+  clips: list[_ActorClip]
   pre_start_pose: PoseState
   z_index: int
   rect: SceneRect
   fit_mode: FitMode
+
+
+def generate_scene_video(
+  *,
+  script: SceneScript,
+  output_gcs_uri: str,
+  label: str,
+  fps: int = _DEFAULT_VIDEO_FPS,
+) -> tuple[str, models.SingleGenerationMetadata]:
+  """Render a video from a fully declarative `SceneScript`."""
+  script.validate()
+  if fps <= 0:
+    raise ValueError("FPS must be positive")
+
+  start_perf = time.perf_counter()
+  video_clip: VideoClip | None = None
+  audio_composite: CompositeAudioClip | None = None
+  audio_clips: list[AudioFileClip] = []
+
+  try:
+    with tempfile.TemporaryDirectory() as temp_dir:
+      prepared_images = _prepare_images(script)
+      actor_renders = _prepare_actor_renders(script)
+      audio_schedule = _extract_audio_schedule(script)
+      audio_paths = _download_audio_to_temp(audio_schedule, temp_dir=temp_dir)
+
+      def make_frame(time_sec: float) -> np.ndarray[Any, Any]:
+        return _render_scene_frame(
+          time_sec=time_sec,
+          canvas=script.canvas,
+          prepared_images=prepared_images,
+          actor_renders=actor_renders,
+        )
+
+      video_clip = VideoClip(make_frame, duration=script.duration_sec)
+      if audio_paths:
+        audio_clips = _build_audio_clips(audio_paths)
+        audio_composite = CompositeAudioClip(audio_clips)
+        video_clip = video_clip.with_audio(audio_composite)
+
+      output_path = os.path.join(temp_dir, "scene.mp4")
+      video_clip.write_videofile(
+        output_path,
+        codec="libx264",
+        audio_codec="aac",
+        fps=fps,
+        logger=None,
+      )
+
+      _ = cloud_storage.upload_file_to_gcs(
+        output_path,
+        output_gcs_uri,
+        content_type="video/mp4",
+      )
+
+      file_size_bytes = os.path.getsize(output_path)
+      generation_time_sec = time.perf_counter() - start_perf
+      num_images = len(
+        [item for item in script.items if isinstance(item, TimedImage)])
+      num_characters = len({
+        item.actor_id
+        for item in script.items if isinstance(item, TimedCharacterSequence)
+      })
+      metadata = models.SingleGenerationMetadata(
+        label=label,
+        model_name="moviepy",
+        token_counts={
+          "num_images": num_images,
+          "num_audio_files": len(audio_schedule),
+          "num_characters": num_characters,
+          "video_duration_sec": int(script.duration_sec),
+          "output_file_size_bytes": file_size_bytes,
+          "canvas_width_px": script.canvas.width_px,
+          "canvas_height_px": script.canvas.height_px,
+        },
+        generation_time_sec=generation_time_sec,
+        cost=0.0,
+      )
+      return output_gcs_uri, metadata
+  finally:
+    for clip in audio_clips:
+      try:
+        clip.close()
+      except Exception:
+        pass
+    if audio_composite is not None:
+      try:
+        audio_composite.close()
+      except Exception:
+        pass
+    if video_clip is not None:
+      try:
+        video_clip.close()
+      except Exception:
+        pass
 
 
 def _render_with_fit(
@@ -64,10 +164,10 @@ def _render_with_fit(
   allow_upscale: bool,
 ) -> tuple[Image.Image, int, int]:
   source = image.convert("RGBA")
-  rect_x = int(rect.x_px)
-  rect_y = int(rect.y_px)
-  rect_width = int(rect.width_px)
-  rect_height = int(rect.height_px)
+  rect_x = rect.x_px
+  rect_y = rect.y_px
+  rect_width = rect.width_px
+  rect_height = rect.height_px
 
   if fit_mode == "fill":
     fitted = source.resize((rect_width, rect_height),
@@ -83,8 +183,8 @@ def _render_with_fit(
     return fitted, rect_x, rect_y
 
   # contain (default)
-  width_scale = rect_width / float(source.width)
-  height_scale = rect_height / float(source.height)
+  width_scale = rect_width / source.width
+  height_scale = rect_height / source.height
   scale = min(width_scale, height_scale)
   if not allow_upscale:
     scale = min(1.0, scale)
@@ -114,15 +214,14 @@ def _prepare_images(script: SceneScript) -> list[_PreparedImage]:
     )
     prepared.append(
       _PreparedImage(
-        source_order=int(index),
-        start_time_sec=float(item.start_time_sec),
-        end_time_sec=float(item.end_time_sec),
-        z_index=int(item.z_index),
+        source_order=index,
+        start_time_sec=item.start_time_sec,
+        end_time_sec=item.end_time_sec,
+        z_index=item.z_index,
         sprite=sprite,
         paste_position=(x, y),
       ))
-  prepared.sort(
-    key=lambda entry: (int(entry.z_index), int(entry.source_order)))
+  prepared.sort(key=lambda entry: (entry.z_index, entry.source_order))
   return prepared
 
 
@@ -131,11 +230,10 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
   for index, item in enumerate(script.items):
     if isinstance(item, TimedCharacterSequence):
       actor_entry = by_actor.setdefault(item.actor_id, {
-        "source_order": int(index),
+        "source_order": index,
         "items": [],
       })
-      actor_entry["source_order"] = min(int(actor_entry["source_order"]),
-                                        int(index))
+      actor_entry["source_order"] = min(actor_entry["source_order"], index)
       actor_entry["items"].append(item)
 
   renders: list[_ActorRender] = []
@@ -145,28 +243,29 @@ def _prepare_actor_renders(script: SceneScript) -> list[_ActorRender]:
     first_item = items[0]
     first_item_animator = CharacterAnimator(first_item.sequence)
     pre_start_pose = first_item_animator.sample_pose(0.0)
+    clips = [
+      _ActorClip(
+        start_time_sec=item.start_time_sec,
+        end_time_sec=item.end_time_sec,
+        animator=CharacterAnimator(item.sequence),
+      ) for item in items
+    ]
     character = items[0].character
-    z_index = int(items[0].z_index)
+    z_index = items[0].z_index
     rect = items[0].rect
     fit_mode = items[0].fit_mode
-    sequence = PosableCharacterSequence.merge_all([(
-      item.sequence,
-      float(item.start_time_sec),
-    ) for item in items])
-    animator = CharacterAnimator(sequence)
     renders.append(
       _ActorRender(
         actor_id=actor_id,
-        source_order=int(actor_entry["source_order"]),
+        source_order=actor_entry["source_order"],
         character=character,
-        animator=animator,
-        first_sequence_start_sec=float(first_item.start_time_sec),
+        clips=clips,
         pre_start_pose=pre_start_pose,
         z_index=z_index,
         rect=rect,
         fit_mode=fit_mode,
       ))
-  renders.sort(key=lambda entry: (int(entry.z_index), int(entry.source_order)))
+  renders.sort(key=lambda entry: (entry.z_index, entry.source_order))
   return renders
 
 
@@ -177,7 +276,7 @@ def _render_scene_frame(
   prepared_images: list[_PreparedImage],
   actor_renders: list[_ActorRender],
 ) -> np.ndarray[Any, Any]:
-  base = Image.new("RGBA", (int(canvas.width_px), int(canvas.height_px)),
+  base = Image.new("RGBA", (canvas.width_px, canvas.height_px),
                    tuple(canvas.background_rgba))
 
   image_index = 0
@@ -186,20 +285,19 @@ def _render_scene_frame(
     render_image = actor_index >= len(actor_renders)
     if image_index < len(prepared_images) and actor_index < len(actor_renders):
       image_key = (
-        int(prepared_images[image_index].z_index),
-        int(prepared_images[image_index].source_order),
+        prepared_images[image_index].z_index,
+        prepared_images[image_index].source_order,
       )
       actor_key = (
-        int(actor_renders[actor_index].z_index),
-        int(actor_renders[actor_index].source_order),
+        actor_renders[actor_index].z_index,
+        actor_renders[actor_index].source_order,
       )
       render_image = image_key <= actor_key
 
     if render_image:
       image = prepared_images[image_index]
       image_index += 1
-      if not (float(image.start_time_sec) <= float(time_sec) < float(
-          image.end_time_sec)):
+      if not (image.start_time_sec <= time_sec < image.end_time_sec):
         continue
       x, y = image.paste_position
       base.paste(image.sprite, (x, y), image.sprite)
@@ -207,10 +305,7 @@ def _render_scene_frame(
 
     render = actor_renders[actor_index]
     actor_index += 1
-    if float(time_sec) < float(render.first_sequence_start_sec):
-      pose = render.pre_start_pose
-    else:
-      pose = render.animator.sample_pose(float(time_sec))
+    pose = _sample_actor_pose(render=render, time_sec=time_sec)
     render.character.apply_pose_state(pose)
     sprite = render.character.get_image()
     fitted, x, y = _render_with_fit(
@@ -224,6 +319,28 @@ def _render_scene_frame(
   return np.asarray(base.convert("RGB"))
 
 
+def _sample_actor_pose(*, render: _ActorRender, time_sec: float) -> PoseState:
+  """Sample actor pose by selecting the active sequence clip for `time_sec`."""
+  if not render.clips:
+    raise ValueError(f"Actor '{render.actor_id}' has no clips")
+
+  first_clip = render.clips[0]
+  if time_sec < first_clip.start_time_sec:
+    return render.pre_start_pose
+
+  for clip_index, clip in enumerate(render.clips):
+    next_start_sec = float("inf")
+    if clip_index + 1 < len(render.clips):
+      next_start_sec = render.clips[clip_index + 1].start_time_sec
+    if time_sec < next_start_sec:
+      local_time_sec = max(0.0, time_sec - clip.start_time_sec)
+      return clip.animator.sample_pose(local_time_sec)
+
+  last_clip = render.clips[-1]
+  local_time_sec = max(0.0, time_sec - last_clip.start_time_sec)
+  return last_clip.animator.sample_pose(local_time_sec)
+
+
 def _extract_audio_schedule(
   script: SceneScript, ) -> list[_AudioScheduleEntry]:
   schedule: list[_AudioScheduleEntry] = []
@@ -232,13 +349,13 @@ def _extract_audio_schedule(
       continue
     for event in item.sequence.sequence_sound_events:
       schedule.append((
-        str(event.gcs_uri),
-        float(item.start_time_sec) + float(event.start_time),
-        float(item.start_time_sec) + float(event.end_time),
-        float(event.volume),
+        event.gcs_uri,
+        item.start_time_sec + event.start_time,
+        item.start_time_sec + event.end_time,
+        event.volume,
       ))
-  schedule = [entry for entry in schedule if float(entry[2]) > float(entry[1])]
-  schedule.sort(key=lambda entry: float(entry[1]))
+  schedule = [entry for entry in schedule if entry[2] > entry[1]]
+  schedule.sort(key=lambda entry: entry[1])
   return schedule
 
 
@@ -255,8 +372,7 @@ def _download_audio_to_temp(
     content_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
     with open(local_path, "wb") as file_handle:
       _ = file_handle.write(content_bytes)
-    out.append(
-      (gcs_uri, float(start_time), float(end_time), float(volume), local_path))
+    out.append((gcs_uri, start_time, end_time, volume, local_path))
   return out
 
 
@@ -264,13 +380,12 @@ def _build_audio_clips(
   audio_paths: list[_DownloadedAudioEntry], ) -> list[AudioFileClip]:
   clips: list[AudioFileClip] = []
   for _gcs_uri, start_time, end_time, volume, path in audio_paths:
-    requested_duration = float(end_time) - float(start_time)
+    requested_duration = end_time - start_time
     if requested_duration <= 0:
       continue
-    clip = AudioFileClip(path).with_start(float(start_time))
-    clip = clip.with_volume_scaled(float(volume))
-    source_duration = float(
-      clip.duration) if clip.duration is not None else 0.0
+    clip = AudioFileClip(path).with_start(start_time)
+    clip = clip.with_volume_scaled(volume)
+    source_duration = clip.duration if clip.duration is not None else 0.0
 
     # Never extend a clip beyond its source media duration; this can cause
     # MoviePy to request out-of-range frames for short files.
@@ -287,98 +402,3 @@ def _build_audio_clips(
     clip = clip.with_duration(requested_duration)
     clips.append(clip)
   return clips
-
-
-def generate_scene_video(
-  *,
-  script: SceneScript,
-  output_gcs_uri: str,
-  label: str,
-  fps: int = _DEFAULT_VIDEO_FPS,
-) -> tuple[str, models.SingleGenerationMetadata]:
-  """Render a video from a fully declarative `SceneScript`."""
-  script.validate()
-  if int(fps) <= 0:
-    raise ValueError("FPS must be positive")
-
-  start_perf = float(time.perf_counter())
-  video_clip: VideoClip | None = None
-  audio_composite: CompositeAudioClip | None = None
-  audio_clips: list[AudioFileClip] = []
-
-  try:
-    with tempfile.TemporaryDirectory() as temp_dir:
-      prepared_images = _prepare_images(script)
-      actor_renders = _prepare_actor_renders(script)
-      audio_schedule = _extract_audio_schedule(script)
-      audio_paths = _download_audio_to_temp(audio_schedule, temp_dir=temp_dir)
-
-      def make_frame(time_sec: float) -> np.ndarray[Any, Any]:
-        return _render_scene_frame(
-          time_sec=float(time_sec),
-          canvas=script.canvas,
-          prepared_images=prepared_images,
-          actor_renders=actor_renders,
-        )
-
-      video_clip = VideoClip(make_frame, duration=float(script.duration_sec))
-      if audio_paths:
-        audio_clips = _build_audio_clips(audio_paths)
-        audio_composite = CompositeAudioClip(audio_clips)
-        video_clip = video_clip.with_audio(audio_composite)
-
-      output_path = os.path.join(temp_dir, "scene.mp4")
-      video_clip.write_videofile(
-        output_path,
-        codec="libx264",
-        audio_codec="aac",
-        fps=int(fps),
-        logger=None,
-      )
-
-      _ = cloud_storage.upload_file_to_gcs(
-        output_path,
-        output_gcs_uri,
-        content_type="video/mp4",
-      )
-
-      file_size_bytes = os.path.getsize(output_path)
-      generation_time_sec = float(time.perf_counter()) - float(start_perf)
-      num_images = len(
-        [item for item in script.items if isinstance(item, TimedImage)])
-      num_characters = len({
-        item.actor_id
-        for item in script.items if isinstance(item, TimedCharacterSequence)
-      })
-      metadata = models.SingleGenerationMetadata(
-        label=label,
-        model_name="moviepy",
-        token_counts={
-          "num_images": int(num_images),
-          "num_audio_files": int(len(audio_schedule)),
-          "num_characters": int(num_characters),
-          "video_duration_sec": int(float(script.duration_sec)),
-          "output_file_size_bytes": int(file_size_bytes),
-          "canvas_width_px": int(script.canvas.width_px),
-          "canvas_height_px": int(script.canvas.height_px),
-        },
-        generation_time_sec=float(generation_time_sec),
-        cost=0.0,
-      )
-      return output_gcs_uri, metadata
-  finally:
-    for clip in audio_clips:
-      try:
-        clip.close()
-      except Exception:
-        pass
-    if audio_composite is not None:
-      try:
-        audio_composite.close()
-      except Exception:
-        pass
-    if video_clip is not None:
-      try:
-        video_clip.close()
-      except Exception:
-        pass

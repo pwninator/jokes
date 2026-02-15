@@ -7,17 +7,15 @@ This implementation must strictly conform to:
 from __future__ import annotations
 
 import math
-from typing import Iterator
+from collections.abc import Iterator
 
-from common.posable_character import (MouthState, PoseState, PosableCharacter,
+from common.posable_character import (MouthState, PosableCharacter, PoseState,
                                       Transform)
-from common.posable_character_sequence import (PosableCharacterSequence,
-                                               SequenceBooleanEvent,
-                                               SequenceFloatEvent,
-                                               SequenceMouthEvent,
-                                               SequenceSoundEvent,
-                                               SequenceTransformEvent)
+from common.posable_character_sequence import (
+  PosableCharacterSequence, SequenceBooleanEvent, SequenceFloatEvent,
+  SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
 from PIL import Image
+
 
 class CharacterAnimator:
   """Evaluate a `PosableCharacterSequence` at arbitrary timestamps.
@@ -28,58 +26,69 @@ class CharacterAnimator:
 
   def __init__(self, sequence: PosableCharacterSequence):
     sequence.validate()
-    self._sequence = sequence
-    self._left_eye_track = sorted(sequence.sequence_left_eye_open,
-                                  key=lambda event: float(event.start_time))
-    self._right_eye_track = sorted(sequence.sequence_right_eye_open,
-                                   key=lambda event: float(event.start_time))
-    self._mouth_track = sorted(sequence.sequence_mouth_state,
-                               key=lambda event: float(event.start_time))
-    self._left_hand_visible_track = sorted(
+    self._sequence: PosableCharacterSequence = sequence
+    self._left_eye_track: list[SequenceBooleanEvent] = sorted(
+      sequence.sequence_left_eye_open,
+      key=lambda event: event.start_time,
+    )
+    self._right_eye_track: list[SequenceBooleanEvent] = sorted(
+      sequence.sequence_right_eye_open,
+      key=lambda event: event.start_time,
+    )
+    self._mouth_track: list[SequenceMouthEvent] = sorted(
+      sequence.sequence_mouth_state,
+      key=lambda event: event.start_time,
+    )
+    self._left_hand_visible_track: list[SequenceBooleanEvent] = sorted(
       sequence.sequence_left_hand_visible,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._right_hand_visible_track = sorted(
+    self._right_hand_visible_track: list[SequenceBooleanEvent] = sorted(
       sequence.sequence_right_hand_visible,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._left_hand_transform_track = sorted(
+    self._left_hand_transform_track: list[SequenceTransformEvent] = sorted(
       sequence.sequence_left_hand_transform,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._right_hand_transform_track = sorted(
+    self._right_hand_transform_track: list[SequenceTransformEvent] = sorted(
       sequence.sequence_right_hand_transform,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._head_transform_track = sorted(sequence.sequence_head_transform,
-                                        key=lambda event: float(event.start_time))
-    self._surface_line_offset_track = sorted(
+    self._head_transform_track: list[SequenceTransformEvent] = sorted(
+      sequence.sequence_head_transform,
+      key=lambda event: event.start_time,
+    )
+    self._surface_line_offset_track: list[SequenceFloatEvent] = sorted(
       sequence.sequence_surface_line_offset,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._mask_boundary_offset_track = sorted(
+    self._mask_boundary_offset_track: list[SequenceFloatEvent] = sorted(
       sequence.sequence_mask_boundary_offset,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._surface_line_visible_track = sorted(
+    self._surface_line_visible_track: list[SequenceBooleanEvent] = sorted(
       sequence.sequence_surface_line_visible,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._head_masking_enabled_track = sorted(
+    self._head_masking_enabled_track: list[SequenceBooleanEvent] = sorted(
       sequence.sequence_head_masking_enabled,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._left_hand_masking_enabled_track = sorted(
+    self._left_hand_masking_enabled_track: list[SequenceBooleanEvent] = sorted(
       sequence.sequence_left_hand_masking_enabled,
-      key=lambda event: float(event.start_time),
+      key=lambda event: event.start_time,
     )
-    self._right_hand_masking_enabled_track = sorted(
-      sequence.sequence_right_hand_masking_enabled,
-      key=lambda event: float(event.start_time),
+    self._right_hand_masking_enabled_track: list[
+      SequenceBooleanEvent] = sorted(
+        sequence.sequence_right_hand_masking_enabled,
+        key=lambda event: event.start_time,
+      )
+    self._sound_track: list[SequenceSoundEvent] = sorted(
+      sequence.sequence_sound_events,
+      key=lambda event: event.start_time,
     )
-    self._sound_track = sorted(sequence.sequence_sound_events,
-                               key=lambda event: float(event.start_time))
-    self._duration_sec = self._compute_duration_sec()
+    self._duration_sec: float = self._compute_duration_sec()
 
   @property
   def duration_sec(self) -> float:
@@ -88,25 +97,25 @@ class CharacterAnimator:
 
   def sample_pose(self, time_sec: float) -> PoseState:
     """Return the resolved pose state at `time_sec`."""
-    time_sec = float(time_sec)
     return PoseState(
       left_eye_open=self._sample_boolean(self._left_eye_track, time_sec, True),
-      right_eye_open=self._sample_boolean(self._right_eye_track, time_sec, True),
+      right_eye_open=self._sample_boolean(self._right_eye_track, time_sec,
+                                          True),
       mouth_state=self._sample_mouth(self._mouth_track, time_sec,
                                      MouthState.CLOSED),
       left_hand_visible=self._sample_boolean(self._left_hand_visible_track,
                                              time_sec, True),
       right_hand_visible=self._sample_boolean(self._right_hand_visible_track,
                                               time_sec, True),
-      left_hand_transform=self._sample_transform(self._left_hand_transform_track,
-                                                 time_sec, Transform()),
+      left_hand_transform=self._sample_transform(
+        self._left_hand_transform_track, time_sec, Transform()),
       right_hand_transform=self._sample_transform(
         self._right_hand_transform_track,
         time_sec,
         Transform(),
       ),
-      head_transform=self._sample_transform(self._head_transform_track, time_sec,
-                                            Transform()),
+      head_transform=self._sample_transform(self._head_transform_track,
+                                            time_sec, Transform()),
       surface_line_offset=self._sample_float(
         self._surface_line_offset_track,
         time_sec,
@@ -139,14 +148,14 @@ class CharacterAnimator:
       ),
     )
 
-  def apply_pose(self, character: PosableCharacter, time_sec: float) -> PoseState:
+  def apply_pose(self, character: PosableCharacter,
+                 time_sec: float) -> PoseState:
     """Apply sampled pose to `character` and return the sampled pose."""
     pose = self.sample_pose(time_sec)
     character.apply_pose_state(pose)
     return pose
 
-  def render_frame(self,
-                   character: PosableCharacter,
+  def render_frame(self, character: PosableCharacter,
                    time_sec: float) -> tuple[PoseState, Image.Image]:
     """Apply pose at `time_sec` and render `character` image."""
     pose = self.apply_pose(character, time_sec)
@@ -161,14 +170,12 @@ class CharacterAnimator:
     include_end: bool = False,
   ) -> list[SequenceSoundEvent]:
     """Return sound events whose `start_time` falls in the selected window."""
-    start_time_sec = float(start_time_sec)
-    end_time_sec = float(end_time_sec)
     if end_time_sec < start_time_sec:
       return []
 
     out: list[SequenceSoundEvent] = []
     for event in self._sound_track:
-      event_time = float(event.start_time)
+      event_time = event.start_time
       lower_ok = (event_time >= start_time_sec
                   if include_start else event_time > start_time_sec)
       if not lower_ok:
@@ -191,10 +198,10 @@ class CharacterAnimator:
     if fps <= 0:
       raise ValueError("fps must be positive")
 
-    dt = 1.0 / float(fps)
-    total_frames = int(math.ceil(float(self.duration_sec) * float(fps))) + 1
+    dt = 1.0 / fps
+    total_frames = int(math.ceil(self.duration_sec * fps)) + 1
     for frame_idx in range(total_frames):
-      time_sec = float(frame_idx) * dt
+      time_sec = frame_idx * dt
       frame_sounds = self.sound_events_between(
         time_sec,
         time_sec + dt,
@@ -207,31 +214,33 @@ class CharacterAnimator:
   def _compute_duration_sec(self) -> float:
     duration = 0.0
     for track in (
-      self._left_eye_track,
-      self._right_eye_track,
-      self._mouth_track,
-      self._left_hand_visible_track,
-      self._right_hand_visible_track,
-      self._left_hand_transform_track,
-      self._right_hand_transform_track,
-      self._head_transform_track,
-      self._surface_line_offset_track,
-      self._mask_boundary_offset_track,
-      self._surface_line_visible_track,
-      self._head_masking_enabled_track,
-      self._left_hand_masking_enabled_track,
-      self._right_hand_masking_enabled_track,
-      self._sound_track,
+        self._left_eye_track,
+        self._right_eye_track,
+        self._mouth_track,
+        self._left_hand_visible_track,
+        self._right_hand_visible_track,
+        self._left_hand_transform_track,
+        self._right_hand_transform_track,
+        self._head_transform_track,
+        self._surface_line_offset_track,
+        self._mask_boundary_offset_track,
+        self._surface_line_visible_track,
+        self._head_masking_enabled_track,
+        self._left_hand_masking_enabled_track,
+        self._right_hand_masking_enabled_track,
+        self._sound_track,
     ):
       for event in track:
         duration = max(duration, self._event_end_time(event))
-    return float(duration)
+    return duration
 
   @staticmethod
-  def _event_end_time(event: SequenceBooleanEvent | SequenceMouthEvent
-                      | SequenceTransformEvent | SequenceFloatEvent
-                      | SequenceSoundEvent) -> float:
-    return float(event.end_time)
+  def _event_end_time(
+    event: SequenceBooleanEvent | SequenceMouthEvent
+    | SequenceTransformEvent | SequenceFloatEvent
+    | SequenceSoundEvent
+  ) -> float:
+    return event.end_time
 
   @staticmethod
   def _sample_boolean(
@@ -240,13 +249,13 @@ class CharacterAnimator:
     default: bool,
   ) -> bool:
     for event in track:
-      start = float(event.start_time)
-      end = float(event.end_time)
-      if start <= float(time_sec) < end:
-        return bool(event.value)
-      if start > float(time_sec):
+      start = event.start_time
+      end = event.end_time
+      if start <= time_sec < end:
+        return event.value
+      if start > time_sec:
         break
-    return bool(default)
+    return default
 
   @staticmethod
   def _sample_mouth(
@@ -255,11 +264,11 @@ class CharacterAnimator:
     default: MouthState,
   ) -> MouthState:
     for event in track:
-      start = float(event.start_time)
-      end = float(event.end_time)
-      if start <= float(time_sec) < end:
+      start = event.start_time
+      end = event.end_time
+      if start <= time_sec < end:
         return event.mouth_state
-      if start > float(time_sec):
+      if start > time_sec:
         break
     return default
 
@@ -274,27 +283,27 @@ class CharacterAnimator:
 
     previous_target = default
     for event in track:
-      start = float(event.start_time)
-      end = float(event.end_time)
+      start = event.start_time
+      end = event.end_time
 
-      if float(time_sec) < start:
+      if time_sec < start:
         return previous_target
 
-      if start <= float(time_sec) < end:
-        duration = float(end - start)
+      if start <= time_sec < end:
+        duration = end - start
         if duration <= 1e-6:
           return event.target_transform
-        progress = (float(time_sec) - start) / duration
+        progress = (time_sec - start) / duration
         progress = max(0.0, min(1.0, progress))
         return Transform(
           translate_x=_lerp(previous_target.translate_x,
                             event.target_transform.translate_x, progress),
           translate_y=_lerp(previous_target.translate_y,
                             event.target_transform.translate_y, progress),
-          scale_x=_lerp(previous_target.scale_x, event.target_transform.scale_x,
-                        progress),
-          scale_y=_lerp(previous_target.scale_y, event.target_transform.scale_y,
-                        progress),
+          scale_x=_lerp(previous_target.scale_x,
+                        event.target_transform.scale_x, progress),
+          scale_y=_lerp(previous_target.scale_y,
+                        event.target_transform.scale_y, progress),
         )
 
       previous_target = event.target_transform
@@ -308,27 +317,27 @@ class CharacterAnimator:
     default: float,
   ) -> float:
     if not track:
-      return float(default)
+      return default
 
-    previous_target = float(default)
+    previous_target = default
     for event in track:
-      start = float(event.start_time)
-      end = float(event.end_time)
-      target = float(event.target_value)
-      if float(time_sec) < start:
+      start = event.start_time
+      end = event.end_time
+      target = event.target_value
+      if time_sec < start:
         return previous_target
-      if start <= float(time_sec) < end:
-        duration = float(end - start)
+      if start <= time_sec < end:
+        duration = end - start
         if duration <= 1e-6:
           return target
-        progress = (float(time_sec) - start) / duration
+        progress = (time_sec - start) / duration
         progress = max(0.0, min(1.0, progress))
         return _lerp(previous_target, target, progress)
-      if start > float(time_sec):
+      if start > time_sec:
         break
       previous_target = target
     return previous_target
 
 
 def _lerp(a: float, b: float, t: float) -> float:
-  return float(a) + (float(b) - float(a)) * float(t)
+  return a + (b - a) * t

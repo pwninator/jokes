@@ -9,9 +9,8 @@ from common.posable_character_sequence import (PosableCharacterSequence,
                                                SequenceSoundEvent)
 from PIL import Image
 from services import audio_voices
-from services.video import (joke_video_chars_on_bottom_script_builder,
-                            script_utils)
-from services.video.script import TimedCharacterSequence
+from services.video import joke_video_chars_on_top_script_builder, script_utils
+from services.video.script import TimedCharacterSequence, TimedImage
 
 
 class _SizedCharacter(PosableCharacter):
@@ -52,17 +51,10 @@ def _sound_sequence(duration_sec: float,
   return sequence
 
 
-def _spoken_items(script) -> list[TimedCharacterSequence]:
-  return [
-    item for item in script.items if isinstance(item, TimedCharacterSequence)
-    and item.sequence.sequence_sound_events
-  ]
-
-
 def _load_firestore_sequence(
   sequence_id: str = script_utils.POP_IN_SEQUENCE_ID
 ) -> PosableCharacterSequence:
-  if sequence_id == "pop_in":
+  if sequence_id == script_utils.POP_IN_SEQUENCE_ID:
     return _sound_sequence(0.1, "gs://bucket/pop_in.wav")
   if sequence_id == "GEMINI_LEDA_giggle1":
     return _sound_sequence(0.3, "gs://bucket/leda_giggle.wav")
@@ -71,15 +63,15 @@ def _load_firestore_sequence(
   raise AssertionError(f"Unexpected sequence id: {sequence_id}")
 
 
-def test_portrait_character_layout_bottom_aligns_to_tallest():
+def test_chars_on_top_layout_lowers_image_and_uses_footer_margin():
   teller = _SizedCharacter(width=220, height=300)
-  listener = _SizedCharacter(width=120, height=140)
+  listener = _SizedCharacter(width=140, height=220)
   with patch.object(
       script_utils,
       "load_sequence_from_firestore",
       side_effect=_load_firestore_sequence,
   ), patch.object(script_utils.random, "randint", return_value=1):
-    script = joke_video_chars_on_bottom_script_builder.build_script(
+    script = joke_video_chars_on_top_script_builder.build_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=teller,
@@ -92,77 +84,65 @@ def test_portrait_character_layout_bottom_aligns_to_tallest():
       punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
     )
 
-  spoken_by_actor: dict[str, TimedCharacterSequence] = {}
-  for item in _spoken_items(script):
-    spoken_by_actor.setdefault(item.actor_id, item)
+  image_items = [item for item in script.items if isinstance(item, TimedImage)]
+  setup_image_item = next(item for item in image_items
+                          if item.gcs_uri == "gs://bucket/setup.png")
+  assert setup_image_item.rect.y_px == 590
+  assert setup_image_item.rect.height_px == 1080
 
-  teller_rect = spoken_by_actor["actor_0"].rect
-  listener_rect = spoken_by_actor["actor_1"].rect
-  assert teller_rect.y_px + teller_rect.height_px == (listener_rect.y_px +
-                                                      listener_rect.height_px)
-  assert teller_rect.y_px == joke_video_chars_on_bottom_script_builder._PORTRAIT_CHARACTER_RECT.y_px  # pylint: disable=protected-access
+  background_item = next(item for item in image_items
+                         if item.gcs_uri.endswith("blank_paper.png"))
+  assert background_item.rect.y_px == 0
+  assert background_item.rect.height_px == 1920
+
+  character_items = [
+    item for item in script.items if isinstance(item, TimedCharacterSequence)
+  ]
+  assert len(character_items) > 0
+  for character_item in character_items:
+    assert character_item.rect.y_px + character_item.rect.height_px - 50 == (
+      setup_image_item.rect.y_px)
+    assert character_item.z_index > setup_image_item.z_index
 
 
-def test_portrait_character_layout_uses_proportional_horizontal_slots():
-  teller = _SizedCharacter(width=200, height=240)
-  listener = _SizedCharacter(width=100, height=240)
+def test_chars_on_top_hides_surface_line_for_all_character_sequences():
+  teller = _SizedCharacter(width=200, height=260)
   with patch.object(
       script_utils,
       "load_sequence_from_firestore",
       side_effect=_load_firestore_sequence,
   ), patch.object(script_utils.random, "randint", return_value=1):
-    script = joke_video_chars_on_bottom_script_builder.build_script(
+    script = joke_video_chars_on_top_script_builder.build_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=teller,
       teller_voice=audio_voices.Voice.GEMINI_LEDA,
-      listener_character=listener,
-      listener_voice=audio_voices.Voice.GEMINI_PUCK,
-      intro_sequence=None,
-      setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
-      response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
-      punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
+      intro_sequence=_sound_sequence(0.1, "gs://bucket/intro.wav"),
+      setup_sequence=_sound_sequence(0.2, "gs://bucket/setup.wav"),
+      punchline_sequence=_sound_sequence(0.3, "gs://bucket/punchline.wav"),
     )
 
-  spoken_by_actor: dict[str, TimedCharacterSequence] = {}
-  for item in _spoken_items(script):
-    spoken_by_actor.setdefault(item.actor_id, item)
-
-  teller_rect = spoken_by_actor["actor_0"].rect
-  listener_rect = spoken_by_actor["actor_1"].rect
-  teller_center = teller_rect.x_px + (teller_rect.width_px / 2.0)
-  listener_center = listener_rect.x_px + (listener_rect.width_px / 2.0)
-
-  left_bound = (
-    joke_video_chars_on_bottom_script_builder._PORTRAIT_CHARACTER_RECT.x_px +  # pylint: disable=protected-access
-    joke_video_chars_on_bottom_script_builder.
-    _PORTRAIT_CHARACTER_SIDE_MARGIN_PX)  # pylint: disable=protected-access
-  right_bound = (
-    joke_video_chars_on_bottom_script_builder._PORTRAIT_CHARACTER_RECT.x_px +  # pylint: disable=protected-access
-    joke_video_chars_on_bottom_script_builder._PORTRAIT_CHARACTER_RECT.width_px
-    -  # pylint: disable=protected-access
-    joke_video_chars_on_bottom_script_builder.
-    _PORTRAIT_CHARACTER_SIDE_MARGIN_PX)  # pylint: disable=protected-access
-  available = right_bound - left_bound
-  width_ratio = 200.0 / (200.0 + 100.0)
-  expected_teller_center = left_bound + (available * width_ratio * 0.5)
-  expected_listener_center = left_bound + (available * width_ratio +
-                                           (available *
-                                            (1.0 - width_ratio) * 0.5))
-
-  assert teller_center == pytest.approx(expected_teller_center, abs=1.0)
-  assert listener_center == pytest.approx(expected_listener_center, abs=1.0)
+  character_items = [
+    item for item in script.items if isinstance(item, TimedCharacterSequence)
+  ]
+  assert len(character_items) > 0
+  for item in character_items:
+    track = item.sequence.sequence_surface_line_visible
+    assert len(track) == 1
+    assert track[0].start_time == pytest.approx(0.0)
+    assert track[0].end_time == pytest.approx(item.sequence.duration_sec)
+    assert track[0].value is False
 
 
-def test_bottom_builder_inserts_leading_filler_for_listener_track():
-  teller = _SizedCharacter(width=220, height=300)
-  listener = _SizedCharacter(width=120, height=140)
+def test_chars_on_top_inserts_leading_filler_for_listener_track():
+  teller = _SizedCharacter(width=200, height=260)
+  listener = _SizedCharacter(width=140, height=220)
   with patch.object(
       script_utils,
       "load_sequence_from_firestore",
       side_effect=_load_firestore_sequence,
   ), patch.object(script_utils.random, "randint", return_value=1):
-    script = joke_video_chars_on_bottom_script_builder.build_script(
+    script = joke_video_chars_on_top_script_builder.build_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=teller,
@@ -170,9 +150,9 @@ def test_bottom_builder_inserts_leading_filler_for_listener_track():
       listener_character=listener,
       listener_voice=audio_voices.Voice.GEMINI_PUCK,
       intro_sequence=None,
-      setup_sequence=_sound_sequence(0.4, "gs://bucket/setup.wav"),
+      setup_sequence=_sound_sequence(0.2, "gs://bucket/setup.wav"),
       response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
-      punchline_sequence=_sound_sequence(0.5, "gs://bucket/punchline.wav"),
+      punchline_sequence=_sound_sequence(0.3, "gs://bucket/punchline.wav"),
     )
 
   listener_items = sorted([
@@ -188,4 +168,4 @@ def test_bottom_builder_inserts_leading_filler_for_listener_track():
   assert first_item.sequence.sequence_sound_events == []
   surface_line_track = first_item.sequence.sequence_surface_line_visible
   assert len(surface_line_track) == 1
-  assert surface_line_track[0].value is True
+  assert surface_line_track[0].value is False

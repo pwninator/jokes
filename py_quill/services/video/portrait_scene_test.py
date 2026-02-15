@@ -8,8 +8,8 @@ from common.posable_character_sequence import (
   SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
 from PIL import Image
 from services import audio_voices
-from services.video import (joke_social_script_builder, scene_video_renderer,
-                            script_utils)
+from services.video import (joke_video_chars_on_bottom_script_builder,
+                            scene_video_renderer, script_utils)
 from services.video.script import (SceneCanvas, SceneRect, SceneScript,
                                    TimedCharacterSequence, TimedImage)
 
@@ -64,7 +64,7 @@ def _simple_sequence() -> PosableCharacterSequence:
 
 
 def _load_firestore_sequence(
-    sequence_id: str = script_utils.POP_IN_SEQUENCE_ID
+  sequence_id: str = script_utils.POP_IN_SEQUENCE_ID
 ) -> PosableCharacterSequence:
   if sequence_id == "pop_in":
     sequence = PosableCharacterSequence(sequence_sound_events=[
@@ -328,7 +328,10 @@ def test_prepare_actor_renders_merges_mask_and_surface_tracks():
   )
 
   actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
-  pose = actor_renders[0].animator.sample_pose(2.5)
+  pose = scene_video_renderer._sample_actor_pose(  # pylint: disable=protected-access
+    render=actor_renders[0],
+    time_sec=2.5,
+  )
 
   assert pose.surface_line_offset == pytest.approx(35.0)
   assert pose.mask_boundary_offset == pytest.approx(30.0)
@@ -597,7 +600,7 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
                   "load_sequence_from_firestore",
                   side_effect=_load_firestore_sequence), \
       patch.object(script_utils.random, "randint", return_value=1):
-    script = joke_social_script_builder.build_portrait_joke_scene_script(
+    script = joke_video_chars_on_bottom_script_builder.build_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=left_character,
@@ -645,7 +648,18 @@ def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
     and item.sequence.sequence_left_hand_transform
     and item.sequence.sequence_right_hand_transform
   ]
-  assert len(non_spoken_transform_only_items) == 0
+  assert len(non_spoken_transform_only_items) > 0
+
+  # Gap fillers should make each actor's timeline continuous from 0 to script end.
+  items_by_actor: dict[str, list[TimedCharacterSequence]] = {}
+  for item in character_items:
+    items_by_actor.setdefault(item.actor_id, []).append(item)
+  for actor_items in items_by_actor.values():
+    actor_items.sort(key=lambda entry: entry.start_time_sec)
+    assert actor_items[0].start_time_sec == pytest.approx(0.0)
+    assert actor_items[-1].end_time_sec == pytest.approx(script.duration_sec)
+    for prev, curr in zip(actor_items, actor_items[1:]):
+      assert prev.end_time_sec == pytest.approx(curr.start_time_sec)
 
 
 def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
@@ -677,7 +691,7 @@ def test_build_portrait_joke_scene_script_adds_top_banner_and_shifts_layout():
                   "load_sequence_from_firestore",
                   side_effect=_load_firestore_sequence), \
       patch.object(script_utils.random, "randint", return_value=1):
-    script = joke_social_script_builder.build_portrait_joke_scene_script(
+    script = joke_video_chars_on_bottom_script_builder.build_script(
       setup_image_gcs_uri="gs://bucket/setup.png",
       punchline_image_gcs_uri="gs://bucket/punchline.png",
       teller_character=character,
@@ -784,6 +798,126 @@ def test_render_scene_frame_uses_first_sequence_initial_pose_before_start():
 
   assert character.left_eye_open is False
   assert character.mouth_state == MouthState.OPEN
+
+
+def test_render_scene_frame_uses_defaults_between_sequence_windows():
+  character = _DummyCharacter()
+  first_sequence = PosableCharacterSequence(sequence_mouth_state=[
+    SequenceMouthEvent(
+      start_time=0.0,
+      end_time=0.5,
+      mouth_state=MouthState.OPEN,
+    )
+  ])
+  second_sequence = PosableCharacterSequence(sequence_mouth_state=[
+    SequenceMouthEvent(
+      start_time=0.0,
+      end_time=0.5,
+      mouth_state=MouthState.O,
+    )
+  ])
+  first_sequence.validate()
+  second_sequence.validate()
+
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=64, height_px=64),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=first_sequence,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=20,
+        rect=SceneRect(x_px=0, y_px=0, width_px=64, height_px=64),
+      ),
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=second_sequence,
+        start_time_sec=2.0,
+        end_time_sec=3.0,
+        z_index=20,
+        rect=SceneRect(x_px=0, y_px=0, width_px=64, height_px=64),
+      ),
+    ],
+    duration_sec=3.0,
+  )
+
+  actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
+  with patch.object(
+      _DummyCharacter,
+      "get_image",
+      return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ):
+    _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
+      time_sec=1.5,
+      canvas=script.canvas,
+      prepared_images=[],
+      actor_renders=actor_renders,
+    )
+
+  assert character.mouth_state == MouthState.CLOSED
+
+
+def test_render_scene_frame_resets_missing_track_on_next_sequence_start():
+  character = _DummyCharacter()
+  first_sequence = PosableCharacterSequence(sequence_left_hand_transform=[
+    SequenceTransformEvent(
+      start_time=0.0,
+      end_time=0.5,
+      target_transform=Transform(translate_x=40.0),
+    )
+  ])
+  second_sequence = PosableCharacterSequence(sequence_mouth_state=[
+    SequenceMouthEvent(
+      start_time=0.0,
+      end_time=0.5,
+      mouth_state=MouthState.O,
+    )
+  ])
+  first_sequence.validate()
+  second_sequence.validate()
+
+  script = SceneScript(
+    canvas=SceneCanvas(width_px=64, height_px=64),
+    items=[
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=first_sequence,
+        start_time_sec=0.0,
+        end_time_sec=1.0,
+        z_index=20,
+        rect=SceneRect(x_px=0, y_px=0, width_px=64, height_px=64),
+      ),
+      TimedCharacterSequence(
+        actor_id="actor",
+        character=character,
+        sequence=second_sequence,
+        start_time_sec=2.0,
+        end_time_sec=3.0,
+        z_index=20,
+        rect=SceneRect(x_px=0, y_px=0, width_px=64, height_px=64),
+      ),
+    ],
+    duration_sec=3.0,
+  )
+
+  actor_renders = scene_video_renderer._prepare_actor_renders(script)  # pylint: disable=protected-access
+  with patch.object(
+      _DummyCharacter,
+      "get_image",
+      return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ):
+    _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
+      time_sec=2.1,
+      canvas=script.canvas,
+      prepared_images=[],
+      actor_renders=actor_renders,
+    )
+
+  assert character.left_hand_transform.translate_x == pytest.approx(0.0)
 
 
 def test_extract_audio_schedule_carries_volume():

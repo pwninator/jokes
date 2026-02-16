@@ -129,9 +129,9 @@
       "Liberation Mono", "Courier New", monospace;
   }
 
-  .character-select-grid {
+  .top-controls-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 300px));
     gap: 12px;
     margin-bottom: 12px;
   }
@@ -161,15 +161,33 @@
       Each row is a dialog turn with a voice, script, and optional pause_sec_after.
       Scripts can use {setup_text} and {punchline_text} placeholders.
     </p>
-    <div style="max-width: 360px; margin-bottom: 12px;">
-      <label for="audio-model" class="muted small">Audio model</label>
-      <select id="audio-model">
-        {% for model in audio_models %}
-          <option value="{{ model.value }}" {% if model.value == default_audio_model %}selected{% endif %}>
-            {{ model.label }}
-          </option>
-        {% endfor %}
-      </select>
+    <div class="top-controls-grid">
+      <div>
+        <label for="audio-model" class="muted small">Audio model</label>
+        <select id="audio-model">
+          {% for model in audio_models %}
+            <option value="{{ model.value }}" {% if model.value == default_audio_model %}selected{% endif %}>
+              {{ model.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="video-teller-character-id" class="muted small">Teller character</label>
+        <select id="video-teller-character-id">
+          {% for def in character_defs %}
+            <option value="{{ def.key }}" {% if loop.index0 == 0 %}selected{% endif %}>{{ def.name or def.key }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="video-listener-character-id" class="muted small">Listener character</label>
+        <select id="video-listener-character-id">
+          {% for def in character_defs %}
+            <option value="{{ def.key }}" {% if loop.index0 == 1 %}selected{% endif %}>{{ def.name or def.key }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
     <div class="turn-grid">
       {% for idx in range(4) %}
@@ -265,26 +283,6 @@
 
   <form id="video-tuner-form" class="card" method="GET">
     <input type="hidden" name="op" value="{{ joke_video_op }}">
-    <div class="character-select-grid">
-      <div>
-        <label for="video-teller-character-id" class="muted small">Teller character</label>
-        <select id="video-teller-character-id">
-          <option value="">Select Teller Character</option>
-          {% for def in character_defs %}
-            <option value="{{ def.key }}">{{ def.name or def.key }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label for="video-listener-character-id" class="muted small">Listener character</label>
-        <select id="video-listener-character-id">
-          <option value="">Select Listener Character</option>
-          {% for def in character_defs %}
-            <option value="{{ def.key }}">{{ def.name or def.key }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
     <div class="audio-actions">
       <button id="generate-video-button" type="button" class="text-button" disabled>Generate Video</button>
     </div>

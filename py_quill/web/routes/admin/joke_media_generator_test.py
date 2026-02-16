@@ -60,10 +60,10 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   assert 'id="generate-video-button"' in html
   assert 'id="video-teller-character-id"' in html
   assert 'id="video-listener-character-id"' in html
-  assert 'Select Teller Character' in html
-  assert 'Select Listener Character' in html
   assert 'Cat' in html
   assert 'Dog' in html
+  assert html.count('value="char-1" selected') == 1
+  assert html.count('value="char-2" selected') == 1
   assert 'joke_picker.js' in html
   assert 'name="op"' in html
   assert f'value="{joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value}"' in html

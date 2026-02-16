@@ -106,6 +106,13 @@ The following implementations must strictly conform to this spec:
 This section defines render-time behavior for implementations that composite
 character sprites (Python renderer, JS DOM renderer, Flutter widget renderer).
 
+- Character `width`/`height` are **logical initial dimensions** used for layout,
+  centering, and transform/mask coordinate math.
+- Renderers must not treat the logical dimensions as a hard clipping box for
+  transformed parts.
+  - If a transformed component extends outside logical bounds (for example,
+    translated/scaled head), those pixels must remain visible.
+  - Overflow may be clipped only by the outer scene/frame boundaries.
 - `surface_line_gcs_uri` is required in character definitions.
 - The surface line position is defined by `surface_line_offset`:
   - Measured in pixels up from the bottom edge of the canvas.
@@ -114,6 +121,8 @@ character sprites (Python renderer, JS DOM renderer, Flutter widget renderer).
   - Measured in pixels up from the bottom edge of the canvas.
   - Absolute Y mask cutoff is `mask_y = canvas_height - mask_boundary_offset`.
 - When masking is enabled for a component, pixels below `mask_y` are hidden.
+  - This mask clips vertically against the boundary only; it must not introduce
+    left/right clipping for overflowed transformed sprites.
 - Per-component masking flags:
   - head: `head_masking_enabled` (default `True`)
   - left hand: `left_hand_masking_enabled` (default `False`)

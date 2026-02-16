@@ -552,6 +552,43 @@ def test_scene_renderer_uses_half_open_image_windows():
   assert tuple(int(value) for value in pixel.tolist()) == (0, 0, 255)
 
 
+def test_render_actor_with_fit_uses_logical_dimensions_for_scaling():
+  sprite = Image.new("RGBA", (100, 160), (255, 0, 0, 255))
+  rect = SceneRect(x_px=0, y_px=0, width_px=100, height_px=80)
+
+  fitted, x, y = scene_video_renderer._render_actor_with_fit(  # pylint: disable=protected-access
+    sprite,
+    rect=rect,
+    fit_mode="contain",
+    allow_upscale=False,
+    logical_origin_x=0,
+    logical_origin_y=40,
+    logical_width=100,
+    logical_height=80,
+  )
+
+  assert fitted.size == (100, 160)
+  assert x == 0
+  assert y == -40
+
+
+def test_render_actor_with_fit_rejects_non_positive_logical_dimensions():
+  sprite = Image.new("RGBA", (100, 80), (255, 0, 0, 255))
+  rect = SceneRect(x_px=0, y_px=0, width_px=100, height_px=80)
+
+  with pytest.raises(ValueError, match="must be > 0"):
+    _ = scene_video_renderer._render_actor_with_fit(  # pylint: disable=protected-access
+      sprite,
+      rect=rect,
+      fit_mode="contain",
+      allow_upscale=False,
+      logical_origin_x=0,
+      logical_origin_y=0,
+      logical_width=0,
+      logical_height=80,
+    )
+
+
 def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
   left_character = _DummyCharacter()
   right_character = _DummyCharacter()
@@ -788,6 +825,10 @@ def test_render_scene_frame_uses_first_sequence_initial_pose_before_start():
       _DummyCharacter,
       "get_image",
       return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ), patch.object(
+      _DummyCharacter,
+      "get_render_frame_info",
+      return_value=(0, 0, 100, 80),
   ):
     _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
       time_sec=0.0,
@@ -849,6 +890,10 @@ def test_render_scene_frame_uses_defaults_between_sequence_windows():
       _DummyCharacter,
       "get_image",
       return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ), patch.object(
+      _DummyCharacter,
+      "get_render_frame_info",
+      return_value=(0, 0, 100, 80),
   ):
     _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
       time_sec=1.5,
@@ -892,6 +937,10 @@ def test_render_scene_frame_samples_just_before_sequence_end():
       _DummyCharacter,
       "get_image",
       return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ), patch.object(
+      _DummyCharacter,
+      "get_render_frame_info",
+      return_value=(0, 0, 100, 80),
   ):
     _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
       time_sec=1.0,
@@ -952,6 +1001,10 @@ def test_render_scene_frame_resets_missing_track_on_next_sequence_start():
       _DummyCharacter,
       "get_image",
       return_value=Image.new("RGBA", (100, 80), (0, 0, 0, 255)),
+  ), patch.object(
+      _DummyCharacter,
+      "get_render_frame_info",
+      return_value=(0, 0, 100, 80),
   ):
     _ = scene_video_renderer._render_scene_frame(  # pylint: disable=protected-access
       time_sec=2.1,

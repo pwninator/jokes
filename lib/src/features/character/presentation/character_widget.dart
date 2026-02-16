@@ -322,6 +322,8 @@ class _CharacterWidgetState extends ConsumerState<CharacterWidget>
 }
 
 class _BelowBoundaryClipper extends CustomClipper<Rect> {
+  static const double _overscan = 100000.0;
+
   final double boundaryOffset;
   final double canvasHeight;
 
@@ -334,7 +336,12 @@ class _BelowBoundaryClipper extends CustomClipper<Rect> {
   Rect getClip(Size size) {
     final maxHeight = canvasHeight > 0 ? canvasHeight : size.height;
     final cutoffY = (maxHeight - boundaryOffset).clamp(0.0, maxHeight);
-    return Rect.fromLTRB(0, 0, size.width, cutoffY);
+    return Rect.fromLTRB(
+      -_overscan,
+      -_overscan,
+      size.width + _overscan,
+      cutoffY,
+    );
   }
 
   @override

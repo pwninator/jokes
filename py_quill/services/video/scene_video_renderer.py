@@ -200,6 +200,78 @@ def _render_with_fit(
   return fitted, x, y
 
 
+def _fit_scale(
+  *,
+  fit_mode: FitMode,
+  source_width: int,
+  source_height: int,
+  rect_width: int,
+  rect_height: int,
+  allow_upscale: bool,
+) -> tuple[float, float]:
+  if fit_mode == "fill":
+    return rect_width / source_width, rect_height / source_height
+
+  width_scale = rect_width / source_width
+  height_scale = rect_height / source_height
+  if fit_mode == "cover":
+    scale = max(width_scale, height_scale)
+    return scale, scale
+
+  scale = min(width_scale, height_scale)
+  if not allow_upscale:
+    scale = min(1.0, scale)
+  return scale, scale
+
+
+def _render_actor_with_fit(
+  image: Image.Image,
+  *,
+  rect: SceneRect,
+  fit_mode: FitMode,
+  allow_upscale: bool,
+  logical_origin_x: int,
+  logical_origin_y: int,
+  logical_width: int,
+  logical_height: int,
+) -> tuple[Image.Image, int, int]:
+  source = image.convert("RGBA")
+  if logical_width <= 0 or logical_height <= 0:
+    raise ValueError(
+      "Actor logical dimensions must be > 0, got "
+      f"({logical_width}, {logical_height})")
+
+  scale_x, scale_y = _fit_scale(
+    fit_mode=fit_mode,
+    source_width=logical_width,
+    source_height=logical_height,
+    rect_width=rect.width_px,
+    rect_height=rect.height_px,
+    allow_upscale=allow_upscale,
+  )
+  target_width = max(1, int(round(source.width * scale_x)))
+  target_height = max(1, int(round(source.height * scale_y)))
+  fitted = source
+  if (target_width, target_height) != source.size:
+    fitted = source.resize((target_width, target_height),
+                           resample=Image.Resampling.LANCZOS)
+
+  if fit_mode == "fill":
+    logical_x = rect.x_px
+    logical_y = rect.y_px
+  else:
+    target_logical_width = logical_width * scale_x
+    target_logical_height = logical_height * scale_y
+    logical_x = rect.x_px + int(
+      round((rect.width_px - target_logical_width) / 2.0))
+    logical_y = rect.y_px + int(
+      round((rect.height_px - target_logical_height) / 2.0))
+
+  paste_x = logical_x - int(round(logical_origin_x * scale_x))
+  paste_y = logical_y - int(round(logical_origin_y * scale_y))
+  return fitted, paste_x, paste_y
+
+
 def _prepare_images(script: SceneScript) -> list[_PreparedImage]:
   prepared: list[_PreparedImage] = []
   for index, item in enumerate(script.items):
@@ -309,11 +381,21 @@ def _render_scene_frame(
     pose = _sample_actor_pose(render=render, time_sec=time_sec)
     render.character.apply_pose_state(pose)
     sprite = render.character.get_image()
-    fitted, x, y = _render_with_fit(
+    (
+      logical_origin_x,
+      logical_origin_y,
+      logical_width,
+      logical_height,
+    ) = render.character.get_render_frame_info()
+    fitted, x, y = _render_actor_with_fit(
       sprite,
       rect=render.rect,
       fit_mode=render.fit_mode,
       allow_upscale=False,
+      logical_origin_x=logical_origin_x,
+      logical_origin_y=logical_origin_y,
+      logical_width=logical_width,
+      logical_height=logical_height,
     )
     base.paste(fitted, (x, y), fitted)
 

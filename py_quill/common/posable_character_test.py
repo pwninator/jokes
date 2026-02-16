@@ -89,6 +89,12 @@ class PosableCharacterTest(unittest.TestCase):
     self.assertTrue(character.right_eye_open)
     self.assertEqual(character.mouth_state, MouthState.CLOSED)
 
+  def test_get_render_frame_info_requires_rendered_pose(self):
+    character = self._build_character()
+    with self.assertRaisesRegex(RuntimeError,
+                                "Call get_image\\(\\) first"):
+      _ = character.get_render_frame_info()
+
   def test_set_pose_accepts_transform_tuples(self):
     character = self._build_character()
     character.set_pose(
@@ -197,6 +203,43 @@ class PosableCharacterTest(unittest.TestCase):
 
     self.assertEqual(composed.getpixel((2, 1)), (0, 255, 0, 255))
     self.assertEqual(composed.getpixel((1, 1)), (0, 0, 0, 0))
+
+  @patch("common.posable_character.cloud_storage.download_image_from_gcs")
+  def test_transformed_component_overflow_is_not_clipped(self, mock_download):
+    images = self._default_images()
+    transparent = _make_image((0, 0, 0, 0))
+    images[_SAMPLE_DEF.head_gcs_uri] = _make_image((255, 0, 0, 255))
+    images[_SAMPLE_DEF.left_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_eye_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_open_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_closed_gcs_uri] = transparent
+    images[_SAMPLE_DEF.mouth_o_gcs_uri] = transparent
+    images[_SAMPLE_DEF.left_hand_gcs_uri] = transparent
+    images[_SAMPLE_DEF.right_hand_gcs_uri] = transparent
+    images[_SAMPLE_DEF.surface_line_gcs_uri] = transparent
+    mock_download.side_effect = lambda uri: images[uri]
+
+    character = self._build_character()
+    character.set_pose(
+      head_transform=Transform(scale_y=2.0),
+      head_masking_enabled=False,
+      left_hand_visible=False,
+      right_hand_visible=False,
+      surface_line_visible=False,
+    )
+
+    composed = character.get_image()
+    logical_origin_x, logical_origin_y, logical_width, logical_height = (
+      character.get_render_frame_info())
+
+    self.assertEqual(composed.size, (4, 8))
+    self.assertEqual(composed.getpixel((2, 7)), (255, 0, 0, 255))
+    self.assertEqual(logical_origin_x, 0)
+    self.assertEqual(logical_origin_y, 2)
+    self.assertEqual(logical_width, 4)
+    self.assertEqual(logical_height, 4)
 
   @patch("common.posable_character.cloud_storage.download_image_from_gcs")
   def test_get_image_uses_pose_cache(self, mock_download):
@@ -391,6 +434,26 @@ class PosableCharacterTest(unittest.TestCase):
       mock_download.return_value = _make_image((255, 0, 0, 255), size=(10, 20))
       character.get_image()
       mock_download.assert_any_call("gs://test/model_head.png")
+
+  def test_non_positive_dimensions_fail_validation(self):
+    definition = models.PosableCharacterDef(
+      width=0,
+      height=20,
+      head_gcs_uri="gs://test/model_head.png",
+      surface_line_gcs_uri="gs://test/model_surface_line.png",
+      left_hand_gcs_uri="gs://test/model_left_hand.png",
+      right_hand_gcs_uri="gs://test/model_right_hand.png",
+      mouth_open_gcs_uri="gs://test/model_mouth_open.png",
+      mouth_closed_gcs_uri="gs://test/model_mouth_closed.png",
+      mouth_o_gcs_uri="gs://test/model_mouth_o.png",
+      left_eye_open_gcs_uri="gs://test/model_left_eye_open.png",
+      left_eye_closed_gcs_uri="gs://test/model_left_eye_closed.png",
+      right_eye_open_gcs_uri="gs://test/model_right_eye_open.png",
+      right_eye_closed_gcs_uri="gs://test/model_right_eye_closed.png",
+    )
+    character = PosableCharacter.from_def(definition)
+    with self.assertRaisesRegex(ValueError, "width and height must be > 0"):
+      _ = character.get_image()
 
 
 if __name__ == "__main__":

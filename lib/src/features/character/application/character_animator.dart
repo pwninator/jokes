@@ -46,6 +46,8 @@ class CharacterAnimationConfig {
 /// Controller logic for animating a posable character.
 ///
 /// Runtime behavior should match `py_quill/common/character_animator_spec.md`.
+/// This class only samples timeline state; render clipping behavior is defined
+/// by the widget renderer.
 class CharacterAnimator {
   static const double _terminalSampleEpsilonSec = 1e-6;
 

@@ -104,9 +104,9 @@ class PoseState:
       head_transform=(self.head_transform if head_transform is None else
                       _coerce_transform(head_transform)),
       surface_line_offset=(self.surface_line_offset if surface_line_offset
-                           is None else float(surface_line_offset)),
+                           is None else surface_line_offset),
       mask_boundary_offset=(self.mask_boundary_offset if mask_boundary_offset
-                            is None else float(mask_boundary_offset)),
+                            is None else mask_boundary_offset),
       surface_line_visible=(self.surface_line_visible if surface_line_visible
                             is None else bool(surface_line_visible)),
       head_masking_enabled=(self.head_masking_enabled if head_masking_enabled
@@ -120,6 +120,15 @@ class PoseState:
     )
 
 
+@dataclass(frozen=True)
+class _RenderedPoseImage:
+  """Cached rendered sprite plus logical-canvas origin in render coordinates."""
+
+  image: Image.Image
+  logical_origin_x: int
+  logical_origin_y: int
+
+
 class PosableCharacter:
   """Runtime character renderer with cached sprites for a pose state."""
 
@@ -131,7 +140,7 @@ class PosableCharacter:
   ):
     self.definition: models.PosableCharacterDef = definition
     self._pose_state: PoseState = pose_state or PoseState()
-    self._image_cache: dict[tuple[object, ...], Image.Image] = {}
+    self._image_cache: dict[tuple[object, ...], _RenderedPoseImage] = {}
     self._component_cache: dict[str, Image.Image] = {}
 
   @classmethod
@@ -323,6 +332,29 @@ class PosableCharacter:
 
   def get_image(self) -> Image.Image:
     """Return a PIL image of the current pose, using cache if available."""
+    return self._get_rendered_pose_image().image
+
+  def get_render_frame_info(self) -> tuple[int, int, int, int]:
+    """Return render metadata for aligning logical canvas coordinates.
+
+    Returns:
+      (logical_origin_x, logical_origin_y, logical_width, logical_height)
+    """
+    cache_key = self._get_pose_cache_key()
+    rendered = self._image_cache.get(cache_key)
+    if rendered is None:
+      raise RuntimeError(
+        "Render frame info unavailable before rendering pose. "
+        "Call get_image() first for the current pose state.")
+    return (
+      rendered.logical_origin_x,
+      rendered.logical_origin_y,
+      self.definition.width,
+      self.definition.height,
+    )
+
+  def _get_rendered_pose_image(self) -> _RenderedPoseImage:
+    """Render current pose to an overflow-capable sprite with logical origin."""
     self._validate_assets()
     pose = self._pose_state
     cache_key = self._get_pose_cache_key()
@@ -331,17 +363,20 @@ class PosableCharacter:
       return cached
 
     def_ = self.definition
-    canvas = Image.new("RGBA", (def_.width, def_.height), (0, 0, 0, 0))
+    logical_canvas_size = (def_.width, def_.height)
+    layers: list[tuple[Image.Image, int, int]] = []
 
     head_mask_boundary = (pose.mask_boundary_offset
                           if pose.head_masking_enabled else None)
     head_image = self._load_component(def_.head_gcs_uri)
-    self._paste_component(
-      canvas,
-      head_image,
-      pose.head_transform,
+    head_layer = self._build_component_layer(
+      component=head_image,
+      transform=pose.head_transform,
+      logical_canvas_size=logical_canvas_size,
       mask_boundary_offset=head_mask_boundary,
     )
+    if head_layer is not None:
+      layers.append(head_layer)
 
     left_eye_uri = (def_.left_eye_open_gcs_uri
                     if pose.left_eye_open else def_.left_eye_closed_gcs_uri)
@@ -353,54 +388,94 @@ class PosableCharacter:
     right_eye_image = self._load_component(right_eye_uri)
     mouth_image = self._load_component(mouth_uri)
 
-    self._paste_component(
-      canvas,
-      left_eye_image,
-      pose.head_transform,
+    left_eye_layer = self._build_component_layer(
+      component=left_eye_image,
+      transform=pose.head_transform,
+      logical_canvas_size=logical_canvas_size,
       mask_boundary_offset=head_mask_boundary,
     )
-    self._paste_component(
-      canvas,
-      right_eye_image,
-      pose.head_transform,
+    if left_eye_layer is not None:
+      layers.append(left_eye_layer)
+    right_eye_layer = self._build_component_layer(
+      component=right_eye_image,
+      transform=pose.head_transform,
+      logical_canvas_size=logical_canvas_size,
       mask_boundary_offset=head_mask_boundary,
     )
-    self._paste_component(
-      canvas,
-      mouth_image,
-      pose.head_transform,
+    if right_eye_layer is not None:
+      layers.append(right_eye_layer)
+    mouth_layer = self._build_component_layer(
+      component=mouth_image,
+      transform=pose.head_transform,
+      logical_canvas_size=logical_canvas_size,
       mask_boundary_offset=head_mask_boundary,
     )
+    if mouth_layer is not None:
+      layers.append(mouth_layer)
 
     if pose.surface_line_visible:
       surface_line_image = self._load_component(def_.surface_line_gcs_uri)
-      self._paste_surface_line(
-        canvas=canvas,
+      surface_line_layer = self._build_surface_line_layer(
         component=surface_line_image,
         surface_line_offset=pose.surface_line_offset,
+        logical_canvas_size=logical_canvas_size,
       )
+      if surface_line_layer is not None:
+        layers.append(surface_line_layer)
 
     if pose.left_hand_visible:
       left_hand_image = self._load_component(def_.left_hand_gcs_uri)
-      self._paste_component(
-        canvas,
-        left_hand_image,
-        pose.left_hand_transform,
+      left_hand_layer = self._build_component_layer(
+        component=left_hand_image,
+        transform=pose.left_hand_transform,
+        logical_canvas_size=logical_canvas_size,
         mask_boundary_offset=(pose.mask_boundary_offset
                               if pose.left_hand_masking_enabled else None),
       )
+      if left_hand_layer is not None:
+        layers.append(left_hand_layer)
     if pose.right_hand_visible:
       right_hand_image = self._load_component(def_.right_hand_gcs_uri)
-      self._paste_component(
-        canvas,
-        right_hand_image,
-        pose.right_hand_transform,
+      right_hand_layer = self._build_component_layer(
+        component=right_hand_image,
+        transform=pose.right_hand_transform,
+        logical_canvas_size=logical_canvas_size,
         mask_boundary_offset=(pose.mask_boundary_offset
                               if pose.right_hand_masking_enabled else None),
       )
+      if right_hand_layer is not None:
+        layers.append(right_hand_layer)
 
-    self._image_cache[cache_key] = canvas
-    return canvas
+    min_x = 0
+    min_y = 0
+    max_x = def_.width
+    max_y = def_.height
+    for image, x, y in layers:
+      min_x = min(min_x, x)
+      min_y = min(min_y, y)
+      max_x = max(max_x, x + image.width)
+      max_y = max(max_y, y + image.height)
+
+    render_width = max(1, max_x - min_x)
+    render_height = max(1, max_y - min_y)
+    logical_origin_x = -min_x
+    logical_origin_y = -min_y
+    canvas = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
+
+    for image, x, y in layers:
+      canvas.paste(
+        image,
+        (x + logical_origin_x, y + logical_origin_y),
+        image,
+      )
+
+    rendered = _RenderedPoseImage(
+      image=canvas,
+      logical_origin_x=logical_origin_x,
+      logical_origin_y=logical_origin_y,
+    )
+    self._image_cache[cache_key] = rendered
+    return rendered
 
   def _get_pose_cache_key(self) -> tuple[object, ...]:
     return (self._pose_state, )
@@ -413,35 +488,60 @@ class PosableCharacter:
     self._component_cache[gcs_uri] = image
     return image
 
-  def _paste_component(
+  def _build_component_layer(
     self,
-    canvas: Image.Image,
+    *,
     component: Image.Image,
     transform: Transform,
-    *,
+    logical_canvas_size: tuple[int, int],
     mask_boundary_offset: float | None = None,
-  ) -> None:
+  ) -> tuple[Image.Image, int, int] | None:
     transformed, x, y = self._apply_transform(component, transform,
-                                              canvas.size)
+                                              logical_canvas_size)
     if mask_boundary_offset is not None:
       transformed = self._apply_mask_below_boundary(
         component=transformed,
         component_y=y,
-        canvas_height=canvas.height,
+        canvas_height=logical_canvas_size[1],
         boundary_offset=mask_boundary_offset,
       )
-    canvas.paste(transformed, (x, y), transformed)
+    return self._trim_transparent_layer(
+      image=transformed,
+      x=x,
+      y=y,
+    )
 
-  def _paste_surface_line(
+  def _build_surface_line_layer(
     self,
     *,
-    canvas: Image.Image,
     component: Image.Image,
     surface_line_offset: float,
-  ) -> None:
-    x = int(round((canvas.width - component.width) / 2))
-    y = int(round(canvas.height - float(surface_line_offset)))
-    canvas.paste(component, (x, y), component)
+    logical_canvas_size: tuple[int, int],
+  ) -> tuple[Image.Image, int, int] | None:
+    logical_width, logical_height = logical_canvas_size
+    x = int(round((logical_width - component.width) / 2))
+    y = int(round(logical_height - surface_line_offset))
+    return self._trim_transparent_layer(
+      image=component,
+      x=x,
+      y=y,
+    )
+
+  def _trim_transparent_layer(
+    self,
+    *,
+    image: Image.Image,
+    x: int,
+    y: int,
+  ) -> tuple[Image.Image, int, int] | None:
+    bounds = image.getbbox()
+    if bounds is None:
+      return None
+    left, top, right, bottom = bounds
+    if (left, top, right, bottom) == (0, 0, image.width, image.height):
+      return image, x, y
+    cropped = image.crop(bounds)
+    return cropped, x + left, y + top
 
   def _apply_mask_below_boundary(
     self,
@@ -451,8 +551,8 @@ class PosableCharacter:
     canvas_height: int,
     boundary_offset: float,
   ) -> Image.Image:
-    cutoff_y = int(round(canvas_height - float(boundary_offset)))
-    visible_height = cutoff_y - int(component_y)
+    cutoff_y = int(round(canvas_height - boundary_offset))
+    visible_height = cutoff_y - component_y
     if visible_height >= component.height:
       return component
     if visible_height <= 0:
@@ -486,8 +586,6 @@ class PosableCharacter:
   def _validate_assets(self) -> None:
     d = self.definition
     required = {
-      "width": d.width,
-      "height": d.height,
       "head_gcs_uri": d.head_gcs_uri,
       "surface_line_gcs_uri": d.surface_line_gcs_uri,
       "left_hand_gcs_uri": d.left_hand_gcs_uri,
@@ -504,6 +602,9 @@ class PosableCharacter:
     if missing:
       raise ValueError("PosableCharacter definition must have: " +
                        ", ".join(missing))
+    if d.width <= 0 or d.height <= 0:
+      raise ValueError(
+        "PosableCharacter definition width and height must be > 0")
 
 
 def _coerce_transform(

@@ -210,7 +210,7 @@ test('CharacterAnimator applies clip-path masking style deterministically', asyn
   const animator = new CharacterAnimator({}, {}, minimalDefinition());
 
   animator._applyMasking(element, 12, true);
-  assert.equal(element.style.clipPath, 'inset(0px 0px 12px 0px)');
+  assert.equal(element.style.clipPath, 'inset(-10000px -10000px 12px -10000px)');
 
   animator._applyMasking(element, 12, false);
   assert.equal(element.style.clipPath, 'none');
@@ -272,7 +272,7 @@ test('CharacterAnimator render loop applies masking independent of transforms', 
 
   // At t=1.0, boundary offset resolves to 12 (from first event).
   animator._renderAtTime(1.0);
-  assert.equal(leftHandClip.style.clipPath, 'inset(0px 0px 12px 0px)');
+  assert.equal(leftHandClip.style.clipPath, 'inset(-10000px -10000px 12px -10000px)');
   assert.ok(
     String(leftHandTransform.style.transform || '').includes('translate('),
     'expected transform wrapper to receive a translate() transform',
@@ -289,7 +289,7 @@ test('CharacterAnimator render loop applies masking independent of transforms', 
 
   // At t=1.5, boundary offset should have advanced (interpolating 12 -> 30).
   animator._renderAtTime(1.5);
-  assert.notEqual(leftHandClip.style.clipPath, 'inset(0px 0px 12px 0px)');
+  assert.notEqual(leftHandClip.style.clipPath, 'inset(-10000px -10000px 12px -10000px)');
 });
 
 test('CharacterAnimator uses initial_pose as baseline before first events', async () => {

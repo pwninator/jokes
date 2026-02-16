@@ -675,7 +675,8 @@ export class CharacterAnimator {
     }
     const height = Math.max(0, asNumber(this.characterDefinition.height));
     const clipBottom = Math.min(Math.max(asNumber(maskBoundaryOffset), 0), height);
-    element.style.clipPath = `inset(0px 0px ${clipBottom}px 0px)`;
+    // Overscan top/left/right so masking only clips vertically at bottom.
+    element.style.clipPath = `inset(-10000px -10000px ${clipBottom}px -10000px)`;
   }
 
   _applySurfaceLineOffset(surfaceLineOffset) {

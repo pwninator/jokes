@@ -278,8 +278,7 @@ BOOKS: dict[BookKey, Book] = {
     variants={
       BookFormat.PAPERBACK:
       BookVariant(
-        # TODO: Add ASIN
-        asin='0000000000',
+        asin='B0GNJZXRDM',
         supported_countries=BOOK_PRINT_COUNTRIES,
         # No tags yet
         # attribution_tags={

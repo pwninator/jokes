@@ -375,11 +375,29 @@ def _run_joke_video_tuner(req: flask.Request) -> flask.Response:
       req=req,
     )
 
+  teller_character_def_id = (get_param(req, 'teller_character_def_id')
+                             or '').strip()
+  if not teller_character_def_id:
+    return error_response(
+      'teller_character_def_id is required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  listener_character_def_id_raw = get_param(req, 'listener_character_def_id')
+  listener_character_def_id: str | None = None
+  if listener_character_def_id_raw is not None:
+    listener_character_def_id = (
+      str(listener_character_def_id_raw).strip() or None)
+
   try:
     script_template, audio_model, allow_partial = _parse_tuner_audio_options(
       req)
     result = joke_operations.generate_joke_video(
       joke,
+      teller_character_def_id=teller_character_def_id,
+      listener_character_def_id=listener_character_def_id,
       temp_output=True,
       script_template=script_template,
       audio_model=audio_model,

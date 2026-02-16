@@ -5,7 +5,7 @@ from __future__ import annotations
 import flask
 from common import joke_operations
 from functions import auth_helpers, joke_creation_fns
-from services import audio_client, audio_voices
+from services import audio_client, audio_voices, firestore
 from web.routes import web_bp
 from web.routes.admin import joke_feed_utils
 
@@ -14,6 +14,7 @@ from web.routes.admin import joke_feed_utils
 @auth_helpers.require_admin
 def admin_joke_media_generator():
   """Render the joke media generator (generation happens client-side)."""
+  character_defs = firestore.get_posable_character_defs()
   gemini_voices = audio_voices.Voice.voices_for_model(
     audio_voices.VoiceModel.GEMINI)
   gemini_voice_options = [{
@@ -62,6 +63,7 @@ def admin_joke_media_generator():
       audio_voices.Voice.ELEVENLABS_MINNIE.name,
       audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
     ],
+    character_defs=character_defs,
     gemini_voices=gemini_voice_options,
     elevenlabs_voices=elevenlabs_voice_options,
     error_message=None,

@@ -93,7 +93,8 @@ A sequence of setup and punchline images to be shown in a swipeable carousel. Th
   @property
   def description(self) -> str:
     """Human-friendly description of the post layout."""
-    return cast(str, self._description)
+    return cast(
+      str, self._description)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class SocialPlatform(Enum):

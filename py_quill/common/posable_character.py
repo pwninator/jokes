@@ -29,21 +29,22 @@ class Transform:
 
   @staticmethod
   def from_tuple(
-    values: tuple[float, float] | tuple[float, float, float, float]
+    values: TransformValue
   ) -> "Transform":
     """Create a Transform from (tx, ty) or (tx, ty, sx, sy)."""
     if len(values) == 2:
       translate_x, translate_y = values
       return Transform(translate_x=translate_x, translate_y=translate_y)
-    if len(values) == 4:
-      translate_x, translate_y, scale_x, scale_y = values
-      return Transform(
-        translate_x=translate_x,
-        translate_y=translate_y,
-        scale_x=scale_x,
-        scale_y=scale_y,
-      )
-    raise ValueError("Transform tuple must have 2 or 4 values")
+    translate_x, translate_y, scale_x, scale_y = values
+    return Transform(
+      translate_x=translate_x,
+      translate_y=translate_y,
+      scale_x=scale_x,
+      scale_y=scale_y,
+    )
+
+
+type TransformValue = tuple[float, float] | tuple[float, float, float, float]
 
 
 @dataclass(frozen=True)
@@ -73,12 +74,9 @@ class PoseState:
     mouth_state: MouthState | None = None,
     left_hand_visible: bool | None = None,
     right_hand_visible: bool | None = None,
-    left_hand_transform: Transform | tuple[float, float]
-    | tuple[float, float, float, float] | None = None,
-    right_hand_transform: Transform | tuple[float, float]
-    | tuple[float, float, float, float] | None = None,
-    head_transform: Transform | tuple[float, float]
-    | tuple[float, float, float, float] | None = None,
+    left_hand_transform: Transform | TransformValue | None = None,
+    right_hand_transform: Transform | TransformValue | None = None,
+    head_transform: Transform | TransformValue | None = None,
     surface_line_offset: float | None = None,
     mask_boundary_offset: float | None = None,
     surface_line_visible: bool | None = None,
@@ -131,8 +129,8 @@ class PosableCharacter:
     *,
     pose_state: PoseState | None = None,
   ):
-    self.definition = definition
-    self._pose_state = pose_state or PoseState()
+    self.definition: models.PosableCharacterDef = definition
+    self._pose_state: PoseState = pose_state or PoseState()
     self._image_cache: dict[tuple[object, ...], Image.Image] = {}
     self._component_cache: dict[str, Image.Image] = {}
 
@@ -197,39 +195,36 @@ class PosableCharacter:
       right_hand_visible=bool(value))
 
   @property
-  def left_hand_transform(self) -> Transform:
+  def left_hand_transform(self) -> Transform | TransformValue:
     return self._pose_state.left_hand_transform
 
   @left_hand_transform.setter
   def left_hand_transform(
     self,
-    value: Transform | tuple[float, float]
-    | tuple[float, float, float, float],
+    value: Transform | TransformValue,
   ) -> None:
     self._pose_state = self._pose_state.with_updates(left_hand_transform=value)
 
   @property
-  def right_hand_transform(self) -> Transform:
+  def right_hand_transform(self) -> Transform | TransformValue:
     return self._pose_state.right_hand_transform
 
   @right_hand_transform.setter
   def right_hand_transform(
     self,
-    value: Transform | tuple[float, float]
-    | tuple[float, float, float, float],
+    value: Transform | TransformValue,
   ) -> None:
     self._pose_state = self._pose_state.with_updates(
       right_hand_transform=value)
 
   @property
-  def head_transform(self) -> Transform:
+  def head_transform(self) -> Transform | TransformValue:
     return self._pose_state.head_transform
 
   @head_transform.setter
   def head_transform(
     self,
-    value: Transform | tuple[float, float]
-    | tuple[float, float, float, float],
+    value: Transform | TransformValue,
   ) -> None:
     self._pose_state = self._pose_state.with_updates(head_transform=value)
 
@@ -298,12 +293,9 @@ class PosableCharacter:
     mouth_state: MouthState | None = None,
     left_hand_visible: bool | None = None,
     right_hand_visible: bool | None = None,
-    left_hand_transform: Transform | tuple[float, float]
-    | tuple[float, float, float, float] | None = None,
-    right_hand_transform: Transform | tuple[float, float]
-    | tuple[float, float, float, float] | None = None,
-    head_transform: Transform | tuple[float, float]
-    | tuple[float, float, float, float] | None = None,
+    left_hand_transform: Transform | TransformValue | None = None,
+    right_hand_transform: Transform | TransformValue | None = None,
+    head_transform: Transform | TransformValue | None = None,
     surface_line_offset: float | None = None,
     mask_boundary_offset: float | None = None,
     surface_line_visible: bool | None = None,
@@ -515,8 +507,7 @@ class PosableCharacter:
 
 
 def _coerce_transform(
-  transform: Transform | tuple[float, float]
-  | tuple[float, float, float, float]
+  transform: Transform | TransformValue
 ) -> Transform:
   if isinstance(transform, Transform):
     return transform

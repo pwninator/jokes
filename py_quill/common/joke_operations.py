@@ -8,7 +8,7 @@ import random
 import sys
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Callable, Literal
+from typing import Literal
 
 from common import (audio_operations, audio_timing, image_generation, models,
                     utils)
@@ -32,7 +32,6 @@ _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
 _JOKE_AUDIO_INTRO_LINE = "Hey... want to hear a joke?"
-_DEFAULT_POSABLE_CHARACTER_DEF_ID = "20260212_232209__cat___orange_tabby"
 _LIP_SYNC_METADATA_INTRO = "animation_lip_sync_intro"
 _LIP_SYNC_METADATA_SETUP = "animation_lip_sync_setup"
 _LIP_SYNC_METADATA_RESPONSE = "animation_lip_sync_response"
@@ -215,13 +214,20 @@ class JokePopulationError(JokeOperationsError):
 SafetyCheckError = joke_operation_prompts.SafetyCheckError
 
 
-def _create_default_video_character() -> PosableCharacter:
-  """Build the default video character from Firestore."""
+def _create_video_character(
+  character_def_id: str,
+  *,
+  role_name: str,
+) -> PosableCharacter:
+  """Build a video character from a Firestore character definition ID."""
+  resolved_character_def_id = (character_def_id or "").strip()
+  if not resolved_character_def_id:
+    raise ValueError(f"{role_name} character definition ID is required")
   character_def = firestore.get_posable_character_def(
-    _DEFAULT_POSABLE_CHARACTER_DEF_ID)
+    resolved_character_def_id)
   if character_def is None:
-    raise ValueError("Default posable character definition not found: " +
-                     _DEFAULT_POSABLE_CHARACTER_DEF_ID)
+    raise ValueError(f"{role_name} posable character definition not found: " +
+                     resolved_character_def_id)
   return PosableCharacter.from_def(character_def)
 
 
@@ -974,86 +980,6 @@ def _split_joke_dialog_wav_by_timing(
   return clip_bytes, clip_timing
 
 
-def generate_joke_video_from_audio_uris(
-  joke: models.PunnyJoke,
-  *,
-  intro_audio_gcs_uri: str | None = None,
-  setup_audio_gcs_uri: str,
-  response_audio_gcs_uri: str,
-  punchline_audio_gcs_uri: str,
-  clip_timing: JokeAudioTiming | None = None,
-  audio_generation_metadata: models.SingleGenerationMetadata | None = None,
-  temp_output: bool = False,
-  character_class: Callable[[], PosableCharacter]
-  | None = (_create_default_video_character),
-) -> tuple[str, models.GenerationMetadata]:
-  """Generate a portrait video for a joke using existing audio clips."""
-  if not joke.setup_text or not joke.punchline_text:
-    raise ValueError("Joke must have setup_text and punchline_text")
-  joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
-
-  setup_image_url = joke.setup_image_url_upscaled or joke.setup_image_url
-  punchline_image_url = (joke.punchline_image_url_upscaled
-                         or joke.punchline_image_url)
-  if not setup_image_url or not punchline_image_url:
-    raise ValueError("Joke must have setup and punchline images")
-
-  setup_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    setup_image_url)
-  punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    punchline_image_url)
-
-  intro_sequence = (_build_lipsync_sequence(
-    audio_gcs_uri=intro_audio_gcs_uri,
-    transcript=_JOKE_AUDIO_INTRO_LINE,
-    timing=clip_timing.intro if clip_timing else None,
-  ) if intro_audio_gcs_uri else None)
-  setup_sequence = _build_lipsync_sequence(
-    audio_gcs_uri=setup_audio_gcs_uri,
-    transcript=str(joke.setup_text),
-    timing=clip_timing.setup if clip_timing else None,
-  )
-  response_sequence = _build_lipsync_sequence(
-    audio_gcs_uri=response_audio_gcs_uri,
-    transcript="what?",
-    timing=clip_timing.response if clip_timing else None,
-  )
-  punchline_sequence = _build_lipsync_sequence(
-    audio_gcs_uri=punchline_audio_gcs_uri,
-    transcript=str(joke.punchline_text),
-    timing=clip_timing.punchline if clip_timing else None,
-  )
-  if character_class is None:
-    teller_character = _create_default_video_character()
-    listener_character = None
-    intro_sequence = None
-    response_sequence = None
-  else:
-    teller_character = character_class()
-    listener_character = character_class()
-  video_gcs_uri, video_generation_metadata = (
-    gen_video.create_portrait_character_video(
-      setup_image_gcs_uri=setup_image_gcs_uri,
-      punchline_image_gcs_uri=punchline_image_gcs_uri,
-      teller_character=teller_character,
-      teller_voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
-      listener_character=listener_character,
-      listener_voice=(DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE
-                      if listener_character is not None else None),
-      intro_sequence=intro_sequence,
-      setup_sequence=setup_sequence,
-      response_sequence=response_sequence,
-      punchline_sequence=punchline_sequence,
-      output_filename_base=f"joke_video_{joke_id_for_filename}",
-      temp_output=temp_output,
-    ))
-
-  generation_metadata = models.GenerationMetadata()
-  generation_metadata.add_generation(audio_generation_metadata)
-  generation_metadata.add_generation(video_generation_metadata)
-  return video_gcs_uri, generation_metadata
-
-
 def get_joke_lip_sync_media(
   joke: models.PunnyJoke,
   *,
@@ -1740,6 +1666,8 @@ def _timing_duration_sec(
 
 def generate_joke_video(
   joke: models.PunnyJoke,
+  teller_character_def_id: str,
+  listener_character_def_id: str | None = None,
   temp_output: bool = False,
   script_template: list[audio_client.DialogTurn] | None = None,
   audio_model: audio_client.AudioModel | None = None,
@@ -1761,6 +1689,10 @@ def generate_joke_video(
   turns_template = script_template or DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
   rendered_turns = _render_dialog_turns_from_template(joke, turns_template)
   teller_voice, listener_voice = _resolve_joke_video_voices(rendered_turns)
+  teller_character = _create_video_character(
+    teller_character_def_id,
+    role_name="Teller",
+  )
 
   lip_sync = get_joke_lip_sync_media(
     joke=joke,
@@ -1794,9 +1726,14 @@ def generate_joke_video(
   punchline_sequence = lip_sync.punchline_sequence
   has_listener = lip_sync.response_sequence is not None
 
-  teller_character = _create_default_video_character()
-  listener_character = (_create_default_video_character()
-                        if has_listener else None)
+  listener_character = None
+  if has_listener:
+    if not listener_character_def_id:
+      raise ValueError("Listener character definition ID is required")
+    listener_character = _create_video_character(
+      listener_character_def_id,
+      role_name="Listener",
+    )
   video_gcs_uri, video_generation_metadata = gen_video.create_portrait_character_video(
     setup_image_gcs_uri=setup_image_gcs_uri,
     punchline_image_gcs_uri=punchline_image_gcs_uri,

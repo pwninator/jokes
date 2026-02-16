@@ -18,9 +18,9 @@ from PIL import Image
 def mock_firestore_fixture(monkeypatch):
   """Fixture that mocks the firestore service."""
   mock_firestore = Mock()
-  mock_firestore.get_posable_character_def.return_value = (
-    models.PosableCharacterDef(
-      key="20260212_232209__cat___orange_tabby",
+  mock_firestore.get_posable_character_def.side_effect = (
+    lambda character_def_id: models.PosableCharacterDef(
+      key=character_def_id,
       width=1,
       height=1,
     ))
@@ -1657,7 +1657,11 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
     "gs://images/setup.png",
     "gs://images/punchline.png",
   ]
-  result = joke_operations.generate_joke_video(joke)
+  result = joke_operations.generate_joke_video(
+    joke,
+    teller_character_def_id="char-teller",
+    listener_character_def_id="char-listener",
+  )
 
   assert result.video_gcs_uri == "gs://videos/joke.mp4"
   assert [
@@ -1675,10 +1679,8 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
                     joke_operations.PosableCharacter)
   assert isinstance(call_kwargs["listener_character"],
                     joke_operations.PosableCharacter)
-  assert call_kwargs[
-    "teller_character"].definition.key == "20260212_232209__cat___orange_tabby"
-  assert call_kwargs[
-    "listener_character"].definition.key == "20260212_232209__cat___orange_tabby"
+  assert call_kwargs["teller_character"].definition.key == "char-teller"
+  assert call_kwargs["listener_character"].definition.key == "char-listener"
   assert call_kwargs[
     "teller_voice"] == joke_operations.audio_voices.Voice.GEMINI_LEDA
   assert call_kwargs[
@@ -1686,8 +1688,8 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
   assert mock_firestore.get_posable_character_def.call_count == 2
-  mock_firestore.get_posable_character_def.assert_called_with(
-    "20260212_232209__cat___orange_tabby")
+  mock_firestore.get_posable_character_def.assert_any_call("char-teller")
+  mock_firestore.get_posable_character_def.assert_any_call("char-listener")
 
 
 def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
@@ -1744,7 +1746,11 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
     "gs://images/setup.png",
     "gs://images/punchline.png",
   ]
-  result = joke_operations.generate_joke_video(joke)
+  result = joke_operations.generate_joke_video(
+    joke,
+    teller_character_def_id="char-teller",
+    listener_character_def_id="char-listener",
+  )
 
   assert result.video_gcs_uri == "gs://videos/joke.mp4"
   assert [
@@ -1764,8 +1770,8 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
     "listener_voice"] == joke_operations.audio_voices.Voice.GEMINI_PUCK
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert mock_firestore.get_posable_character_def.call_count == 2
-  mock_firestore.get_posable_character_def.assert_called_with(
-    "20260212_232209__cat___orange_tabby")
+  mock_firestore.get_posable_character_def.assert_any_call("char-teller")
+  mock_firestore.get_posable_character_def.assert_any_call("char-listener")
 
 
 def test_generate_joke_video_requires_images():
@@ -1775,7 +1781,232 @@ def test_generate_joke_video_requires_images():
   )
 
   with pytest.raises(ValueError, match="setup and punchline images"):
-    joke_operations.generate_joke_video(joke)
+    joke_operations.generate_joke_video(
+      joke,
+      teller_character_def_id="char-teller",
+      listener_character_def_id="char-listener",
+    )
+
+
+def test_generate_joke_video_requires_teller_character_id():
+  joke = models.PunnyJoke(
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="https://images.example.com/setup.png",
+    punchline_image_url="https://images.example.com/punchline.png",
+  )
+
+  with pytest.raises(ValueError,
+                     match="Teller character definition ID is required"):
+    joke_operations.generate_joke_video(
+      joke,
+      teller_character_def_id="",
+      listener_character_def_id="char-listener",
+    )
+
+
+def test_generate_joke_video_requires_listener_character_when_response_present(
+  monkeypatch,
+  mock_cloud_storage,
+  mock_firestore,
+):
+  joke = models.PunnyJoke(
+    key="joke-listener-required",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="https://images.example.com/setup.png",
+    punchline_image_url="https://images.example.com/punchline.png",
+  )
+
+  monkeypatch.setattr(
+    joke_operations,
+    "get_joke_lip_sync_media",
+    Mock(return_value=joke_operations.JokeLipSyncResult(
+      dialog_gcs_uri="gs://audio/dialog.wav",
+      intro_audio_gcs_uri=None,
+      setup_audio_gcs_uri="gs://audio/setup.wav",
+      response_audio_gcs_uri="gs://audio/response.wav",
+      punchline_audio_gcs_uri="gs://audio/punchline.wav",
+      transcripts=joke_operations.JokeAudioTranscripts(
+        intro="intro",
+        setup="setup",
+        response="response",
+        punchline="punchline",
+      ),
+      intro_sequence=None,
+      setup_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/setup.wav",
+        transcript="setup",
+        timing=None,
+      ),
+      response_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/response.wav",
+        transcript="response",
+        timing=None,
+      ),
+      punchline_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/punchline.wav",
+        transcript="punchline",
+        timing=None,
+      ),
+      audio_generation_metadata=models.SingleGenerationMetadata(
+        model_name="audio-model"),
+    )),
+  )
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+    "gs://images/setup.png",
+    "gs://images/punchline.png",
+  ]
+
+  with pytest.raises(ValueError,
+                     match="Listener character definition ID is required"):
+    joke_operations.generate_joke_video(
+      joke,
+      teller_character_def_id="char-teller",
+      listener_character_def_id=None,
+    )
+
+
+def test_generate_joke_video_allows_missing_listener_character_when_no_response(
+  monkeypatch,
+  mock_cloud_storage,
+  mock_firestore,
+):
+  joke = models.PunnyJoke(
+    key="joke-no-listener-needed",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="https://images.example.com/setup.png",
+    punchline_image_url="https://images.example.com/punchline.png",
+  )
+
+  monkeypatch.setattr(
+    joke_operations,
+    "get_joke_lip_sync_media",
+    Mock(return_value=joke_operations.JokeLipSyncResult(
+      dialog_gcs_uri="gs://audio/dialog.wav",
+      intro_audio_gcs_uri=None,
+      setup_audio_gcs_uri="gs://audio/setup.wav",
+      response_audio_gcs_uri=None,
+      punchline_audio_gcs_uri="gs://audio/punchline.wav",
+      transcripts=joke_operations.JokeAudioTranscripts(
+        intro="intro",
+        setup="setup",
+        response="response",
+        punchline="punchline",
+      ),
+      intro_sequence=None,
+      setup_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/setup.wav",
+        transcript="setup",
+        timing=None,
+      ),
+      response_sequence=None,
+      punchline_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/punchline.wav",
+        transcript="punchline",
+        timing=None,
+      ),
+      audio_generation_metadata=models.SingleGenerationMetadata(
+        model_name="audio-model"),
+    )),
+  )
+
+  video_metadata = models.SingleGenerationMetadata(model_name="video-model")
+  create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
+                                         video_metadata))
+  monkeypatch.setattr(joke_operations.gen_video,
+                      "create_portrait_character_video", create_video_mock)
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+    "gs://images/setup.png",
+    "gs://images/punchline.png",
+  ]
+
+  result = joke_operations.generate_joke_video(
+    joke,
+    teller_character_def_id="char-teller",
+    listener_character_def_id=None,
+  )
+
+  assert result.video_gcs_uri == "gs://videos/joke.mp4"
+  create_video_mock.assert_called_once()
+  call_kwargs = create_video_mock.call_args.kwargs
+  assert call_kwargs["listener_character"] is None
+  assert call_kwargs["listener_voice"] is None
+  assert mock_firestore.get_posable_character_def.call_count == 1
+  mock_firestore.get_posable_character_def.assert_called_once_with("char-teller")
+
+
+def test_generate_joke_video_raises_when_character_def_not_found(
+  monkeypatch,
+  mock_cloud_storage,
+  mock_firestore,
+):
+  joke = models.PunnyJoke(
+    key="joke-404",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="https://images.example.com/setup.png",
+    punchline_image_url="https://images.example.com/punchline.png",
+  )
+
+  monkeypatch.setattr(
+    joke_operations,
+    "get_joke_lip_sync_media",
+    Mock(return_value=joke_operations.JokeLipSyncResult(
+      dialog_gcs_uri="gs://audio/dialog.wav",
+      intro_audio_gcs_uri=None,
+      setup_audio_gcs_uri="gs://audio/setup.wav",
+      response_audio_gcs_uri=None,
+      punchline_audio_gcs_uri="gs://audio/punchline.wav",
+      transcripts=joke_operations.JokeAudioTranscripts(
+        intro="intro",
+        setup="setup",
+        response="response",
+        punchline="punchline",
+      ),
+      intro_sequence=None,
+      setup_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/setup.wav",
+        transcript="setup",
+        timing=None,
+      ),
+      response_sequence=None,
+      punchline_sequence=joke_operations._build_lipsync_sequence(
+        audio_gcs_uri="gs://audio/punchline.wav",
+        transcript="punchline",
+        timing=None,
+      ),
+      audio_generation_metadata=models.SingleGenerationMetadata(
+        model_name="audio-model"),
+    )),
+  )
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+    "gs://images/setup.png",
+    "gs://images/punchline.png",
+  ]
+
+  def get_character_def(character_def_id: str):
+    if character_def_id == "missing-char":
+      return None
+    return models.PosableCharacterDef(
+      key=character_def_id,
+      width=1,
+      height=1,
+    )
+
+  mock_firestore.get_posable_character_def.side_effect = get_character_def
+
+  with pytest.raises(ValueError,
+                     match="Teller posable character definition not found"):
+    joke_operations.generate_joke_video(
+      joke,
+      teller_character_def_id="missing-char",
+      listener_character_def_id="char-listener",
+    )
 
 
 def test_generate_joke_audio_uses_scan_and_split_with_timing(

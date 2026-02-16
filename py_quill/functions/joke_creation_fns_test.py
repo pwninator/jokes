@@ -857,11 +857,15 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   def fake_generate_video(
     _joke,
     *,
+    teller_character_def_id=None,
+    listener_character_def_id=None,
     temp_output=False,
     script_template=None,
     audio_model=None,
     allow_partial=False,
   ):
+    captured_video_args["teller_character_def_id"] = teller_character_def_id
+    captured_video_args["listener_character_def_id"] = listener_character_def_id
     captured_video_args["script_template"] = script_template
     captured_video_args["audio_model"] = audio_model
     captured_video_args["temp_output"] = temp_output
@@ -890,6 +894,10 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
         joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
         "joke_id":
         "j-video-1",
+        "teller_character_def_id":
+        "char-teller",
+        "listener_character_def_id":
+        "char-listener",
         "audio_model":
         "gemini-2.5-flash-preview-tts",
         "script_template": [
@@ -932,6 +940,8 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert captured_video_args[
     "audio_model"].value == "gemini-2.5-flash-preview-tts"
   assert captured_video_args["temp_output"] is True
+  assert captured_video_args["teller_character_def_id"] == "char-teller"
+  assert captured_video_args["listener_character_def_id"] == "char-listener"
 
 
 def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
@@ -964,6 +974,8 @@ def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
         "joke_id": "j-video-invalid-template",
+        "teller_character_def_id": "char-teller",
+        "listener_character_def_id": "char-listener",
         "script_template": {
           "voice": "GEMINI_LEDA",
           "script": "{setup_text}",
@@ -974,6 +986,109 @@ def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
   payload = resp.get_json()["data"]
   assert payload["error_type"] == "invalid_request"
   assert "script_template must be a list" in payload["error"]
+
+
+def test_joke_creation_process_handles_joke_video_op_requires_teller_character(
+  monkeypatch, ):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-video-missing-teller",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_video",
+    lambda *_args, **_kwargs: (_ for _ in ()).throw(
+      AssertionError("generate_joke_video should not be called")),
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
+        "joke_id": "j-video-missing-teller",
+        "listener_character_def_id": "char-listener",
+      }))
+
+  assert resp.status_code == 400
+  payload = resp.get_json()["data"]
+  assert payload["error_type"] == "invalid_request"
+  assert "teller_character_def_id is required" in payload["error"]
+
+
+def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_character(
+  monkeypatch, ):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user",
+  )
+
+  joke = models.PunnyJoke(
+    key="j-video-missing-listener",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda _joke_id: joke)
+
+  captured_video_args: dict[str, object] = {}
+
+  def fake_generate_video(
+    _joke,
+    *,
+    teller_character_def_id=None,
+    listener_character_def_id=None,
+    temp_output=False,
+    script_template=None,
+    audio_model=None,
+    allow_partial=False,
+  ):
+    captured_video_args["teller_character_def_id"] = teller_character_def_id
+    captured_video_args["listener_character_def_id"] = listener_character_def_id
+    _ = temp_output
+    _ = script_template
+    _ = audio_model
+    _ = allow_partial
+    return joke_creation_fns.joke_operations.JokeVideoResult(
+      video_gcs_uri="gs://public/video/joke.mp4",
+      dialog_audio_gcs_uri=None,
+      intro_audio_gcs_uri=None,
+      setup_audio_gcs_uri=None,
+      response_audio_gcs_uri=None,
+      punchline_audio_gcs_uri=None,
+      audio_generation_metadata=None,
+      video_generation_metadata=models.GenerationMetadata(),
+    )
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_video",
+    fake_generate_video,
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
+        "joke_id": "j-video-optional-listener",
+        "teller_character_def_id": "char-teller",
+      }))
+
+  assert resp.status_code == 200
+  payload = resp.get_json()["data"]
+  assert payload["video_gcs_uri"] == "gs://public/video/joke.mp4"
+  assert captured_video_args["teller_character_def_id"] == "char-teller"
+  assert captured_video_args["listener_character_def_id"] is None
 
 
 def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_fails(
@@ -1021,6 +1136,8 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
         "joke_id": "j-video-2",
+        "teller_character_def_id": "char-teller",
+        "listener_character_def_id": "char-listener",
         "allow_partial": True,
       }))
 
@@ -1085,6 +1202,8 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_
       data={
         "op": joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value,
         "joke_id": "j-video-3",
+        "teller_character_def_id": "char-teller",
+        "listener_character_def_id": "char-listener",
         "allow_partial": True,
       }))
 

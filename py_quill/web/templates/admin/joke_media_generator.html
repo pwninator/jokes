@@ -129,6 +129,13 @@
       "Liberation Mono", "Courier New", monospace;
   }
 
+  .character-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
   @media (max-width: 900px) {
     .turn-row {
       grid-template-columns: 1fr;
@@ -258,6 +265,26 @@
 
   <form id="video-tuner-form" class="card" method="GET">
     <input type="hidden" name="op" value="{{ joke_video_op }}">
+    <div class="character-select-grid">
+      <div>
+        <label for="video-teller-character-id" class="muted small">Teller character</label>
+        <select id="video-teller-character-id">
+          <option value="">Select Teller Character</option>
+          {% for def in character_defs %}
+            <option value="{{ def.key }}">{{ def.name or def.key }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="video-listener-character-id" class="muted small">Listener character</label>
+        <select id="video-listener-character-id">
+          <option value="">Select Listener Character</option>
+          {% for def in character_defs %}
+            <option value="{{ def.key }}">{{ def.name or def.key }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
     <div class="audio-actions">
       <button id="generate-video-button" type="button" class="text-button" disabled>Generate Video</button>
     </div>
@@ -282,6 +309,8 @@
     const videoForm = document.getElementById('video-tuner-form');
     const generateAudioButton = document.getElementById('generate-audio-button');
     const generateVideoButton = document.getElementById('generate-video-button');
+    const tellerCharacterInput = document.getElementById('video-teller-character-id');
+    const listenerCharacterInput = document.getElementById('video-listener-character-id');
     const errorBanner = document.getElementById('error-banner');
     const errorBannerText = document.getElementById('error-banner-text');
     const results = document.getElementById('audio-results');
@@ -434,7 +463,10 @@
       if (metaTokenCounts) metaTokenCounts.textContent = JSON.stringify(tokenCounts, null, 2);
     }
 
-    if (!audioForm || !videoForm || !generateAudioButton || !generateVideoButton || !window.JokePicker) {
+    if (
+      !audioForm || !videoForm || !generateAudioButton || !generateVideoButton ||
+      !tellerCharacterInput || !listenerCharacterInput || !window.JokePicker
+    ) {
       return;
     }
 
@@ -492,12 +524,26 @@
       states: ['DAILY', 'PUBLISHED'],
       publicOnly: true,
       maxSelection: 1,
-      onSelectionChange: (selection) => {
-        const disable = selection.length !== 1;
-        generateAudioButton.disabled = disable;
-        generateVideoButton.disabled = disable;
+      onSelectionChange: () => {
+        syncGenerateButtons();
       },
     });
+
+    function hasSelectedVideoCharacters() {
+      const tellerCharacterId = (tellerCharacterInput?.value || '').trim();
+      return Boolean(tellerCharacterId);
+    }
+
+    function syncGenerateButtons() {
+      const selected = picker ? picker.getSelectedJokes() : [];
+      const hasSingleJoke = Array.isArray(selected) && selected.length === 1;
+      generateAudioButton.disabled = !hasSingleJoke;
+      generateVideoButton.disabled = !(hasSingleJoke && hasSelectedVideoCharacters());
+    }
+
+    tellerCharacterInput.addEventListener('change', syncGenerateButtons);
+    listenerCharacterInput.addEventListener('change', syncGenerateButtons);
+    syncGenerateButtons();
 
     function buildDialogTurnTemplate() {
       const turns = [];
@@ -640,13 +686,30 @@
 
       const jokeId = selected[0].id;
       const opValue = (videoForm.querySelector('input[name="op"]') || {}).value;
+      const tellerCharacterId = (tellerCharacterInput?.value || '').trim();
+      const listenerCharacterId = (listenerCharacterInput?.value || '').trim();
 
+      if (!tellerCharacterId) {
+        setLoading(generateVideoButton, false, 'Generate Video');
+        showError('Please select a teller character.');
+        return;
+      }
       try {
-        const data = await requestGeneration(jokeCreationUrl, opValue, jokeId, {
+        const videoRequestData = {
           audio_model: (audioModelInput?.value || '').trim(),
           script_template: buildDialogTurnTemplate(),
+          teller_character_def_id: tellerCharacterId,
           allow_partial: true,
-        });
+        };
+        if (listenerCharacterId) {
+          videoRequestData.listener_character_def_id = listenerCharacterId;
+        }
+        const data = await requestGeneration(
+          jokeCreationUrl,
+          opValue,
+          jokeId,
+          videoRequestData,
+        );
         const videoGcs = data.video_gcs_uri;
         const meta = data.video_generation_metadata || {};
         const hasAnyAudio = populateAudioResults(data);

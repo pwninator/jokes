@@ -708,10 +708,12 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
                           temp_output=False,
                           script_template=None,
                           audio_model=None,
-                          allow_partial=False):
+                          allow_partial=False,
+                          use_audio_cache=True):
     captured_audio_args["script_template"] = script_template
     captured_audio_args["audio_model"] = audio_model
     captured_audio_args["allow_partial"] = allow_partial
+    captured_audio_args["use_audio_cache"] = use_audio_cache
     return joke_creation_fns.joke_operations.JokeLipSyncResult(
       dialog_gcs_uri="gs://public/audio/dialog.wav",
       intro_audio_gcs_uri="gs://public/audio/intro.wav",
@@ -787,6 +789,7 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
   ]
   assert captured_audio_args[
     "audio_model"].value == "gemini-2.5-flash-preview-tts"
+  assert captured_audio_args["use_audio_cache"] is True
 
 
 def test_joke_creation_process_handles_joke_audio_op_invalid_audio_model(
@@ -863,6 +866,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     script_template=None,
     audio_model=None,
     allow_partial=False,
+    use_audio_cache=True,
   ):
     captured_video_args["teller_character_def_id"] = teller_character_def_id
     captured_video_args["listener_character_def_id"] = listener_character_def_id
@@ -870,6 +874,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     captured_video_args["audio_model"] = audio_model
     captured_video_args["temp_output"] = temp_output
     captured_video_args["allow_partial"] = allow_partial
+    captured_video_args["use_audio_cache"] = use_audio_cache
     return joke_creation_fns.joke_operations.JokeVideoResult(
       video_gcs_uri="gs://public/video/joke.mp4",
       dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
@@ -900,6 +905,8 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
         "char-listener",
         "audio_model":
         "gemini-2.5-flash-preview-tts",
+        "use_audio_cache":
+        False,
         "script_template": [
           {
             "voice": "GEMINI_LEDA",
@@ -942,6 +949,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert captured_video_args["temp_output"] is True
   assert captured_video_args["teller_character_def_id"] == "char-teller"
   assert captured_video_args["listener_character_def_id"] == "char-listener"
+  assert captured_video_args["use_audio_cache"] is False
 
 
 def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
@@ -1052,6 +1060,7 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
     script_template=None,
     audio_model=None,
     allow_partial=False,
+    use_audio_cache=True,
   ):
     captured_video_args["teller_character_def_id"] = teller_character_def_id
     captured_video_args["listener_character_def_id"] = listener_character_def_id
@@ -1059,6 +1068,7 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
     _ = script_template
     _ = audio_model
     _ = allow_partial
+    captured_video_args["use_audio_cache"] = use_audio_cache
     return joke_creation_fns.joke_operations.JokeVideoResult(
       video_gcs_uri="gs://public/video/joke.mp4",
       dialog_audio_gcs_uri=None,
@@ -1089,6 +1099,7 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
   assert payload["video_gcs_uri"] == "gs://public/video/joke.mp4"
   assert captured_video_args["teller_character_def_id"] == "char-teller"
   assert captured_video_args["listener_character_def_id"] is None
+  assert captured_video_args["use_audio_cache"] is True
 
 
 def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_fails(

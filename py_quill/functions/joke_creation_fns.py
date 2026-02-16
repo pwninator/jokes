@@ -164,7 +164,7 @@ def _parse_dialog_turn_templates(
 def _parse_tuner_audio_options(
   req: flask.Request,
 ) -> tuple[list[audio_client.DialogTurn] | None, audio_client.AudioModel
-           | None, bool]:
+           | None, bool, bool]:
   """Parse shared audio-related options for audio/video tuner endpoints."""
   raw_script_template = get_param(req, 'script_template')
   script_template_input: list[dict[str, object]] | None = None
@@ -187,7 +187,8 @@ def _parse_tuner_audio_options(
     except ValueError as exc:
       raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
   allow_partial = get_bool_param(req, "allow_partial", False)
-  return script_template, audio_model, allow_partial
+  use_audio_cache = get_bool_param(req, "use_audio_cache", True)
+  return script_template, audio_model, allow_partial, use_audio_cache
 
 
 def _handle_admin_request(req: flask.Request) -> flask.Response | None:
@@ -311,7 +312,7 @@ def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
     )
 
   try:
-    script_template, audio_model, allow_partial = _parse_tuner_audio_options(
+    script_template, audio_model, allow_partial, use_audio_cache = _parse_tuner_audio_options(
       req)
     lip_sync = joke_operations.get_joke_lip_sync_media(
       joke,
@@ -319,6 +320,7 @@ def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
       script_template=script_template,
       audio_model=audio_model,
       allow_partial=allow_partial,
+      use_audio_cache=use_audio_cache,
     )
 
     payload: dict[str, object] = {
@@ -392,7 +394,7 @@ def _run_joke_video_tuner(req: flask.Request) -> flask.Response:
       str(listener_character_def_id_raw).strip() or None)
 
   try:
-    script_template, audio_model, allow_partial = _parse_tuner_audio_options(
+    script_template, audio_model, allow_partial, use_audio_cache = _parse_tuner_audio_options(
       req)
     result = joke_operations.generate_joke_video(
       joke,
@@ -402,6 +404,7 @@ def _run_joke_video_tuner(req: flask.Request) -> flask.Response:
       script_template=script_template,
       audio_model=audio_model,
       allow_partial=allow_partial,
+      use_audio_cache=use_audio_cache,
     )
 
     return success_response(

@@ -15,11 +15,12 @@ import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generic, TypeVar, override
+from typing import Any, Callable, Generic, TypeVar, cast, override
 
 import httpx
 import librosa
 import numpy as np
+import numpy.typing as npt
 import soundfile as sf
 from common import audio_timing, config, models, utils
 from elevenlabs.client import ElevenLabs
@@ -49,6 +50,8 @@ _TRIM_PEAK_PAD_DB = 35.0
 _TRIM_HYSTERESIS_DB = 3.0
 _TRIM_MIN_ON_FRAMES = 2
 _TRIM_PAD_SEC = 0.03
+
+_Float32Array = npt.NDArray[np.float32]
 
 
 class Error(Exception):
@@ -122,9 +125,9 @@ class AudioClient(ABC, Generic[_T]):
     model: AudioModel,
     max_retries: int,
   ):
-    self.label = label
-    self.model = model
-    self.max_retries = max_retries
+    self.label: str = label
+    self.model: AudioModel = model
+    self.max_retries: int = max_retries
 
     self._model_client: _T | None = None
 
@@ -199,7 +202,7 @@ class AudioClient(ABC, Generic[_T]):
         )
 
         token_counts = dict(internal.token_counts or {})
-        token_counts.setdefault("characters", len(internal.input_text))
+        _ = token_counts.setdefault("characters", len(internal.input_text))
         token_counts["audio_bytes"] = len(internal.audio_bytes)
 
         billed_token_counts = self._get_billed_token_counts(token_counts)
@@ -449,15 +452,11 @@ class GeminiAudioClient(AudioClient[genai.Client]):
 
       pause_before = turn.pause_sec_before
       if pause_before is not None:
-        if not isinstance(pause_before, (int, float)):
-          raise AudioGenerationError("pause_sec_before must be a number")
         if pause_before < 0:
           raise AudioGenerationError("pause_sec_before must be >= 0")
 
       pause_after = turn.pause_sec_after
       if pause_after is not None:
-        if not isinstance(pause_after, (int, float)):
-          raise AudioGenerationError("pause_sec_after must be a number")
         if pause_after < 0:
           raise AudioGenerationError("pause_sec_after must be >= 0")
 
@@ -520,6 +519,7 @@ class GeminiAudioClient(AudioClient[genai.Client]):
         "Dialog script must be non-empty after stitching")
     return stitched
 
+  @override
   def _get_billed_token_counts(self,
                                token_counts: dict[str, int]) -> dict[str, int]:
     return {
@@ -527,11 +527,13 @@ class GeminiAudioClient(AudioClient[genai.Client]):
       "output_tokens": int(token_counts.get("output_tokens", 0)),
     }
 
+  @override
   def _get_generation_costs(self) -> dict[str, float]:
     if costs := self.GENERATION_COSTS.get(self.model):
       return costs
     raise ValueError(f"Unknown Gemini TTS model for pricing: {self.model}")
 
+  @override
   def _is_retryable_error(self, error: Exception) -> bool:
     if isinstance(error, ResourceExhausted):
       return True
@@ -596,8 +598,8 @@ class GeminiAudioClient(AudioClient[genai.Client]):
 class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
   """ElevenLabs audio client implementation."""
 
-  _DEFAULT_OUTPUT_FORMAT = "mp3_44100_128"
-  _DEFAULT_TIMEOUT_SEC = 300
+  _DEFAULT_OUTPUT_FORMAT: str = "mp3_44100_128"
+  _DEFAULT_TIMEOUT_SEC: int = 300
 
   GENERATION_COSTS: dict[AudioModel, dict[str, float]] = {
     AudioModel.ELEVENLABS_ELEVEN_V3: {
@@ -618,18 +620,20 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
     timeout_sec: int = _DEFAULT_TIMEOUT_SEC,
   ):
     super().__init__(label=label, model=model, max_retries=max_retries)
-    self.output_format = (output_format
-                          or "").strip() or self._DEFAULT_OUTPUT_FORMAT
-    self.language_code = (language_code or "").strip() or None
-    self.settings = settings
-    self.timeout_sec = timeout_sec
+    self.output_format: str = (output_format
+                               or "").strip() or self._DEFAULT_OUTPUT_FORMAT
+    self.language_code: str | None = (language_code or "").strip() or None
+    self.settings: dict[str, Any] | None = settings
+    self.timeout_sec: int = timeout_sec
 
+  @override
   def _create_model_client(self) -> ElevenLabs:
     return ElevenLabs(
       api_key=config.get_elevenlabs_api_key(),
       timeout=float(self.timeout_sec),
     )
 
+  @override
   def _generate_multi_turn_dialog_internal(
     self,
     *,
@@ -724,15 +728,11 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
 
       pause_before = turn.pause_sec_before
       if pause_before is not None:
-        if not isinstance(pause_before, (int, float)):
-          raise AudioGenerationError("pause_sec_before must be a number")
         if pause_before < 0:
           raise AudioGenerationError("pause_sec_before must be >= 0")
 
       pause_after = turn.pause_sec_after
       if pause_after is not None:
-        if not isinstance(pause_after, (int, float)):
-          raise AudioGenerationError("pause_sec_after must be a number")
         if pause_after < 0:
           raise AudioGenerationError("pause_sec_after must be >= 0")
 
@@ -772,15 +772,18 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       return "alaw", "application/octet-stream"
     return "bin", "application/octet-stream"
 
+  @override
   def _get_billed_token_counts(self,
                                token_counts: dict[str, int]) -> dict[str, int]:
     return {"characters": int(token_counts.get("characters", 0))}
 
+  @override
   def _get_generation_costs(self) -> dict[str, float]:
     if costs := self.GENERATION_COSTS.get(self.model):
       return costs
     raise ValueError(f"Unknown ElevenLabs model for pricing: {self.model}")
 
+  @override
   def _is_retryable_error(self, error: Exception) -> bool:
     if isinstance(error, httpx.TimeoutException):
       return True
@@ -800,6 +803,13 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
 
 
 _IN_WORD_PUNCTUATION = {"'", "-"}
+_ALIGNMENT_MIN_POSITIVE_CHAR_SEC = 1e-4
+_ALIGNMENT_MAX_COLLAPSED_SPOKEN_CHAR_RATIO = 0.2
+_ALIGNMENT_MIN_SPOKEN_CHARS_FOR_RATIO_CHECK = 20
+_ALIGNMENT_MAX_CONSECUTIVE_COLLAPSED_SPOKEN_CHARS = 12
+_TIMING_MIN_POSITIVE_WORD_SEC = 0.02
+_TIMING_MIN_SPOKEN_SPAN_SEC = 0.06
+_TIMING_MIN_SPOKEN_CHARS_PER_SEGMENT = 6
 
 
 def _is_whitespace_char(ch: str) -> bool:
@@ -861,7 +871,7 @@ def _try_decode_audio_bytes_to_mono_float32(
   audio_bytes: bytes,
   *,
   file_extension: str,
-) -> tuple[Any, int] | None:
+) -> tuple[_Float32Array, int] | None:
   """Best-effort decode into mono float32 samples.
 
   Prefers `soundfile` (fast, reliable for WAV). Falls back to `librosa` by
@@ -874,12 +884,16 @@ def _try_decode_audio_bytes_to_mono_float32(
   if sf is not None:
     try:
       with sf.SoundFile(io.BytesIO(audio_bytes)) as sound_file:
-        y = sound_file.read(dtype="float32", always_2d=True)
+        y = cast(_Float32Array, sound_file.read(dtype="float32",
+                                                always_2d=True))
         sr = int(sound_file.samplerate)
       if y.size == 0 or sr <= 0:
         return None
       if y.shape[1] > 1:
-        y = np.mean(y, axis=1, keepdims=True)
+        y = cast(
+          _Float32Array,
+          np.mean(y, axis=1, keepdims=True, dtype=np.float32),
+        )
       return y[:, 0], sr
     except Exception:
       pass
@@ -890,20 +904,21 @@ def _try_decode_audio_bytes_to_mono_float32(
     fd, path = tempfile.mkstemp(suffix=suffix)
     try:
       with os.fdopen(fd, "wb") as handle:
-        handle.write(audio_bytes)
+        _ = handle.write(audio_bytes)
         handle.flush()
-      y, sr = librosa.load(path, sr=None, mono=True)
+      loaded_audio = cast(tuple[Any, Any],
+                          librosa.load(path, sr=None, mono=True))
+      y_raw_any = loaded_audio[0]
+      sr = int(loaded_audio[1])
     finally:
       try:
         os.remove(path)
       except Exception:
         pass
-    if y is None:
+    y = np.asarray(y_raw_any, dtype=np.float32)
+    if y.size == 0 or sr <= 0:
       return None
-    y = np.asarray(y, dtype=np.float32)
-    if y.size == 0 or int(sr) <= 0:
-      return None
-    return y, int(sr)
+    return y, sr
   except Exception:
     return None
 
@@ -1075,6 +1090,24 @@ def _trim_window_by_energy(
   if trimmed_end < trimmed_start:
     return t0, t0
   return trimmed_start, trimmed_end
+
+
+def _build_trim_window_for_turn(
+  *,
+  envelope: _RmsDbEnvelope,
+  thresholds: _TurnTrimThresholds,
+) -> Callable[[float, float], tuple[float, float]]:
+  """Build a trim callback for one turn's energy thresholds."""
+
+  def _trim_window_for_turn(a: float, b: float) -> tuple[float, float]:
+    return _trim_window_by_energy(
+      envelope=envelope,
+      thresholds=thresholds,
+      window_start_sec=a,
+      window_end_sec=b,
+    )
+
+  return _trim_window_for_turn
 
 
 def _redistribute_char_timings(
@@ -1283,6 +1316,202 @@ def _extract_turn_word_timings_from_char_alignment(
   return out
 
 
+def _validate_provider_alignment_quality(
+  alignment: CharacterAlignmentResponseModel,
+  *,
+  voice_segments: list["_ElevenlabsVoiceSegmentCharRange"] | None = None,
+) -> None:
+  """Validate provider character alignment before downstream processing."""
+  chars = [str(char) for char in alignment.characters]
+  starts = [float(value) for value in alignment.character_start_times_seconds]
+  ends = [float(value) for value in alignment.character_end_times_seconds]
+  if len(chars) != len(starts) or len(chars) != len(ends):
+    raise AudioGenerationError(
+      "ElevenLabs alignment arrays are not the same length "
+      f"(chars={len(chars)} starts={len(starts)} ends={len(ends)})")
+
+  non_positive_spoken = 0
+  spoken_count = 0
+  collapsed_run = 0
+  max_collapsed_run = 0
+  max_collapsed_run_end = -1
+  collapsed_indices: list[int] = []
+
+  prev_start = float("-inf")
+  for index, (char, start_time,
+              end_time) in enumerate(zip(chars, starts, ends)):
+    if end_time < (start_time - _ALIGNMENT_MIN_POSITIVE_CHAR_SEC):
+      raise AudioGenerationError(
+        "ElevenLabs alignment has inverted char timing "
+        f"at index={index} char={char!r} start={start_time:.6f} end={end_time:.6f}"
+      )
+    if start_time < (prev_start - _ALIGNMENT_MIN_POSITIVE_CHAR_SEC):
+      raise AudioGenerationError(
+        "ElevenLabs alignment is not time-ordered "
+        f"at index={index} char={char!r} start={start_time:.6f} prev_start={prev_start:.6f}"
+      )
+    prev_start = start_time
+
+    if char.isalnum():
+      spoken_count += 1
+      if (end_time - start_time) <= _ALIGNMENT_MIN_POSITIVE_CHAR_SEC:
+        non_positive_spoken += 1
+        collapsed_indices.append(index)
+        collapsed_run += 1
+      else:
+        collapsed_run = 0
+      if collapsed_run > max_collapsed_run:
+        max_collapsed_run = collapsed_run
+        max_collapsed_run_end = index
+
+  def _char_slice(start_index: int, end_index: int) -> str:
+    parts: list[str] = []
+    for idx in range(max(0, start_index), min(len(chars), end_index)):
+      parts.append(f"{idx}:{chars[idx]!r}@{starts[idx]:.3f}-{ends[idx]:.3f}")
+    return "[" + ", ".join(parts) + "]"
+
+  segment_summaries: list[str] = []
+  if voice_segments:
+    for seg in sorted(voice_segments,
+                      key=lambda entry: entry.dialogue_input_index):
+      c0 = max(0, min(len(chars), int(seg.char_start_index)))
+      c1 = max(0, min(len(chars), int(seg.char_end_index)))
+      if c1 < c0:
+        c0, c1 = c1, c0
+      segment_collapsed = 0
+      segment_spoken = 0
+      for idx in range(c0, c1):
+        if not chars[idx].isalnum():
+          continue
+        segment_spoken += 1
+        if (ends[idx] - starts[idx]) <= _ALIGNMENT_MIN_POSITIVE_CHAR_SEC:
+          segment_collapsed += 1
+      status = "good"
+      reason = "ok"
+      if segment_spoken and segment_collapsed == segment_spoken:
+        status = "bad"
+        reason = "all_spoken_chars_collapsed"
+      elif segment_spoken and (segment_collapsed / segment_spoken
+                               ) > _ALIGNMENT_MAX_COLLAPSED_SPOKEN_CHAR_RATIO:
+        status = "bad"
+        reason = "high_collapsed_ratio"
+      segment_summaries.append(
+        f"turn={seg.dialogue_input_index} voice={seg.voice_id} "
+        f"chars=[{c0},{c1}) spoken={segment_spoken} collapsed={segment_collapsed} "
+        f"status={status} reason={reason}")
+
+  collapsed_sample = _char_slice(
+    start_index=(max_collapsed_run_end - max_collapsed_run +
+                 1) if max_collapsed_run_end >= 0 else 0,
+    end_index=(max_collapsed_run_end + 1) if max_collapsed_run_end >= 0 else 0,
+  )
+  first_collapsed = _char_slice(
+    start_index=collapsed_indices[0] if collapsed_indices else 0,
+    end_index=(collapsed_indices[0] +
+               min(8, len(collapsed_indices))) if collapsed_indices else 0,
+  )
+
+  if max_collapsed_run >= _ALIGNMENT_MAX_CONSECUTIVE_COLLAPSED_SPOKEN_CHARS:
+    raise AudioGenerationError(
+      "ElevenLabs alignment contains a long collapsed-timestamp run. "
+      f"max_collapsed_run={max_collapsed_run} spoken_chars={spoken_count} "
+      f"collapsed_spoken={non_positive_spoken} sample_run={collapsed_sample} "
+      f"segment_diagnostics={segment_summaries}")
+
+  if spoken_count >= _ALIGNMENT_MIN_SPOKEN_CHARS_FOR_RATIO_CHECK:
+    collapsed_ratio = non_positive_spoken / spoken_count
+    if collapsed_ratio > _ALIGNMENT_MAX_COLLAPSED_SPOKEN_CHAR_RATIO:
+      raise AudioGenerationError(
+        "ElevenLabs alignment contains too many collapsed spoken timestamps. "
+        f"collapsed_ratio={collapsed_ratio:.3f} spoken_chars={spoken_count} "
+        f"collapsed_spoken={non_positive_spoken} first_collapsed={first_collapsed} "
+        f"segment_diagnostics={segment_summaries}")
+
+
+def _validate_sanitized_timing_quality(
+  *,
+  words: list[audio_timing.WordTiming],
+  voice_segments: list[audio_timing.VoiceSegment],
+) -> None:
+  """Validate sanitized word timings against rebuilt voice segments."""
+  if not voice_segments:
+    raise AudioGenerationError("ElevenLabs timing has no voice segments")
+
+  word_count = len(words)
+  segment_diagnostics: list[str] = []
+  bad_segment_diagnostics: list[str] = []
+
+  def _format_words_slice(segment_words: list[audio_timing.WordTiming]) -> str:
+    return "[" + ", ".join(
+      f"{word.word!r}@{float(word.start_time):.3f}-{float(word.end_time):.3f}"
+      for word in segment_words[:8]) + "]"
+
+  for segment in voice_segments:
+    status = "good"
+    reason = "ok"
+    word_start = int(segment.word_start_index)
+    word_end = int(segment.word_end_index)
+    if word_start < 0 or word_end < 0 or word_end > word_count:
+      status = "bad"
+      reason = "word_index_out_of_bounds"
+      diagnostic = (
+        f"turn={segment.dialogue_input_index} voice={segment.voice_id} "
+        f"word_index=[{word_start},{word_end}) total_words={word_count} "
+        f"status={status} reason={reason}")
+      segment_diagnostics.append(diagnostic)
+      bad_segment_diagnostics.append(diagnostic)
+      continue
+    if word_end <= word_start:
+      status = "bad"
+      reason = "no_aligned_words"
+      diagnostic = (
+        f"turn={segment.dialogue_input_index} voice={segment.voice_id} "
+        f"word_index=[{word_start},{word_end}) total_words={word_count} "
+        f"status={status} reason={reason}")
+      segment_diagnostics.append(diagnostic)
+      bad_segment_diagnostics.append(diagnostic)
+      continue
+
+    segment_words = words[word_start:word_end]
+    spoken_words = [
+      word for word in segment_words
+      if any(ch.isalnum() for ch in str(word.word))
+    ]
+    if spoken_words:
+      has_positive_word = any(
+        (float(word.end_time) -
+         float(word.start_time)) > _TIMING_MIN_POSITIVE_WORD_SEC
+        for word in spoken_words)
+      if not has_positive_word:
+        status = "bad"
+        reason = "no_positive_duration_spoken_words"
+      else:
+        spoken_span_start = min(
+          float(word.start_time) for word in spoken_words)
+        spoken_span_end = max(float(word.end_time) for word in spoken_words)
+        spoken_span = max(0.0, spoken_span_end - spoken_span_start)
+        spoken_chars = sum(1 for word in spoken_words for ch in str(word.word)
+                           if ch.isalnum())
+        if (spoken_chars >= _TIMING_MIN_SPOKEN_CHARS_PER_SEGMENT
+            and spoken_span < _TIMING_MIN_SPOKEN_SPAN_SEC):
+          status = "bad"
+          reason = "spoken_span_too_short"
+
+    diagnostic = (
+      f"turn={segment.dialogue_input_index} voice={segment.voice_id} "
+      f"word_index=[{word_start},{word_end}) words={_format_words_slice(segment_words)} "
+      f"status={status} reason={reason}")
+    segment_diagnostics.append(diagnostic)
+    if status == "bad":
+      bad_segment_diagnostics.append(diagnostic)
+
+  if bad_segment_diagnostics:
+    raise AudioGenerationError(
+      "ElevenLabs sanitized timing validation failed. "
+      f"bad_segments={bad_segment_diagnostics} "
+      f"all_segments={segment_diagnostics}")
+
+
 @dataclass(frozen=True)
 class _ElevenlabsVoiceSegmentCharRange:
   voice_id: str
@@ -1337,11 +1566,9 @@ def _sanitize_elevenlabs_alignment(
         turn_end_sec=turn_end_sec,
       )
       if thresholds is not None:
-        trim_window = lambda a, b, _t=thresholds: _trim_window_by_energy(
+        trim_window = _build_trim_window_for_turn(
           envelope=envelope,
-          thresholds=_t,
-          window_start_sec=a,
-          window_end_sec=b,
+          thresholds=thresholds,
         )
 
     turn_words = _extract_turn_word_timings_from_char_alignment(
@@ -1354,8 +1581,8 @@ def _sanitize_elevenlabs_alignment(
     )
     out_words.extend(turn_words)
 
-    start_sec = min(float(s.start_time_seconds) for s in segs)
-    end_sec = max(float(s.end_time_seconds) for s in segs)
+    start_sec = min(s.start_time_seconds for s in segs)
+    end_sec = max(s.end_time_seconds for s in segs)
     voice_id = str(segs[0].voice_id) if segs else ""
     out_segments.append(
       audio_timing.VoiceSegment(
@@ -1423,11 +1650,19 @@ def _extract_elevenlabs_timing(
                                        n_chars),
         dialogue_input_index=int(segment.dialogue_input_index),
       ))
+  _validate_provider_alignment_quality(
+    base_alignment,
+    voice_segments=voice_segments_in,
+  )
 
   sanitized_words, sanitized_voice_segments = _sanitize_elevenlabs_alignment(
     base_alignment,
     voice_segments=voice_segments_in,
     envelope=envelope,
+  )
+  _validate_sanitized_timing_quality(
+    words=sanitized_words,
+    voice_segments=sanitized_voice_segments,
   )
 
   return audio_timing.TtsTiming(
@@ -1462,7 +1697,7 @@ def _log_audio_response(
   usage_str = "\n".join(f"{k}: {v}" for k, v in metadata.token_counts.items())
   num_chars = metadata.token_counts.get("characters", "?")
 
-  log_parts = []
+  log_parts: list[str] = []
   log_parts.append(f"""
 ============================== Input Text ({num_chars} chars) ==============================
 {text}

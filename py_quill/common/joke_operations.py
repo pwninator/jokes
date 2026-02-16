@@ -36,6 +36,8 @@ _LIP_SYNC_METADATA_INTRO = "animation_lip_sync_intro"
 _LIP_SYNC_METADATA_SETUP = "animation_lip_sync_setup"
 _LIP_SYNC_METADATA_RESPONSE = "animation_lip_sync_response"
 _LIP_SYNC_METADATA_PUNCHLINE = "animation_lip_sync_punchline"
+_MIN_POSITIVE_WORD_DURATION_SEC = 0.02
+_MIN_SPEECH_CLIP_DURATION_SEC = 0.05
 
 DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME = "Sam"
 DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = audio_voices.Voice.GEMINI_LEDA
@@ -977,7 +979,42 @@ def _split_joke_dialog_wav_by_timing(
         offset_sec=split_segment.offset_sec,
       ))
 
+  _validate_split_clip_timing(
+    clip_bytes=clip_bytes,
+    clip_timing=clip_timing,
+  )
+
   return clip_bytes, clip_timing
+
+
+def _validate_split_clip_timing(
+  *,
+  clip_bytes: list[bytes],
+  clip_timing: list[list[audio_timing.WordTiming]],
+) -> None:
+  """Validate split output before building lip-sync sequences."""
+  if len(clip_bytes) != len(clip_timing):
+    raise ValueError("Split audio output and timing output are misaligned")
+
+  for clip_index, words in enumerate(clip_timing):
+    spoken_words = [
+      word for word in words if any(ch.isalnum() for ch in str(word.word))
+    ]
+    if not spoken_words:
+      continue
+    words_sample = [
+      f"{word.word!r}@{float(word.start_time):.3f}-{float(word.end_time):.3f}"
+      for word in spoken_words[:8]
+    ]
+
+    has_positive_word = any(
+      (float(word.end_time) - float(word.start_time)) > _MIN_POSITIVE_WORD_DURATION_SEC
+      for word in spoken_words
+    )
+    if not has_positive_word:
+      raise ValueError(
+        f"Split clip {clip_index} has no positive-duration spoken word timing. "
+        f"spoken_words={words_sample}")
 
 
 def get_joke_lip_sync_media(
@@ -987,13 +1024,16 @@ def get_joke_lip_sync_media(
   script_template: list[audio_client.DialogTurn] | None = None,
   audio_model: audio_client.AudioModel | None = None,
   allow_partial: bool = False,
+  use_audio_cache: bool = True,
 ) -> JokeLipSyncResult:
   """Resolve cached lip-sync sequences or generate new ones."""
   turns_template = script_template or DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
   dialog_turns = _render_dialog_turns_from_template(joke, turns_template)
   transcripts = _resolve_clip_transcripts(dialog_turns, joke)
-  cached = _load_cached_lip_sync_sequences(joke_id=joke.key,
-                                           transcripts=transcripts)
+  cached = None
+  if use_audio_cache:
+    cached = _load_cached_lip_sync_sequences(joke_id=joke.key,
+                                             transcripts=transcripts)
   if cached:
     return JokeLipSyncResult(
       dialog_gcs_uri="",
@@ -1664,6 +1704,43 @@ def _timing_duration_sec(
   return latest_end
 
 
+def _validate_sequence_ready_for_video(
+  *,
+  label: str,
+  sequence: PosableCharacterSequence,
+) -> None:
+  """Validate a speaking sequence before composing the final video script."""
+  if not sequence.sequence_sound_events:
+    raise ValueError(f"{label} sequence is missing sound events")
+  primary_sound = sequence.sequence_sound_events[0]
+  sound_duration_sec = max(0.0, float(primary_sound.end_time) - float(
+    primary_sound.start_time))
+
+  transcript = str(sequence.transcript or "")
+  spoken_tokens = [token for token in transcript.split()
+                   if any(ch.isalnum() for ch in token)]
+  if len(spoken_tokens) < 3:
+    return
+  transcript_sample = " ".join(spoken_tokens[:12])
+  primary_sound_data = (
+    f"{float(primary_sound.start_time):.3f}-{float(primary_sound.end_time):.3f} "
+    f"uri={primary_sound.gcs_uri}")
+
+  if sound_duration_sec < _MIN_SPEECH_CLIP_DURATION_SEC:
+    raise ValueError(
+      f"{label} sequence sound duration is implausibly short ({sound_duration_sec:.3f}s). "
+      f"sound_event={primary_sound_data} transcript_sample={transcript_sample!r}")
+
+  has_positive_mouth_event = any(
+    (float(event.end_time) - float(event.start_time)) > _MIN_POSITIVE_WORD_DURATION_SEC
+    for event in sequence.sequence_mouth_state
+  )
+  if not has_positive_mouth_event:
+    raise ValueError(
+      f"{label} sequence has spoken transcript but no usable mouth events. "
+      f"sound_event={primary_sound_data} transcript_sample={transcript_sample!r}")
+
+
 def generate_joke_video(
   joke: models.PunnyJoke,
   teller_character_def_id: str,
@@ -1672,6 +1749,7 @@ def generate_joke_video(
   script_template: list[audio_client.DialogTurn] | None = None,
   audio_model: audio_client.AudioModel | None = None,
   allow_partial: bool = False,
+  use_audio_cache: bool = True,
 ) -> JokeVideoResult:
   """Generate joke video using cached or newly-generated lip-sync sequences."""
   if not joke.setup_text or not joke.punchline_text:
@@ -1700,6 +1778,7 @@ def generate_joke_video(
     script_template=turns_template,
     audio_model=audio_model,
     allow_partial=allow_partial,
+    use_audio_cache=use_audio_cache,
   )
   generation_metadata = models.GenerationMetadata()
   generation_metadata.add_generation(lip_sync.audio_generation_metadata)
@@ -1725,6 +1804,24 @@ def generate_joke_video(
   setup_sequence = lip_sync.setup_sequence
   punchline_sequence = lip_sync.punchline_sequence
   has_listener = lip_sync.response_sequence is not None
+  if lip_sync.intro_sequence is not None:
+    _validate_sequence_ready_for_video(
+      label="intro",
+      sequence=lip_sync.intro_sequence,
+    )
+  _validate_sequence_ready_for_video(
+    label="setup",
+    sequence=setup_sequence,
+  )
+  if lip_sync.response_sequence is not None:
+    _validate_sequence_ready_for_video(
+      label="response",
+      sequence=lip_sync.response_sequence,
+    )
+  _validate_sequence_ready_for_video(
+    label="punchline",
+    sequence=punchline_sequence,
+  )
 
   listener_character = None
   if has_listener:

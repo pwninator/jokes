@@ -43,6 +43,8 @@ FIREBASE_WEB_CONFIG = {
 INSTAGRAM_USER_ID = "17841480298186338"
 FACEBOOK_PAGE_ID = "966070413264093"
 
+AMAZON_API_CLIENT_ID = "amzn1.application-oa2-client.ec6799a5c6f24d519eb810e541b97d5d"
+
 
 def _get_secret(secret_id: str) -> str:
   """Return the latest version of a Secret Manager secret as a UTF-8 string."""
@@ -95,3 +97,13 @@ def get_meta_app_secret() -> str:
 def get_meta_long_lived_token() -> str:
   """Gets the Meta Long Lived Token from the secret manager."""
   return _get_secret("META_LONG_LIVED_TOKEN")
+
+
+def get_amazon_api_client_secret() -> str:
+  """Gets the Amazon API Client Secret from the secret manager."""
+  return _get_secret("AMAZON_API_CLIENT_SECRET")
+
+
+def get_amazon_api_refresh_token() -> str:
+  """Gets the Amazon API Refresh Token from the secret manager."""
+  return _get_secret("AMAZON_API_REFRESH_TOKEN")

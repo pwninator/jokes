@@ -1597,6 +1597,148 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
   assert uploaded == []
 
 
+def test_get_joke_lip_sync_media_uses_cached_audio_when_enabled(monkeypatch):
+  joke = models.PunnyJoke(
+    key="joke-cache-enabled",
+    setup_text="Setup",
+    punchline_text="Punchline",
+  )
+  rendered_turns = [
+    joke_operations.audio_client.DialogTurn(
+      voice=joke_operations.audio_voices.Voice.GEMINI_LEDA,
+      script="intro",
+    )
+  ]
+  transcripts = joke_operations.JokeAudioTranscripts(
+    intro="intro",
+    setup="setup",
+    response="response",
+    punchline="punchline",
+  )
+
+  monkeypatch.setattr(
+    joke_operations,
+    "_render_dialog_turns_from_template",
+    Mock(return_value=rendered_turns),
+  )
+  monkeypatch.setattr(
+    joke_operations,
+    "_resolve_clip_transcripts",
+    Mock(return_value=transcripts),
+  )
+
+  def _sequence(transcript: str, gcs_uri: str):
+    return joke_operations.PosableCharacterSequence(
+      transcript=transcript,
+      sequence_sound_events=[
+        joke_operations.SequenceSoundEvent(
+          start_time=0.0,
+          end_time=1.0,
+          gcs_uri=gcs_uri,
+          volume=1.0,
+        )
+      ],
+    )
+
+  cached_sequences = {
+    "intro": _sequence("intro", "gs://audio/intro.wav"),
+    "setup": _sequence("setup", "gs://audio/setup.wav"),
+    "response": _sequence("response", "gs://audio/response.wav"),
+    "punchline": _sequence("punchline", "gs://audio/punchline.wav"),
+  }
+  load_cached_mock = Mock(return_value=cached_sequences)
+  monkeypatch.setattr(joke_operations, "_load_cached_lip_sync_sequences",
+                      load_cached_mock)
+  generate_mock = Mock(
+    side_effect=AssertionError(
+      "_generate_joke_lip_sync_sequences should not run on cache hit"))
+  monkeypatch.setattr(joke_operations, "_generate_joke_lip_sync_sequences",
+                      generate_mock)
+
+  result = joke_operations.get_joke_lip_sync_media(
+    joke,
+    use_audio_cache=True,
+  )
+
+  assert result.dialog_gcs_uri == ""
+  assert result.intro_audio_gcs_uri == "gs://audio/intro.wav"
+  assert result.setup_audio_gcs_uri == "gs://audio/setup.wav"
+  assert result.response_audio_gcs_uri == "gs://audio/response.wav"
+  assert result.punchline_audio_gcs_uri == "gs://audio/punchline.wav"
+  assert result.audio_generation_metadata is None
+  load_cached_mock.assert_called_once_with(joke_id="joke-cache-enabled",
+                                           transcripts=transcripts)
+  generate_mock.assert_not_called()
+
+
+def test_get_joke_lip_sync_media_bypasses_cache_when_disabled(monkeypatch):
+  joke = models.PunnyJoke(
+    key="joke-cache-disabled",
+    setup_text="Setup",
+    punchline_text="Punchline",
+  )
+  rendered_turns = [
+    joke_operations.audio_client.DialogTurn(
+      voice=joke_operations.audio_voices.Voice.GEMINI_LEDA,
+      script="intro",
+    )
+  ]
+  transcripts = joke_operations.JokeAudioTranscripts(
+    intro="intro",
+    setup="setup",
+    response="response",
+    punchline="punchline",
+  )
+
+  monkeypatch.setattr(
+    joke_operations,
+    "_render_dialog_turns_from_template",
+    Mock(return_value=rendered_turns),
+  )
+  monkeypatch.setattr(
+    joke_operations,
+    "_resolve_clip_transcripts",
+    Mock(return_value=transcripts),
+  )
+
+  load_cached_mock = Mock(return_value={"unused": None})
+  monkeypatch.setattr(joke_operations, "_load_cached_lip_sync_sequences",
+                      load_cached_mock)
+
+  generated = joke_operations.JokeLipSyncResult(
+    dialog_gcs_uri="gs://audio/dialog.wav",
+    intro_audio_gcs_uri="gs://audio/intro.wav",
+    setup_audio_gcs_uri="gs://audio/setup.wav",
+    response_audio_gcs_uri="gs://audio/response.wav",
+    punchline_audio_gcs_uri="gs://audio/punchline.wav",
+    transcripts=transcripts,
+    intro_sequence=None,
+    setup_sequence=None,
+    response_sequence=None,
+    punchline_sequence=None,
+    audio_generation_metadata=None,
+  )
+  generate_mock = Mock(return_value=generated)
+  monkeypatch.setattr(joke_operations, "_generate_joke_lip_sync_sequences",
+                      generate_mock)
+
+  result = joke_operations.get_joke_lip_sync_media(
+    joke,
+    use_audio_cache=False,
+  )
+
+  assert result == generated
+  load_cached_mock.assert_not_called()
+  generate_mock.assert_called_once_with(
+    joke=joke,
+    temp_output=False,
+    script_template=rendered_turns,
+    audio_model=None,
+    allow_partial=False,
+    transcripts=transcripts,
+  )
+
+
 def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
                                              mock_firestore):
   joke = models.PunnyJoke(
@@ -2271,6 +2413,82 @@ def test_split_joke_dialog_wav_by_timing_does_not_group_by_dialogue_input_index(
 
   assert len(split_wavs) == len(timing.voice_segments)
   assert [words[0].word for words in split_timing] == ["a", "b", "c", "d"]
+
+
+def test_split_joke_dialog_wav_by_timing_rejects_collapsed_word_windows(
+  monkeypatch,
+):
+  timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=1.5,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=1.5,
+        end_time_seconds=3.0,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=3.0,
+        end_time_seconds=3.8,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=3.8,
+        end_time_seconds=8.9,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming("Hey", 0.2, 1.4, char_timings=[]),
+      audio_timing.WordTiming("WhatdoyoucallasmallValentinesDaycard", 1.518,
+                              1.518, char_timings=[]),
+      audio_timing.WordTiming("what", 3.0, 3.75, char_timings=[]),
+      audio_timing.WordTiming("AValentiny", 4.0, 8.9, char_timings=[]),
+    ],
+  )
+  monkeypatch.setattr(
+    joke_operations.audio_operations,
+    "split_audio",
+    lambda wav_bytes, estimated_cut_points, trim=True: [  # noqa: ARG005
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"seg1",
+        offset_sec=0.0,
+      ),
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"seg2",
+        offset_sec=1.5,
+      ),
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"seg3",
+        offset_sec=3.0,
+      ),
+      joke_operations.audio_operations.SplitAudioSegment(
+        wav_bytes=b"seg4",
+        offset_sec=3.8,
+      ),
+    ],
+  )
+
+  with pytest.raises(ValueError, match="no positive-duration spoken word timing"):
+    _ = joke_operations._split_joke_dialog_wav_by_timing(  # pylint: disable=protected-access
+      b"fake-wav",
+      timing,
+    )
 
 
 def test_generate_joke_audio_clamps_negative_shifted_word_timing(

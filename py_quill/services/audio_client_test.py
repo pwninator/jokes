@@ -4,7 +4,6 @@ import wave
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from common import audio_timing
 from services import audio_client, gen_audio
 
@@ -101,8 +100,10 @@ def test_generate_multi_turn_dialog_stitches_turns_and_uploads_wav_bytes():
       turns=[
         audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_PUCK,
                                 script="Hello\n\nthere"),
-        audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_KORE, script="Hi"),
-        audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_PUCK, script="Ok"),
+        audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_KORE,
+                                script="Hi"),
+        audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_PUCK,
+                                script="Ok"),
       ],
       output_filename_base="out",
     )
@@ -131,7 +132,8 @@ def test_generate_multi_turn_dialog_stitches_turns_and_uploads_wav_bytes():
   call = fake_client.models.generate_content_calls[0]
   assert call["model"] == audio_client.AudioModel.GEMINI_2_5_FLASH_TTS.value
   assert call["contents"] == "Alex: Hello\nAlex: there\nSam: Hi\nAlex: Ok"
-  response_modalities = getattr(call["config"], "response_modalities", None) or []
+  response_modalities = getattr(call["config"], "response_modalities",
+                                None) or []
   assert "AUDIO" in response_modalities
 
 
@@ -177,7 +179,8 @@ def test_generate_multi_turn_dialog_includes_pause_markers():
     )
 
   call = fake_client.models.generate_content_calls[0]
-  assert call["contents"] == "Alex: [pause for 1 seconds] Hello [pause for 0.5 seconds]"
+  assert call[
+    "contents"] == "Alex: [pause for 1 seconds] Hello [pause for 0.5 seconds]"
 
 
 def test_generate_multi_turn_dialog_rejects_more_than_two_voices():
@@ -188,12 +191,16 @@ def test_generate_multi_turn_dialog_rejects_more_than_two_voices():
   )
 
   with patch.object(audio_client.utils, "is_emulator", return_value=False):
-    with pytest.raises(audio_client.AudioGenerationError, match="up to 2 speakers"):
+    with pytest.raises(audio_client.AudioGenerationError,
+                       match="up to 2 speakers"):
       client.generate_multi_turn_dialog(
         turns=[
-          audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_KORE, script="A"),
-          audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_PUCK, script="B"),
-          audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_ORUS, script="C"),
+          audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_KORE,
+                                  script="A"),
+          audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_PUCK,
+                                  script="B"),
+          audio_client.DialogTurn(voice=gen_audio.Voice.GEMINI_ORUS,
+                                  script="C"),
         ],
         output_filename_base="out",
       )
@@ -207,7 +214,8 @@ def test_generate_multi_turn_dialog_rejects_non_gemini_voices():
   )
 
   with patch.object(audio_client.utils, "is_emulator", return_value=False):
-    with pytest.raises(audio_client.AudioGenerationError, match="requires GEMINI voices"):
+    with pytest.raises(audio_client.AudioGenerationError,
+                       match="requires GEMINI voices"):
       client.generate_multi_turn_dialog(
         turns=[
           audio_client.DialogTurn(
@@ -234,12 +242,10 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   audio_bytes = b"fake-mp3-bytes"
   audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
 
-  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import (
-    AudioWithTimestampsAndVoiceSegmentsResponseModel,
-  )
-  from elevenlabs.types.character_alignment_response_model import (
-    CharacterAlignmentResponseModel,
-  )
+  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import \
+      AudioWithTimestampsAndVoiceSegmentsResponseModel
+  from elevenlabs.types.character_alignment_response_model import \
+      CharacterAlignmentResponseModel
   from elevenlabs.types.voice_segment import VoiceSegment
 
   class _FakeHttpResponse:
@@ -355,13 +361,13 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
     0.11,
     rel=1e-6,
   )
-  assert [
-    (c.char, c.start_time, c.end_time)
-    for c in result.timing.normalized_alignment[0].char_timings
-  ] == [
-    ("H", pytest.approx(0.00, rel=1e-6), pytest.approx(0.055, rel=1e-6)),
-    ("i", pytest.approx(0.055, rel=1e-6), pytest.approx(0.11, rel=1e-6)),
-  ]
+  assert [(c.char, c.start_time, c.end_time)
+          for c in result.timing.normalized_alignment[0].char_timings] == [
+            ("H", pytest.approx(0.00, rel=1e-6), pytest.approx(0.055,
+                                                               rel=1e-6)),
+            ("i", pytest.approx(0.055, rel=1e-6), pytest.approx(0.11,
+                                                                rel=1e-6)),
+          ]
   assert result.timing.voice_segments == [
     audio_timing.VoiceSegment(
       voice_id="fake_voice",
@@ -377,7 +383,8 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   assert result.metadata.token_counts["unique_voice_ids"] == 2
   assert result.metadata.token_counts["audio_bytes"] == len(audio_bytes)
   expected_cost = (
-    (len("Hello") + len("Hi")) * audio_client.ElevenlabsAudioClient.GENERATION_COSTS[
+    (len("Hello") + len("Hi")) *
+    audio_client.ElevenlabsAudioClient.GENERATION_COSTS[
       audio_client.AudioModel.ELEVENLABS_ELEVEN_V3]["characters"])
   assert result.metadata.cost == pytest.approx(expected_cost, rel=1e-9)
 
@@ -395,11 +402,15 @@ def test_elevenlabs_generate_multi_turn_dialog_uploads_audio_bytes():
   assert call["output_format"] == "mp3_44100_128"
   assert call["model_id"] == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
   assert call["inputs"] == [{
-    "text": "[pause for 2 seconds] Hello",
-    "voice_id": gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.voice_name,
+    "text":
+    "[pause for 2 seconds] Hello",
+    "voice_id":
+    gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.voice_name,
   }, {
-    "text": "Hi",
-    "voice_id": gen_audio.Voice.ELEVENLABS_MINNIE.voice_name,
+    "text":
+    "Hi",
+    "voice_id":
+    gen_audio.Voice.ELEVENLABS_MINNIE.voice_name,
   }]
 
 
@@ -413,8 +424,7 @@ def test_elevenlabs_rejects_more_than_ten_unique_voice_ids():
   with patch.object(audio_client.utils, "is_emulator", return_value=False):
     turns = [
       audio_client.DialogTurn(voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
-                              script="Hi")
-      for _ in range(11)
+                              script="Hi") for _ in range(11)
     ]
     client._normalize_inputs = lambda _turns: [  # type: ignore[method-assign]
       {
@@ -422,7 +432,8 @@ def test_elevenlabs_rejects_more_than_ten_unique_voice_ids():
         "voice_id": f"voice_{i}",
       } for i in range(11)
     ]
-    with pytest.raises(audio_client.AudioGenerationError, match="up to 10 unique voice IDs"):
+    with pytest.raises(audio_client.AudioGenerationError,
+                       match="up to 10 unique voice IDs"):
       client._generate_multi_turn_dialog_internal(turns=turns, label="test")
 
 
@@ -453,12 +464,10 @@ def test_elevenlabs_timing_trims_trailing_silence_using_audio_energy():
   audio_bytes = buffer.getvalue()
   audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
 
-  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import (
-    AudioWithTimestampsAndVoiceSegmentsResponseModel,
-  )
-  from elevenlabs.types.character_alignment_response_model import (
-    CharacterAlignmentResponseModel,
-  )
+  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import \
+      AudioWithTimestampsAndVoiceSegmentsResponseModel
+  from elevenlabs.types.character_alignment_response_model import \
+      CharacterAlignmentResponseModel
   from elevenlabs.types.voice_segment import VoiceSegment
 
   class _FakeHttpResponse:
@@ -544,7 +553,8 @@ def test_elevenlabs_timing_trims_trailing_silence_using_audio_energy():
   # Trailing silence should be trimmed well before the raw 3.5s end.
   assert word.end_time < 3.2
   assert word.end_time > 2.7
-  assert word.char_timings[-1].end_time == pytest.approx(word.end_time, rel=1e-6)
+  assert word.char_timings[-1].end_time == pytest.approx(word.end_time,
+                                                         rel=1e-6)
 
   assert result.timing.voice_segments == [
     audio_timing.VoiceSegment(
@@ -564,3 +574,58 @@ def test_elevenlabs_timing_trims_trailing_silence_using_audio_energy():
   assert uploaded_bytes == audio_bytes
   assert uploaded_uri == "gs://gen_audio/out.wav"
   assert uploaded_content_type == "audio/wav"
+
+
+def test_elevenlabs_timing_rejects_collapsed_timestamp_plateau():
+  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import \
+      AudioWithTimestampsAndVoiceSegmentsResponseModel
+  from elevenlabs.types.character_alignment_response_model import \
+      CharacterAlignmentResponseModel
+  from elevenlabs.types.voice_segment import VoiceSegment
+
+  spoken_text = "HeyWhatdoyoucallasmallValentinesDaycard"
+  characters = list(spoken_text)
+  starts: list[float] = []
+  ends: list[float] = []
+  for index, _char in enumerate(characters):
+    if index < 10:
+      t0 = 0.08 * float(index)
+      t1 = t0 + 0.08
+    else:
+      t0 = 1.518
+      t1 = 1.518
+    starts.append(t0)
+    ends.append(t1)
+
+  normalized_alignment = CharacterAlignmentResponseModel(
+    characters=characters,
+    character_start_times_seconds=starts,
+    character_end_times_seconds=ends,
+  )
+  voice_segments = [
+    VoiceSegment(
+      voice_id="fake_voice",
+      start_time_seconds=0.0,
+      end_time_seconds=4.0,
+      character_start_index=0,
+      character_end_index=len(characters),
+      dialogue_input_index=0,
+    )
+  ]
+  response_data = AudioWithTimestampsAndVoiceSegmentsResponseModel(
+    audio_base_64="",
+    voice_segments=voice_segments,
+    normalized_alignment=normalized_alignment,
+  )
+
+  with pytest.raises(audio_client.AudioGenerationError) as excinfo:
+    _ = audio_client._extract_elevenlabs_timing(  # pylint: disable=protected-access
+      response_data,
+      audio_bytes=b"",
+      file_extension="wav",
+    )
+  error_text = str(excinfo.value)
+  assert "collapsed" in error_text
+  assert "segment_diagnostics=" in error_text
+  assert "status=bad" in error_text
+  assert "sample_run=" in error_text

@@ -70,6 +70,8 @@ def generate_scene_video(
   fps: int = _DEFAULT_VIDEO_FPS,
 ) -> tuple[str, models.SingleGenerationMetadata]:
   """Render a video from a fully declarative `SceneScript`."""
+  print(f"Generating scene video for script: {script}")
+
   script.validate()
   if fps <= 0:
     raise ValueError("FPS must be positive")
@@ -237,9 +239,8 @@ def _render_actor_with_fit(
 ) -> tuple[Image.Image, int, int]:
   source = image.convert("RGBA")
   if logical_width <= 0 or logical_height <= 0:
-    raise ValueError(
-      "Actor logical dimensions must be > 0, got "
-      f"({logical_width}, {logical_height})")
+    raise ValueError("Actor logical dimensions must be > 0, got "
+                     f"({logical_width}, {logical_height})")
 
   scale_x, scale_y = _fit_scale(
     fit_mode=fit_mode,
@@ -370,7 +371,8 @@ def _render_scene_frame(
     if render_image:
       image = prepared_images[image_index]
       image_index += 1
-      if not (image.start_time_sec <= time_sec < image.end_time_sec):
+      times_are_valid = image.start_time_sec <= time_sec < image.end_time_sec
+      if not times_are_valid:
         continue
       x, y = image.paste_position
       base.paste(image.sprite, (x, y), image.sprite)
@@ -442,7 +444,8 @@ def _terminal_safe_sample_time(
     return local_time_sec
   if local_time_sec < sequence_duration_sec:
     return local_time_sec
-  if abs(local_time_sec - sequence_duration_sec) <= _TERMINAL_SAMPLE_EPSILON_SEC:
+  if abs(local_time_sec -
+         sequence_duration_sec) <= _TERMINAL_SAMPLE_EPSILON_SEC:
     return max(0.0, sequence_duration_sec - _TERMINAL_SAMPLE_EPSILON_SEC)
   return local_time_sec
 

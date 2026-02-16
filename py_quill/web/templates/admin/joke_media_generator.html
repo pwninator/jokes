@@ -188,6 +188,13 @@
           {% endfor %}
         </select>
       </div>
+      <div>
+        <label for="use-audio-cache" class="muted small">Audio options</label>
+        <label>
+          <input id="use-audio-cache" type="checkbox" checked>
+          Use Audio Cache
+        </label>
+      </div>
     </div>
     <div class="turn-grid">
       {% for idx in range(4) %}
@@ -309,6 +316,7 @@
     const generateVideoButton = document.getElementById('generate-video-button');
     const tellerCharacterInput = document.getElementById('video-teller-character-id');
     const listenerCharacterInput = document.getElementById('video-listener-character-id');
+    const useAudioCacheInput = document.getElementById('use-audio-cache');
     const errorBanner = document.getElementById('error-banner');
     const errorBannerText = document.getElementById('error-banner-text');
     const results = document.getElementById('audio-results');
@@ -580,6 +588,13 @@
       return turns;
     }
 
+    function shouldUseAudioCache() {
+      if (!useAudioCacheInput) {
+        return true;
+      }
+      return Boolean(useAudioCacheInput.checked);
+    }
+
     async function requestGeneration(requestUrl, opValue, jokeId, extraData) {
       const resp = await fetch(requestUrl, {
         method: 'POST',
@@ -627,6 +642,7 @@
           audio_model: (audioModelInput?.value || '').trim(),
           script_template: buildDialogTurnTemplate(),
           allow_partial: true,
+          use_audio_cache: shouldUseAudioCache(),
         });
 
         const hasAnyAudio = populateAudioResults(data);
@@ -698,6 +714,7 @@
           script_template: buildDialogTurnTemplate(),
           teller_character_def_id: tellerCharacterId,
           allow_partial: true,
+          use_audio_cache: shouldUseAudioCache(),
         };
         if (listenerCharacterId) {
           videoRequestData.listener_character_def_id = listenerCharacterId;

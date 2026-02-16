@@ -346,7 +346,7 @@ class PosableCharacterSequence:
   ) -> PosableCharacterSequence:
     """Build a static-pose sequence with explicit duration and initial pose."""
     end_time = max(0.0, duration_sec)
-    sequence = cls(
+    sequence = PosableCharacterSequence(
       initial_pose=pose,
       # Any one non-sound track is sufficient to encode sequence duration.
       sequence_left_eye_open=[
@@ -462,7 +462,7 @@ class PosableCharacterSequence:
     if not data:
       data = {}
 
-    return cls(
+    return PosableCharacterSequence(
       key=key if key else data.get("key"),
       transcript=data.get("transcript"),
       initial_pose=_parse_initial_pose_dict(data.get("initial_pose")),
@@ -588,10 +588,10 @@ def _parse_transform_dict(value: object, default: Transform) -> Transform:
     return default
   transform_data = cast(dict[str, object], value)
   return Transform(
-    translate_x=_coerce_float(
-      transform_data.get("translate_x"), default.translate_x),
-    translate_y=_coerce_float(
-      transform_data.get("translate_y"), default.translate_y),
+    translate_x=_coerce_float(transform_data.get("translate_x"),
+                              default.translate_x),
+    translate_y=_coerce_float(transform_data.get("translate_y"),
+                              default.translate_y),
     scale_x=_coerce_float(transform_data.get("scale_x"), default.scale_x),
     scale_y=_coerce_float(transform_data.get("scale_y"), default.scale_y),
   )
@@ -605,32 +605,38 @@ def _parse_initial_pose_dict(data: object) -> PoseState | None:
   initial_pose_data = cast(dict[str, object], data)
 
   default = _spec_default_pose_state()
-  mouth_state = _coerce_mouth_state(
-    initial_pose_data.get("mouth_state"), default.mouth_state)
+  mouth_state = _coerce_mouth_state(initial_pose_data.get("mouth_state"),
+                                    default.mouth_state)
   return PoseState(
-    left_eye_open=_coerce_bool(
-      initial_pose_data.get("left_eye_open"), default.left_eye_open),
-    right_eye_open=_coerce_bool(
-      initial_pose_data.get("right_eye_open"), default.right_eye_open),
+    left_eye_open=_coerce_bool(initial_pose_data.get("left_eye_open"),
+                               default.left_eye_open),
+    right_eye_open=_coerce_bool(initial_pose_data.get("right_eye_open"),
+                                default.right_eye_open),
     mouth_state=mouth_state,
     left_hand_visible=_coerce_bool(initial_pose_data.get("left_hand_visible"),
                                    default.left_hand_visible),
-    right_hand_visible=_coerce_bool(initial_pose_data.get("right_hand_visible"),
-                                    default.right_hand_visible),
+    right_hand_visible=_coerce_bool(
+      initial_pose_data.get("right_hand_visible"), default.right_hand_visible),
     left_hand_transform=_parse_transform_dict(
-      initial_pose_data.get("left_hand_transform"), default.left_hand_transform),
+      initial_pose_data.get("left_hand_transform"),
+      default.left_hand_transform),
     right_hand_transform=_parse_transform_dict(
-      initial_pose_data.get("right_hand_transform"), default.right_hand_transform),
+      initial_pose_data.get("right_hand_transform"),
+      default.right_hand_transform),
     head_transform=_parse_transform_dict(
       initial_pose_data.get("head_transform"), default.head_transform),
     surface_line_offset=_coerce_float(
-      initial_pose_data.get("surface_line_offset"), default.surface_line_offset),
+      initial_pose_data.get("surface_line_offset"),
+      default.surface_line_offset),
     mask_boundary_offset=_coerce_float(
-      initial_pose_data.get("mask_boundary_offset"), default.mask_boundary_offset),
+      initial_pose_data.get("mask_boundary_offset"),
+      default.mask_boundary_offset),
     surface_line_visible=_coerce_bool(
-      initial_pose_data.get("surface_line_visible"), default.surface_line_visible),
+      initial_pose_data.get("surface_line_visible"),
+      default.surface_line_visible),
     head_masking_enabled=_coerce_bool(
-      initial_pose_data.get("head_masking_enabled"), default.head_masking_enabled),
+      initial_pose_data.get("head_masking_enabled"),
+      default.head_masking_enabled),
     left_hand_masking_enabled=_coerce_bool(
       initial_pose_data.get("left_hand_masking_enabled"),
       default.left_hand_masking_enabled),

@@ -298,8 +298,7 @@ BOOKS: dict[BookKey, Book] = {
       ),
       BookFormat.EBOOK:
       BookVariant(
-        # TODO: Add ASIN
-        asin='0000000000',
+        asin='B0GNMFVYC5',
         # No tags yet
         # attribution_tags={
         #   AttributionSource.AA:

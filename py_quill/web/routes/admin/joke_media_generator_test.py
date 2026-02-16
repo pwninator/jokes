@@ -55,11 +55,14 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   assert html.count(
     f'value="{gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.name}" selected') == 3
   assert html.count(
-    f'value="{gen_audio.Voice.ELEVENLABS_MINNIE.name}" selected') == 1
+    f'value="{gen_audio.Voice.ELEVENLABS_AERISITA.name}" selected') == 1
   assert 'id="generate-audio-button"' in html
   assert 'id="generate-video-button"' in html
   assert 'id="video-teller-character-id"' in html
   assert 'id="video-listener-character-id"' in html
+  assert 'id="use-audio-cache"' in html
+  assert 'Use Audio Cache' in html
+  assert 'id="use-audio-cache" type="checkbox" checked' in html
   assert 'Cat' in html
   assert 'Dog' in html
   assert html.count('value="char-1" selected') == 1

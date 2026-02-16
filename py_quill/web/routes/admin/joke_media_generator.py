@@ -60,7 +60,7 @@ def admin_joke_media_generator():
     default_elevenlabs_voice_names=[
       audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
       audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
-      audio_voices.Voice.ELEVENLABS_MINNIE.name,
+      audio_voices.Voice.ELEVENLABS_AERISITA.name,
       audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
     ],
     character_defs=character_defs,

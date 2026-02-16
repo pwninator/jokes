@@ -233,5 +233,9 @@ class Voice(enum.Enum):
                               VoiceModel.ELEVENLABS, VoiceGender.FEMALE)
   ELEVENLABS_MINNIE = ("eppqEXVumQ3CfdndcIBd", LanguageCode.EN_US,
                        VoiceModel.ELEVENLABS, VoiceGender.FEMALE)
+  ELEVENLABS_AERISITA = ("vGQNBgLaiM3EdZtxIiuY", LanguageCode.EN_US,
+                         VoiceModel.ELEVENLABS, VoiceGender.FEMALE)
+  ELEVENLABS_CHERRY_TWINKLE = ("XJ2fW4ybq7HouelYYGcL", LanguageCode.EN_US,
+                               VoiceModel.ELEVENLABS, VoiceGender.FEMALE)
   ELEVENLABS_JERRY_B = ("rHWSYoq8UlV0YIBKMryp", LanguageCode.EN_US,
                         VoiceModel.ELEVENLABS, VoiceGender.MALE)

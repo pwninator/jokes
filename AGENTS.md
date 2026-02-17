@@ -242,7 +242,7 @@ void main() {
 
 ## 5. Commands
 
-Run from repository root.
+Run from repository root. After changes, always run the corresponding tests, linter, and formatter, and make sure all tests pass and all linters return cleanly.
 
 ### 5.1. Flutter
 
@@ -259,10 +259,10 @@ flutter test
 # Run single test file
 flutter test test/path/to/test_file.dart
 
-# Analyze code
+# Linters
 flutter analyze
 
-# Format code
+# Formater
 dart format .
 ```
 
@@ -271,6 +271,7 @@ dart format .
 ```bash
 # Install dependencies
 pip install -r py_quill/requirements.txt
+pip install -r py_quill/requirements-dev.txt
 
 # Install package in editable mode (required for imports to work)
 pip install -e py_quill
@@ -278,8 +279,12 @@ pip install -e py_quill
 # Run tests
 pytest py_quill
 
-# Run with coverage
-pytest py_quill --cov=py_quill --cov-report=term-missing
+# Linters
+python -m pylint --rcfile=py_quill/.pylintrc py_quill
+basedpyright py_quill
+
+# Formatter
+python -m yapf -i -r py_quill
 ```
 
 **Important**: Python imports inside `py_quill/` must be relative to `py_quill` root:
@@ -390,7 +395,11 @@ Environment is pre-configured. No setup needed.
 ### Python Change
 - [ ] Tests under `py_quill/**/*_test.py`
 - [ ] `pip install -r py_quill/requirements.txt`
+- [ ] `pip install -r py_quill/requirements-dev.txt`
 - [ ] `pip install -e py_quill`
+- [ ] `python -m pylint --rcfile=py_quill/.pylintrc py_quill` (clean)
+- [ ] `basedpyright py_quill` (clean)
+- [ ] `python -m yapf -i -r py_quill`
 - [ ] `pytest py_quill` (all pass)
 - [ ] Verify headers/SEO (web layer changes)
 

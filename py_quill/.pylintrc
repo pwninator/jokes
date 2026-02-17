@@ -1,0 +1,11 @@
+[MAIN]
+ignore-patterns=.*_test\.py
+
+[TYPECHECK]
+generated-members=cv2.*
+
+[FORMAT]
+indent-string='  '
+
+[MESSAGES CONTROL]
+disable=R0914,W0718,C0301,C0302,W1203,W0603,C0411

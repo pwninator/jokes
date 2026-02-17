@@ -107,9 +107,9 @@ def redirect_endpoint_for_key(
   return None, None
 
 
-def amazon_redirect_view_models() -> list[dict[str, str]]:
+def amazon_redirect_view_models() -> list[dict[str, str | list[str]]]:
   """Return metadata for all configured Amazon redirects."""
-  items: list[dict[str, str]] = []
+  items: list[dict[str, str | list[str]]] = []
   for key, config_entry in amazon_redirect.AMAZON_REDIRECTS.items():
     endpoint, slug = redirect_endpoint_for_key(key)
     if not endpoint or slug is None:
@@ -138,8 +138,9 @@ def amazon_review_redirect(slug: str):
 
 @web_bp.route('/book-<path:slug>')
 def amazon_book_redirect(slug: str):
-  """Redirect to an Amazon product page for supported slugs."""
-  return _handle_amazon_redirect(f'book-{slug}')
+  """Redirect to the books page."""
+  _ = slug  # Required by route; all book slugs redirect to /books
+  return flask.redirect(flask.url_for('web.books'))
 
 
 @web_bp.route('/printable-qr-code')

@@ -7,7 +7,8 @@ import datetime
 import flask
 from common import amazon_redirect
 from web.routes import web_bp
-from web.routes.redirects import resolve_request_country_code
+from web.routes.redirects import (get_books_attribution_source,
+                                  resolve_request_country_code)
 from web.utils import urls
 from web.utils.responses import html_response
 
@@ -30,10 +31,12 @@ def books():
     hero_subtitle = '36 pages of adorable animals and belly laughs, no charger required.'
 
   country_code = resolve_request_country_code(flask.request)
+  attribution_source = get_books_attribution_source(
+    flask.request, default_source='web_book_page')
   redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
   amazon_url, _, _ = redirect_config.resolve_target_url(
     requested_country_code=country_code,
-    source='web_book_page',
+    source=attribution_source,
   )
 
   html = flask.render_template(

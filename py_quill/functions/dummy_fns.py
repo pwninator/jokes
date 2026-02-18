@@ -1,10 +1,81 @@
-"""Test cloud functions (manual utilities)."""
+"""Manual utility function endpoints."""
 
 from __future__ import annotations
 
+import html
+
 from firebase_functions import https_fn, options
 from functions import function_utils
-from services import cloud_storage, gen_audio
+from services import amazon
+
+
+def _render_usage_html() -> str:
+  """Render a simple form for manually listing Amazon Ads profiles."""
+  return """<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Amazon Ads Profiles</title>
+</head>
+<body>
+  <h1>Fetch Amazon Ads Profiles</h1>
+  <p>Submit this form to fetch profile scope IDs and render them as HTML.</p>
+  <form method="post">
+    <label for="region">Region:</label>
+    <select id="region" name="region">
+      <option value="all" selected>all</option>
+      <option value="na">na</option>
+      <option value="eu">eu</option>
+      <option value="fe">fe</option>
+    </select>
+    <br/><br/>
+    <button type="submit">Fetch Profiles</button>
+  </form>
+</body>
+</html>"""
+
+
+def _render_profiles_html(
+  *,
+  requested_region: str,
+  profiles: list[amazon.AmazonAdsProfile],
+) -> str:
+  """Render Amazon Ads profiles as an HTML table."""
+  rows: list[str] = []
+  for profile in profiles:
+    rows.append(
+      "<tr>"
+      f"<td>{html.escape(profile.profile_id)}</td>"
+      f"<td>{html.escape(profile.region)}</td>"
+      f"<td>{html.escape(profile.api_base)}</td>"
+      f"<td>{html.escape(profile.country_code)}</td>"
+      "</tr>")
+
+  table_html = (
+    "<p>No profiles found.</p>" if not rows else
+    "<table border='1' cellpadding='6' cellspacing='0'>"
+    "<thead><tr>"
+    "<th>Profile ID</th>"
+    "<th>Region</th>"
+    "<th>API Base</th>"
+    "<th>Country</th>"
+    "</tr></thead>"
+    f"<tbody>{''.join(rows)}</tbody>"
+    "</table>")
+
+  return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Amazon Ads Profiles</title>
+</head>
+<body>
+  <h1>Amazon Ads Profiles</h1>
+  <p><strong>Requested Region:</strong> {html.escape(requested_region)}</p>
+  <p><strong>Profile Count:</strong> {len(profiles)}</p>
+  {table_html}
+</body>
+</html>"""
 
 
 @https_fn.on_request(
@@ -12,119 +83,42 @@ from services import cloud_storage, gen_audio
   timeout_sec=600,
 )
 def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
-  """Manual endpoint to generate multi-speaker dialog audio via Gemini."""
+  """List Amazon Ads profiles by calling the shared Amazon Ads service client."""
   if preflight := function_utils.handle_cors_preflight(req):
     return preflight
   if health := function_utils.handle_health_check(req):
     return health
 
-  if req.method == "POST":
-    if not getattr(req, "is_json", False):
-      return function_utils.error_response("Expected JSON body",
-                                           error_type="invalid_request",
-                                           status=400,
-                                           req=req)
-    payload = req.get_json() or {}
-    data = payload.get("data", {}) if isinstance(payload, dict) else {}
-    script = (data.get("script") or "").strip()
-    speaker1_name = (data.get("speaker1_name") or "").strip()
-    speaker2_name = (data.get("speaker2_name") or "").strip()
-    speaker1_voice_raw = (data.get("speaker1_voice") or "").strip()
-    speaker2_voice_raw = (data.get("speaker2_voice") or "").strip()
+  if req.method == "GET":
+    return function_utils.html_response(_render_usage_html(), req=req)
 
-    if not script:
-      return function_utils.error_response("script is required",
-                                           error_type="invalid_request",
-                                           status=400,
-                                           req=req)
-    if not speaker1_name or not speaker2_name:
-      return function_utils.error_response("speaker names are required",
-                                           error_type="invalid_request",
-                                           status=400,
-                                           req=req)
-    if not speaker1_voice_raw or not speaker2_voice_raw:
-      return function_utils.error_response("speaker voices are required",
-                                           error_type="invalid_request",
-                                           status=400,
-                                           req=req)
-
-    try:
-      speaker1_voice = gen_audio.Voice.from_identifier(speaker1_voice_raw)
-      speaker2_voice = gen_audio.Voice.from_identifier(speaker2_voice_raw)
-    except ValueError as exc:
-      return function_utils.error_response(str(exc),
-                                           error_type="invalid_request",
-                                           status=400,
-                                           req=req)
-
-    audio_gcs_uri, _metadata = gen_audio.generate_multi_turn_dialog(
-      script=script,
-      speakers={
-        speaker1_name: speaker1_voice,
-        speaker2_name: speaker2_voice,
-      },
-      output_filename_base="dummy_multi_speaker_dialog",
-    )
-    audio_url = cloud_storage.get_signed_url(audio_gcs_uri)
-    return function_utils.success_response(
-      {
-        "audio_url": audio_url,
-        "audio_gcs_uri": audio_gcs_uri,
-      },
+  if req.method != "POST":
+    return function_utils.error_response(
+      "Only GET and POST requests are supported",
+      error_type="invalid_request",
+      status=405,
       req=req,
     )
 
-  html = """<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Generate Multi-Speaker Audio</title>
-</head>
-<body>
-  <h1>Generate Multi-Speaker Audio</h1>
-  <form id="genForm">
-    <div>
-      <label for="script">Script</label><br/>
-      <textarea id="script" name="script" rows="6" cols="60">Alice: Hello
-Bob: Hi</textarea>
-    </div>
-    <div>
-      <label>Speaker 1</label><br/>
-      <input type="text" name="speaker1_name" value="Alice"/>
-      <input type="text" name="speaker1_voice" value="GEMINI_KORE"/>
-    </div>
-    <div>
-      <label>Speaker 2</label><br/>
-      <input type="text" name="speaker2_name" value="Bob"/>
-      <input type="text" name="speaker2_voice" value="GEMINI_PUCK"/>
-    </div>
-    <button type="submit">Generate</button>
-  </form>
-
-  <pre id="result"></pre>
-
-  <script>
-    document.getElementById('genForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const data = {
-        script: form.script.value,
-        speaker1_name: form.speaker1_name.value,
-        speaker1_voice: form.speaker1_voice.value,
-        speaker2_name: form.speaker2_name.value,
-        speaker2_voice: form.speaker2_voice.value,
-      };
-
-      const resp = await fetch(window.location.href, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data }),
-      });
-      const json = await resp.json();
-      document.getElementById('result').textContent = JSON.stringify(json, null, 2);
-    });
-  </script>
-</body>
-</html>
-"""
-  return https_fn.Response(html, status=200, mimetype="text/html")
+  region = (function_utils.get_str_param(req, "region", "all")
+            or "all").strip().lower()
+  try:
+    profiles = amazon.get_profiles(region=region)
+    return function_utils.html_response(
+      _render_profiles_html(requested_region=region, profiles=profiles),
+      req=req,
+    )
+  except ValueError as exc:
+    return function_utils.error_response(
+      str(exc),
+      error_type="invalid_request",
+      status=400,
+      req=req,
+    )
+  except amazon.AmazonAdsError as exc:
+    return function_utils.error_response(
+      str(exc),
+      error_type="amazon_api_error",
+      status=502,
+      req=req,
+    )

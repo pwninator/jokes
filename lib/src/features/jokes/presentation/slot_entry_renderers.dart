@@ -400,7 +400,7 @@ class _BookPromoWithCta extends ConsumerWidget {
             ),
             onPressed: () => _onTapAmazon(context, ref),
             child: const Text(
-              'See it on Amazon!',
+              'Check it out!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 20,

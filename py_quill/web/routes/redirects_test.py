@@ -34,11 +34,40 @@ def test_book_redirect_redirects_to_books_page():
   assert resp.headers["Location"] == "/books"
 
 
+def test_book_redirect_preserves_s_param_and_denormalizes():
+  """Book redirects should preserve s param and denormalize to s in redirect URL."""
+  with app.test_client() as client:
+    resp = client.get('/book-animal-jokes?s=aa')
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"] == "/books?s=aa"
+
+
+def test_book_redirect_preserves_source_param_and_denormalizes():
+  """Book redirects should preserve source param and denormalize to s in redirect URL."""
+  with app.test_client() as client:
+    resp = client.get('/book-animal-jokes?source=aa')
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"] == "/books?s=aa"
 
 
 
 
 
+
+
+
+
+def test_amazon_review_redirect_supports_s_param(monkeypatch):
+  """Review redirects should accept s param as alias for source."""
+  monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
+  with app.test_client() as client:
+    resp = client.get('/review-animal-jokes?country_override=US&s=aa')
+
+  assert resp.status_code == 200
+  assert "/review/create-review/" in resp.get_data(as_text=True)
 
 
 def test_amazon_review_redirect_ignores_attribution_tags(monkeypatch):

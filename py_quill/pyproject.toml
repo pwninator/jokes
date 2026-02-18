@@ -20,3 +20,7 @@ extension-pkg-allow-list = ["cv2"]
 # expressions are accepted.
 generated-members = ["cv2.*"]
 
+[tool.ruff.lint.per-file-ignores]
+# Route imports are for side-effects (registration); must stay at module scope.
+"web/app.py" = ["E402", "F401"]
+

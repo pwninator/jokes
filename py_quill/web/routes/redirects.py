@@ -2,11 +2,34 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 import flask
 from common import amazon_redirect
 from firebase_functions import logger
 from web.routes import web_bp
 from web.utils import analytics, urls
+
+
+def get_request_source(req: flask.Request, default: str | None = None) -> str | None:
+  """Return the attribution source from request args (s or source param)."""
+  return req.args.get('source') or req.args.get('s') or default
+
+
+def get_books_attribution_source(
+  req: flask.Request,
+  *,
+  default_source: str,
+) -> str:
+  """Return a validated attribution source, falling back to caller default."""
+  raw = get_request_source(req)
+  if not raw:
+    return default_source
+  try:
+    _ = amazon_redirect.AttributionSource(raw)
+    return raw
+  except ValueError:
+    return default_source
 
 
 def resolve_request_country_code(req: flask.Request) -> str:
@@ -59,7 +82,7 @@ def _handle_amazon_redirect(
     return flask.Response('Redirect not found', status=404)
 
   requested_country = resolve_request_country_code(flask.request)
-  source = source or flask.request.args.get('source') or "aa"
+  source = source or get_request_source(flask.request, default='aa')
 
   target_url, resolved_country, resolved_asin = config_entry.resolve_target_url(
     requested_country,
@@ -136,11 +159,20 @@ def amazon_review_redirect(slug: str):
   return _handle_amazon_redirect(f'review-{slug}')
 
 
+def _books_url_with_source(source: str | None) -> str:
+  """Build /books URL with s param if source is present. Denormalizes to s."""
+  base = flask.url_for('web.books')
+  if not source:
+    return base
+  return f"{base}?{urlencode({'s': source})}"
+
+
 @web_bp.route('/book-<path:slug>')
 def amazon_book_redirect(slug: str):
   """Redirect to the books page."""
   _ = slug  # Required by route; all book slugs redirect to /books
-  return flask.redirect(flask.url_for('web.books'))
+  source = get_request_source(flask.request)
+  return flask.redirect(_books_url_with_source(source))
 
 
 @web_bp.route('/printable-qr-code')

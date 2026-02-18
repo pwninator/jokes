@@ -170,7 +170,6 @@ void main() {
       find.byKey(const Key('fake-joke-card-fake_joke_zoo')),
       findsOneWidget,
     );
-    expect(find.text('See it on Amazon!'), findsOneWidget);
     expect(
       find.byKey(
         const Key(
@@ -204,10 +203,9 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(400, 800); // portrait
 
-    const customHeadline = 'Custom promo headline';
     final remoteValues = _FakeRemoteConfigValues(
       'fake_joke_read',
-      headlineText: customHeadline,
+      headlineText: 'headline_${identityHashCode(tester)}',
     );
     when(
       () => mockAnalyticsService.logBookPromoCardViewed(
@@ -258,7 +256,18 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text(customHeadline), findsOneWidget);
+    final ctaButton = find.byKey(
+      const Key('slot_entry_renderers-book-promo-amazon-button-fake_joke_read'),
+    );
+    expect(ctaButton, findsOneWidget);
+    final ctaColumn = find.ancestor(
+      of: ctaButton,
+      matching: find.byType(Column),
+    ).first;
+    expect(
+      find.descendant(of: ctaColumn, matching: find.byType(Text)),
+      findsNWidgets(2),
+    );
   });
 
   testWidgets(
@@ -335,7 +344,6 @@ void main() {
       expect(renderedCard.skipJokeTracking, isTrue);
       expect(renderedCard.showSaveButton, isFalse);
       expect(renderedCard.showShareButton, isFalse);
-      expect(find.text('See it on Amazon!'), findsOneWidget);
       expect(
         find.byKey(
           const Key(

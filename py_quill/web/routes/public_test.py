@@ -139,6 +139,36 @@ def test_books_page_renders_book_promo():
   assert 'Cache-Control' in resp.headers
 
 
+def test_books_page_uses_aa_attribution_when_s_param_present():
+  """Books page should use aa attribution when s=aa is in URL."""
+  with app.test_client() as client:
+    resp = client.get('/books?country_override=US&s=aa')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'maas_adg_6A723A0BB792380DDC25626BCF75CEC2' in html
+
+
+def test_books_page_uses_aa_attribution_when_source_param_present():
+  """Books page should use aa attribution when source=aa is in URL."""
+  with app.test_client() as client:
+    resp = client.get('/books?country_override=US&source=aa')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'maas_adg_6A723A0BB792380DDC25626BCF75CEC2' in html
+
+
+def test_books_page_uses_web_book_page_attribution_when_no_param():
+  """Books page should use web_book_page attribution when no s/source param."""
+  with app.test_client() as client:
+    resp = client.get('/books?country_override=US')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'maas_adg_D9F839E029FE823F6776B65B865F1494' in html
+
+
 def test_books_page_ref_notes_download_overrides_hero_copy():
   with app.test_client() as client:
     resp = client.get('/books?country_override=US&ref=notes_download')

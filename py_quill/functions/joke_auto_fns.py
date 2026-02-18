@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import datetime
 from collections import deque
+from collections.abc import Iterator
+from typing import cast
+from zoneinfo import ZoneInfo
 
-from common import joke_category_operations, joke_lead_operations, joke_operations, models
+import flask
+from common import (joke_category_operations, joke_lead_operations,
+                    joke_operations, models)
 from firebase_functions import https_fn, logger, options, scheduler_fn
 from functions.function_utils import error_response, success_response
+from google.cloud.firestore import (SERVER_TIMESTAMP, Client,
+                                    DocumentReference, DocumentSnapshot)
 from services import firestore
 
 _RECENT_STATS_DAILY_DECAY_FACTOR = 0.9
@@ -18,26 +25,24 @@ _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
 @scheduler_fn.on_schedule(
   # Runs at every hour PST every day
   schedule="0 * * * *",
-  timezone="America/Los_Angeles",
+  timezone=ZoneInfo("America/Los_Angeles"),
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
 def joke_hourly_maintenance_scheduler(
     event: scheduler_fn.ScheduledEvent) -> None:
   """Scheduled function that performs daily maintenance tasks for jokes."""
-
   scheduled_time_utc = event.schedule_time
-  if scheduled_time_utc is None:
+  if not scheduled_time_utc:
     scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
-
-  _joke_maintenance_internal(scheduled_time_utc)
+  _ = _joke_maintenance_internal(scheduled_time_utc)
 
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def joke_hourly_maintenance_http(req: https_fn.Request) -> https_fn.Response:
+def joke_hourly_maintenance_http(req: flask.Request) -> flask.Response:
   """HTTP endpoint to trigger daily maintenance tasks for jokes."""
   del req
   try:
@@ -79,7 +84,7 @@ def _joke_maintenance_internal(
 @scheduler_fn.on_schedule(
   # Runs daily at 2:30 AM PST
   schedule="30 2 * * *",
-  timezone="America/Los_Angeles",
+  timezone=ZoneInfo("America/Los_Angeles"),
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
@@ -87,17 +92,16 @@ def user_daily_maintenance_scheduler(
     event: scheduler_fn.ScheduledEvent) -> None:
   """Scheduled function that performs daily maintenance tasks for users."""
   scheduled_time_utc = event.schedule_time
-  if scheduled_time_utc is None:
+  if not scheduled_time_utc:
     scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
-
-  _user_daily_maintenance_internal(scheduled_time_utc)
+  _ = _user_daily_maintenance_internal(scheduled_time_utc)
 
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def user_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
+def user_daily_maintenance_http(req: flask.Request) -> flask.Response:
   """HTTP endpoint to trigger daily maintenance tasks for users."""
   del req
   try:
@@ -146,17 +150,21 @@ def _to_utc_datetime(value: object) -> datetime.datetime | None:
   return value.astimezone(datetime.timezone.utc)
 
 
-def _build_book_id_index(db_client) -> tuple[dict[str, str], int]:
+def _build_book_id_index(db_client: Client) -> tuple[dict[str, str], int]:
   """Return a map of joke_id -> book_id based on joke_books documents."""
   book_id_by_joke: dict[str, str] = {}
   duplicate_jokes = 0
-  for book_doc in db_client.collection("joke_books").stream():
+  for book_doc in cast(
+      Iterator[DocumentSnapshot],
+      db_client.collection("joke_books").stream(),
+  ):
     if not getattr(book_doc, "exists", False):
       continue
     book_data = book_doc.to_dict() or {}
     joke_ids = book_data.get("jokes")
     if not isinstance(joke_ids, list):
       continue
+    joke_ids = cast(list[str], joke_ids)
     for joke_id in joke_ids:
       if not joke_id:
         continue
@@ -203,9 +211,9 @@ def _build_recent_decay_payload(data: dict[str, object]) -> dict[str, object]:
       "num_shared_users_recent",
   ):
     original_value = data.get(field_name)
-    if original_value is None:
+    if not original_value:
       continue
-    elif not isinstance(original_value, (int, float)):
+    if not isinstance(original_value, (int, float)):
       raise ValueError(
         f"Unexpected {field_name} type {type(original_value)} when decaying recent counters"
       )
@@ -214,16 +222,85 @@ def _build_recent_decay_payload(data: dict[str, object]) -> dict[str, object]:
     decayed_value = max(0.0, original_value * _RECENT_STATS_DAILY_DECAY_FACTOR)
     payload[field_name] = decayed_value
 
-  payload[
-    _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME] = firestore.SERVER_TIMESTAMP
+  payload[_LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME] = SERVER_TIMESTAMP
   return payload
+
+
+def _compute_joke_payload_and_stats(
+  joke_data: dict[str, object],
+  run_time_utc: datetime.datetime,
+  expected_book_id: str | None,
+) -> tuple[dict[str, object], dict[str, int]]:
+  """Compute update payload and stat deltas for one joke.
+
+  Returns:
+    (payload, stats_delta) where stats_delta has keys public_updated,
+    book_id_updated, jokes_decayed (each 0 or 1).
+  """
+  payload: dict[str, object] = {}
+  stats_delta: dict[str, int] = {
+    "public_updated": 0,
+    "book_id_updated": 0,
+    "jokes_decayed": 0,
+  }
+
+  expected_is_public = _expected_is_public(joke_data, run_time_utc)
+  current_is_public = joke_data.get("is_public")
+  if not isinstance(current_is_public,
+                    bool) or current_is_public != expected_is_public:
+    payload["is_public"] = expected_is_public
+    stats_delta["public_updated"] = 1
+
+  if expected_is_public:
+    current_category_id = joke_data.get("category_id")
+    if not isinstance(current_category_id,
+                      str) or not current_category_id.strip():
+      payload["category_id"] = firestore.UNCATEGORIZED_CATEGORY_ID
+
+  has_book_id = "book_id" in joke_data
+  current_book_id = joke_data.get("book_id")
+  if isinstance(current_book_id, str):
+    normalized_book_id = current_book_id.strip() or None
+  else:
+    normalized_book_id = None
+  if expected_book_id is None:
+    if not has_book_id or normalized_book_id is not None:
+      payload["book_id"] = None
+      stats_delta["book_id_updated"] = 1
+  elif normalized_book_id != expected_book_id:
+    payload["book_id"] = expected_book_id
+    stats_delta["book_id_updated"] = 1
+
+  if not _should_skip_recent_update(joke_data, run_time_utc):
+    payload.update(_build_recent_decay_payload(joke_data))
+    stats_delta["jokes_decayed"] = 1
+
+  return payload, stats_delta
+
+
+def _sync_joke_and_append_if_public(
+  joke_doc_id: str,
+  joke: models.PunnyJoke,
+  public_jokes: list[models.PunnyJoke],
+) -> None:
+  """Sync joke to search collection if not draft; append to public_jokes if public."""
+  if joke.state != models.JokeState.DRAFT:
+    try:
+      joke_operations.sync_joke_to_search_collection(joke=joke,
+                                                     new_embedding=None)
+    except Exception as sync_error:
+      logger.warn(
+        f"Failed to sync joke {joke_doc_id} to search collection: {sync_error}"
+      )
+  if joke.is_public:
+    public_jokes.append(joke)
 
 
 def _update_joke_attributes(
   run_time_utc: datetime.datetime
 ) -> tuple[dict[str, int], dict[str, models.PunnyJoke]]:
   """Apply exponential decay to recent counters across all jokes.
-  
+
   Returns:
     Tuple of:
       - Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped
@@ -233,7 +310,7 @@ def _update_joke_attributes(
   db_client = firestore.db()
   jokes_collection = db_client.collection("jokes")
   book_id_by_joke, duplicate_book_jokes = _build_book_id_index(db_client)
-  joke_docs = jokes_collection.stream()
+  joke_docs = cast(Iterator[DocumentSnapshot], jokes_collection.stream())
 
   batch = db_client.batch()
   writes_in_batch = 0
@@ -249,86 +326,41 @@ def _update_joke_attributes(
     if not joke_doc.exists:
       continue
     joke_data = joke_doc.to_dict() or {}
-    payload: dict[str, object] = {}
+    joke_id = cast(str, joke_doc.id)
+    joke_doc_ref = cast(DocumentReference, joke_doc.reference)
+    expected_book_id = book_id_by_joke.get(joke_id)
+    payload, stats_delta = _compute_joke_payload_and_stats(
+      joke_data, run_time_utc, expected_book_id)
+    public_updated += stats_delta["public_updated"]
+    book_id_updated += stats_delta["book_id_updated"]
+    jokes_decayed += stats_delta["jokes_decayed"]
 
-    # Update is_public according to state and public_timestamp
-    expected_is_public = _expected_is_public(joke_data, run_time_utc)
-    current_is_public = joke_data.get("is_public")
-    if not isinstance(current_is_public,
-                      bool) or current_is_public != expected_is_public:
-      payload["is_public"] = expected_is_public
-      public_updated += 1
-
-    # Best-effort category_id maintenance:
-    # - If a joke is public and has no category_id, mark it uncategorized.
-    # - Category cache refresh may later overwrite this to a real category id.
-    if expected_is_public:
-      current_category_id = joke_data.get("category_id")
-      if not isinstance(current_category_id,
-                        str) or not current_category_id.strip():
-        payload["category_id"] = firestore.UNCATEGORIZED_CATEGORY_ID
-
-    expected_book_id = book_id_by_joke.get(joke_doc.id)
-    has_book_id = "book_id" in joke_data
-    current_book_id = joke_data.get("book_id")
-    if isinstance(current_book_id, str):
-      current_book_id = current_book_id.strip() or None
-    else:
-      current_book_id = None
-    if expected_book_id is None:
-      if not has_book_id or current_book_id is not None:
-        payload["book_id"] = None
-        book_id_updated += 1
-    elif current_book_id != expected_book_id:
-      payload["book_id"] = expected_book_id
-      book_id_updated += 1
-
-    # Decay recent stats if needed
-    should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
-    if not should_skip_decay:
-      decay_payload = _build_recent_decay_payload(joke_data)
-      payload.update(decay_payload)
-      jokes_decayed += 1
-
-    # Create the final joke model object once, including any potential updates.
     final_joke_data = {**joke_data, **payload}
     try:
-      joke = models.PunnyJoke.from_firestore_dict(final_joke_data, joke_doc.id)
+      joke = models.PunnyJoke.from_firestore_dict(final_joke_data, joke_id)
     except Exception as parse_error:
-      logger.warn(
-        f"Failed to parse joke {joke_doc.id}, skipping: {parse_error}")
-      continue  # Skip malformed documents
-    jokes_by_id[joke_doc.id] = joke
+      logger.warn(f"Failed to parse joke {joke_id}, skipping: {parse_error}")
+      continue
+    jokes_by_id[joke_id] = joke
 
     # Perform actions based on the final state.
     if payload:
-      batch.update(joke_doc.reference, payload)
+      batch.update(joke_doc_ref, payload)
       writes_in_batch += 1
     else:
       jokes_skipped += 1
 
-    if joke.state != models.JokeState.DRAFT:
-      try:
-        joke_operations.sync_joke_to_search_collection(joke=joke,
-                                                       new_embedding=None)
-      except Exception as sync_error:
-        logger.warn(
-          f"Failed to sync joke {joke_doc.id} to search collection: {sync_error}"
-        )
-
-    # Add to public feed if the joke is public in its final state.
-    if joke.is_public:
-      public_jokes.append(joke)
+    _sync_joke_and_append_if_public(joke_id, joke, public_jokes)
 
     if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
       logger.info(f"Committing batch of {writes_in_batch} writes")
-      batch.commit()
+      batch.commit()  # pyright: ignore[reportUnusedCallResult]
       batch = db_client.batch()
       writes_in_batch = 0
 
   if writes_in_batch:
     logger.info(f"Committing final batch of {writes_in_batch} writes")
-    batch.commit()
+    batch.commit()  # pyright: ignore[reportUnusedCallResult]
 
   if public_jokes:
     logger.info(f"Public jokes found: {len(public_jokes)}")

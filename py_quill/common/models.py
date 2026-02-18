@@ -1079,7 +1079,7 @@ class PunnyJoke:
     return utils.get_text_slug(self.setup_text, human_readable=True)
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> 'PunnyJoke':
+  def from_firestore_dict(cls, data: dict[str, Any], key: str) -> 'PunnyJoke':
     """Create a PunnyJoke from a Firestore dictionary.
 
     Mirrors Firestore read logic so new fields are auto-applied while

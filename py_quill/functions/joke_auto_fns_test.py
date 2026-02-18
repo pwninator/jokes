@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import datetime
 import random
+from typing import cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
 from common import models
 from functions import joke_auto_fns
-from services import firestore
+from services import amazon, firestore
 
 
 @pytest.fixture(autouse=True, name='mock_logger')
@@ -144,6 +145,182 @@ def _create_mock_book_doc(book_id: str, joke_ids: list[str]) -> MagicMock:
   doc.id = book_id
   doc.to_dict.return_value = {"jokes": joke_ids}
   return doc
+
+
+class TestAdsStatsFetcher:
+  """Tests for Amazon Ads stats fetcher jobs."""
+
+  def test_internal_fetches_us_ca_uk_and_requests_reports(self, monkeypatch):
+    now_utc = _create_test_datetime(2026, 2, 18, 5, 30)
+    profiles = [
+      amazon.AmazonAdsProfile(
+        profile_id="us-profile",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+        country_code="US",
+      ),
+      amazon.AmazonAdsProfile(
+        profile_id="ca-profile",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+        country_code="CA",
+      ),
+      amazon.AmazonAdsProfile(
+        profile_id="uk-profile",
+        region="eu",
+        api_base="https://advertising-api-eu.amazon.com",
+        country_code="UK",
+      ),
+      amazon.AmazonAdsProfile(
+        profile_id="fr-profile",
+        region="eu",
+        api_base="https://advertising-api-eu.amazon.com",
+        country_code="FR",
+      ),
+    ]
+
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_profiles',
+                        lambda region: profiles)
+    sleep_calls: list[int] = []
+    monkeypatch.setattr('functions.joke_auto_fns.time.sleep',
+                        lambda sec: sleep_calls.append(sec))
+
+    calls: list[dict[str, object]] = []
+
+    def _mock_request_reports(*, profile_id, start_date, end_date, region):
+      calls.append({
+        "profile_id": profile_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "region": region,
+      })
+      return amazon.ReportIdPair(
+        campaigns_report_id=f"campaigns-{profile_id}",
+        purchased_products_report_id=f"products-{profile_id}",
+      )
+
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.request_daily_campaign_stats_reports',
+      _mock_request_reports)
+
+    status_calls: list[dict[str, object]] = []
+
+    def _mock_get_report_statuses(*, profile_id, report_ids, region):
+      status_calls.append({
+        "profile_id": profile_id,
+        "report_ids": report_ids,
+        "region": region,
+      })
+      return [
+        amazon.ReportStatus(report_id=report_ids[0], status="IN_PROGRESS"),
+        amazon.ReportStatus(report_id=report_ids[1], status="COMPLETED"),
+      ]
+
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_report_statuses',
+                        _mock_get_report_statuses)
+
+    stats = joke_auto_fns._ads_stats_fetcher_internal(now_utc)
+
+    assert stats["report_date"] == "2026-02-17"
+    assert stats["profiles_considered"] == 4
+    assert stats["profiles_selected"] == 3
+    assert stats["reports_requested"] == 3
+    assert len(calls) == 3
+    assert sleep_calls == [5]
+    called_profile_ids = {call["profile_id"] for call in calls}
+    assert called_profile_ids == {"us-profile", "ca-profile", "uk-profile"}
+    for call in calls:
+      assert call["start_date"] == datetime.date(2026, 2, 17)
+      assert call["end_date"] == datetime.date(2026, 2, 17)
+    assert len(status_calls) == 3
+    assert len(cast(list[dict[str, object]], stats["report_metadata"])) == 6
+
+  def test_ads_stats_fetcher_scheduler_invokes_internal_with_scheduled_time(
+      self, monkeypatch):
+    captured = {}
+
+    def _capture(run_time):
+      captured['run_time'] = run_time
+      return {}
+
+    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+                        _capture)
+
+    event = MagicMock()
+    event.schedule_time = datetime.datetime(2026,
+                                            2,
+                                            18,
+                                            13,
+                                            0,
+                                            tzinfo=datetime.timezone.utc)
+
+    joke_auto_fns.ads_stats_fetcher_scheduler.__wrapped__(event)
+
+    assert captured["run_time"] == event.schedule_time
+
+  def test_ads_stats_fetcher_scheduler_falls_back_to_current_time(
+      self, monkeypatch):
+    captured = {}
+
+    def _capture(run_time):
+      captured['run_time'] = run_time
+      return {}
+
+    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+                        _capture)
+
+    event = MagicMock()
+    event.schedule_time = None
+
+    joke_auto_fns.ads_stats_fetcher_scheduler.__wrapped__(event)
+
+    assert captured["run_time"].tzinfo == datetime.timezone.utc
+
+  def test_ads_stats_fetcher_http_success(self, monkeypatch):
+    expected_stats = {
+      "report_date":
+      "2026-02-17",
+      "profiles_considered":
+      3,
+      "profiles_selected":
+      2,
+      "reports_requested":
+      2,
+      "report_metadata": [{
+        "profile_id": "us-profile",
+        "country_code": "US",
+        "region": "na",
+        "report_type": "spCampaigns",
+        "report_id": "campaigns-us-profile",
+        "status": "IN_PROGRESS",
+        "url": "",
+        "failure_reason": "",
+      }]
+    }
+    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+                        lambda _: expected_stats)
+
+    response = joke_auto_fns.ads_stats_fetcher_http(Mock())
+
+    html = response.data.decode("utf-8")
+    assert response.status_code == 200
+    assert response.mimetype == "text/html"
+    assert "Ads Report Metadata" in html
+    assert "campaigns-us-profile" in html
+    assert "IN_PROGRESS" in html
+
+  def test_ads_stats_fetcher_http_failure(self, monkeypatch):
+
+    def _raise(_):
+      raise RuntimeError("ads fetch failed")
+
+    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+                        _raise)
+
+    response = joke_auto_fns.ads_stats_fetcher_http(Mock())
+
+    data = response.get_json()["data"]
+    assert "ads fetch failed" in data["error"]
 
 
 class TestDecayRecentJokeStats:

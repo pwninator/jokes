@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime
+import html
+import time
 from collections import deque
 from collections.abc import Iterator
 from typing import cast
@@ -12,14 +14,16 @@ import flask
 from common import (joke_category_operations, joke_lead_operations,
                     joke_operations, models)
 from firebase_functions import https_fn, logger, options, scheduler_fn
-from functions.function_utils import error_response, success_response
+from functions.function_utils import error_response, html_response, success_response
 from google.cloud.firestore import (SERVER_TIMESTAMP, Client,
                                     DocumentReference, DocumentSnapshot)
-from services import firestore
+from services import amazon, firestore
 
 _RECENT_STATS_DAILY_DECAY_FACTOR = 0.9
 _MAX_FIRESTORE_WRITE_BATCH_SIZE = 100
 _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
+_ADS_STATS_TARGET_COUNTRY_CODES = {"US", "CA", "UK", "GB"}
+_ADS_STATS_REPORT_METADATA_WAIT_SEC = 5
 
 
 @scheduler_fn.on_schedule(
@@ -29,8 +33,7 @@ _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def joke_hourly_maintenance_scheduler(
-    event: scheduler_fn.ScheduledEvent) -> None:
+def auto_joke_hourly_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
   """Scheduled function that performs daily maintenance tasks for jokes."""
   scheduled_time_utc = event.schedule_time
   if not scheduled_time_utc:
@@ -42,7 +45,7 @@ def joke_hourly_maintenance_scheduler(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def joke_hourly_maintenance_http(req: flask.Request) -> flask.Response:
+def auto_joke_hourly_http(req: flask.Request) -> flask.Response:
   """HTTP endpoint to trigger daily maintenance tasks for jokes."""
   del req
   try:
@@ -88,8 +91,7 @@ def _joke_maintenance_internal(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def user_daily_maintenance_scheduler(
-    event: scheduler_fn.ScheduledEvent) -> None:
+def auto_user_daily_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
   """Scheduled function that performs daily maintenance tasks for users."""
   scheduled_time_utc = event.schedule_time
   if not scheduled_time_utc:
@@ -101,7 +103,7 @@ def user_daily_maintenance_scheduler(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def user_daily_maintenance_http(req: flask.Request) -> flask.Response:
+def auto_user_daily_http(req: flask.Request) -> flask.Response:
   """HTTP endpoint to trigger daily maintenance tasks for users."""
   del req
   try:
@@ -122,6 +124,168 @@ def _user_daily_maintenance_internal(
   stats = joke_lead_operations.ensure_users_subscribed()
   logger.info(f"User maintenance completed with stats: {stats}")
   return stats
+
+
+@scheduler_fn.on_schedule(
+  # Runs daily at 5:00 AM PST
+  schedule="0 5 * * *",
+  timezone=ZoneInfo("America/Los_Angeles"),
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=1800,
+)
+def ads_stats_fetcher_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
+  """Scheduled function that kicks off daily Amazon Ads report generation."""
+  scheduled_time_utc = event.schedule_time
+  if not scheduled_time_utc:
+    scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
+  _ = _ads_stats_fetcher_internal(scheduled_time_utc)
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=1800,
+)
+def ads_stats_fetcher_http(req: flask.Request) -> flask.Response:
+  """HTTP endpoint to trigger Amazon Ads report generation."""
+  del req
+  try:
+    run_time_utc = datetime.datetime.now(datetime.timezone.utc)
+    stats = _ads_stats_fetcher_internal(run_time_utc)
+    return html_response(_render_ads_stats_html(stats))
+  except Exception as exc:  # pylint: disable=broad-except
+    return error_response(f"Failed to run ads stats fetcher: {exc}")
+
+
+def _ads_stats_fetcher_internal(
+    run_time_utc: datetime.datetime) -> dict[str, object]:
+  """Fetch target country profiles and request daily ads reports."""
+  report_date = run_time_utc.date() - datetime.timedelta(days=1)
+  profiles = amazon.get_profiles(region="all")
+
+  selected_profiles = sorted(
+    [
+      profile for profile in profiles
+      if profile.country_code.upper() in _ADS_STATS_TARGET_COUNTRY_CODES
+    ],
+    key=lambda profile:
+    (profile.country_code, profile.region, profile.profile_id),
+  )
+
+  report_requests: list[dict[str, str]] = []
+  for profile in selected_profiles:
+    report_ids = amazon.request_daily_campaign_stats_reports(
+      profile_id=profile.profile_id,
+      start_date=report_date,
+      end_date=report_date,
+      region=profile.region,
+    )
+    report_requests.append({
+      "profile_id":
+      profile.profile_id,
+      "country_code":
+      profile.country_code,
+      "region":
+      profile.region,
+      "campaigns_report_id":
+      report_ids.campaigns_report_id,
+      "purchased_products_report_id":
+      report_ids.purchased_products_report_id,
+    })
+
+  time.sleep(_ADS_STATS_REPORT_METADATA_WAIT_SEC)
+  report_metadata: list[dict[str, str]] = []
+  for report_request in report_requests:
+    profile_id = report_request["profile_id"]
+    region = report_request["region"]
+    statuses = amazon.get_report_statuses(
+      profile_id=profile_id,
+      report_ids=[
+        report_request["campaigns_report_id"],
+        report_request["purchased_products_report_id"],
+      ],
+      region=region,
+    )
+    metadata_by_id = {status.report_id: status for status in statuses}
+    for report_type, report_id in (
+      ("spCampaigns", report_request["campaigns_report_id"]),
+      ("spPurchasedProduct", report_request["purchased_products_report_id"]),
+    ):
+      status = metadata_by_id.get(report_id)
+      status_url = status.url if status and status.url else ""
+      status_failure_reason = status.failure_reason if status and status.failure_reason else ""
+      report_metadata.append({
+        "profile_id": profile_id,
+        "country_code": report_request["country_code"],
+        "region": region,
+        "report_type": report_type,
+        "report_id": report_id,
+        "status": status.status if status else "UNKNOWN",
+        "url": status_url,
+        "failure_reason": status_failure_reason,
+      })
+
+  stats: dict[str, object] = {
+    "report_date": report_date.isoformat(),
+    "profiles_considered": len(profiles),
+    "profiles_selected": len(selected_profiles),
+    "reports_requested": len(report_requests),
+    "requests": report_requests,
+    "report_metadata": report_metadata,
+  }
+  logger.info(f"Ads stats report metadata: {report_metadata}")
+  logger.info(f"Ads stats fetcher completed with stats: {stats}")
+  return stats
+
+
+def _render_ads_stats_html(stats: dict[str, object]) -> str:
+  """Render report IDs and report metadata as a simple HTML table."""
+  report_rows: list[dict[str, object]] = cast(list[dict[str, object]],
+                                              stats.get("report_metadata", []))
+  rows: list[str] = []
+  for row in report_rows:
+    rows.append("<tr>"
+                f"<td>{html.escape(str(row.get('profile_id', '')))}</td>"
+                f"<td>{html.escape(str(row.get('country_code', '')))}</td>"
+                f"<td>{html.escape(str(row.get('region', '')))}</td>"
+                f"<td>{html.escape(str(row.get('report_type', '')))}</td>"
+                f"<td>{html.escape(str(row.get('report_id', '')))}</td>"
+                f"<td>{html.escape(str(row.get('status', '')))}</td>"
+                f"<td>{html.escape(str(row.get('failure_reason', '')))}</td>"
+                "</tr>")
+
+  table_html = ("<p>No report metadata found.</p>" if not rows else
+                "<table border='1' cellpadding='6' cellspacing='0'>"
+                "<thead><tr>"
+                "<th>Profile ID</th>"
+                "<th>Country</th>"
+                "<th>Region</th>"
+                "<th>Report Type</th>"
+                "<th>Report ID</th>"
+                "<th>Status</th>"
+                "<th>Failure Reason</th>"
+                "</tr></thead>"
+                f"<tbody>{''.join(rows)}</tbody>"
+                "</table>")
+  return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/><title>Ads Report Metadata</title></head>
+<body>
+  <h1>Ads Report Metadata</h1>
+  <p><strong>Report Date:</strong> {html.escape(str(stats.get("report_date", "")))}</p>
+  <p><strong>Profiles Considered:</strong> {html.escape(str(stats.get("profiles_considered", "")))}</p>
+  <p><strong>Profiles Selected:</strong> {html.escape(str(stats.get("profiles_selected", "")))}</p>
+  <p><strong>Reports Requested:</strong> {html.escape(str(stats.get("reports_requested", "")))}</p>
+  {table_html}
+</body>
+</html>"""
+
+
+joke_hourly_maintenance_scheduler = auto_joke_hourly_scheduler
+joke_hourly_maintenance_http = auto_joke_hourly_http
+user_daily_maintenance_scheduler = auto_user_daily_scheduler
+user_daily_maintenance_http = auto_user_daily_http
+auto_ads_stats_scheduler = ads_stats_fetcher_scheduler
+auto_ads_stats_http = ads_stats_fetcher_http
 
 
 def _should_skip_recent_update(

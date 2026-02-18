@@ -7,6 +7,7 @@ from pathlib import Path
 import vertexai
 from common import config, firebase_init
 from firebase_functions.core import init
+# pylint: disable=no-name-in-module
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
                        joke_book_fns, joke_creation_fns, joke_fns,
                        joke_image_fns, joke_notification_fns, joke_trigger_fns,
@@ -14,7 +15,7 @@ from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
 
 _BUNDLED_NLTK_DATA_DIR = Path(__file__).resolve().parent / "nltk_data"
 if _BUNDLED_NLTK_DATA_DIR.exists():
-  os.environ.setdefault("NLTK_DATA", str(_BUNDLED_NLTK_DATA_DIR))
+  _ = os.environ.setdefault("NLTK_DATA", str(_BUNDLED_NLTK_DATA_DIR))
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -66,10 +67,14 @@ on_joke_category_write = joke_trigger_fns.on_joke_category_write
 create_ad_assets = joke_image_fns.create_ad_assets
 
 # Export the joke auto functions
-joke_hourly_maintenance_scheduler = joke_auto_fns.joke_hourly_maintenance_scheduler
-joke_hourly_maintenance_http = joke_auto_fns.joke_hourly_maintenance_http
-user_daily_maintenance_scheduler = joke_auto_fns.user_daily_maintenance_scheduler
-user_daily_maintenance_http = joke_auto_fns.user_daily_maintenance_http
+auto_joke_hourly_scheduler = joke_auto_fns.auto_joke_hourly_scheduler
+auto_joke_hourly_http = joke_auto_fns.auto_joke_hourly_http
+auto_user_daily_maintenance_scheduler = joke_auto_fns.auto_user_daily_scheduler
+auto_user_daily_http = joke_auto_fns.auto_user_daily_http
+auto_ads_stats_fetcher_scheduler = joke_auto_fns.auto_ads_stats_scheduler
+auto_ads_stats_fetcher_http = joke_auto_fns.auto_ads_stats_http
+ads_stats_fetcher_scheduler = joke_auto_fns.ads_stats_fetcher_scheduler
+ads_stats_fetcher_http = joke_auto_fns.ads_stats_fetcher_http
 
 # Export the joke notification functions
 send_daily_joke_http = joke_notification_fns.send_daily_joke_http

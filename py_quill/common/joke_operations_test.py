@@ -1723,6 +1723,79 @@ def test_generate_joke_audio_calls_forced_alignment_when_timing_is_missing(
   ]
 
 
+def test_generate_joke_audio_returns_partial_early_when_forced_alignment_fails(
+    monkeypatch, mock_cloud_storage):
+  dialog_wav_bytes = b"fake-wav"
+  generation_metadata = models.SingleGenerationMetadata(model_name="elevenlabs")
+
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = (
+    joke_operations.audio_client.AudioGenerationResult(
+      gcs_uri="gs://temp/dialog.wav",
+      metadata=generation_metadata,
+      timing=None,
+    ))
+  mock_client.create_forced_alignment.side_effect = ValueError(
+    "forced alignment failed")
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
+
+  split_mock = Mock(side_effect=AssertionError("split should not run"))
+  monkeypatch.setattr(joke_operations, "_split_joke_dialog_wav_by_timing",
+                      split_mock)
+  mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
+
+  joke = models.PunnyJoke(
+    key="joke-force-align-partial",
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+  )
+
+  result = joke_operations.generate_joke_audio(joke, allow_partial=True)
+
+  assert result.dialog_gcs_uri == "gs://temp/dialog.wav"
+  assert result.intro_gcs_uri is None
+  assert result.setup_gcs_uri is None
+  assert result.response_gcs_uri is None
+  assert result.punchline_gcs_uri is None
+  assert result.clip_timing is None
+  assert result.generation_metadata.generations == [generation_metadata]
+  split_mock.assert_not_called()
+
+
+def test_generate_joke_audio_raises_early_when_forced_alignment_fails(
+    monkeypatch, mock_cloud_storage):
+  generation_metadata = models.SingleGenerationMetadata(model_name="elevenlabs")
+
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = (
+    joke_operations.audio_client.AudioGenerationResult(
+      gcs_uri="gs://temp/dialog.wav",
+      metadata=generation_metadata,
+      timing=None,
+    ))
+  mock_client.create_forced_alignment.side_effect = ValueError(
+    "forced alignment failed")
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
+  mock_cloud_storage.download_bytes_from_gcs.return_value = b"fake-wav"
+
+  joke = models.PunnyJoke(
+    key="joke-force-align-error",
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+  )
+
+  with pytest.raises(ValueError, match="Forced alignment fallback failed"):
+    _ = joke_operations.generate_joke_audio(joke, allow_partial=False)
+
+
 def test_get_joke_lip_sync_media_uses_cached_audio_when_enabled(monkeypatch):
   joke = models.PunnyJoke(
     key="joke-cache-enabled",

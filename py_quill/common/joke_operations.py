@@ -784,6 +784,17 @@ def generate_joke_audio(
   combined_generation_metadata = models.GenerationMetadata()
   combined_generation_metadata.add_generation(audio_result.metadata)
 
+  def _partial_audio_result() -> JokeAudioResult:
+    return JokeAudioResult(
+      dialog_gcs_uri=dialog_gcs_uri,
+      intro_gcs_uri=None,
+      setup_gcs_uri=None,
+      response_gcs_uri=None,
+      punchline_gcs_uri=None,
+      generation_metadata=combined_generation_metadata,
+      clip_timing=None,
+    )
+
   dialog_wav_bytes = cloud_storage.get_and_convert_wave_bytes_from_gcs(
     dialog_gcs_uri)
   tts_timing = audio_result.timing
@@ -796,9 +807,22 @@ def generate_joke_audio(
       )
       combined_generation_metadata.add_generation(forced_alignment_metadata)
     except NotImplementedError:
-      logger.info("Forced alignment is not supported for this audio client")
+      if allow_partial:
+        return _partial_audio_result()
+      raise ValueError(
+        "Audio timing is required and forced alignment is not supported for this model"
+      ) from None
     except Exception as exc:  # pylint: disable=broad-except
-      logger.warn("Forced alignment fallback failed: " + str(exc))
+      if allow_partial:
+        return _partial_audio_result()
+      raise ValueError(f"Forced alignment fallback failed: {exc}") from exc
+
+    if not tts_timing or not tts_timing.alignment_data or len(
+        tts_timing.voice_segments) != 4:
+      if allow_partial:
+        return _partial_audio_result()
+      raise ValueError(
+        "Forced alignment fallback returned unusable timing data")
 
   timing: JokeAudioTiming | None = None
   intro_wav: bytes | None = None
@@ -808,15 +832,7 @@ def generate_joke_audio(
 
   if not tts_timing or len(tts_timing.voice_segments) != 4:
     if allow_partial:
-      return JokeAudioResult(
-        dialog_gcs_uri=dialog_gcs_uri,
-        intro_gcs_uri=None,
-        setup_gcs_uri=None,
-        response_gcs_uri=None,
-        punchline_gcs_uri=None,
-        generation_metadata=combined_generation_metadata,
-        clip_timing=None,
-      )
+      return _partial_audio_result()
     raise ValueError("Audio timing is required for joke audio generation")
 
   try:
@@ -839,15 +855,7 @@ def generate_joke_audio(
     )
   except Exception as exc:  # pylint: disable=broad-except
     if allow_partial:
-      return JokeAudioResult(
-        dialog_gcs_uri=dialog_gcs_uri,
-        intro_gcs_uri=None,
-        setup_gcs_uri=None,
-        response_gcs_uri=None,
-        punchline_gcs_uri=None,
-        generation_metadata=combined_generation_metadata,
-        clip_timing=None,
-      )
+      return _partial_audio_result()
     raise ValueError(
       f"Error splitting joke dialog WAV by timing: {exc}") from exc
 

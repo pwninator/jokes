@@ -773,7 +773,7 @@ def test_elevenlabs_create_forced_alignment_maps_words_directly():
   assert metadata.token_counts["characters_input"] == len("Hi\nthere")
 
 
-def test_elevenlabs_create_forced_alignment_handles_empty_words():
+def test_elevenlabs_create_forced_alignment_raises_on_empty_words():
   from elevenlabs.types.forced_alignment_response_model import \
       ForcedAlignmentResponseModel
 
@@ -812,19 +812,17 @@ def test_elevenlabs_create_forced_alignment_handles_empty_words():
       audio_client.ElevenlabsAudioClient,
       "_create_model_client",
       return_value=_FakeElevenlabsClient(_FakeForcedAlignment(response))):
-    timing, metadata = client.create_forced_alignment(
-      audio_bytes=b"fake-audio",
-      turns=[
-        audio_client.DialogTurn(
-          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
-          script="anything",
-        ),
-      ],
-    )
-
-  assert timing.normalized_alignment == []
-  assert timing.voice_segments == []
-  assert metadata.model_name == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
+    with pytest.raises(audio_client.AudioGenerationError,
+                       match="returned no word timings"):
+      _ = client.create_forced_alignment(
+        audio_bytes=b"fake-audio",
+        turns=[
+          audio_client.DialogTurn(
+            voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+            script="anything",
+          ),
+        ],
+      )
 
 
 def test_log_response_logs_word_timings_for_forced_alignment_model():

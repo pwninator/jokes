@@ -879,6 +879,16 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
         text=transcript,
       )
     response_data = response.data
+    forced_chars = [str(entry.text) for entry in (response_data.characters or [])]
+    forced_starts = [float(entry.start) for entry in (response_data.characters or [])]
+    forced_ends = [float(entry.end) for entry in (response_data.characters or [])]
+    _validate_char_alignment_quality(
+      chars=forced_chars,
+      starts=forced_starts,
+      ends=forced_ends,
+      voice_segments=None,
+      source_label="ElevenLabs forced alignment",
+    )
     _log_response("Forced Alignment", response_data)
     word_timings = [
       audio_timing.WordTiming(
@@ -902,11 +912,8 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       request_id,
     )
     if not word_timings:
-      return (audio_timing.TtsTiming(
-        alignment=None,
-        normalized_alignment=[],
-        voice_segments=[],
-      ), metadata)
+      raise AudioGenerationError(
+        "ElevenLabs forced alignment returned no word timings")
 
     voice_segments: list[audio_timing.VoiceSegment] = []
     cursor = 0
@@ -940,6 +947,10 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
           dialogue_input_index=index,
         ))
 
+    _validate_sanitized_timing_quality(
+      words=word_timings,
+      voice_segments=voice_segments,
+    )
     return (audio_timing.TtsTiming(
       alignment=None,
       normalized_alignment=word_timings,
@@ -1470,9 +1481,27 @@ def _validate_provider_alignment_quality(
   chars = [str(char) for char in alignment.characters]
   starts = [float(value) for value in alignment.character_start_times_seconds]
   ends = [float(value) for value in alignment.character_end_times_seconds]
+  _validate_char_alignment_quality(
+    chars=chars,
+    starts=starts,
+    ends=ends,
+    voice_segments=voice_segments,
+    source_label="ElevenLabs alignment",
+  )
+
+
+def _validate_char_alignment_quality(
+  *,
+  chars: list[str],
+  starts: list[float],
+  ends: list[float],
+  voice_segments: list["_ElevenlabsVoiceSegmentCharRange"] | None = None,
+  source_label: str,
+) -> None:
+  """Validate character-timing quality for any alignment source."""
   if len(chars) != len(starts) or len(chars) != len(ends):
     raise AudioGenerationError(
-      "ElevenLabs alignment arrays are not the same length "
+      f"{source_label} arrays are not the same length "
       f"(chars={len(chars)} starts={len(starts)} ends={len(ends)})")
 
   non_positive_spoken = 0
@@ -1487,12 +1516,12 @@ def _validate_provider_alignment_quality(
               end_time) in enumerate(zip(chars, starts, ends)):
     if end_time < (start_time - _ALIGNMENT_MIN_POSITIVE_CHAR_SEC):
       raise AudioGenerationError(
-        "ElevenLabs alignment has inverted char timing "
+        f"{source_label} has inverted char timing "
         f"at index={index} char={char!r} start={start_time:.6f} end={end_time:.6f}"
       )
     if start_time < (prev_start - _ALIGNMENT_MIN_POSITIVE_CHAR_SEC):
       raise AudioGenerationError(
-        "ElevenLabs alignment is not time-ordered "
+        f"{source_label} is not time-ordered "
         f"at index={index} char={char!r} start={start_time:.6f} prev_start={prev_start:.6f}"
       )
     prev_start = start_time
@@ -1558,7 +1587,7 @@ def _validate_provider_alignment_quality(
 
   if max_collapsed_run >= _ALIGNMENT_MAX_CONSECUTIVE_COLLAPSED_SPOKEN_CHARS:
     raise AudioGenerationError(
-      "ElevenLabs alignment contains a long collapsed-timestamp run. "
+      f"{source_label} contains a long collapsed-timestamp run. "
       f"max_collapsed_run={max_collapsed_run} spoken_chars={spoken_count} "
       f"collapsed_spoken={non_positive_spoken} sample_run={collapsed_sample} "
       f"segment_diagnostics={segment_summaries}")
@@ -1567,7 +1596,7 @@ def _validate_provider_alignment_quality(
     collapsed_ratio = non_positive_spoken / spoken_count
     if collapsed_ratio > _ALIGNMENT_MAX_COLLAPSED_SPOKEN_CHAR_RATIO:
       raise AudioGenerationError(
-        "ElevenLabs alignment contains too many collapsed spoken timestamps. "
+        f"{source_label} contains too many collapsed spoken timestamps. "
         f"collapsed_ratio={collapsed_ratio:.3f} spoken_chars={spoken_count} "
         f"collapsed_spoken={non_positive_spoken} first_collapsed={first_collapsed} "
         f"segment_diagnostics={segment_summaries}")

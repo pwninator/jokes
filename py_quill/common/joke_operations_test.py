@@ -1649,9 +1649,8 @@ def test_get_joke_lip_sync_media_uses_cached_audio_when_enabled(monkeypatch):
   load_cached_mock = Mock(return_value=cached_sequences)
   monkeypatch.setattr(joke_operations, "_load_cached_lip_sync_sequences",
                       load_cached_mock)
-  generate_mock = Mock(
-    side_effect=AssertionError(
-      "_generate_joke_lip_sync_sequences should not run on cache hit"))
+  generate_mock = Mock(side_effect=AssertionError(
+    "_generate_joke_lip_sync_sequences should not run on cache hit"))
   monkeypatch.setattr(joke_operations, "_generate_joke_lip_sync_sequences",
                       generate_mock)
 
@@ -2078,7 +2077,8 @@ def test_generate_joke_video_allows_missing_listener_character_when_no_response(
   assert call_kwargs["listener_character"] is None
   assert call_kwargs["listener_voice"] is None
   assert mock_firestore.get_posable_character_def.call_count == 1
-  mock_firestore.get_posable_character_def.assert_called_once_with("char-teller")
+  mock_firestore.get_posable_character_def.assert_called_once_with(
+    "char-teller")
 
 
 def test_generate_joke_video_raises_when_character_def_not_found(
@@ -2416,8 +2416,7 @@ def test_split_joke_dialog_wav_by_timing_does_not_group_by_dialogue_input_index(
 
 
 def test_split_joke_dialog_wav_by_timing_rejects_collapsed_word_windows(
-  monkeypatch,
-):
+  monkeypatch, ):
   timing = audio_timing.TtsTiming(
     voice_segments=[
       audio_timing.VoiceSegment(
@@ -2455,8 +2454,10 @@ def test_split_joke_dialog_wav_by_timing_rejects_collapsed_word_windows(
     ],
     normalized_alignment=[
       audio_timing.WordTiming("Hey", 0.2, 1.4, char_timings=[]),
-      audio_timing.WordTiming("WhatdoyoucallasmallValentinesDaycard", 1.518,
-                              1.518, char_timings=[]),
+      audio_timing.WordTiming("WhatdoyoucallasmallValentinesDaycard",
+                              1.518,
+                              1.518,
+                              char_timings=[]),
       audio_timing.WordTiming("what", 3.0, 3.75, char_timings=[]),
       audio_timing.WordTiming("AValentiny", 4.0, 8.9, char_timings=[]),
     ],
@@ -2484,7 +2485,8 @@ def test_split_joke_dialog_wav_by_timing_rejects_collapsed_word_windows(
     ],
   )
 
-  with pytest.raises(ValueError, match="no positive-duration spoken word timing"):
+  with pytest.raises(ValueError,
+                     match="no positive-duration spoken word timing"):
     _ = joke_operations._split_joke_dialog_wav_by_timing(  # pylint: disable=protected-access
       b"fake-wav",
       timing,
@@ -2666,6 +2668,45 @@ def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fa
 
   assert sequence.sequence_sound_events[0].end_time == pytest.approx(0.33,
                                                                      abs=0.001)
+
+
+def test_strip_stage_directions_removes_bracketed_prefixes():
+  stripped = joke_operations._strip_stage_directions(  # pylint: disable=protected-access
+    "[playfully] Hey! want to hear a joke?")
+  assert stripped == "Hey! want to hear a joke?"
+
+  stripped_multi = joke_operations._strip_stage_directions(  # pylint: disable=protected-access
+    "[curious][quietly] what?")
+  assert stripped_multi == "what?"
+
+
+def test_build_lipsync_sequence_adds_subtitle_event_without_stage_directions(
+  monkeypatch,
+  mock_cloud_storage,
+):
+  mock_cloud_storage.download_bytes_from_gcs.return_value = b"not-used"
+  monkeypatch.setattr(
+    joke_operations,
+    "_resolve_sound_event_end_time_sec",
+    Mock(return_value=0.42),
+  )
+  monkeypatch.setattr(
+    joke_operations.mouth_event_detection,
+    "detect_mouth_events",
+    Mock(return_value=[]),
+  )
+
+  sequence = joke_operations._build_lipsync_sequence(
+    audio_gcs_uri="gs://audio/setup.wav",
+    transcript="[playfully] Hey! want to hear a joke?",
+    timing=[audio_timing.WordTiming("hey", 0.0, 0.2, char_timings=[])],
+  )
+
+  assert len(sequence.sequence_subtitle_events) == 1
+  subtitle_event = sequence.sequence_subtitle_events[0]
+  assert subtitle_event.start_time == pytest.approx(0.0)
+  assert subtitle_event.end_time == pytest.approx(0.42)
+  assert subtitle_event.text == "Hey! want to hear a joke?"
 
 
 def _make_laugh_wav_bytes(

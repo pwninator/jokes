@@ -8,12 +8,14 @@ import zipfile
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from io import BytesIO
-from typing import Callable
+from typing import Callable, cast
 
 import requests
 from agents import constants
 from common import config, models
 from firebase_functions import logger
+from google.cloud.firestore_v1.base_document import DocumentSnapshot
+from google.cloud.firestore_v1.document import DocumentReference
 from PIL import Image, ImageDraw, ImageFont
 from services import cloud_storage, firestore, image_client, image_editor
 
@@ -127,15 +129,19 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
     if not joke_doc.exists:
       raise ValueError(f"Joke {joke_id} not found")
 
-    metadata_ref = joke_ref.collection('metadata').document('metadata')
-    metadata_doc = metadata_ref.get()
+    metadata_ref = cast(
+      DocumentReference,
+      joke_ref.collection('metadata').document('metadata'),
+    )
+    metadata_doc: DocumentSnapshot = metadata_ref.get()
     if not metadata_doc.exists:
       raise ValueError(f"Joke {joke_id} does not have book page metadata")
 
-    metadata = metadata_doc.to_dict() or {}
+    metadata = cast(dict[str, object], metadata_doc.to_dict() or {})
     setup_img_url = metadata.get('book_page_setup_image_url')
     punchline_img_url = metadata.get('book_page_punchline_image_url')
-    if not setup_img_url or not punchline_img_url:
+    if not isinstance(setup_img_url, str) or not isinstance(
+        punchline_img_url, str) or not setup_img_url or not punchline_img_url:
       raise ValueError(f"Joke {joke_id} does not have book page images")
 
     setup_image = cloud_storage.download_image_from_gcs(setup_img_url)
@@ -184,7 +190,7 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
     f'joke_book_pages_{timestamp}',
     'zip',
   )
-  cloud_storage.upload_bytes_to_gcs(
+  _ = cloud_storage.upload_bytes_to_gcs(
     zip_bytes,
     gcs_uri,
     'application/zip',
@@ -237,9 +243,12 @@ def generate_and_populate_book_pages(
   if not joke.setup_image_url or not joke.punchline_image_url:
     raise ValueError(f'Joke {joke_id} does not have image URLs')
 
-  metadata_ref = (firestore.db().collection('jokes').document(
-    joke_id).collection('metadata').document('metadata'))
-  metadata_snapshot = metadata_ref.get()
+  metadata_ref = cast(
+    DocumentReference,
+    firestore.db().collection('jokes').document(joke_id).collection(
+      'metadata').document('metadata'),
+  )
+  metadata_snapshot: DocumentSnapshot = metadata_ref.get()
   metadata_data: dict[str, object] = {}
   if metadata_snapshot.exists:
     metadata_data = metadata_snapshot.to_dict() or {}
@@ -251,7 +260,8 @@ def generate_and_populate_book_pages(
   if base_image_source == 'book_page':
     meta_setup = metadata_data.get('book_page_setup_image_url')
     meta_punchline = metadata_data.get('book_page_punchline_image_url')
-    if meta_setup and meta_punchline:
+    if isinstance(meta_setup, str) and meta_setup and isinstance(
+        meta_punchline, str) and meta_punchline:
       base_setup_url = meta_setup
       base_punchline_url = meta_punchline
       # Don't add print margins to book page images because they already have them
@@ -267,7 +277,17 @@ def generate_and_populate_book_pages(
     existing_punchline = metadata_data.get('book_page_punchline_image_url')
     if (isinstance(existing_setup, str) and existing_setup
         and isinstance(existing_punchline, str) and existing_punchline):
-      return existing_setup, existing_punchline
+      return (
+        models.Image(
+          url=existing_setup,
+          gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(existing_setup),
+        ),
+        models.Image(
+          url=existing_punchline,
+          gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
+            existing_punchline),
+        ),
+      )
 
   setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(base_setup_url)
   punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
@@ -304,18 +324,24 @@ def generate_and_populate_book_pages(
       setup_image=setup_image_model,
       punchline_image=punchline_image_model,
       style_reference_images=style_reference_images,
-      setup_image_description=joke.setup_image_description,
-      punchline_image_description=joke.punchline_image_description,
+      setup_image_description=joke.setup_image_description or "",
+      punchline_image_description=joke.punchline_image_description or "",
       output_file_name_base=f'{joke_id}_book_page',
       additional_setup_instructions=additional_setup_instructions,
       additional_punchline_instructions=additional_punchline_instructions,
       add_print_margins=add_print_margins,
     )
 
+  generated_setup_url = generation_result.generated_setup_image.url
+  generated_punchline_url = generation_result.generated_punchline_image.url
+  if not generated_setup_url or not generated_punchline_url:
+    raise ValueError(
+      f'Generated book page images are missing URLs for {joke_id}')
+
   metadata_book_page_updates = models.PunnyJoke.prepare_book_page_metadata_updates(
     existing_metadata=metadata_data,
-    new_setup_page_url=generation_result.generated_setup_image.url,
-    new_punchline_page_url=generation_result.generated_punchline_image.url,
+    new_setup_page_url=generated_setup_url,
+    new_punchline_page_url=generated_punchline_url,
     setup_prompt=generation_result.setup_prompt,
     punchline_prompt=generation_result.punchline_prompt,
   )
@@ -336,7 +362,7 @@ def generate_and_populate_book_pages(
     generation_result.generated_setup_image.generation_metadata)
   joke.generation_metadata.add_generation(
     generation_result.generated_punchline_image.generation_metadata)
-  firestore.update_punny_joke(
+  _ = firestore.update_punny_joke(
     joke_id,
     update_data={
       'generation_metadata': joke.generation_metadata.as_dict,
@@ -381,9 +407,12 @@ def create_ad_assets(
       joke, 'punchline_image_url', None):
     raise ValueError(f'Joke {joke_id} missing required image URLs')
 
-  metadata_ref = (firestore.db().collection('jokes').document(
-    joke_id).collection('metadata').document('metadata'))
-  metadata_snapshot = metadata_ref.get()
+  metadata_ref = cast(
+    DocumentReference,
+    firestore.db().collection('jokes').document(joke_id).collection(
+      'metadata').document('metadata'),
+  )
+  metadata_snapshot: DocumentSnapshot = metadata_ref.get()
   metadata_data: dict[str, object] = {}
   if metadata_snapshot.exists:
     metadata_data = metadata_snapshot.to_dict() or {}
@@ -418,10 +447,14 @@ def create_ad_assets(
     if all_existing and existing_urls:
       return existing_urls
 
-  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    joke.setup_image_url)
+  setup_url = joke.setup_image_url
+  punchline_url = joke.punchline_image_url
+  if not isinstance(setup_url, str) or not isinstance(punchline_url, str):
+    raise ValueError(f'Joke {joke_id} missing required image URLs')
+
+  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(setup_url)
   punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    joke.punchline_image_url)
+    punchline_url)
 
   setup_img = cloud_storage.download_image_from_gcs(setup_gcs_uri)
   punchline_img = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
@@ -442,7 +475,7 @@ def create_ad_assets(
     filename = f"{joke_id}_ad_{key}_{timestamp}.png"
     gcs_uri = f"gs://{config.IMAGE_BUCKET_NAME}/{filename}"
 
-    cloud_storage.upload_image_to_gcs(
+    _, _ = cloud_storage.upload_image_to_gcs(
       composed_image,
       f"{joke_id}_ad_{key}",
       "png",
@@ -454,7 +487,7 @@ def create_ad_assets(
     metadata_updates[field_name] = final_url
 
   if metadata_updates:
-    metadata_ref.set(
+    _ = metadata_ref.set(
       metadata_updates,
       merge=True,
     )
@@ -559,7 +592,7 @@ class _BookPageGenerationResult:
   punchline_prompt: str
 
 
-def generate_book_pages_with_nano_banana_pro(
+def generate_book_pages_with_nano_banana_pro(  # pylint: disable=too-many-arguments
   *,
   setup_image: models.Image,
   punchline_image: models.Image,
@@ -699,7 +732,7 @@ def _get_style_update_reference_images(
   return canvas, ref1, ref2
 
 
-def generate_book_pages_style_update(
+def generate_book_pages_style_update(  # pylint: disable=too-many-arguments
   *,
   setup_image: models.Image,
   punchline_image: models.Image,
@@ -814,30 +847,29 @@ def _get_simple_book_page(
       save_to_firestore=False,
     )
     return simple_page_image
-  elif image.size == (target_size, target_size):
+  if image.size == (target_size, target_size):
     # Image is already the target size, so return it as is
     return image_model
-  else:
-    # Scale image directly to target size, if needed
-    resized_image = image.resize(
-      (target_size, target_size),
-      resample=Image.Resampling.LANCZOS,
-    )
-    gcs_uri = cloud_storage.get_image_gcs_uri(output_file_name_base, "png")
-    uploaded_gcs_uri, _ = cloud_storage.upload_image_to_gcs(
-      resized_image,
-      output_file_name_base,
-      "png",
-      gcs_uri=gcs_uri,
-    )
-    return models.Image(
-      gcs_uri=uploaded_gcs_uri,
-      url=cloud_storage.get_final_image_url(uploaded_gcs_uri,
-                                            width=target_size),
-    )
+
+  # Scale image directly to target size, if needed
+  resized_image = image.resize(
+    (target_size, target_size),
+    resample=Image.Resampling.LANCZOS,
+  )
+  gcs_uri = cloud_storage.get_image_gcs_uri(output_file_name_base, "png")
+  uploaded_gcs_uri, _ = cloud_storage.upload_image_to_gcs(
+    resized_image,
+    output_file_name_base,
+    "png",
+    gcs_uri=gcs_uri,
+  )
+  return models.Image(
+    gcs_uri=uploaded_gcs_uri,
+    url=cloud_storage.get_final_image_url(uploaded_gcs_uri, width=target_size),
+  )
 
 
-def _convert_for_print_kdp(
+def _convert_for_print_kdp(  # pylint: disable=too-many-arguments
   image: Image.Image,
   *,
   is_punchline: bool,
@@ -870,7 +902,7 @@ def _convert_for_print_kdp(
   if is_punchline:
     trim_left = _BOOK_PAGE_BLEED_PX
   else:
-    trim_right = 38
+    trim_right = _BOOK_PAGE_BLEED_PX
 
   trimmed_image = editor.trim_edges(
     image=scaled_image,
@@ -882,7 +914,7 @@ def _convert_for_print_kdp(
     raise ValueError('page_number must be positive')
   if total_pages <= 0:
     raise ValueError('total_pages must be positive')
-  _add_page_number_to_image(
+  _ = _add_page_number_to_image(
     trimmed_image,
     page_number=page_number,
     total_pages=total_pages,
@@ -922,7 +954,8 @@ def _load_page_number_font_bytes(url: str) -> bytes | None:
 
 
 @lru_cache(maxsize=16)
-def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
+def _get_page_number_font(
+    font_size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
   """Return a cached Nunito font instance for the requested size."""
   safe_size = max(1, font_size)
   for url in _PAGE_NUMBER_FONT_URLS:
@@ -1051,8 +1084,14 @@ def _compute_joke_grid_divider_color(
         x = x_origin + x_offset
         if x >= width:
           continue
-        samples.append(canvas_rgb.getpixel((x, y_top)))
-        samples.append(canvas_rgb.getpixel((x, y_bottom)))
+        top_pixel = canvas_rgb.getpixel((x, y_top))
+        bottom_pixel = canvas_rgb.getpixel((x, y_bottom))
+        if (isinstance(top_pixel, tuple) and len(top_pixel) >= 3
+            and isinstance(bottom_pixel, tuple) and len(bottom_pixel) >= 3):
+          samples.append(
+            (int(top_pixel[0]), int(top_pixel[1]), int(top_pixel[2])))
+          samples.append(
+            (int(bottom_pixel[0]), int(bottom_pixel[1]), int(bottom_pixel[2])))
 
   if not samples:
     return None
@@ -1182,7 +1221,7 @@ def create_single_joke_images_4by5(
   if not jokes:
     raise ValueError("jokes must be a non-empty list")
 
-  result_images = []
+  result_images: list[Image.Image] = []
 
   last_index = len(jokes) - 1
   for index, joke in enumerate(jokes):
@@ -1261,7 +1300,7 @@ def create_joke_grid_image_square(
   )
 
 
-def _create_joke_grid_image(
+def _create_joke_grid_image(  # pylint: disable=too-many-branches,too-many-statements
   *,
   joke_ids: list[str] | None = None,
   jokes: list[models.PunnyJoke] | None = None,
@@ -1316,15 +1355,19 @@ def _create_joke_grid_image(
   for row_index, joke in enumerate(ordered_jokes):
     y_offset = row_index * _PINTEREST_PANEL_SIZE_PX
 
+    setup_url = joke.setup_image_url
+    punchline_url = joke.punchline_image_url
+    if not isinstance(setup_url, str) or not isinstance(punchline_url, str):
+      raise ValueError(f"Joke {joke.key} is missing setup or punchline image")
+
     # Download and process setup image
-    setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
+    setup_img = cloud_storage.download_image_from_gcs(setup_url)
     setup_img = setup_img.resize(
       (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
       Image.Resampling.LANCZOS)
 
     # Download and process punchline image
-    punchline_img = cloud_storage.download_image_from_gcs(
-      joke.punchline_image_url)
+    punchline_img = cloud_storage.download_image_from_gcs(punchline_url)
     punchline_img = punchline_img.resize(
       (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
       Image.Resampling.LANCZOS)
@@ -1347,30 +1390,17 @@ def _create_joke_grid_image(
 
   # Overlay blocker image on bottom right punchline if requested
   if block_last_panel and num_jokes > 0:
-    blocker_url = _PANEL_BLOCKER_OVERLAY_URL_POST_IT
     blocker_img = cloud_storage.download_image_from_gcs(
       _PANEL_BLOCKER_OVERLAY_URL_POST_IT)
     # Ensure blocker image is RGBA for alpha transparency
     if blocker_img.mode != 'RGBA':
       blocker_img = blocker_img.convert('RGBA')
 
-    if blocker_url == _PANEL_BLOCKER_OVERLAY_URL_PUPPY:
-      blocker_img = blocker_img.resize((600, 600), Image.Resampling.LANCZOS)
-      # Position the 600x600 overlay so bottom and right edges align with the previous position
-      # Bottom right panel is at x=500, y_offset = (num_jokes - 1) * 500
-      last_row_y = (num_jokes - 1) * _PINTEREST_PANEL_SIZE_PX
-      # Previous bottom-right corner was at (1025, last_row_y + 525)
-      # To keep same bottom-right: position at (1025 - 600, (last_row_y + 525) - 600)
-      overlay_x = 425  # 1025 - 600
-      overlay_y = last_row_y - 75  # (last_row_y + 525) - 600
-    elif blocker_url == _PANEL_BLOCKER_OVERLAY_URL_POST_IT:
-      blocker_img = blocker_img.resize(
-        (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
-        Image.Resampling.LANCZOS)
-      overlay_x = _PINTEREST_PANEL_SIZE_PX  # 1025 - 600
-      overlay_y = (num_jokes - 1) * _PINTEREST_PANEL_SIZE_PX
-    else:
-      raise ValueError(f"Invalid blocker overlay URL: {blocker_url}")
+    blocker_img = blocker_img.resize(
+      (_PINTEREST_PANEL_SIZE_PX, _PINTEREST_PANEL_SIZE_PX),
+      Image.Resampling.LANCZOS)
+    overlay_x = _PINTEREST_PANEL_SIZE_PX
+    overlay_y = (num_jokes - 1) * _PINTEREST_PANEL_SIZE_PX
     # Convert canvas to RGBA for alpha compositing
     canvas = canvas.convert('RGBA')
     # Create full-size transparent overlay for proper alpha compositing

@@ -9,13 +9,13 @@ from dataclasses import dataclass
 from typing import Any, TypedDict
 
 import numpy as np
-from common import models
+from common import image_operations, models
 from common.character_animator import CharacterAnimator
 from common.posable_character import PosableCharacter, PoseState
 from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.VideoClip import VideoClip
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 from services import cloud_storage
 from services.video.script import (FitMode, SceneCanvas, SceneRect,
                                    SceneScript, TimedCharacterSequence,
@@ -26,6 +26,11 @@ _TERMINAL_SAMPLE_EPSILON_SEC = 1e-6
 _AUDIO_DURATION_COMPARISON_TOLERANCE_SEC = 0.001
 _AudioScheduleEntry = tuple[str, float, float, float]
 _DownloadedAudioEntry = tuple[str, float, float, float, str]
+_SubtitleScheduleEntry = tuple[float, float, str]
+_SUBTITLE_FONT_SIZE_PX = 36
+_SUBTITLE_TEXT_FILL = (33, 33, 33, 255)
+_SUBTITLE_STROKE_FILL = (255, 255, 255, 255)
+_SUBTITLE_STROKE_WIDTH_PX = 3
 
 
 class _ActorEntry(TypedDict):
@@ -86,6 +91,7 @@ def generate_scene_video(
       prepared_images = _prepare_images(script)
       actor_renders = _prepare_actor_renders(script)
       audio_schedule = _extract_audio_schedule(script)
+      subtitle_schedule = _extract_subtitle_schedule(script)
       audio_paths = _download_audio_to_temp(audio_schedule, temp_dir=temp_dir)
 
       def make_frame(time_sec: float) -> np.ndarray[Any, Any]:
@@ -94,6 +100,8 @@ def generate_scene_video(
           canvas=script.canvas,
           prepared_images=prepared_images,
           actor_renders=actor_renders,
+          subtitle_schedule=subtitle_schedule,
+          subtitle_rect=script.subtitle_rect,
         )
 
       video_clip = VideoClip(make_frame, duration=script.duration_sec)
@@ -349,6 +357,8 @@ def _render_scene_frame(
   canvas: SceneCanvas,
   prepared_images: list[_PreparedImage],
   actor_renders: list[_ActorRender],
+  subtitle_schedule: list[_SubtitleScheduleEntry],
+  subtitle_rect: SceneRect | None,
 ) -> np.ndarray[Any, Any]:
   base = Image.new("RGBA", (canvas.width_px, canvas.height_px),
                    tuple(canvas.background_rgba))
@@ -401,6 +411,12 @@ def _render_scene_frame(
     )
     base.paste(fitted, (x, y), fitted)
 
+  _render_subtitle_overlay(
+    base=base,
+    time_sec=time_sec,
+    subtitle_schedule=subtitle_schedule,
+    subtitle_rect=subtitle_rect,
+  )
   return np.asarray(base.convert("RGB"))
 
 
@@ -466,6 +482,67 @@ def _extract_audio_schedule(
   schedule = [entry for entry in schedule if entry[2] > entry[1]]
   schedule.sort(key=lambda entry: entry[1])
   return schedule
+
+
+def _extract_subtitle_schedule(
+    script: SceneScript) -> list[_SubtitleScheduleEntry]:
+  schedule: list[_SubtitleScheduleEntry] = []
+  for item in script.items:
+    if not isinstance(item, TimedCharacterSequence):
+      continue
+    for event in item.sequence.sequence_subtitle_events:
+      text = str(event.text or "").strip()
+      if not text:
+        continue
+      start_time = item.start_time_sec + event.start_time
+      end_time = item.start_time_sec + event.end_time
+      if end_time <= start_time:
+        continue
+      schedule.append((start_time, end_time, text))
+  schedule.sort(key=lambda entry: entry[0])
+  return schedule
+
+
+def _render_subtitle_overlay(
+  *,
+  base: Image.Image,
+  time_sec: float,
+  subtitle_schedule: list[_SubtitleScheduleEntry],
+  subtitle_rect: SceneRect | None,
+) -> None:
+  if subtitle_rect is None:
+    return
+
+  active_text: str | None = None
+  for start_time, end_time, text in subtitle_schedule:
+    if start_time <= time_sec < end_time:
+      active_text = text
+      break
+  if not active_text:
+    return
+
+  draw = ImageDraw.Draw(base)
+  font = image_operations._get_page_number_font(_SUBTITLE_FONT_SIZE_PX)  # pylint: disable=protected-access
+  text_bbox = draw.textbbox(
+    (0, 0),
+    active_text,
+    font=font,
+    stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
+  )
+  text_width = text_bbox[2] - text_bbox[0]
+  text_height = text_bbox[3] - text_bbox[1]
+  text_x = subtitle_rect.x_px + int((subtitle_rect.width_px - text_width) / 2)
+  text_y = subtitle_rect.y_px + int(
+    (subtitle_rect.height_px - text_height) / 2)
+
+  draw.text(
+    (text_x, text_y),
+    active_text,
+    fill=_SUBTITLE_TEXT_FILL,
+    font=font,
+    stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
+    stroke_fill=_SUBTITLE_STROKE_FILL,
+  )
 
 
 def _download_audio_to_temp(

@@ -15,51 +15,59 @@ from services.video.script import (SceneCanvas, SceneRect, SceneScript,
                                    TimedCharacterSequence, TimedImage)
 from services.video.script_utils import PortraitJokeTimeline
 
-_PORTRAIT_VIDEO_WIDTH_PX = 1080
-_PORTRAIT_VIDEO_HEIGHT_PX = 1920
-_PORTRAIT_IMAGE_LAYER_Z_INDEX = 20
-_PORTRAIT_CHARACTER_LAYER_Z_INDEX = 30
-_PORTRAIT_BACKGROUND_Z_INDEX = 0
-_PORTRAIT_BANNER_LOGO_Z_INDEX = 40
-_PORTRAIT_FOOTER_BACKGROUND_GCS_URI = (
+_VIDEO_CANVAS_WIDTH_PX = 1080
+_VIDEO_CANVAS_HEIGHT_PX = 1920
+
+_BANNER_HEIGHT_PX = 240
+_BANNER_HORIZONTAL_MARGIN_PX = 80
+_JOKE_IMAGE_HEIGHT_PX = 1080
+_BOTTOM_MARGIN_PX = 250
+_CHARACTER_SIDE_MARGIN_PX = 80
+_SUBTITLE_HEIGHT_PX = 100
+
+_JOKE_IMAGE_BOTTOM_PX = _VIDEO_CANVAS_HEIGHT_PX - _BOTTOM_MARGIN_PX
+_JOKE_IMAGE_TOP_PX = (_JOKE_IMAGE_BOTTOM_PX - _JOKE_IMAGE_HEIGHT_PX +
+                      _SUBTITLE_HEIGHT_PX)
+
+_BACKGROUND_Z_INDEX = 0
+_BANNER_LOGO_Z_INDEX = 10
+_JOKE_IMAGE_LAYER_Z_INDEX = 20
+_CHARACTER_LAYER_Z_INDEX = 30
+
+_BACKGROUND_GCS_URI = (
   "gs://images.quillsstorybook.com/_joke_assets/blank_paper.png")
-
-_PORTRAIT_BANNER_HEIGHT_PX = 240
-_PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX = 80
-_PORTRAIT_IMAGE_HEIGHT_PX = 1080
-_PORTRAIT_IMAGE_BOTTOM_MARGIN_PX = 250
-_PORTRAIT_CHARACTER_SIDE_MARGIN_PX = 80
-
-_PORTRAIT_IMAGE_BOTTOM_PX = (_PORTRAIT_VIDEO_HEIGHT_PX -
-                             _PORTRAIT_IMAGE_BOTTOM_MARGIN_PX)
-_PORTRAIT_IMAGE_TOP_PX = _PORTRAIT_IMAGE_BOTTOM_PX - _PORTRAIT_IMAGE_HEIGHT_PX
 _PORTRAIT_BANNER_GCS_URI = (
   "gs://images.quillsstorybook.com/_joke_assets/logos/icon_words_transparent_light.png"
 )
 _CANVAS_RECT = SceneRect(
   x_px=0,
   y_px=0,
-  width_px=_PORTRAIT_VIDEO_WIDTH_PX,
-  height_px=_PORTRAIT_VIDEO_HEIGHT_PX,
+  width_px=_VIDEO_CANVAS_WIDTH_PX,
+  height_px=_VIDEO_CANVAS_HEIGHT_PX,
 )
 _PORTRAIT_BANNER_LOGO_RECT = SceneRect(
-  x_px=_PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX,
+  x_px=_BANNER_HORIZONTAL_MARGIN_PX,
   y_px=0,
-  width_px=_PORTRAIT_VIDEO_WIDTH_PX -
-  (_PORTRAIT_BANNER_HORIZONTAL_MARGIN_PX * 2),
-  height_px=_PORTRAIT_BANNER_HEIGHT_PX,
+  width_px=_VIDEO_CANVAS_WIDTH_PX - (_BANNER_HORIZONTAL_MARGIN_PX * 2),
+  height_px=_BANNER_HEIGHT_PX,
 )
 _PORTRAIT_TOP_RECT = SceneRect(
   x_px=0,
-  y_px=_PORTRAIT_IMAGE_TOP_PX,
-  width_px=_PORTRAIT_VIDEO_WIDTH_PX,
-  height_px=_PORTRAIT_IMAGE_HEIGHT_PX,
+  y_px=_JOKE_IMAGE_TOP_PX,
+  width_px=_VIDEO_CANVAS_WIDTH_PX,
+  height_px=_JOKE_IMAGE_HEIGHT_PX,
 )
 _PORTRAIT_CHARACTER_RECT = SceneRect(
   x_px=0,
-  y_px=_PORTRAIT_IMAGE_TOP_PX,
-  width_px=_PORTRAIT_VIDEO_WIDTH_PX,
-  height_px=_PORTRAIT_IMAGE_HEIGHT_PX,
+  y_px=_JOKE_IMAGE_TOP_PX,
+  width_px=_VIDEO_CANVAS_WIDTH_PX,
+  height_px=_JOKE_IMAGE_HEIGHT_PX,
+)
+_SUBTITLE_RECT = SceneRect(
+  x_px=0,
+  y_px=_JOKE_IMAGE_TOP_PX - _SUBTITLE_HEIGHT_PX,
+  width_px=_VIDEO_CANVAS_WIDTH_PX,
+  height_px=_SUBTITLE_HEIGHT_PX,
 )
 _CHARACTER_MASK_FROM_BOTTOM_PX = 50
 
@@ -133,9 +141,9 @@ def build_script(
     teller_laugh_sequence=teller_laugh_sequence,
     listener_laugh_sequence=listener_laugh_sequence,
     timeline=timeline,
-    z_index=_PORTRAIT_CHARACTER_LAYER_Z_INDEX,
+    z_index=_CHARACTER_LAYER_Z_INDEX,
     actor_band_rect=_PORTRAIT_CHARACTER_RECT,
-    actor_side_margin_px=_PORTRAIT_CHARACTER_SIDE_MARGIN_PX,
+    actor_side_margin_px=_CHARACTER_SIDE_MARGIN_PX,
     extend_first_sequence=True,
     surface_line_visible=False,
   )
@@ -143,11 +151,12 @@ def build_script(
 
   script = SceneScript(
     canvas=SceneCanvas(
-      width_px=_PORTRAIT_VIDEO_WIDTH_PX,
-      height_px=_PORTRAIT_VIDEO_HEIGHT_PX,
+      width_px=_VIDEO_CANVAS_WIDTH_PX,
+      height_px=_VIDEO_CANVAS_HEIGHT_PX,
     ),
     items=[*timed_images, *character_items],
     duration_sec=timeline.total_duration_sec,
+    subtitle_rect=_SUBTITLE_RECT,
   )
   script.validate()
   return script
@@ -164,7 +173,7 @@ def _align_character_mask_tops_to_image_top(
     rect = item.rect
     actor_rects[item.actor_id] = SceneRect(
       x_px=rect.x_px,
-      y_px=_PORTRAIT_IMAGE_TOP_PX - rect.height_px +
+      y_px=_JOKE_IMAGE_TOP_PX - rect.height_px +
       _CHARACTER_MASK_FROM_BOTTOM_PX,
       width_px=rect.width_px,
       height_px=rect.height_px,
@@ -183,16 +192,16 @@ def _build_background_image_items(
   """Build static portrait background layers (banner bg, logo, footer bg)."""
   return [
     script_utils.build_static_image_item(
-      gcs_uri=_PORTRAIT_FOOTER_BACKGROUND_GCS_URI,
+      gcs_uri=_BACKGROUND_GCS_URI,
       duration_sec=timeline.total_duration_sec,
-      z_index=_PORTRAIT_BACKGROUND_Z_INDEX,
+      z_index=_BACKGROUND_Z_INDEX,
       rect=_CANVAS_RECT,
       fit_mode="fill",
     ),
     script_utils.build_static_image_item(
       gcs_uri=_PORTRAIT_BANNER_GCS_URI,
       duration_sec=timeline.total_duration_sec,
-      z_index=_PORTRAIT_BANNER_LOGO_Z_INDEX,
+      z_index=_BANNER_LOGO_Z_INDEX,
       rect=_PORTRAIT_BANNER_LOGO_RECT,
       fit_mode="contain",
     ),
@@ -211,7 +220,7 @@ def _build_joke_image_items(
       gcs_uri=setup_image_gcs_uri,
       start_time_sec=0.0,
       end_time_sec=timeline.punchline_start_sec,
-      z_index=_PORTRAIT_IMAGE_LAYER_Z_INDEX,
+      z_index=_JOKE_IMAGE_LAYER_Z_INDEX,
       rect=_PORTRAIT_TOP_RECT,
       fit_mode="fill",
     ),
@@ -219,7 +228,7 @@ def _build_joke_image_items(
       gcs_uri=punchline_image_gcs_uri,
       start_time_sec=timeline.punchline_start_sec,
       end_time_sec=timeline.total_duration_sec,
-      z_index=_PORTRAIT_IMAGE_LAYER_Z_INDEX,
+      z_index=_JOKE_IMAGE_LAYER_Z_INDEX,
       rect=_PORTRAIT_TOP_RECT,
       fit_mode="fill",
     ),

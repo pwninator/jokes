@@ -20,6 +20,7 @@ export class CharacterEditor {
       { name: 'sequence_head_masking_enabled', label: 'Head Masking', type: 'BOOLEAN' },
       { name: 'sequence_left_hand_masking_enabled', label: 'L Hand Masking', type: 'BOOLEAN' },
       { name: 'sequence_right_hand_masking_enabled', label: 'R Hand Masking', type: 'BOOLEAN' },
+      { name: 'sequence_subtitle_events', label: 'Subtitles', type: 'SUBTITLE' },
       { name: 'sequence_sound_events', label: 'Sound', type: 'SOUND' },
     ];
 
@@ -201,6 +202,7 @@ export class CharacterEditor {
         else if (track.type === 'BOOLEAN') block.textContent = event.value ? 'ON' : 'OFF';
         else if (track.type === 'FLOAT') block.textContent = `${event.target_value ?? 0}`;
         else if (track.type === 'MOUTH') block.textContent = event.mouth_state;
+        else if (track.type === 'SUBTITLE') block.textContent = event.text || '';
         else if (track.type === 'SOUND') block.textContent = '♫';
 
         block.onclick = (e) => {
@@ -245,6 +247,8 @@ export class CharacterEditor {
         this._addInput(content, 'target_value', 'Target Value', event.target_value ?? 0, 'number', 0.1);
     } else if (track.type === 'MOUTH') {
         this._addSelect(content, 'mouth_state', 'Mouth State', ['OPEN', 'CLOSED', 'O'], event.mouth_state || 'CLOSED');
+    } else if (track.type === 'SUBTITLE') {
+        this._addInput(content, 'text', 'Text', event.text || '', 'text');
     } else if (track.type === 'SOUND') {
         this._addInput(content, 'gcs_uri', 'GCS URI', event.gcs_uri || '', 'text');
         this._addInput(content, 'volume', 'Volume', event.volume !== undefined ? event.volume : 1.0, 'number', 0.1);
@@ -364,6 +368,8 @@ export class CharacterEditor {
         newEvent.target_value = data.target_value;
     } else if (track.type === 'MOUTH') {
         newEvent.mouth_state = data.mouth_state;
+    } else if (track.type === 'SUBTITLE') {
+        newEvent.text = data.text;
     } else if (track.type === 'SOUND') {
         newEvent.gcs_uri = data.gcs_uri;
         newEvent.volume = data.volume;

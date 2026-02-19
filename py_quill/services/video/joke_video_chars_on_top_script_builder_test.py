@@ -87,8 +87,13 @@ def test_chars_on_top_layout_lowers_image_and_uses_footer_margin():
   image_items = [item for item in script.items if isinstance(item, TimedImage)]
   setup_image_item = next(item for item in image_items
                           if item.gcs_uri == "gs://bucket/setup.png")
-  assert setup_image_item.rect.y_px == 590
+  assert setup_image_item.rect.y_px == 690
   assert setup_image_item.rect.height_px == 1080
+  assert script.subtitle_rect is not None
+  assert script.subtitle_rect.x_px == 0
+  assert script.subtitle_rect.y_px == 590
+  assert script.subtitle_rect.width_px == 1080
+  assert script.subtitle_rect.height_px == 100
 
   background_item = next(item for item in image_items
                          if item.gcs_uri.endswith("blank_paper.png"))

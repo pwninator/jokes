@@ -5,6 +5,7 @@ from __future__ import annotations
 import array
 import datetime
 import random
+import re
 import sys
 from dataclasses import dataclass
 from io import BytesIO
@@ -13,11 +14,9 @@ from typing import Literal
 from common import (audio_operations, audio_timing, image_generation, models,
                     utils)
 from common.posable_character import MouthState, PosableCharacter, Transform
-from common.posable_character_sequence import (PosableCharacterSequence,
-                                               SequenceBooleanEvent,
-                                               SequenceMouthEvent,
-                                               SequenceSoundEvent,
-                                               SequenceTransformEvent)
+from common.posable_character_sequence import (
+  PosableCharacterSequence, SequenceBooleanEvent, SequenceMouthEvent,
+  SequenceSoundEvent, SequenceSubtitleEvent, SequenceTransformEvent)
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
@@ -49,7 +48,7 @@ DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = audio_voices.Voice.GEMINI_PUCK
 DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE: list[audio_client.DialogTurn] = [
   audio_client.DialogTurn(
     voice=DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE,
-    script="[playfully] Hey! want to hear a joke?",
+    script="[playfully] Hey!",
     pause_sec_after=1.0,
   ),
   audio_client.DialogTurn(
@@ -59,7 +58,7 @@ DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE: list[audio_client.DialogTurn] = [
   ),
   audio_client.DialogTurn(
     voice=DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE,
-    script="[curiously] what?",
+    script="[curiously] I don't know. What?",
     pause_sec_after=1.0,
   ),
   audio_client.DialogTurn(
@@ -283,7 +282,7 @@ def initialize_joke(
     if isinstance(tags, str):
       joke.tags = [t.strip() for t in tags.split(',') if t.strip()]
     else:
-      joke.tags = [str(t).strip() for t in tags if str(t).strip()]
+      joke.tags = [t.strip() for t in tags if t.strip()]
   if setup_scene_idea is not None:
     joke.setup_scene_idea = setup_scene_idea
   if punchline_scene_idea is not None:
@@ -753,7 +752,7 @@ def generate_joke_audio(
   if not joke.setup_text or not joke.punchline_text:
     raise ValueError("Joke must have setup_text and punchline_text")
 
-  joke_id_for_filename = (joke.key or str(joke.random_id or "joke")).strip()
+  joke_id_for_filename = (joke.key or str(joke.random_id) or "joke").strip()
   turns_template = script_template or DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
   dialog_turns = _render_dialog_turns_from_template(joke, turns_template)
   resolved_audio_model = audio_model or _select_audio_model_for_turns(
@@ -779,7 +778,7 @@ def generate_joke_audio(
     label="generate_joke_audio",
     extra_log_data={
       "joke_id": joke.key,
-      "turn_voices": [str(turn.voice.name) for turn in dialog_turns],
+      "turn_voices": [turn.voice.name for turn in dialog_turns],
     },
   )
   dialog_gcs_uri = audio_result.gcs_uri
@@ -916,8 +915,8 @@ def _split_joke_dialog_wav_by_timing(
     if word_end < word_start:
       word_start, word_end = word_end, word_start
     segment_bounds.append((
-      float(seg.start_time_seconds),
-      float(seg.end_time_seconds),
+      seg.start_time_seconds,
+      seg.end_time_seconds,
       word_start,
       word_end,
     ))
@@ -998,19 +997,18 @@ def _validate_split_clip_timing(
 
   for clip_index, words in enumerate(clip_timing):
     spoken_words = [
-      word for word in words if any(ch.isalnum() for ch in str(word.word))
+      word for word in words if any(ch.isalnum() for ch in word.word)
     ]
     if not spoken_words:
       continue
     words_sample = [
-      f"{word.word!r}@{float(word.start_time):.3f}-{float(word.end_time):.3f}"
+      f"{word.word!r}@{word.start_time:.3f}-{word.end_time:.3f}"
       for word in spoken_words[:8]
     ]
 
     has_positive_word = any(
-      (float(word.end_time) - float(word.start_time)) > _MIN_POSITIVE_WORD_DURATION_SEC
-      for word in spoken_words
-    )
+      (word.end_time - word.start_time) > _MIN_POSITIVE_WORD_DURATION_SEC
+      for word in spoken_words)
     if not has_positive_word:
       raise ValueError(
         f"Split clip {clip_index} has no positive-duration spoken word timing. "
@@ -1229,21 +1227,26 @@ def _resolve_clip_transcripts(
   """Resolve exact transcript text for intro/setup/response/punchline segments."""
   if len(dialog_turns) >= 4:
     return JokeAudioTranscripts(
-      intro=str(dialog_turns[0].script),
-      setup=str(dialog_turns[1].script),
-      response=str(dialog_turns[2].script),
-      punchline=str(dialog_turns[3].script),
+      intro=dialog_turns[0].script,
+      setup=dialog_turns[1].script,
+      response=dialog_turns[2].script,
+      punchline=dialog_turns[3].script,
     )
   return JokeAudioTranscripts(
     intro=_JOKE_AUDIO_INTRO_LINE,
-    setup=str(joke.setup_text or ""),
+    setup=joke.setup_text or "",
     response="what?",
-    punchline=str(joke.punchline_text or ""),
+    punchline=joke.punchline_text or "",
   )
 
 
 def _normalize_transcript_for_matching(value: str | None) -> str:
-  return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
+  return "".join(ch for ch in (value or "").lower() if ch.isalnum())
+
+
+def _strip_stage_directions(value: str) -> str:
+  """Remove bracketed stage-direction text from transcript."""
+  return re.sub(r"\[.*?\]\s*", "", value).strip()
 
 
 def _sequence_primary_audio_gcs_uri(
@@ -1252,7 +1255,7 @@ def _sequence_primary_audio_gcs_uri(
     return None
   if not sequence.sequence_sound_events:
     return None
-  return str(sequence.sequence_sound_events[0].gcs_uri)
+  return sequence.sequence_sound_events[0].gcs_uri
 
 
 def _build_lipsync_sequence(
@@ -1265,28 +1268,36 @@ def _build_lipsync_sequence(
   if not audio_gcs_uri:
     raise ValueError("audio_gcs_uri is required")
   sound_end = _resolve_sound_event_end_time_sec(
-    audio_gcs_uri=str(audio_gcs_uri),
+    audio_gcs_uri=audio_gcs_uri,
     timing=timing,
   )
   sound_events = [
     SequenceSoundEvent(
       start_time=0.0,
-      end_time=float(sound_end),
-      gcs_uri=str(audio_gcs_uri),
+      end_time=sound_end,
+      gcs_uri=audio_gcs_uri,
       volume=1.0,
     )
   ]
+  subtitle_text = _strip_stage_directions(transcript)
+  subtitle_events = [
+    SequenceSubtitleEvent(
+      start_time=0.0,
+      end_time=sound_end,
+      text=subtitle_text,
+    )
+  ] if subtitle_text else []
   mouth_events: list[SequenceMouthEvent] = []
   if timing:
     detected_events = mouth_event_detection.detect_mouth_events(
       b"",
       mode="timing",
-      transcript=str(transcript),
+      transcript=transcript,
       timing=timing,
     )
     for event in detected_events:
-      start_time = max(0.0, float(event.start_time))
-      end_time = min(float(sound_end), float(event.end_time))
+      start_time = max(0.0, event.start_time)
+      end_time = min(sound_end, event.end_time)
       if end_time <= start_time:
         continue
       mouth_events.append(
@@ -1299,6 +1310,7 @@ def _build_lipsync_sequence(
     transcript=transcript,
     sequence_mouth_state=mouth_events,
     sequence_sound_events=sound_events,
+    sequence_subtitle_events=subtitle_events,
   )
   sequence.validate()
   return sequence
@@ -1309,7 +1321,7 @@ def build_laugh_sequence(
   laugh_translate_y: int = 10,
 ) -> PosableCharacterSequence:
   """Build a laughter animation sequence from audio waveform peaks."""
-  resolved_audio_uri = str(audio_gcs_uri or "").strip()
+  resolved_audio_uri = audio_gcs_uri.strip()
   if not resolved_audio_uri:
     raise ValueError("audio_gcs_uri is required")
 
@@ -1322,7 +1334,7 @@ def build_laugh_sequence(
 
   envelope, frame_hop_sec, duration_sec = _decode_wav_to_peak_envelope(
     audio_bytes)
-  duration_sec = max(0.01, float(duration_sec))
+  duration_sec = max(0.01, duration_sec)
   active_start_idx, active_end_idx, _ = _find_active_window(envelope)
   peak_times = _detect_laugh_peak_times(
     envelope=envelope,
@@ -1337,21 +1349,21 @@ def build_laugh_sequence(
     sequence_left_eye_open=[
       SequenceBooleanEvent(
         start_time=0.0,
-        end_time=float(duration_sec),
+        end_time=duration_sec,
         value=False,
       )
     ],
     sequence_right_eye_open=[
       SequenceBooleanEvent(
         start_time=0.0,
-        end_time=float(duration_sec),
+        end_time=duration_sec,
         value=False,
       )
     ],
     sequence_mouth_state=[
       SequenceMouthEvent(
         start_time=0.0,
-        end_time=float(duration_sec),
+        end_time=duration_sec,
         mouth_state=MouthState.OPEN,
       )
     ],
@@ -1361,12 +1373,12 @@ def build_laugh_sequence(
       active_end_idx=active_end_idx,
       frame_hop_sec=frame_hop_sec,
       duration_sec=duration_sec,
-      laugh_translate_y=float(laugh_translate_y),
+      laugh_translate_y=laugh_translate_y,
     ),
     sequence_sound_events=[
       SequenceSoundEvent(
         start_time=0.0,
-        end_time=float(duration_sec),
+        end_time=duration_sec,
         gcs_uri=resolved_audio_uri,
         volume=1.0,
       )
@@ -1395,27 +1407,27 @@ def _build_laugh_head_transform_events(
     frame_hop_sec,
     duration_sec,
   ))
-  active_end_time = (float(duration_sec)
+  active_end_time = (duration_sec
                      if active_end_idx < active_start_idx else _to_time(
                        active_end_idx,
                        frame_hop_sec,
                        duration_sec,
                      ))
 
-  first_peak = max(0.0, float(peak_times[0]))
-  first_start = min(first_peak, max(0.0, float(active_start_time)))
+  first_peak = max(0.0, peak_times[0])
+  first_start = min(first_peak, max(0.0, active_start_time))
   if first_start >= first_peak:
     first_start = max(0.0, first_peak - max(frame_hop_sec, 0.01))
   _append_head_transform_event(
     events,
     start_time=first_start,
     end_time=first_peak,
-    target_translate_y=float(laugh_translate_y),
+    target_translate_y=laugh_translate_y,
   )
 
   for idx in range(len(peak_times) - 1):
-    current_peak = float(peak_times[idx])
-    next_peak = float(peak_times[idx + 1])
+    current_peak = peak_times[idx]
+    next_peak = peak_times[idx + 1]
     midpoint = (current_peak + next_peak) / 2.0
     _append_head_transform_event(
       events,
@@ -1427,12 +1439,12 @@ def _build_laugh_head_transform_events(
       events,
       start_time=midpoint,
       end_time=next_peak,
-      target_translate_y=float(laugh_translate_y),
+      target_translate_y=laugh_translate_y,
     )
 
-  last_peak = float(peak_times[-1])
+  last_peak = peak_times[-1]
   active_end_time = max(active_end_time, last_peak + frame_hop_sec)
-  tail_midpoint = min(float(duration_sec), (last_peak + active_end_time) / 2.0)
+  tail_midpoint = min(duration_sec, (last_peak + active_end_time) / 2.0)
   _append_head_transform_event(
     events,
     start_time=last_peak,
@@ -1449,15 +1461,15 @@ def _append_head_transform_event(
   end_time: float,
   target_translate_y: float,
 ) -> None:
-  start_time = max(0.0, float(start_time))
-  end_time = max(0.0, float(end_time))
+  start_time = max(0.0, start_time)
+  end_time = max(0.0, end_time)
   if end_time <= start_time:
     return
   events.append(
     SequenceTransformEvent(
       start_time=start_time,
       end_time=end_time,
-      target_transform=Transform(translate_y=float(target_translate_y), ),
+      target_transform=Transform(translate_y=target_translate_y, ),
     ))
 
 
@@ -1490,7 +1502,7 @@ def _decode_wav_to_peak_envelope(
     raise ValueError("WAV audio has no samples")
 
   frame_hop_samples = max(1, int(round(framerate * _LAUGH_ENVELOPE_HOP_SEC)))
-  frame_hop_sec = float(frame_hop_samples) / float(framerate)
+  frame_hop_sec = frame_hop_samples / framerate
   samples_per_frame = max(1, frame_hop_samples * max(1, nchannels))
   total_samples = len(samples)
 
@@ -1502,8 +1514,8 @@ def _decode_wav_to_peak_envelope(
     for sample_index in range(frame_start, frame_end):
       value = abs(int(samples[sample_index]))
       if value > peak:
-        peak = float(value)
-    envelope.append(float(peak))
+        peak = value
+    envelope.append(peak)
     frame_start = frame_end
 
   if not envelope:
@@ -1513,8 +1525,8 @@ def _decode_wav_to_peak_envelope(
     envelope,
     window_frames=_LAUGH_SMOOTH_WINDOW_FRAMES,
   )
-  duration_sec = float(nframes) / float(framerate)
-  return smoothed_envelope, float(frame_hop_sec), float(duration_sec)
+  duration_sec = nframes / framerate
+  return smoothed_envelope, frame_hop_sec, duration_sec
 
 
 def _find_active_window(envelope: list[float]) -> tuple[int, int, float]:
@@ -1524,19 +1536,18 @@ def _find_active_window(envelope: list[float]) -> tuple[int, int, float]:
 
   noise_floor = _percentile(envelope, _LAUGH_ACTIVE_NOISE_PERCENTILE)
   peak_level = _percentile(envelope, _LAUGH_ACTIVE_PEAK_PERCENTILE)
-  dynamic_range = max(1.0, float(peak_level) - float(noise_floor))
+  dynamic_range = max(1.0, peak_level - noise_floor)
   threshold = max(
-    float(noise_floor) + (dynamic_range * _LAUGH_ACTIVE_THRESHOLD_FRACTION),
-    float(noise_floor) + _LAUGH_ACTIVE_MIN_DELTA,
+    noise_floor + (dynamic_range * _LAUGH_ACTIVE_THRESHOLD_FRACTION),
+    noise_floor + _LAUGH_ACTIVE_MIN_DELTA,
   )
 
   active_indices = [
-    idx for idx, value in enumerate(envelope)
-    if float(value) >= float(threshold)
+    idx for idx, value in enumerate(envelope) if value >= threshold
   ]
   if not active_indices:
-    return 0, -1, float(threshold)
-  return min(active_indices), max(active_indices), float(threshold)
+    return 0, -1, threshold
+  return min(active_indices), max(active_indices), threshold
 
 
 def _detect_laugh_peak_times(
@@ -1557,7 +1568,7 @@ def _detect_laugh_peak_times(
 
   noise_floor = _percentile(active_values, _LAUGH_ACTIVE_NOISE_PERCENTILE)
   peak_level = _percentile(active_values, _LAUGH_ACTIVE_PEAK_PERCENTILE)
-  dynamic_range = max(1.0, float(peak_level) - float(noise_floor))
+  dynamic_range = max(1.0, peak_level - noise_floor)
   min_prominence = max(
     dynamic_range * _LAUGH_MIN_PROMINENCE_FRACTION,
     _LAUGH_MIN_PROMINENCE_ABS,
@@ -1567,20 +1578,19 @@ def _detect_laugh_peak_times(
 
   peak_candidates: list[int] = []
   for idx in range(active_start_idx, active_end_idx + 1):
-    current = float(envelope[idx])
-    previous = float(envelope[idx - 1]) if idx > 0 else current
-    following = float(envelope[idx + 1]) if idx < (len(envelope) -
-                                                   1) else current
+    current = envelope[idx]
+    previous = envelope[idx - 1] if idx > 0 else current
+    following = envelope[idx + 1] if idx < (len(envelope) - 1) else current
     is_local_peak = current >= previous and current > following
     if not is_local_peak or current <= noise_floor:
       continue
 
     left_start = max(active_start_idx, idx - valley_window_frames)
     right_end = min(active_end_idx, idx + valley_window_frames)
-    left_valley = min(float(v) for v in envelope[left_start:idx + 1])
-    right_valley = min(float(v) for v in envelope[idx:right_end + 1])
+    left_valley = min(v for v in envelope[left_start:idx + 1])
+    right_valley = min(v for v in envelope[idx:right_end + 1])
     prominence = current - max(left_valley, right_valley)
-    if prominence >= float(min_prominence):
+    if prominence >= min_prominence:
       peak_candidates.append(idx)
 
   min_spacing_frames = max(
@@ -1594,7 +1604,7 @@ def _detect_laugh_peak_times(
   if not peak_indices:
     strongest_idx = max(
       range(active_start_idx, active_end_idx + 1),
-      key=lambda idx: float(envelope[idx]),
+      key=lambda idx: envelope[idx],
     )
     peak_indices = [int(strongest_idx)]
 
@@ -1614,8 +1624,7 @@ def _coalesce_peaks_with_min_spacing(
     return []
   spacing = max(1, int(min_spacing_frames))
   unique_peaks = sorted(set(int(idx) for idx in peak_indices))
-  by_strength = sorted(unique_peaks,
-                       key=lambda idx: (-float(envelope[idx]), idx))
+  by_strength = sorted(unique_peaks, key=lambda idx: (-envelope[idx], idx))
   selected: list[int] = []
   for candidate in by_strength:
     if all(
@@ -1630,8 +1639,8 @@ def _to_time(
   duration_sec: float,
 ) -> float:
   """Convert frame index to clip time (seconds)."""
-  center_time = (float(frame_index) + 0.5) * float(frame_hop_sec)
-  return min(float(duration_sec), max(0.0, center_time))
+  center_time = (frame_index + 0.5) * frame_hop_sec
+  return min(duration_sec, max(0.0, center_time))
 
 
 def _moving_average(values: list[float], *, window_frames: int) -> list[float]:
@@ -1639,14 +1648,14 @@ def _moving_average(values: list[float], *, window_frames: int) -> list[float]:
   if not values:
     return []
   if window_frames <= 1:
-    return [float(value) for value in values]
+    return list(values)
   half_window = max(0, int(window_frames) // 2)
   smoothed: list[float] = []
   for idx in range(len(values)):
     start = max(0, idx - half_window)
     end = min(len(values), idx + half_window + 1)
     subset = values[start:end]
-    smoothed.append(sum(float(v) for v in subset) / float(len(subset)))
+    smoothed.append(sum(subset) / len(subset))
   return smoothed
 
 
@@ -1654,10 +1663,10 @@ def _percentile(values: list[float], percentile: float) -> float:
   """Compute percentile using linear interpolation between nearest ranks."""
   if not values:
     return 0.0
-  ordered = sorted(float(value) for value in values)
+  ordered = sorted(values)
   if len(ordered) == 1:
     return ordered[0]
-  p = max(0.0, min(100.0, float(percentile)))
+  p = max(0.0, min(100.0, percentile))
   position = (p / 100.0) * (len(ordered) - 1)
   lower_index = int(position)
   upper_index = min(len(ordered) - 1, lower_index + 1)
@@ -1675,7 +1684,7 @@ def _resolve_sound_event_end_time_sec(
   """Return sound event end time, preferring actual audio duration."""
   audio_duration_sec = _get_audio_duration_sec_from_gcs(audio_gcs_uri)
   if audio_duration_sec is not None:
-    return max(0.01, float(audio_duration_sec))
+    return max(0.01, audio_duration_sec)
   return max(0.01, _timing_duration_sec(timing))
 
 
@@ -1687,7 +1696,7 @@ def _get_audio_duration_sec_from_gcs(audio_gcs_uri: str) -> float | None:
     duration_sec = audio_operations.get_wav_duration_sec(audio_bytes)
     if duration_sec <= 0:
       return None
-    return float(duration_sec)
+    return duration_sec
   except Exception as exc:  # pylint: disable=broad-except
     logger.warn(f"Falling back to timing duration for {audio_gcs_uri}: "
                 f"could not read audio duration ({exc})")
@@ -1700,7 +1709,7 @@ def _timing_duration_sec(
     return 0.01
   latest_end = 0.0
   for word_timing in timing:
-    latest_end = max(latest_end, float(word_timing.end_time))
+    latest_end = max(latest_end, word_timing.end_time)
   return latest_end
 
 
@@ -1713,32 +1722,34 @@ def _validate_sequence_ready_for_video(
   if not sequence.sequence_sound_events:
     raise ValueError(f"{label} sequence is missing sound events")
   primary_sound = sequence.sequence_sound_events[0]
-  sound_duration_sec = max(0.0, float(primary_sound.end_time) - float(
-    primary_sound.start_time))
+  sound_duration_sec = max(0.0,
+                           primary_sound.end_time - primary_sound.start_time)
 
-  transcript = str(sequence.transcript or "")
-  spoken_tokens = [token for token in transcript.split()
-                   if any(ch.isalnum() for ch in token)]
+  transcript = sequence.transcript or ""
+  spoken_tokens = [
+    token for token in transcript.split() if any(ch.isalnum() for ch in token)
+  ]
   if len(spoken_tokens) < 3:
     return
   transcript_sample = " ".join(spoken_tokens[:12])
   primary_sound_data = (
-    f"{float(primary_sound.start_time):.3f}-{float(primary_sound.end_time):.3f} "
+    f"{primary_sound.start_time:.3f}-{primary_sound.end_time:.3f} "
     f"uri={primary_sound.gcs_uri}")
 
   if sound_duration_sec < _MIN_SPEECH_CLIP_DURATION_SEC:
     raise ValueError(
       f"{label} sequence sound duration is implausibly short ({sound_duration_sec:.3f}s). "
-      f"sound_event={primary_sound_data} transcript_sample={transcript_sample!r}")
+      f"sound_event={primary_sound_data} transcript_sample={transcript_sample!r}"
+    )
 
   has_positive_mouth_event = any(
-    (float(event.end_time) - float(event.start_time)) > _MIN_POSITIVE_WORD_DURATION_SEC
-    for event in sequence.sequence_mouth_state
-  )
+    (event.end_time - event.start_time) > _MIN_POSITIVE_WORD_DURATION_SEC
+    for event in sequence.sequence_mouth_state)
   if not has_positive_mouth_event:
     raise ValueError(
       f"{label} sequence has spoken transcript but no usable mouth events. "
-      f"sound_event={primary_sound_data} transcript_sample={transcript_sample!r}")
+      f"sound_event={primary_sound_data} transcript_sample={transcript_sample!r}"
+    )
 
 
 def generate_joke_video(
@@ -1843,7 +1854,7 @@ def generate_joke_video(
     response_sequence=lip_sync.response_sequence,
     punchline_sequence=punchline_sequence,
     output_filename_base=
-    f"joke_video_{(joke.key or str(joke.random_id or 'joke')).strip()}",
+    f"joke_video_{(joke.key or '{}'.format(joke.random_id or 'joke')).strip()}",
     temp_output=temp_output,
   )
   generation_metadata.add_generation(video_generation_metadata)

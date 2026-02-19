@@ -158,6 +158,8 @@ class CreateAdAssetsTest(unittest.TestCase):
       'https://cdn.example.com/ad_square_desk.png',
       'https://cdn.example.com/ad_square_corkboard.png',
     ]
+    mock_storage.upload_image_to_gcs.side_effect = (
+      lambda _image, _base, _ext, *, gcs_uri: (gcs_uri, b""))
 
     editor = RecordingImageEditor()
 
@@ -395,11 +397,11 @@ class ComposePortraitDrawingTest(unittest.TestCase):
     metadata_snapshot.to_dict.return_value = {
       'ad_creative_landscape':
       'https://cdn.example.com/existing_landscape.png',
-      'ad_creative_portrait_drawing':
+      'ad_creative_square_drawing':
       'https://cdn.example.com/existing_portrait_drawing.png',
-      'ad_creative_portrait_desk':
+      'ad_creative_square_desk':
       'https://cdn.example.com/existing_portrait_desk.png',
-      'ad_creative_portrait_corkboard':
+      'ad_creative_square_corkboard':
       'https://cdn.example.com/existing_portrait_corkboard.png',
     }
     mock_metadata_doc.get.return_value = metadata_snapshot
@@ -442,6 +444,8 @@ class ComposePortraitDrawingTest(unittest.TestCase):
       'https://cdn.example.com/new_portrait_desk.png',
       'https://cdn.example.com/new_portrait_corkboard.png',
     ]
+    mock_storage.upload_image_to_gcs.side_effect = (
+      lambda _image, _base, _ext, *, gcs_uri: (gcs_uri, b""))
 
     editor = RecordingImageEditor()
 
@@ -677,12 +681,11 @@ class CreateBookPagesTest(unittest.TestCase):
       overwrite=False,
     )
 
-    self.assertEqual(result, (
-      'https://cdn.example.com/existing_setup.jpg',
-      'https://cdn.example.com/existing_punchline.jpg',
-    ))
+    self.assertEqual(result[0].url, 'https://cdn.example.com/existing_setup.jpg')
+    self.assertEqual(result[1].url,
+                     'https://cdn.example.com/existing_punchline.jpg')
     mock_firestore.update_punny_joke.assert_not_called()
-    mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
+    self.assertEqual(mock_storage.extract_gcs_uri_from_image_url.call_count, 2)
     mock_storage.download_image_from_gcs.assert_not_called()
     mock_storage.upload_bytes_to_gcs.assert_not_called()
     mock_storage.get_public_url.assert_not_called()

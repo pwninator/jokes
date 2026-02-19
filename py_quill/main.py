@@ -69,12 +69,12 @@ create_ad_assets = joke_image_fns.create_ad_assets
 # Export the joke auto functions
 auto_joke_hourly_scheduler = joke_auto_fns.auto_joke_hourly_scheduler
 auto_joke_hourly_http = joke_auto_fns.auto_joke_hourly_http
-auto_user_daily_maintenance_scheduler = joke_auto_fns.auto_user_daily_scheduler
+auto_user_daily_scheduler = joke_auto_fns.auto_user_daily_scheduler
 auto_user_daily_http = joke_auto_fns.auto_user_daily_http
 auto_ads_stats_fetcher_scheduler = joke_auto_fns.auto_ads_stats_scheduler
 auto_ads_stats_fetcher_http = joke_auto_fns.auto_ads_stats_http
-ads_stats_fetcher_scheduler = joke_auto_fns.ads_stats_fetcher_scheduler
-ads_stats_fetcher_http = joke_auto_fns.ads_stats_fetcher_http
+auto_ads_stats_scheduler = joke_auto_fns.auto_ads_stats_scheduler
+auto_ads_stats_http = joke_auto_fns.auto_ads_stats_http
 
 # Export the joke notification functions
 send_daily_joke_http = joke_notification_fns.send_daily_joke_http

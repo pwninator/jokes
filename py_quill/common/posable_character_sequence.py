@@ -208,6 +208,35 @@ class SequenceSoundEvent(SequenceEvent):
     ]
 
 
+@dataclass(kw_only=True)
+class SequenceSubtitleEvent(SequenceEvent):
+  """Event for subtitle text."""
+  text: str
+
+  @classmethod
+  def from_dict(cls, data: dict[str, Any]) -> SequenceSubtitleEvent:
+    """Create a SequenceSubtitleEvent from a dictionary."""
+    return cls(
+      text=str(data.get("text", "")),
+      **cls._parse_common_fields(data),
+    )
+
+  @classmethod
+  def shift_events(
+    cls,
+    events: list[SequenceSubtitleEvent],
+    offset: float,
+  ) -> list[SequenceSubtitleEvent]:
+    """Return a shifted copy of subtitle events."""
+    return [
+      cls(
+        start_time=event.start_time + offset,
+        end_time=event.end_time + offset,
+        text=event.text,
+      ) for event in events
+    ]
+
+
 @dataclass
 class PosableCharacterSequence:
   """Complete animation sequence for a posable character."""
@@ -239,6 +268,8 @@ class PosableCharacterSequence:
     default_factory=list)
 
   sequence_sound_events: list[SequenceSoundEvent] = field(default_factory=list)
+  sequence_subtitle_events: list[SequenceSubtitleEvent] = field(
+    default_factory=list)
   sequence_surface_line_visible: list[SequenceBooleanEvent] = field(
     default_factory=list)
   sequence_head_masking_enabled: list[SequenceBooleanEvent] = field(
@@ -285,6 +316,8 @@ class PosableCharacterSequence:
                          "sequence_left_hand_masking_enabled")
     self._validate_track(self.sequence_right_hand_masking_enabled,
                          "sequence_right_hand_masking_enabled")
+    self._validate_track(self.sequence_subtitle_events,
+                         "sequence_subtitle_events")
     # Sound events can overlap, so we only validate individual events.
     for event in self.sequence_sound_events:
       event.validate()
@@ -319,6 +352,7 @@ class PosableCharacterSequence:
       self.sequence_surface_line_offset,
       self.sequence_mask_boundary_offset,
       self.sequence_sound_events,
+      self.sequence_subtitle_events,
       self.sequence_surface_line_visible,
       self.sequence_head_masking_enabled,
       self.sequence_left_hand_masking_enabled,
@@ -398,6 +432,9 @@ class PosableCharacterSequence:
                                       offset))
     self.sequence_sound_events.extend(
       SequenceSoundEvent.shift_events(sequence.sequence_sound_events, offset))
+    self.sequence_subtitle_events.extend(
+      SequenceSubtitleEvent.shift_events(sequence.sequence_subtitle_events,
+                                         offset))
     self.sequence_surface_line_visible.extend(
       SequenceBooleanEvent.shift_events(sequence.sequence_surface_line_visible,
                                         offset))
@@ -437,6 +474,8 @@ class PosableCharacterSequence:
       [e.to_dict() for e in self.sequence_mask_boundary_offset],
       "sequence_sound_events":
       [e.to_dict() for e in self.sequence_sound_events],
+      "sequence_subtitle_events":
+      [e.to_dict() for e in self.sequence_subtitle_events],
       "sequence_surface_line_visible":
       [e.to_dict() for e in self.sequence_surface_line_visible],
       "sequence_head_masking_enabled":
@@ -509,6 +548,10 @@ class PosableCharacterSequence:
       sequence_sound_events=[
         SequenceSoundEvent.from_dict(e)
         for e in data.get("sequence_sound_events", [])
+      ],
+      sequence_subtitle_events=[
+        SequenceSubtitleEvent.from_dict(e)
+        for e in data.get("sequence_subtitle_events", [])
       ],
       sequence_surface_line_visible=[
         SequenceBooleanEvent.from_dict(e)

@@ -80,6 +80,7 @@ class SceneScript:
   canvas: SceneCanvas
   items: list[SceneItem]
   duration_sec: float
+  subtitle_rect: SceneRect | None = None
 
   def validate(self) -> None:
     """Validate item timing, geometry and actor overlap constraints."""

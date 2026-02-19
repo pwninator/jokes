@@ -5,7 +5,8 @@ import unittest
 from common.posable_character import MouthState, PoseState, Transform
 from common.posable_character_sequence import (
   PosableCharacterSequence, SequenceBooleanEvent, SequenceFloatEvent,
-  SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
+  SequenceMouthEvent, SequenceSoundEvent, SequenceSubtitleEvent,
+  SequenceTransformEvent)
 
 
 class PosableCharacterSequenceTest(unittest.TestCase):
@@ -39,6 +40,9 @@ class PosableCharacterSequenceTest(unittest.TestCase):
                            end_time=1.0,
                            gcs_uri="gs://bucket/sound.wav",
                            volume=0.8),
+      ],
+      sequence_subtitle_events=[
+        SequenceSubtitleEvent(start_time=0.0, end_time=1.0, text="Hello there"),
       ])
 
     data = seq.to_dict(include_key=True)
@@ -53,6 +57,7 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     self.assertEqual(data["initial_pose"]["mouth_state"], "CLOSED")
     self.assertEqual(data["initial_pose"]["head_transform"]["translate_y"],
                      120.0)
+    self.assertEqual(data["sequence_subtitle_events"][0]["text"], "Hello there")
 
     seq2 = PosableCharacterSequence.from_dict(data)
     self.assertEqual(seq2.key, "seq1")
@@ -62,6 +67,7 @@ class PosableCharacterSequenceTest(unittest.TestCase):
       seq2.sequence_left_hand_transform[0].target_transform.translate_x, 10)
     self.assertEqual(seq2.sequence_surface_line_offset[0].target_value, 50.0)
     self.assertEqual(seq2.sequence_sound_events[0].volume, 0.8)
+    self.assertEqual(seq2.sequence_subtitle_events[0].text, "Hello there")
     self.assertEqual(seq2.initial_pose.mouth_state, MouthState.CLOSED)
     self.assertEqual(seq2.initial_pose.head_transform.translate_y, 120.0)
 
@@ -174,6 +180,9 @@ class PosableCharacterSequenceTest(unittest.TestCase):
           volume=1.0,
         ),
       ],
+      sequence_subtitle_events=[
+        SequenceSubtitleEvent(start_time=0.0, end_time=0.5, text="Base line"),
+      ],
     )
     other = PosableCharacterSequence(
       sequence_right_eye_open=[
@@ -221,6 +230,9 @@ class PosableCharacterSequenceTest(unittest.TestCase):
           volume=0.7,
         ),
       ],
+      sequence_subtitle_events=[
+        SequenceSubtitleEvent(start_time=0.0, end_time=0.5, text="Other line"),
+      ],
     )
 
     merged = PosableCharacterSequence.merge_all([
@@ -265,6 +277,11 @@ class PosableCharacterSequenceTest(unittest.TestCase):
     self.assertEqual(len(merged.sequence_sound_events), 2)
     self.assertEqual(merged.sequence_sound_events[0].start_time, 0.0)
     self.assertEqual(merged.sequence_sound_events[1].start_time, 1.0)
+    self.assertEqual(len(merged.sequence_subtitle_events), 2)
+    self.assertEqual(merged.sequence_subtitle_events[0].start_time, 0.0)
+    self.assertEqual(merged.sequence_subtitle_events[0].text, "Base line")
+    self.assertEqual(merged.sequence_subtitle_events[1].start_time, 1.0)
+    self.assertEqual(merged.sequence_subtitle_events[1].text, "Other line")
 
   def test_merge_all_does_not_mutate_input_sequences(self):
     base = PosableCharacterSequence(sequence_left_eye_open=[

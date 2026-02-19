@@ -1609,6 +1609,7 @@ def _extract_elevenlabs_timing(
   The response can include both raw `alignment` and `normalized_alignment`, plus
   `voice_segments` that map contiguous voiced regions to dialogue turns.
   """
+  logger.info(f"ElevenLabs response: {data}")
   _log_response("Alignment", data.alignment)
   _log_response("Normalized Alignment", data.normalized_alignment)
 

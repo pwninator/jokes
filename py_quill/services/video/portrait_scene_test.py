@@ -502,6 +502,8 @@ def test_scene_renderer_respects_cross_type_z_order():
       canvas=script.canvas,
       prepared_images=prepared_images,
       actor_renders=actor_renders,
+      subtitle_schedule=[],
+      subtitle_rect=None,
     )
 
   pixel = frame[50, 50]
@@ -546,6 +548,8 @@ def test_scene_renderer_uses_half_open_image_windows():
       canvas=script.canvas,
       prepared_images=prepared_images,
       actor_renders=[],
+      subtitle_schedule=[],
+      subtitle_rect=None,
     )
 
   pixel = frame[5, 5]
@@ -835,6 +839,8 @@ def test_render_scene_frame_uses_first_sequence_initial_pose_before_start():
       canvas=script.canvas,
       prepared_images=[],
       actor_renders=actor_renders,
+      subtitle_schedule=[],
+      subtitle_rect=None,
     )
 
   assert character.left_eye_open is False
@@ -900,6 +906,8 @@ def test_render_scene_frame_uses_defaults_between_sequence_windows():
       canvas=script.canvas,
       prepared_images=[],
       actor_renders=actor_renders,
+      subtitle_schedule=[],
+      subtitle_rect=None,
     )
 
   assert character.mouth_state == MouthState.CLOSED
@@ -947,6 +955,8 @@ def test_render_scene_frame_samples_just_before_sequence_end():
       canvas=script.canvas,
       prepared_images=[],
       actor_renders=actor_renders,
+      subtitle_schedule=[],
+      subtitle_rect=None,
     )
 
   assert character.head_masking_enabled is False
@@ -1011,6 +1021,8 @@ def test_render_scene_frame_resets_missing_track_on_next_sequence_start():
       canvas=script.canvas,
       prepared_images=[],
       actor_renders=actor_renders,
+      subtitle_schedule=[],
+      subtitle_rect=None,
     )
 
   assert character.left_hand_transform.translate_x == pytest.approx(0.0)

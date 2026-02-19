@@ -7,7 +7,7 @@ from io import BytesIO
 from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
-from common import audio_timing, joke_operations, models
+from common import audio_timing, joke_operations, models, utils
 from common.character_animator import CharacterAnimator
 from google.api_core import datetime_helpers
 from google.cloud.firestore_v1.vector import Vector
@@ -1326,7 +1326,7 @@ def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(
   assert result.setup_gcs_uri == setup_uri
   assert result.response_gcs_uri == response_uri
   assert result.punchline_gcs_uri == punchline_uri
-  assert result.generation_metadata == generation_metadata
+  assert result.generation_metadata.generations == [generation_metadata]
   assert result.clip_timing is not None
   assert [u[0] for u in uploaded] == [
     intro_uri,
@@ -1591,10 +1591,136 @@ def test_generate_joke_audio_returns_dialog_when_split_fails_and_allow_partial(
   assert result.setup_gcs_uri is None
   assert result.response_gcs_uri is None
   assert result.punchline_gcs_uri is None
-  assert result.generation_metadata == generation_metadata
+  assert result.generation_metadata.generations == [generation_metadata]
   assert result.clip_timing is None
 
   assert uploaded == []
+
+
+def test_generate_joke_audio_calls_forced_alignment_when_timing_is_missing(
+    monkeypatch, mock_cloud_storage):
+
+  def make_wav_bytes(frames: bytes, *, rate: int = 24000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wf:
+      # pylint: disable=no-member
+      wf.setnchannels(1)
+      wf.setsampwidth(2)
+      wf.setframerate(rate)
+      wf.writeframes(frames)
+      # pylint: enable=no-member
+    return buffer.getvalue()
+
+  dialog_wav_bytes = make_wav_bytes(array.array("h", [500] * 200).tobytes())
+  generation_metadata = models.SingleGenerationMetadata(
+    model_name="elevenlabs")
+  forced_alignment_metadata = models.SingleGenerationMetadata(
+    model_name="elevenlabs",
+    label="generate_joke_audio_forced_alignment",
+    token_counts={
+      "characters": 10,
+    },
+  )
+  forced_timing = audio_timing.TtsTiming(
+    voice_segments=[
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.0,
+        end_time_seconds=0.1,
+        word_start_index=0,
+        word_end_index=1,
+        dialogue_input_index=0,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.2,
+        end_time_seconds=0.3,
+        word_start_index=1,
+        word_end_index=2,
+        dialogue_input_index=1,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v2",
+        start_time_seconds=0.4,
+        end_time_seconds=0.5,
+        word_start_index=2,
+        word_end_index=3,
+        dialogue_input_index=2,
+      ),
+      audio_timing.VoiceSegment(
+        voice_id="v1",
+        start_time_seconds=0.6,
+        end_time_seconds=0.7,
+        word_start_index=3,
+        word_end_index=4,
+        dialogue_input_index=3,
+      ),
+    ],
+    normalized_alignment=[
+      audio_timing.WordTiming("hey", 0.0, 0.1, char_timings=[]),
+      audio_timing.WordTiming("setup", 0.2, 0.3, char_timings=[]),
+      audio_timing.WordTiming("what", 0.4, 0.5, char_timings=[]),
+      audio_timing.WordTiming("punchline", 0.6, 0.7, char_timings=[]),
+    ],
+  )
+
+  mock_client = Mock()
+  mock_client.generate_multi_turn_dialog.return_value = (
+    joke_operations.audio_client.AudioGenerationResult(
+      gcs_uri="gs://temp/dialog.wav",
+      metadata=generation_metadata,
+      timing=None,
+    ))
+  mock_client.create_forced_alignment.return_value = (
+    forced_timing, forced_alignment_metadata)
+  monkeypatch.setattr(
+    joke_operations.audio_client,
+    "get_audio_client",
+    Mock(return_value=mock_client),
+  )
+  monkeypatch.setattr(
+    joke_operations,
+    "_split_joke_dialog_wav_by_timing",
+    Mock(return_value=(
+      [dialog_wav_bytes, dialog_wav_bytes, dialog_wav_bytes, dialog_wav_bytes],
+      [
+        [audio_timing.WordTiming("a", 0.0, 0.1, char_timings=[])],
+        [audio_timing.WordTiming("b", 0.0, 0.1, char_timings=[])],
+        [audio_timing.WordTiming("c", 0.0, 0.1, char_timings=[])],
+        [audio_timing.WordTiming("d", 0.0, 0.1, char_timings=[])],
+      ],
+    )),
+  )
+
+  mock_cloud_storage.download_bytes_from_gcs.return_value = dialog_wav_bytes
+  mock_cloud_storage.get_audio_gcs_uri.side_effect = [
+    "gs://public/audio/intro.wav",
+    "gs://public/audio/setup.wav",
+    "gs://public/audio/response.wav",
+    "gs://public/audio/punchline.wav",
+  ]
+  mock_cloud_storage.upload_bytes_to_gcs.side_effect = (
+    lambda _bytes, gcs_uri, content_type=None: gcs_uri)
+
+  joke = models.PunnyJoke(
+    key="joke-force-align",
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+  )
+
+  result = joke_operations.generate_joke_audio(joke)
+
+  assert result.dialog_gcs_uri == "gs://temp/dialog.wav"
+  mock_client.create_forced_alignment.assert_called_once()
+  forced_call = mock_client.create_forced_alignment.call_args.kwargs
+  assert forced_call["audio_bytes"] == dialog_wav_bytes
+  assert len(forced_call["turns"]) == 4
+  turn_scripts = [turn.script for turn in forced_call["turns"]]
+  assert any("Setup text" in script for script in turn_scripts)
+  assert any("Punchline text" in script for script in turn_scripts)
+  assert result.generation_metadata.generations == [
+    generation_metadata, forced_alignment_metadata
+  ]
 
 
 def test_get_joke_lip_sync_media_uses_cached_audio_when_enabled(monkeypatch):
@@ -2671,12 +2797,10 @@ def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fa
 
 
 def test_strip_stage_directions_removes_bracketed_prefixes():
-  stripped = joke_operations._strip_stage_directions(  # pylint: disable=protected-access
-    "[playfully] Hey! want to hear a joke?")
+  stripped = utils.strip_stage_directions("[playfully] Hey! want to hear a joke?")
   assert stripped == "Hey! want to hear a joke?"
 
-  stripped_multi = joke_operations._strip_stage_directions(  # pylint: disable=protected-access
-    "[curious][quietly] what?")
+  stripped_multi = utils.strip_stage_directions("[curious][quietly] what?")
   assert stripped_multi == "what?"
 
 

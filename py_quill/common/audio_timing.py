@@ -58,3 +58,8 @@ class TtsTiming:
     what the model actually spoke/timed."""
 
   voice_segments: list[VoiceSegment] = field(default_factory=list)
+
+  @property
+  def alignment_data(self) -> list[WordTiming] | None:
+    """Alignment data, preferring normalized alignment when available."""
+    return self.normalized_alignment or self.alignment

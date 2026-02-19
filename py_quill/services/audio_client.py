@@ -8,6 +8,7 @@ import base64
 import io
 import os
 import random
+import re
 import tempfile
 import time
 import traceback
@@ -30,6 +31,8 @@ from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model im
     AudioWithTimestampsAndVoiceSegmentsResponseModel
 from elevenlabs.types.character_alignment_response_model import \
     CharacterAlignmentResponseModel
+from elevenlabs.types.forced_alignment_response_model import \
+    ForcedAlignmentResponseModel
 from firebase_functions import logger
 from google import genai
 from google.api_core.exceptions import ResourceExhausted
@@ -87,6 +90,22 @@ class AudioGenerationResult:
   gcs_uri: str
   metadata: models.SingleGenerationMetadata
   timing: audio_timing.TtsTiming | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class _AudioInternalResult:
+  input_text: str
+  audio_bytes: bytes
+  file_extension: str
+  content_type: str
+  token_counts: dict[str, int]
+  extra_log_data: dict[str, Any] | None = None
+  timing: audio_timing.TtsTiming | None = None
+
+
+_PAUSE_TAG_TEXT_PREFIX = "pause for "
+_PAUSE_TAG_DIRECTIVE_PREFIX = f"[{_PAUSE_TAG_TEXT_PREFIX}"
+_PAUSE_TAG_DIRECTIVE_SUFFIX = " seconds]"
 
 
 def get_audio_client(
@@ -281,7 +300,7 @@ class AudioClient(ABC, Generic[_T]):
     *,
     turns: list[DialogTurn],
     label: str,
-  ) -> "_AudioInternalResult":
+  ) -> _AudioInternalResult:
     """Provider-specific audio generation implementation."""
 
   @abstractmethod
@@ -291,6 +310,16 @@ class AudioClient(ABC, Generic[_T]):
   @abstractmethod
   def _is_retryable_error(self, error: Exception) -> bool:
     """Whether the error is retryable."""
+
+  @abstractmethod
+  def create_forced_alignment(
+    self,
+    *,
+    audio_bytes: bytes,
+    turns: list[DialogTurn],
+    audio_filename: str | None = None,
+  ) -> tuple[audio_timing.TtsTiming, models.SingleGenerationMetadata]:
+    """Get timing by aligning audio to the dialog turns."""
 
   def _get_billed_token_counts(self,
                                token_counts: dict[str, int]) -> dict[str, int]:
@@ -313,49 +342,6 @@ class AudioClient(ABC, Generic[_T]):
 {token_counts}""")
       total_cost += costs_by_token_type[token_type] * int(count)
     return total_cost
-
-
-@dataclass(frozen=True, kw_only=True)
-class _AudioInternalResult:
-  input_text: str
-  audio_bytes: bytes
-  file_extension: str
-  content_type: str
-  token_counts: dict[str, int]
-  extra_log_data: dict[str, Any] | None = None
-  timing: audio_timing.TtsTiming | None = None
-
-
-def _format_pause_seconds(seconds: float) -> str:
-  return f"{seconds:g}"
-
-
-_PAUSE_TAG_TEXT_PREFIX = "pause for "
-_PAUSE_TAG_DIRECTIVE_PREFIX = f"[{_PAUSE_TAG_TEXT_PREFIX}"
-_PAUSE_TAG_DIRECTIVE_SUFFIX = " seconds]"
-
-
-def _apply_pause_markers(
-  script: str,
-  *,
-  pause_sec_before: float | None,
-  pause_sec_after: float | None,
-) -> str:
-  """Render a script with provider-readable pause markers.
-
-  This is used to hint TTS pacing for multi-turn dialog by inserting explicit
-  pauses before/after a turn.
-  """
-  rendered = script
-  if pause_sec_before is not None:
-    rendered = (
-      f"{_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_before)}"
-      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX} {rendered}")
-  if pause_sec_after is not None:
-    rendered = (
-      f"{rendered} {_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_after)}"
-      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX}")
-  return rendered
 
 
 class GeminiAudioClient(AudioClient[genai.Client]):
@@ -544,6 +530,18 @@ class GeminiAudioClient(AudioClient[genai.Client]):
       return True
     return False
 
+  @override
+  def create_forced_alignment(
+    self,
+    *,
+    audio_bytes: bytes,
+    turns: list[DialogTurn],
+    audio_filename: str | None = None,
+  ) -> tuple[audio_timing.TtsTiming, models.SingleGenerationMetadata]:
+    del audio_bytes, turns, audio_filename
+    raise NotImplementedError(
+      "Forced alignment is not supported by the Gemini audio client")
+
   @staticmethod
   def _extract_pcm_bytes(
       response: genai_types.GenerateContentResponse) -> bytes:
@@ -640,6 +638,7 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
     turns: list[DialogTurn],
     label: str,
   ) -> _AudioInternalResult:
+    start_time = time.perf_counter()
     normalized_inputs = self._normalize_inputs(turns)
     unique_voice_ids = sorted({i["voice_id"] for i in normalized_inputs})
     if len(unique_voice_ids) > 10:
@@ -661,16 +660,6 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
         self.model_client.text_to_dialogue.with_raw_response.
         convert_with_timestamps(**kwargs))
 
-    request_id = (response.headers.get("request-id")
-                  or response.headers.get("x-request-id") or "")
-    billed_characters_raw = (response.headers.get("x-character-count") or "")
-    billed_characters: int | None = None
-    if str(billed_characters_raw).strip():
-      try:
-        billed_characters = int(str(billed_characters_raw).strip())
-      except ValueError:
-        billed_characters = None
-
     data = response.data
     audio_b64 = str(data.audio_base_64 or "").strip()
     if not audio_b64:
@@ -688,24 +677,38 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
     input_characters = sum(len(i["text"]) for i in normalized_inputs)
     voice_segments = data.voice_segments or []
     voice_segments_count = len(voice_segments)
-    timing = _extract_elevenlabs_timing(
-      data,
-      audio_bytes=audio_bytes,
-      file_extension=file_extension,
+    metadata, request_id = self._create_metadata_from_headers(
+      headers=response.headers,
+      label=f"{label}_header_metadata",
+      input_characters=input_characters,
+      extra_token_counts={
+        "voice_segments": voice_segments_count,
+        "unique_voice_ids": len(unique_voice_ids),
+      },
+      start_time=start_time,
     )
+    try:
+      timing = _extract_elevenlabs_timing(
+        data,
+        audio_bytes=audio_bytes,
+        file_extension=file_extension,
+      )
+    except AudioGenerationError as exc:
+      logger.warn(
+        "ElevenLabs alignment data invalid; returning empty TTS timing for caller fallback: "
+        + str(exc))
+      timing = audio_timing.TtsTiming(
+        alignment=None,
+        normalized_alignment=None,
+        voice_segments=[],
+      )
 
     return _AudioInternalResult(
       input_text=input_text,
       audio_bytes=audio_bytes,
       file_extension=file_extension,
       content_type=content_type,
-      token_counts={
-        "characters": billed_characters
-        if billed_characters is not None else input_characters,
-        "characters_input": input_characters,
-        "voice_segments": voice_segments_count,
-        "unique_voice_ids": len(unique_voice_ids),
-      },
+      token_counts=metadata.token_counts,
       extra_log_data={
         "output_format": self.output_format,
         "request_id": request_id,
@@ -756,6 +759,44 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       raise AudioGenerationError("At least one dialog turn must be provided")
     return normalized
 
+  def _create_metadata_from_headers(
+    self,
+    *,
+    headers: dict[str, Any],
+    label: str,
+    input_characters: int,
+    extra_token_counts: dict[str, int] | None = None,
+    start_time: float,
+  ) -> tuple[models.SingleGenerationMetadata, str]:
+    request_id = str(
+      headers.get("request-id") or headers.get("x-request-id") or "")
+    billed_characters_raw = str(headers.get("x-character-count") or "").strip()
+    billed_characters: int | None = None
+    if billed_characters_raw:
+      try:
+        billed_characters = int(billed_characters_raw)
+      except ValueError:
+        billed_characters = None
+
+    token_counts = {
+      "characters":
+      billed_characters
+      if billed_characters is not None else int(input_characters),
+      "characters_input":
+      int(input_characters),
+      **(extra_token_counts or {}),
+    }
+    billed_token_counts = self._get_billed_token_counts(token_counts)
+    metadata = models.SingleGenerationMetadata(
+      label=label,
+      model_name=self.model.value,
+      token_counts=token_counts,
+      generation_time_sec=time.perf_counter() - start_time,
+      cost=self.calculate_generation_cost(billed_token_counts),
+      retry_count=0,
+    )
+    return metadata, request_id
+
   def _get_output_encoding(self) -> tuple[str, str]:
     output_format = (self.output_format or "").strip().lower()
     if output_format.startswith("mp3_"):
@@ -800,6 +841,110 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       if status >= 500:
         return True
     return False
+
+  @override
+  def create_forced_alignment(
+    self,
+    *,
+    audio_bytes: bytes,
+    turns: list[DialogTurn],
+    audio_filename: str | None = None,
+  ) -> tuple[audio_timing.TtsTiming, models.SingleGenerationMetadata]:
+    start_time = time.perf_counter()
+    if not audio_bytes:
+      raise AudioGenerationError("audio_bytes must be non-empty")
+    if not turns:
+      raise AudioGenerationError("At least one dialog turn must be provided")
+
+    transcript_lines: list[str] = []
+    turn_voice_ids: list[str] = []
+    turn_word_counts: list[int] = []
+    for turn in turns:
+      script = (turn.script or "").strip()
+      if not script:
+        raise AudioGenerationError("Turn script must be non-empty")
+      alignment_script = utils.strip_stage_directions(script)
+      transcript_lines.append(alignment_script)
+      turn_voice_ids.append(turn.voice.voice_name or turn.voice.name)
+      turn_word_counts.append(len(re.findall(r"\S+", alignment_script)))
+
+    transcript = "\n".join(transcript_lines).strip()
+    if not transcript:
+      raise AudioGenerationError("Transcript text must be non-empty")
+
+    filename = (audio_filename or "").strip() or "audio"
+    response: HttpResponse[
+      ForcedAlignmentResponseModel] = self.model_client.forced_alignment.with_raw_response.create(
+        file=(filename, audio_bytes),
+        text=transcript,
+      )
+    response_data = response.data
+    _log_response("Forced Alignment", response_data)
+    word_timings = [
+      audio_timing.WordTiming(
+        word=str(word.text),
+        start_time=float(word.start),
+        end_time=float(word.end),
+        char_timings=[],
+      ) for word in (response_data.words or [])
+    ]
+    metadata, request_id = self._create_metadata_from_headers(
+      headers=response.headers,
+      label=f"{self.label}_forced_alignment",
+      input_characters=len(transcript),
+      extra_token_counts={"words": len(word_timings)},
+      start_time=start_time,
+    )
+    logger.info(
+      "ElevenLabs forced alignment completed with %d words (loss=%s request_id=%s)",
+      len(word_timings),
+      f"{float(response_data.loss):.6f}",
+      request_id,
+    )
+    if not word_timings:
+      return (audio_timing.TtsTiming(
+        alignment=None,
+        normalized_alignment=[],
+        voice_segments=[],
+      ), metadata)
+
+    voice_segments: list[audio_timing.VoiceSegment] = []
+    cursor = 0
+    total_words = len(word_timings)
+    for index, (voice_id, expected_words) in enumerate(
+        zip(turn_voice_ids, turn_word_counts)):
+      is_last = index == (len(turn_word_counts) - 1)
+      remaining_words = max(0, total_words - cursor)
+      take = remaining_words if is_last else min(expected_words,
+                                                 remaining_words)
+      word_start_index = cursor
+      word_end_index = min(total_words, cursor + take)
+      cursor = word_end_index
+
+      if word_end_index > word_start_index:
+        start_time = word_timings[word_start_index].start_time
+        end_time = word_timings[word_end_index - 1].end_time
+      else:
+        boundary_time = (word_timings[min(word_start_index, total_words -
+                                          1)].end_time if total_words else 0.0)
+        start_time = boundary_time
+        end_time = boundary_time
+
+      voice_segments.append(
+        audio_timing.VoiceSegment(
+          voice_id=voice_id,
+          start_time_seconds=float(start_time),
+          end_time_seconds=float(end_time),
+          word_start_index=word_start_index,
+          word_end_index=word_end_index,
+          dialogue_input_index=index,
+        ))
+
+    return (audio_timing.TtsTiming(
+      alignment=None,
+      normalized_alignment=word_timings,
+      voice_segments=voice_segments,
+    ), metadata)
 
 
 _IN_WORD_PUNCTUATION = {"'", "-"}
@@ -1673,16 +1818,23 @@ def _extract_elevenlabs_timing(
   )
 
 
-def _log_response(label: str,
-                  response: CharacterAlignmentResponseModel | None) -> None:
+def _log_response(
+  label: str, response: CharacterAlignmentResponseModel
+  | ForcedAlignmentResponseModel | None
+) -> None:
   if response is None:
     return
   lines: list[str] = [label]
 
-  for i, char in enumerate(response.characters):
-    start_time = response.character_start_times_seconds[i]
-    end_time = response.character_end_times_seconds[i]
-    lines.append(f"{char} @ {start_time:.3f}s - {end_time:.3f}s")
+  if isinstance(response, ForcedAlignmentResponseModel):
+    for word in response.words:
+      lines.append(
+        f"{word.text} @ {float(word.start):.3f}s - {float(word.end):.3f}s")
+  else:
+    for i, char in enumerate(response.characters):
+      start_time = response.character_start_times_seconds[i]
+      end_time = response.character_end_times_seconds[i]
+      lines.append(f"{char} @ {start_time:.3f}s - {end_time:.3f}s")
 
   logger.info("\n".join(lines))
 
@@ -1741,3 +1893,30 @@ Generation cost: ${metadata.cost:.6f}
         logger.info(f"{header}\n{part}", extra={"json_fields": log_extra_data})
       else:
         logger.info(f"{header}\n{part}")
+
+
+def _apply_pause_markers(
+  script: str,
+  *,
+  pause_sec_before: float | None,
+  pause_sec_after: float | None,
+) -> str:
+  """Render a script with provider-readable pause markers.
+
+  This is used to hint TTS pacing for multi-turn dialog by inserting explicit
+  pauses before/after a turn.
+  """
+  rendered = script
+  if pause_sec_before is not None:
+    rendered = (
+      f"{_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_before)}"
+      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX} {rendered}")
+  if pause_sec_after is not None:
+    rendered = (
+      f"{rendered} {_PAUSE_TAG_DIRECTIVE_PREFIX}{_format_pause_seconds(pause_sec_after)}"
+      f"{_PAUSE_TAG_DIRECTIVE_SUFFIX}")
+  return rendered
+
+
+def _format_pause_seconds(seconds: float) -> str:
+  return f"{seconds:g}"

@@ -10,11 +10,12 @@ import requests
 from common import config
 
 _NON_ALPHANUMERIC_RE = re.compile(r'[^a-zA-Z0-9]')
+_STAGE_DIRECTIONS_RE = re.compile(r"\[.*?\]\s*")
 
 
 def download_images(urls: list[str]) -> dict[str, bytes]:
   """Downloads images from the given URLs and returns them as bytes."""
-  image_bytes_by_url = {}
+  image_bytes_by_url: dict[str, bytes] = {}
   for url in urls:
     try:
       response = requests.get(url, timeout=5)
@@ -62,7 +63,7 @@ def create_timestamped_firestore_key(*args: str) -> str:
 
 def is_emulator() -> bool:
   """Returns True if the code is running in an emulator."""
-  return os.environ.get('FUNCTIONS_EMULATOR')
+  return bool(os.environ.get('FUNCTIONS_EMULATOR'))
 
 
 def cloud_functions_base_url() -> str:
@@ -125,7 +126,7 @@ def format_image_url(
   object_path = remainder[slash_index + 1:]
 
   params_str = remainder[:slash_index]
-  params = {}
+  params: dict[str, str] = {}
   if params_str and not remove_existing:
     for part in params_str.split(','):
       key, value = part.split('=')
@@ -134,9 +135,9 @@ def format_image_url(
   if image_format:
     params['format'] = image_format
   if quality:
-    params['quality'] = quality
+    params['quality'] = str(quality)
   if width:
-    params['width'] = width
+    params['width'] = str(width)
 
   new_params_str = ",".join(
     [f"{key}={value}" for key, value in params.items()])
@@ -158,3 +159,8 @@ def get_text_slug(text: str, human_readable: bool = False) -> str:
     stripped_text = re.sub(r'[^a-z0-9\s]', '', normalized_text)
     words = [word for word in re.split(r'\s+', stripped_text) if word]
     return "_".join(words)
+
+
+def strip_stage_directions(text: str) -> str:
+  """Remove bracketed stage-direction text from a transcript string."""
+  return _STAGE_DIRECTIONS_RE.sub("", text).strip()

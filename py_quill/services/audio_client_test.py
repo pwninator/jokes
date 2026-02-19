@@ -629,3 +629,310 @@ def test_elevenlabs_timing_rejects_collapsed_timestamp_plateau():
   assert "segment_diagnostics=" in error_text
   assert "status=bad" in error_text
   assert "sample_run=" in error_text
+
+
+def test_gemini_create_forced_alignment_raises_not_implemented():
+  client = audio_client.GeminiAudioClient(
+    label="test",
+    model=audio_client.AudioModel.GEMINI_2_5_FLASH_TTS,
+    max_retries=0,
+  )
+
+  with pytest.raises(NotImplementedError, match="not supported"):
+    _ = client.create_forced_alignment(
+      audio_bytes=b"audio",
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.GEMINI_PUCK,
+          script="hello",
+        ),
+      ],
+      audio_filename="clip.wav",
+    )
+
+
+def test_elevenlabs_create_forced_alignment_maps_words_directly():
+  from elevenlabs.types.forced_alignment_character_response_model import \
+      ForcedAlignmentCharacterResponseModel
+  from elevenlabs.types.forced_alignment_response_model import \
+      ForcedAlignmentResponseModel
+  from elevenlabs.types.forced_alignment_word_response_model import \
+      ForcedAlignmentWordResponseModel
+
+  class _FakeForcedAlignment:
+
+    def __init__(self, response):
+      self.response = response
+      self.calls: list[dict] = []
+      self.with_raw_response = self
+
+    def create(self, **kwargs):
+      self.calls.append(kwargs)
+      return self.response
+
+  class _FakeElevenlabsClient:
+
+    def __init__(self, forced_alignment):
+      self.forced_alignment = forced_alignment
+
+  class _FakeRawResponse:
+
+    def __init__(self, *, headers, data):
+      self.headers = headers
+      self.data = data
+
+  response_data = ForcedAlignmentResponseModel(
+    characters=[
+      ForcedAlignmentCharacterResponseModel(text="H", start=0.00, end=0.10),
+      ForcedAlignmentCharacterResponseModel(text="i", start=0.10, end=0.20),
+    ],
+    words=[
+      ForcedAlignmentWordResponseModel(
+        text="Hi",
+        start=0.00,
+        end=0.20,
+        loss=0.05,
+      ),
+      ForcedAlignmentWordResponseModel(
+        text="there",
+        start=0.21,
+        end=0.60,
+        loss=0.08,
+      ),
+    ],
+    loss=0.07,
+  )
+  response = _FakeRawResponse(
+    headers={
+      "x-character-count": "8",
+      "request-id": "req_fa_123",
+    },
+    data=response_data,
+  )
+  fake_forced_alignment = _FakeForcedAlignment(response)
+
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+  )
+  with patch.object(
+      audio_client.ElevenlabsAudioClient,
+      "_create_model_client",
+      return_value=_FakeElevenlabsClient(fake_forced_alignment)), \
+      patch.object(audio_client, "_log_response") as log_response_mock:
+    timing, metadata = client.create_forced_alignment(
+      audio_bytes=b"fake-audio",
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+          script="[playfully] Hi",
+        ),
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_MINNIE,
+          script="there",
+        ),
+      ],
+      audio_filename="clip.mp3",
+    )
+
+  assert timing.alignment is None
+  assert timing.normalized_alignment is not None
+  assert [w.word for w in timing.normalized_alignment] == ["Hi", "there"]
+  assert timing.normalized_alignment[0].start_time == pytest.approx(0.00,
+                                                                    rel=1e-6)
+  assert timing.normalized_alignment[0].end_time == pytest.approx(0.20,
+                                                                  rel=1e-6)
+  assert timing.normalized_alignment[0].char_timings == []
+  assert timing.voice_segments == [
+    audio_timing.VoiceSegment(
+      voice_id=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.voice_name,
+      start_time_seconds=0.0,
+      end_time_seconds=0.2,
+      word_start_index=0,
+      word_end_index=1,
+      dialogue_input_index=0,
+    ),
+    audio_timing.VoiceSegment(
+      voice_id=gen_audio.Voice.ELEVENLABS_MINNIE.voice_name,
+      start_time_seconds=0.21,
+      end_time_seconds=0.6,
+      word_start_index=1,
+      word_end_index=2,
+      dialogue_input_index=1,
+    ),
+  ]
+  assert fake_forced_alignment.calls == [{
+    "file": ("clip.mp3", b"fake-audio"),
+    "text": "Hi\nthere",
+  }]
+  log_response_mock.assert_called_once()
+  assert log_response_mock.call_args.args[0] == "Forced Alignment"
+  assert metadata.model_name == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
+  assert metadata.token_counts["characters"] == 8
+  assert metadata.token_counts["characters_input"] == len("Hi\nthere")
+
+
+def test_elevenlabs_create_forced_alignment_handles_empty_words():
+  from elevenlabs.types.forced_alignment_response_model import \
+      ForcedAlignmentResponseModel
+
+  class _FakeForcedAlignment:
+
+    def __init__(self, response):
+      self.response = response
+      self.with_raw_response = self
+
+    def create(self, **_kwargs):
+      return self.response
+
+  class _FakeElevenlabsClient:
+
+    def __init__(self, forced_alignment):
+      self.forced_alignment = forced_alignment
+
+  class _FakeRawResponse:
+
+    def __init__(self, *, headers, data):
+      self.headers = headers
+      self.data = data
+
+  response_data = ForcedAlignmentResponseModel(
+    characters=[],
+    words=[],
+    loss=0.0,
+  )
+  response = _FakeRawResponse(headers={}, data=response_data)
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+  )
+  with patch.object(
+      audio_client.ElevenlabsAudioClient,
+      "_create_model_client",
+      return_value=_FakeElevenlabsClient(_FakeForcedAlignment(response))):
+    timing, metadata = client.create_forced_alignment(
+      audio_bytes=b"fake-audio",
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+          script="anything",
+        ),
+      ],
+    )
+
+  assert timing.normalized_alignment == []
+  assert timing.voice_segments == []
+  assert metadata.model_name == audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value
+
+
+def test_log_response_logs_word_timings_for_forced_alignment_model():
+  from elevenlabs.types.forced_alignment_response_model import \
+      ForcedAlignmentResponseModel
+  from elevenlabs.types.forced_alignment_word_response_model import \
+      ForcedAlignmentWordResponseModel
+
+  response = ForcedAlignmentResponseModel(
+    characters=[],
+    words=[
+      ForcedAlignmentWordResponseModel(
+        text="Hello",
+        start=0.10,
+        end=0.30,
+        loss=0.01,
+      ),
+      ForcedAlignmentWordResponseModel(
+        text="world",
+        start=0.35,
+        end=0.60,
+        loss=0.02,
+      ),
+    ],
+    loss=0.015,
+  )
+
+  with patch.object(audio_client.logger, "info") as log_info:
+    audio_client._log_response(  # pylint: disable=protected-access
+      "Forced Alignment",
+      response,
+    )
+
+  assert log_info.call_count == 1
+  logged_text = log_info.call_args.args[0]
+  assert "Forced Alignment" in logged_text
+  assert "Hello @ 0.100s - 0.300s" in logged_text
+  assert "world @ 0.350s - 0.600s" in logged_text
+
+
+def test_elevenlabs_generate_multi_turn_dialog_returns_empty_timing_when_provider_alignment_is_invalid(
+):
+  audio_bytes = b"fake-mp3-bytes"
+  audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+
+  from elevenlabs.types.audio_with_timestamps_and_voice_segments_response_model import \
+      AudioWithTimestampsAndVoiceSegmentsResponseModel
+
+  class _FakeHttpResponse:
+
+    def __init__(self, *, headers, data):
+      self.headers = headers
+      self.data = data
+
+  response_data = AudioWithTimestampsAndVoiceSegmentsResponseModel(
+    audio_base_64=audio_b64,
+    voice_segments=[],
+    normalized_alignment=None,
+  )
+  response = _FakeHttpResponse(
+    headers={
+      "x-character-count": "2",
+      "request-id": "req_456",
+    },
+    data=response_data,
+  )
+
+  fake_raw = _FakeElevenlabsRawClient(response)
+
+  class _FakeTextToDialogue:
+
+    def __init__(self, raw):
+      self.with_raw_response = raw
+
+  class _FakeElevenlabsClient:
+
+    def __init__(self, raw):
+      self.text_to_dialogue = _FakeTextToDialogue(raw)
+
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+  )
+
+  with patch.object(audio_client.utils, "is_emulator", return_value=False), \
+      patch.object(audio_client.ElevenlabsAudioClient,
+                   "_create_model_client",
+                   return_value=_FakeElevenlabsClient(fake_raw)), \
+      patch.object(audio_client, "_extract_elevenlabs_timing",
+                   side_effect=audio_client.AudioGenerationError("invalid alignment")), \
+      patch.object(audio_client.cloud_storage,
+                   "get_audio_gcs_uri",
+                   return_value="gs://gen_audio/out.mp3"), \
+      patch.object(audio_client.cloud_storage,
+                   "upload_bytes_to_gcs",
+                   MagicMock()):
+    result = client.generate_multi_turn_dialog(
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+          script="Hello",
+        ),
+      ],
+      output_filename_base="out",
+    )
+
+  assert result.timing is not None
+  assert result.timing.alignment is None
+  assert result.timing.normalized_alignment is None
+  assert result.timing.voice_segments == []

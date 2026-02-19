@@ -5,7 +5,6 @@ from __future__ import annotations
 import array
 import datetime
 import random
-import re
 import sys
 from dataclasses import dataclass
 from io import BytesIO
@@ -152,7 +151,7 @@ class JokeAudioResult:
   setup_gcs_uri: str | None
   response_gcs_uri: str | None
   punchline_gcs_uri: str | None
-  generation_metadata: models.SingleGenerationMetadata
+  generation_metadata: models.GenerationMetadata
   clip_timing: JokeAudioTiming | None = None
 
 
@@ -180,7 +179,7 @@ class JokeLipSyncResult:
   setup_sequence: PosableCharacterSequence | None
   response_sequence: PosableCharacterSequence | None
   punchline_sequence: PosableCharacterSequence | None
-  audio_generation_metadata: models.SingleGenerationMetadata | None
+  audio_generation_metadata: models.GenerationMetadata | None
   partial_error: str | None = None
 
 
@@ -194,7 +193,7 @@ class JokeVideoResult:
   setup_audio_gcs_uri: str | None
   response_audio_gcs_uri: str | None
   punchline_audio_gcs_uri: str | None
-  audio_generation_metadata: models.SingleGenerationMetadata | None
+  audio_generation_metadata: models.GenerationMetadata | None
   video_generation_metadata: models.GenerationMetadata
   error: str | None = None
   error_stage: str | None = None
@@ -782,10 +781,24 @@ def generate_joke_audio(
     },
   )
   dialog_gcs_uri = audio_result.gcs_uri
-  audio_generation_metadata = audio_result.metadata
+  combined_generation_metadata = models.GenerationMetadata()
+  combined_generation_metadata.add_generation(audio_result.metadata)
 
   dialog_wav_bytes = cloud_storage.get_and_convert_wave_bytes_from_gcs(
     dialog_gcs_uri)
+  tts_timing = audio_result.timing
+  if not tts_timing or not tts_timing.alignment_data:
+    try:
+      tts_timing, forced_alignment_metadata = client.create_forced_alignment(
+        audio_bytes=dialog_wav_bytes,
+        turns=dialog_turns,
+        audio_filename=f"joke_dialog_{joke_id_for_filename}.wav",
+      )
+      combined_generation_metadata.add_generation(forced_alignment_metadata)
+    except NotImplementedError:
+      logger.info("Forced alignment is not supported for this audio client")
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.warn("Forced alignment fallback failed: " + str(exc))
 
   timing: JokeAudioTiming | None = None
   intro_wav: bytes | None = None
@@ -793,7 +806,7 @@ def generate_joke_audio(
   response_wav: bytes | None = None
   punchline_wav: bytes | None = None
 
-  if not audio_result.timing or len(audio_result.timing.voice_segments) != 4:
+  if not tts_timing or len(tts_timing.voice_segments) != 4:
     if allow_partial:
       return JokeAudioResult(
         dialog_gcs_uri=dialog_gcs_uri,
@@ -801,7 +814,7 @@ def generate_joke_audio(
         setup_gcs_uri=None,
         response_gcs_uri=None,
         punchline_gcs_uri=None,
-        generation_metadata=audio_generation_metadata,
+        generation_metadata=combined_generation_metadata,
         clip_timing=None,
       )
     raise ValueError("Audio timing is required for joke audio generation")
@@ -809,7 +822,7 @@ def generate_joke_audio(
   try:
     split_wavs, split_timing = _split_joke_dialog_wav_by_timing(
       dialog_wav_bytes,
-      audio_result.timing,
+      tts_timing,
     )
     if len(split_wavs) != 4 or len(split_timing) != 4:
       raise ValueError(
@@ -832,7 +845,7 @@ def generate_joke_audio(
         setup_gcs_uri=None,
         response_gcs_uri=None,
         punchline_gcs_uri=None,
-        generation_metadata=audio_generation_metadata,
+        generation_metadata=combined_generation_metadata,
         clip_timing=None,
       )
     raise ValueError(
@@ -878,7 +891,7 @@ def generate_joke_audio(
     setup_gcs_uri=setup_gcs_uri,
     response_gcs_uri=response_gcs_uri,
     punchline_gcs_uri=punchline_gcs_uri,
-    generation_metadata=audio_generation_metadata,
+    generation_metadata=combined_generation_metadata,
     clip_timing=timing,
   )
 
@@ -1244,11 +1257,6 @@ def _normalize_transcript_for_matching(value: str | None) -> str:
   return "".join(ch for ch in (value or "").lower() if ch.isalnum())
 
 
-def _strip_stage_directions(value: str) -> str:
-  """Remove bracketed stage-direction text from transcript."""
-  return re.sub(r"\[.*?\]\s*", "", value).strip()
-
-
 def _sequence_primary_audio_gcs_uri(
     sequence: PosableCharacterSequence | None) -> str | None:
   if sequence is None:
@@ -1279,7 +1287,7 @@ def _build_lipsync_sequence(
       volume=1.0,
     )
   ]
-  subtitle_text = _strip_stage_directions(transcript)
+  subtitle_text = utils.strip_stage_directions(transcript)
   subtitle_events = [
     SequenceSubtitleEvent(
       start_time=0.0,

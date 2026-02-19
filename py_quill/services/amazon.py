@@ -341,7 +341,7 @@ def _build_sp_campaigns_report_payload(
         "cost",
         "clicks",
         "impressions",
-        "attributedKindleEditionNormalizedPagesRoyalties14d",
+        "kindleEditionNormalizedPagesRoyalties14d",
       ],
       "reportTypeId":
       "spCampaigns",
@@ -372,8 +372,8 @@ def _build_sp_purchased_product_report_payload(
         "campaignId",
         "date",
         "purchasedAsin",
-        "attributedSales14d",
-        "attributedUnitsOrdered14d",
+        "sales14d",
+        "purchases14d",
       ],
       "reportTypeId":
       "spPurchasedProduct",
@@ -550,7 +550,10 @@ def _merge_report_rows(
     impressions = _as_int(campaign_row.get("impressions"))
     clicks = _as_int(campaign_row.get("clicks"))
     kenp_royalties = _as_float(
-      campaign_row.get("attributedKindleEditionNormalizedPagesRoyalties14d"))
+      campaign_row.get("kindleEditionNormalizedPagesRoyalties14d"))
+    if kenp_royalties == 0.0:
+      kenp_royalties = _as_float(
+        campaign_row.get("attributedKindleEditionNormalizedPagesRoyalties14d"))
 
     sale_items: list[ProductStats] = []
     total_attributed_sales = 0.0
@@ -588,8 +591,13 @@ def _merge_report_rows(
 def _build_product_stats(product_row: dict[str, Any]) -> ProductStats:
   """Convert one purchased-product report row into `ProductStats`."""
   asin = _required_str(product_row.get("purchasedAsin"))
-  units_sold = _as_int(product_row.get("attributedUnitsOrdered14d"))
-  sales_amount = _as_float(product_row.get("attributedSales14d"))
+  units_sold = _as_int(product_row.get("purchases14d"))
+  if units_sold == 0:
+    units_sold = _as_int(product_row.get("attributedUnitsOrdered14d"))
+
+  sales_amount = _as_float(product_row.get("sales14d"))
+  if sales_amount == 0.0:
+    sales_amount = _as_float(product_row.get("attributedSales14d"))
   profit_margin = _ASIN_PROFIT_MARGINS_USD.get(asin, 0.0)
   total_profit = units_sold * profit_margin
 

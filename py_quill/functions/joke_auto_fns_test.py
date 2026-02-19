@@ -219,7 +219,7 @@ class TestAdsStatsFetcher:
     monkeypatch.setattr('functions.joke_auto_fns.amazon.get_report_statuses',
                         _mock_get_report_statuses)
 
-    stats = joke_auto_fns._ads_stats_fetcher_internal(now_utc)
+    stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
 
     assert stats["report_date"] == "2026-02-17"
     assert stats["profiles_considered"] == 4
@@ -243,7 +243,7 @@ class TestAdsStatsFetcher:
       captured['run_time'] = run_time
       return {}
 
-    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+    monkeypatch.setattr('functions.joke_auto_fns._auto_ads_stats_internal',
                         _capture)
 
     event = MagicMock()
@@ -254,7 +254,7 @@ class TestAdsStatsFetcher:
                                             0,
                                             tzinfo=datetime.timezone.utc)
 
-    joke_auto_fns.ads_stats_fetcher_scheduler.__wrapped__(event)
+    joke_auto_fns.auto_ads_stats_scheduler.__wrapped__(event)
 
     assert captured["run_time"] == event.schedule_time
 
@@ -266,13 +266,13 @@ class TestAdsStatsFetcher:
       captured['run_time'] = run_time
       return {}
 
-    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+    monkeypatch.setattr('functions.joke_auto_fns._auto_ads_stats_internal',
                         _capture)
 
     event = MagicMock()
     event.schedule_time = None
 
-    joke_auto_fns.ads_stats_fetcher_scheduler.__wrapped__(event)
+    joke_auto_fns.auto_ads_stats_scheduler.__wrapped__(event)
 
     assert captured["run_time"].tzinfo == datetime.timezone.utc
 
@@ -297,10 +297,10 @@ class TestAdsStatsFetcher:
         "failure_reason": "",
       }]
     }
-    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+    monkeypatch.setattr('functions.joke_auto_fns._auto_ads_stats_internal',
                         lambda _: expected_stats)
 
-    response = joke_auto_fns.ads_stats_fetcher_http(Mock())
+    response = joke_auto_fns.auto_ads_stats_http(Mock())
 
     html = response.data.decode("utf-8")
     assert response.status_code == 200
@@ -314,10 +314,10 @@ class TestAdsStatsFetcher:
     def _raise(_):
       raise RuntimeError("ads fetch failed")
 
-    monkeypatch.setattr('functions.joke_auto_fns._ads_stats_fetcher_internal',
+    monkeypatch.setattr('functions.joke_auto_fns._auto_ads_stats_internal',
                         _raise)
 
-    response = joke_auto_fns.ads_stats_fetcher_http(Mock())
+    response = joke_auto_fns.auto_ads_stats_http(Mock())
 
     data = response.get_json()["data"]
     assert "ads fetch failed" in data["error"]

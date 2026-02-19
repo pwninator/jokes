@@ -133,30 +133,30 @@ def _user_daily_maintenance_internal(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def ads_stats_fetcher_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
+def auto_ads_stats_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
   """Scheduled function that kicks off daily Amazon Ads report generation."""
   scheduled_time_utc = event.schedule_time
   if not scheduled_time_utc:
     scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
-  _ = _ads_stats_fetcher_internal(scheduled_time_utc)
+  _ = _auto_ads_stats_internal(scheduled_time_utc)
 
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
-def ads_stats_fetcher_http(req: flask.Request) -> flask.Response:
+def auto_ads_stats_http(req: flask.Request) -> flask.Response:
   """HTTP endpoint to trigger Amazon Ads report generation."""
   del req
   try:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
-    stats = _ads_stats_fetcher_internal(run_time_utc)
+    stats = _auto_ads_stats_internal(run_time_utc)
     return html_response(_render_ads_stats_html(stats))
   except Exception as exc:  # pylint: disable=broad-except
     return error_response(f"Failed to run ads stats fetcher: {exc}")
 
 
-def _ads_stats_fetcher_internal(
+def _auto_ads_stats_internal(
     run_time_utc: datetime.datetime) -> dict[str, object]:
   """Fetch target country profiles and request daily ads reports."""
   report_date = run_time_utc.date() - datetime.timedelta(days=1)
@@ -284,8 +284,8 @@ joke_hourly_maintenance_scheduler = auto_joke_hourly_scheduler
 joke_hourly_maintenance_http = auto_joke_hourly_http
 user_daily_maintenance_scheduler = auto_user_daily_scheduler
 user_daily_maintenance_http = auto_user_daily_http
-auto_ads_stats_scheduler = ads_stats_fetcher_scheduler
-auto_ads_stats_http = ads_stats_fetcher_http
+auto_ads_stats_scheduler = auto_ads_stats_scheduler
+auto_ads_stats_http = auto_ads_stats_http
 
 
 def _should_skip_recent_update(

@@ -48,8 +48,10 @@ def test_get_profiles_queries_all_regions(monkeypatch):
 
   assert len(profiles) == 3
   assert [profile.region for profile in profiles] == ["eu", "na", "na"]
-  assert [profile.profile_id for profile in profiles] == ["eu-1", "na-2", "na-1"]
-  assert calls[0] == ("https://advertising-api.amazon.com", "access-token", "na")
+  assert [profile.profile_id
+          for profile in profiles] == ["eu-1", "na-2", "na-1"]
+  assert calls[0] == ("https://advertising-api.amazon.com", "access-token",
+                      "na")
   assert calls[1] == (
     "https://advertising-api-eu.amazon.com",
     "access-token",
@@ -69,7 +71,8 @@ def test_get_profiles_invalid_region_raises_value_error(monkeypatch):
     amazon.get_profiles(region="bad-region")
 
 
-def test_request_daily_campaign_stats_reports_requests_two_reports(monkeypatch):
+def test_request_daily_campaign_stats_reports_requests_two_reports(
+    monkeypatch):
   calls: list[dict] = []
 
   def _fake_create_report(*, api_base, access_token, profile_id, payload):
@@ -140,22 +143,22 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
     "cost": 5.0,
     "impressions": 100,
     "clicks": 10,
-    "attributedKindleEditionNormalizedPagesRoyalties14d": 1.0,
+    "kindleEditionNormalizedPagesRoyalties14d": 1.0,
   }]
   product_rows = [
     {
       "campaignId": "123",
       "date": "2026-02-14",
       "purchasedAsin": "B09XYZ",
-      "attributedSales14d": 20.0,
-      "attributedUnitsOrdered14d": 2,
+      "sales14d": 20.0,
+      "purchases14d": 2,
     },
     {
       "campaignId": "123",
       "date": "2026-02-14",
       "purchasedAsin": "B000UNKNOWN",
-      "attributedSales14d": 10.0,
-      "attributedUnitsOrdered14d": 1,
+      "sales14d": 10.0,
+      "purchases14d": 1,
     },
   ]
 
@@ -175,13 +178,13 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
   }
 
   def _fake_wait_for_completion(
-      *,
-      api_base,
-      access_token,
-      profile_id,
-      report_id,
-      poll_interval_sec,
-      poll_timeout_sec,
+    *,
+    api_base,
+    access_token,
+    profile_id,
+    report_id,
+    poll_interval_sec,
+    poll_timeout_sec,
   ):
     del api_base, access_token, profile_id, poll_interval_sec, poll_timeout_sec
     return statuses[report_id]

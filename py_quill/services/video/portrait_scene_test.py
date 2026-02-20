@@ -6,7 +6,7 @@ from common.posable_character import MouthState, PosableCharacter, Transform
 from common.posable_character_sequence import (
   PosableCharacterSequence, SequenceBooleanEvent, SequenceFloatEvent,
   SequenceMouthEvent, SequenceSoundEvent, SequenceTransformEvent)
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from services import audio_voices
 from services.video import (joke_video_chars_on_bottom_script_builder,
                             scene_video_renderer, script_utils)
@@ -591,6 +591,49 @@ def test_render_actor_with_fit_rejects_non_positive_logical_dimensions():
       logical_width=0,
       logical_height=80,
     )
+
+
+def test_wrap_subtitle_lines_splits_evenly_and_fits_width():
+  image = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+  draw = ImageDraw.Draw(image)
+  font = ImageFont.load_default()
+  text = "one two three four five six"
+
+  with patch.object(
+      scene_video_renderer,
+      "_subtitle_line_width_px",
+      side_effect=lambda _draw, *, font, text: len(text)):
+    lines = scene_video_renderer._wrap_subtitle_lines(  # pylint: disable=protected-access
+      draw=draw,
+      font=font,
+      text=text,
+      max_width_px=10,
+    )
+
+  assert len(lines) >= 2
+  assert max(len(line) for line in lines) <= 10
+
+
+def test_wrap_subtitle_lines_allows_single_overlong_word():
+  image = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+  draw = ImageDraw.Draw(image)
+  font = ImageFont.load_default()
+  text = "supercalifragilisticexpialidocious ok"
+
+  with patch.object(
+      scene_video_renderer,
+      "_subtitle_line_width_px",
+      side_effect=lambda _draw, *, font, text: len(text)):
+    lines = scene_video_renderer._wrap_subtitle_lines(  # pylint: disable=protected-access
+      draw=draw,
+      font=font,
+      text=text,
+      max_width_px=5,
+    )
+
+  assert len(lines) == 2
+  assert lines[0] == "supercalifragilisticexpialidocious"
+  assert len(lines[0]) > 5
 
 
 def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():

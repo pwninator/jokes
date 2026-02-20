@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import time
+import math
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
@@ -31,6 +32,7 @@ _SUBTITLE_FONT_SIZE_PX = 72
 _SUBTITLE_TEXT_FILL = (33, 33, 33, 255)
 _SUBTITLE_STROKE_FILL = (255, 255, 255, 255)
 _SUBTITLE_STROKE_WIDTH_PX = 3
+_SUBTITLE_LINE_SPACING_PX = 4
 
 
 class _ActorEntry(TypedDict):
@@ -523,26 +525,132 @@ def _render_subtitle_overlay(
 
   draw = ImageDraw.Draw(base)
   font = image_operations.get_text_font(_SUBTITLE_FONT_SIZE_PX)
-  text_bbox = draw.textbbox(
-    (0, 0),
-    active_text,
+  wrapped_lines = _wrap_subtitle_lines(
+    draw=draw,
     font=font,
-    stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
+    text=active_text,
+    max_width_px=subtitle_rect.width_px,
   )
-  text_width = text_bbox[2] - text_bbox[0]
-  text_height = text_bbox[3] - text_bbox[1]
-  text_x = subtitle_rect.x_px + int((subtitle_rect.width_px - text_width) / 2)
-  text_y = subtitle_rect.y_px + int(
-    (subtitle_rect.height_px - text_height) / 2)
 
-  draw.text(
-    (text_x, text_y),
-    active_text,
-    fill=_SUBTITLE_TEXT_FILL,
+  text_y = subtitle_rect.y_px
+  for line in wrapped_lines:
+    line_bbox = draw.textbbox(
+      (0, 0),
+      line,
+      font=font,
+      stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
+    )
+    line_width = line_bbox[2] - line_bbox[0]
+    line_height = line_bbox[3] - line_bbox[1]
+    text_x = subtitle_rect.x_px + int((subtitle_rect.width_px - line_width) / 2)
+    draw.text(
+      (text_x, text_y),
+      line,
+      fill=_SUBTITLE_TEXT_FILL,
+      font=font,
+      stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
+      stroke_fill=_SUBTITLE_STROKE_FILL,
+    )
+    text_y += line_height + _SUBTITLE_LINE_SPACING_PX
+
+
+def _subtitle_line_width_px(
+  draw: ImageDraw.ImageDraw,
+  *,
+  font: Any,
+  text: str,
+) -> int:
+  bbox = draw.textbbox(
+    (0, 0),
+    text,
     font=font,
     stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
-    stroke_fill=_SUBTITLE_STROKE_FILL,
   )
+  return int(round(bbox[2] - bbox[0]))
+
+
+def _split_words_evenly_by_chars(words: list[str], line_count: int) -> list[str]:
+  if line_count <= 1 or len(words) <= 1:
+    return [" ".join(words)] if words else []
+
+  lines: list[str] = []
+  remaining_words = words[:]
+  remaining_chars = len(" ".join(remaining_words))
+
+  for line_index in range(line_count):
+    lines_left = line_count - line_index
+    if not remaining_words:
+      break
+    if lines_left == 1:
+      lines.append(" ".join(remaining_words))
+      break
+
+    target_chars = int(math.ceil(remaining_chars / lines_left))
+    current_words: list[str] = [remaining_words.pop(0)]
+
+    while remaining_words:
+      candidate = " ".join([*current_words, remaining_words[0]])
+      words_left_after_add = len(remaining_words) - 1
+      min_words_needed_after_add = lines_left - 1
+      if words_left_after_add < min_words_needed_after_add:
+        break
+      if len(candidate) > target_chars:
+        break
+      current_words.append(remaining_words.pop(0))
+
+    line_text = " ".join(current_words)
+    lines.append(line_text)
+    remaining_chars -= len(line_text)
+    if remaining_words:
+      remaining_chars -= 1
+
+  return [line for line in lines if line]
+
+
+def _wrap_subtitle_lines(
+  *,
+  draw: ImageDraw.ImageDraw,
+  font: Any,
+  text: str,
+  max_width_px: int,
+) -> list[str]:
+  normalized_text = " ".join(text.split())
+  if not normalized_text:
+    return []
+  if max_width_px <= 0:
+    return [normalized_text]
+
+  full_width = _subtitle_line_width_px(draw, font=font, text=normalized_text)
+  if full_width <= max_width_px:
+    return [normalized_text]
+
+  words = normalized_text.split(" ")
+  if len(words) <= 1:
+    return [normalized_text]
+
+  line_count = max(2, int(math.ceil(full_width / max_width_px)))
+  line_count = min(line_count, len(words))
+  last_lines: list[str] = [normalized_text]
+
+  while line_count <= len(words):
+    lines = _split_words_evenly_by_chars(words, line_count)
+    if not lines:
+      return [normalized_text]
+    last_lines = lines
+
+    widths = [
+      _subtitle_line_width_px(draw, font=font, text=line_text)
+      for line_text in lines
+    ]
+    if max(widths) <= max_width_px:
+      return lines
+    if any(width > max_width_px and len(line_text.split(" ")) == 1
+           for line_text, width in zip(lines, widths)):
+      return lines
+
+    line_count += 1
+
+  return last_lines
 
 
 def _download_audio_to_temp(

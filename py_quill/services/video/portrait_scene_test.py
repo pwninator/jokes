@@ -636,6 +636,18 @@ def test_wrap_subtitle_lines_allows_single_overlong_word():
   assert len(lines[0]) > 5
 
 
+def test_center_text_x_in_rect_accounts_for_bbox_left_offset():
+  centered_x = scene_video_renderer._center_text_x_in_rect(  # pylint: disable=protected-access
+    rect_x=80,
+    rect_width=920,
+    text_bbox=(-50.0, 0.0, 650.0, 80.0),
+  )
+  visual_left = centered_x - 50
+  visual_center = visual_left + ((650 - (-50)) / 2.0)
+  rect_center = 80 + (920 / 2.0)
+  assert visual_center == pytest.approx(rect_center)
+
+
 def test_build_portrait_joke_scene_script_adds_intro_and_laugh_items():
   left_character = _DummyCharacter()
   right_character = _DummyCharacter()

@@ -59,7 +59,7 @@ _BANNER_LOGO_RECT = SceneRect(
   height_px=_BANNER_HEIGHT_PX,
 )
 _SUBTITLE_RECT = SceneRect(
-  x_px=0,
+  x_px=_CONTENT_HORIZONTAL_MARGIN_PX,
   y_px=_SUBTITLE_TOP_PX,
   width_px=_CONTENT_WIDTH_PX,
   height_px=_SUBTITLE_HEIGHT_PX,

@@ -51,11 +51,11 @@ initialize_user_http = user_fns.initialize_user_http
 # on_page_created = book_fns.on_page_created
 
 # Export the joke functions
-critique_jokes = joke_fns.critique_jokes
-modify_joke_image = joke_fns.modify_joke_image
-upscale_joke = joke_fns.upscale_joke
+# critique_jokes = joke_fns.critique_jokes
+# modify_joke_image = joke_fns.modify_joke_image
+# upscale_joke = joke_fns.upscale_joke
 search_jokes = joke_fns.search_jokes
-joke_manual_tag = joke_fns.joke_manual_tag
+# joke_manual_tag = joke_fns.joke_manual_tag
 get_joke_bundle = joke_fns.get_joke_bundle
 joke_creation_process = joke_creation_fns.joke_creation_process
 
@@ -71,8 +71,6 @@ auto_joke_hourly_scheduler = joke_auto_fns.auto_joke_hourly_scheduler
 auto_joke_hourly_http = joke_auto_fns.auto_joke_hourly_http
 auto_user_daily_scheduler = joke_auto_fns.auto_user_daily_scheduler
 auto_user_daily_http = joke_auto_fns.auto_user_daily_http
-auto_ads_stats_fetcher_scheduler = joke_auto_fns.auto_ads_stats_scheduler
-auto_ads_stats_fetcher_http = joke_auto_fns.auto_ads_stats_http
 auto_ads_stats_scheduler = joke_auto_fns.auto_ads_stats_scheduler
 auto_ads_stats_http = joke_auto_fns.auto_ads_stats_http
 
@@ -87,10 +85,10 @@ generate_joke_book_page = joke_book_fns.generate_joke_book_page
 update_joke_book_zip = joke_book_fns.update_joke_book_zip
 
 # Export the admin functions
-set_user_role = admin_fns.set_user_role
+# set_user_role = admin_fns.set_user_role
 
 # Export util functions
-run_firestore_migration = util_fns.run_firestore_migration
+# run_firestore_migration = util_fns.run_firestore_migration
 
 # Export the web functions
 web = web_fns.web

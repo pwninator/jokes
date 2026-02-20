@@ -540,9 +540,12 @@ def _render_subtitle_overlay(
       font=font,
       stroke_width=_SUBTITLE_STROKE_WIDTH_PX,
     )
-    line_width = line_bbox[2] - line_bbox[0]
     line_height = line_bbox[3] - line_bbox[1]
-    text_x = subtitle_rect.x_px + int((subtitle_rect.width_px - line_width) / 2)
+    text_x = _center_text_x_in_rect(
+      rect_x=subtitle_rect.x_px,
+      rect_width=subtitle_rect.width_px,
+      text_bbox=line_bbox,
+    )
     draw.text(
       (text_x, text_y),
       line,
@@ -552,6 +555,17 @@ def _render_subtitle_overlay(
       stroke_fill=_SUBTITLE_STROKE_FILL,
     )
     text_y += line_height + _SUBTITLE_LINE_SPACING_PX
+
+
+def _center_text_x_in_rect(
+  *,
+  rect_x: int,
+  rect_width: int,
+  text_bbox: tuple[float, float, float, float],
+) -> int:
+  text_width = text_bbox[2] - text_bbox[0]
+  visual_left = rect_x + (rect_width - text_width) / 2.0
+  return int(round(visual_left - text_bbox[0]))
 
 
 def _subtitle_line_width_px(

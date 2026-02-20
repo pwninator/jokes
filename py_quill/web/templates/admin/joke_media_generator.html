@@ -271,6 +271,11 @@
       <audio id="dialog-audio" controls></audio>
       <div class="muted mono" id="dialog-uri"></div>
     </div>
+    <div class="audio-result-card" id="intro-card">
+      <h3>Intro</h3>
+      <audio id="intro-audio" controls></audio>
+      <div class="muted mono" id="intro-uri"></div>
+    </div>
     <div class="audio-result-card" id="setup-card">
       <h3>Setup</h3>
       <audio id="setup-audio" controls></audio>
@@ -350,12 +355,14 @@
     ];
 
     const dialogAudio = document.getElementById('dialog-audio');
+    const introAudio = document.getElementById('intro-audio');
     const setupAudio = document.getElementById('setup-audio');
     const responseAudio = document.getElementById('response-audio');
     const punchlineAudio = document.getElementById('punchline-audio');
     const jokeVideo = document.getElementById('joke-video');
 
     const dialogUri = document.getElementById('dialog-uri');
+    const introUri = document.getElementById('intro-uri');
     const setupUri = document.getElementById('setup-uri');
     const responseUri = document.getElementById('response-uri');
     const punchlineUri = document.getElementById('punchline-uri');
@@ -394,7 +401,7 @@
       if (results) {
         results.classList.add('is-hidden');
       }
-      [dialogAudio, setupAudio, responseAudio, punchlineAudio].forEach((el) => {
+      [dialogAudio, introAudio, setupAudio, responseAudio, punchlineAudio].forEach((el) => {
         if (!el) return;
         el.pause();
         el.removeAttribute('src');
@@ -406,6 +413,7 @@
         jokeVideo.load();
       }
       if (dialogUri) dialogUri.textContent = '';
+      if (introUri) introUri.textContent = '';
       if (setupUri) setupUri.textContent = '';
       if (responseUri) responseUri.textContent = '';
       if (punchlineUri) punchlineUri.textContent = '';
@@ -445,23 +453,27 @@
 
     function populateAudioResults(data) {
       const dialogGcs = data?.dialog_audio_gcs_uri;
+      const introGcs = data?.intro_audio_gcs_uri;
       const setupGcs = data?.setup_audio_gcs_uri;
       const responseGcs = data?.response_audio_gcs_uri;
       const punchlineGcs = data?.punchline_audio_gcs_uri;
 
       const hasDialog = setAudioResult(dialogAudio, dialogUri, dialogGcs);
+      const hasIntro = setAudioResult(introAudio, introUri, introGcs);
       const hasSetup = setAudioResult(setupAudio, setupUri, setupGcs);
       const hasResponse = setAudioResult(responseAudio, responseUri, responseGcs);
       const hasPunchline = setAudioResult(punchlineAudio, punchlineUri, punchlineGcs);
 
-      return hasDialog || hasSetup || hasResponse || hasPunchline;
+      return hasDialog || hasIntro || hasSetup || hasResponse || hasPunchline;
     }
 
     function populateAudioMeta(meta) {
       const tokenCounts = meta?.token_counts || {};
       if (metaModel) metaModel.textContent = meta?.model_name || '';
       if (metaCost) {
-        const costValue = typeof meta?.cost === 'number' ? meta.cost : null;
+        const costValue = typeof meta?.cost === 'number'
+          ? meta.cost
+          : (typeof meta?.total_cost === 'number' ? meta.total_cost : null);
         metaCost.textContent = costValue === null ? '' : costValue.toFixed(6);
       }
       if (metaPromptTokens) metaPromptTokens.textContent = String(tokenCounts.prompt_tokens ?? '');
@@ -686,6 +698,15 @@
       return candidates.find((gen) => Boolean(gen?.model_name)) || candidates[0] || null;
     }
 
+    function hasPopulatedAudioMetadata(meta) {
+      if (!meta || typeof meta !== 'object') return false;
+      const hasModel = Boolean(meta.model_name);
+      const hasCost = typeof meta.cost === 'number' || typeof meta.total_cost === 'number';
+      const tokenCounts = meta.token_counts;
+      const hasTokenCounts = Boolean(tokenCounts && typeof tokenCounts === 'object' && Object.keys(tokenCounts).length);
+      return hasModel || hasCost || hasTokenCounts;
+    }
+
     generateVideoButton.addEventListener('click', async function () {
       clearError();
       hideResults();
@@ -729,7 +750,10 @@
         const meta = data.video_generation_metadata || {};
         const hasAnyAudio = populateAudioResults(data);
 
-        const audioMeta = data.audio_generation_metadata || extractAudioGeneration(meta);
+        const directAudioMeta = data.audio_generation_metadata;
+        const audioMeta = hasPopulatedAudioMetadata(directAudioMeta)
+          ? directAudioMeta
+          : extractAudioGeneration(meta);
         if (audioMeta) {
           populateAudioMeta(audioMeta);
         }

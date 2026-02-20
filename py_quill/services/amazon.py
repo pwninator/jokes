@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import requests
-from common import config, models
+from common import book_defs, config, models
 from firebase_functions import logger
 from services import firestore
 
@@ -139,11 +139,6 @@ _SP_ADVERTISED_PRODUCT_COLUMNS: list[str] = [
   "purchasesSameSku14d",
   "purchases14d",
 ]
-
-# Temporary static profit margins used during report merge.
-_ASIN_PROFIT_MARGINS_USD: dict[str, float] = {
-  "B09XYZ": 4.50,
-}
 
 
 class AmazonAdsError(Exception):
@@ -302,10 +297,7 @@ def get_daily_campaign_stats_from_reports(
     advertised_product_rows=advertised_product_rows,
     purchased_product_rows=purchased_product_rows,
   )
-  return [
-    firestore.upsert_amazon_ads_daily_campaign_stats(stat)
-    for stat in merged_stats
-  ]
+  return merged_stats
 
 
 def _validate_report_date_range(
@@ -681,7 +673,8 @@ def _merge_report_rows(
     )
     product_profit_total = sum(item.total_profit for item in sale_items)
 
-    gross_profit = product_profit_total + kenp_royalties
+    gross_profit_before_ads = product_profit_total + kenp_royalties
+    gross_profit = gross_profit_before_ads - spend
     output.append(
       models.AmazonAdsDailyCampaignStats(
         campaign_id=campaign_id,
@@ -693,6 +686,7 @@ def _merge_report_rows(
         kenp_royalties=kenp_royalties,
         total_attributed_sales=total_attributed_sales,
         total_units_sold=total_units_sold,
+        gross_profit_before_ads=gross_profit_before_ads,
         gross_profit=gross_profit,
         sale_items=sale_items,
       ))
@@ -801,8 +795,12 @@ def _build_product_stats(
   sales_amount: float,
 ) -> models.AmazonAdsProductStats:
   """Build a normalized `ProductStats` object from merged ASIN totals."""
-  profit_margin = _ASIN_PROFIT_MARGINS_USD.get(asin, 0.0)
-  total_profit = units_sold * profit_margin
+  book_variant = book_defs.BOOK_VARIANTS_BY_ASIN.get(asin)
+  if not book_variant:
+    raise AmazonAdsError(f"Unknown ASIN: {asin}")
+
+  total_profit = (sales_amount * book_variant.royalty_rate) - (
+    units_sold * book_variant.print_cost)
 
   return models.AmazonAdsProductStats(
     asin=asin,

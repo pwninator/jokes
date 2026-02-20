@@ -112,20 +112,28 @@ def list_amazon_ads_reports(
 
 
 def upsert_amazon_ads_daily_campaign_stats(
-  stats: models.AmazonAdsDailyCampaignStats,
-) -> models.AmazonAdsDailyCampaignStats:
-  """Upsert daily campaign stats keyed by campaign id and date."""
-  stats_key = utils.create_firestore_key(
-    stats.campaign_id,
-    stats.date.isoformat(),
-  )
-  payload = stats.to_dict(include_key=False)
-  db().collection(AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION).document(
-    stats_key).set(
+  stats: list[models.AmazonAdsDailyCampaignStats],
+) -> list[models.AmazonAdsDailyCampaignStats]:
+  """Batch upsert daily campaign stats keyed by campaign id and date."""
+  if not stats:
+    return []
+
+  db_client = db()
+  batch = db_client.batch()
+  collection_ref = db_client.collection(AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION)
+  for daily_stat in stats:
+    stats_key = utils.create_firestore_key(
+      daily_stat.campaign_id,
+      daily_stat.date.isoformat(),
+    )
+    payload = daily_stat.to_dict(include_key=False)
+    batch.set(
+      collection_ref.document(stats_key),
       payload,
       merge=True,
     )
-  stats.key = stats_key
+    daily_stat.key = stats_key
+  batch.commit()
   return stats
 
 

@@ -181,6 +181,8 @@ def _build_ads_stats_chart_data(
       "clicks": 0.0,
       "cost": 0.0,
       "sales": 0.0,
+      "gross_profit_before_ads": 0.0,
+      "gross_profit": 0.0,
     }
     current_date += datetime.timedelta(days=1)
 
@@ -194,14 +196,23 @@ def _build_ads_stats_chart_data(
     daily_entry["clicks"] += float(stat.clicks)
     daily_entry["cost"] += stat.spend
     daily_entry["sales"] += stat.total_attributed_sales
+    daily_entry["gross_profit_before_ads"] += stat.gross_profit_before_ads
+    daily_entry["gross_profit"] += stat.gross_profit
 
   labels = list(daily_totals.keys())
   return {
-    "labels": labels,
+    "labels":
+    labels,
     "impressions":
     [int(daily_totals[label]["impressions"]) for label in labels],
     "clicks": [int(daily_totals[label]["clicks"]) for label in labels],
     "cost": [round(float(daily_totals[label]["cost"]), 2) for label in labels],
     "sales":
     [round(float(daily_totals[label]["sales"]), 2) for label in labels],
+    "gross_profit_before_ads": [
+      round(float(daily_totals[label]["gross_profit_before_ads"]), 2)
+      for label in labels
+    ],
+    "gross_profit":
+    [round(float(daily_totals[label]["gross_profit"]), 2) for label in labels],
   }

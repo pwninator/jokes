@@ -600,10 +600,15 @@ class TestAdsStatsFetcher:
           kenp_royalties=1.0,
           total_attributed_sales=20.0,
           total_units_sold=2,
+          gross_profit_before_ads=12.0,
           gross_profit=8.0,
           sale_items=[],
         )
       ],
+    )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.upsert_amazon_ads_daily_campaign_stats',
+      lambda stats: stats,
     )
 
     stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
@@ -712,6 +717,7 @@ class TestAdsStatsFetcher:
         "kenp_royalties": 1.0,
         "total_attributed_sales": 20.0,
         "total_units_sold": 2,
+        "gross_profit_before_ads": 12.0,
         "gross_profit": 8.0,
         "sale_items": [],
       }]

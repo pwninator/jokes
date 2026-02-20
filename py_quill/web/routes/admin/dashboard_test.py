@@ -310,6 +310,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
         clicks=10,
         spend=15.25,
         total_attributed_sales=25.00,
+        gross_profit_before_ads=40.0,
+        gross_profit=24.75,
       ),
       models.AmazonAdsDailyCampaignStats(
         campaign_id="c-2",
@@ -319,6 +321,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
         clicks=5,
         spend=9.75,
         total_attributed_sales=12.00,
+        gross_profit_before_ads=20.0,
+        gross_profit=10.25,
       ),
       models.AmazonAdsDailyCampaignStats(
         campaign_id="c-3",
@@ -328,6 +332,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
         clicks=3,
         spend=4.50,
         total_attributed_sales=9.00,
+        gross_profit_before_ads=9.0,
+        gross_profit=4.5,
       ),
     ]
 
@@ -361,6 +367,10 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert chart_data["clicks"] == [0, 0, 0, 3, 0, 15, 0]
   assert chart_data["cost"] == [0.0, 0.0, 0.0, 4.5, 0.0, 25.0, 0.0]
   assert chart_data["sales"] == [0.0, 0.0, 0.0, 9.0, 0.0, 37.0, 0.0]
+  assert chart_data["gross_profit_before_ads"] == [
+    0.0, 0.0, 0.0, 9.0, 0.0, 60.0, 0.0
+  ]
+  assert chart_data["gross_profit"] == [0.0, 0.0, 0.0, 4.5, 0.0, 35.0, 0.0]
 
 
 def test_admin_dashboard_includes_ads_stats_link(monkeypatch):

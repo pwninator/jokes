@@ -269,6 +269,8 @@ def _auto_ads_stats_internal(
         advertised_products_report=advertised_products_report,
         purchased_products_report=purchased_products_report,
       )
+      daily_campaign_stats = firestore.upsert_amazon_ads_daily_campaign_stats(
+        daily_campaign_stats)
       for daily_stat in daily_campaign_stats:
         stat_row = daily_stat.to_dict(include_key=True)
         stat_row["profile_id"] = profile.profile_id

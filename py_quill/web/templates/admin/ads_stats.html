@@ -29,6 +29,14 @@
     <h3>Sales</h3>
     <canvas id="salesChart"></canvas>
   </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-top: 28px; margin-bottom: 28px;">
+    <h3>Gross Profit Before Ads</h3>
+    <canvas id="grossProfitBeforeAdsChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%;">
+    <h3>Gross Profit</h3>
+    <canvas id="grossProfitChart"></canvas>
+  </div>
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -75,5 +83,7 @@
   createLineChart('clicksChart', 'Clicks', adsStatsData.clicks, '#1565c0', false);
   createLineChart('costChart', 'Cost', adsStatsData.cost, '#6a1b9a', true);
   createLineChart('salesChart', 'Sales', adsStatsData.sales, '#ef6c00', true);
+  createLineChart('grossProfitBeforeAdsChart', 'Gross Profit Before Ads', adsStatsData.gross_profit_before_ads, '#00695c', true);
+  createLineChart('grossProfitChart', 'Gross Profit', adsStatsData.gross_profit, '#ad1457', true);
 </script>
 {% endblock %}

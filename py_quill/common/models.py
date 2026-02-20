@@ -1431,6 +1431,7 @@ class AmazonAdsDailyCampaignStats:
   kenp_royalties: float = 0.0
   total_attributed_sales: float = 0.0
   total_units_sold: int = 0
+  gross_profit_before_ads: float = 0.0
   gross_profit: float = 0.0
   sale_items: list[AmazonAdsProductStats] = field(default_factory=list)
 
@@ -1446,6 +1447,7 @@ class AmazonAdsDailyCampaignStats:
       "kenp_royalties": self.kenp_royalties,
       "total_attributed_sales": self.total_attributed_sales,
       "total_units_sold": self.total_units_sold,
+      "gross_profit_before_ads": self.gross_profit_before_ads,
       "gross_profit": self.gross_profit,
       "sale_items": [item.to_dict() for item in self.sale_items],
     }
@@ -1476,6 +1478,7 @@ class AmazonAdsDailyCampaignStats:
     _parse_float_field(data, "kenp_royalties", 0.0)
     _parse_float_field(data, "total_attributed_sales", 0.0)
     _parse_int_field(data, "total_units_sold", 0)
+    _parse_float_field(data, "gross_profit_before_ads", 0.0)
     _parse_float_field(data, "gross_profit", 0.0)
 
     sale_items = _parse_amazon_ads_product_stats_list(data.get("sale_items"))
@@ -1498,6 +1501,7 @@ class AmazonAdsDailyCampaignStats:
       kenp_royalties=data.get("kenp_royalties", 0.0),
       total_attributed_sales=data.get("total_attributed_sales", 0.0),
       total_units_sold=data.get("total_units_sold", 0),
+      gross_profit_before_ads=data.get("gross_profit_before_ads", 0.0),
       gross_profit=data.get("gross_profit", 0.0),
       sale_items=sale_items,
     )

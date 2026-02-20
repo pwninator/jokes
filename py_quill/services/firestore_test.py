@@ -2901,19 +2901,26 @@ def test_upsert_amazon_ads_daily_campaign_stats_uses_firestore_key(
 
   captured: dict[str, object] = {}
 
-  class DummyDocRef:
+  class DummyBatch:
 
-    def set(self, data, merge=False):
+    def set(self, doc_ref, data, merge=False):
+      captured["doc_ref"] = doc_ref
       captured["data"] = data
       captured["merge"] = merge
+
+    def commit(self):
+      captured["committed"] = True
 
   class DummyCollection:
 
     def document(self, doc_id):
       captured["doc_id"] = doc_id
-      return DummyDocRef()
+      return f"doc::{doc_id}"
 
   class DummyDB:
+
+    def batch(self):
+      return DummyBatch()
 
     def collection(self, name):
       captured["collection"] = name
@@ -2931,16 +2938,23 @@ def test_upsert_amazon_ads_daily_campaign_stats_uses_firestore_key(
     campaign_name="Animal P - Auto",
     date=datetime.date(2026, 2, 18),
     spend=12.34,
+    gross_profit_before_ads=7.5,
+    gross_profit=3.25,
   )
 
-  saved = fs.upsert_amazon_ads_daily_campaign_stats(stats)
+  saved = fs.upsert_amazon_ads_daily_campaign_stats([stats])
 
-  assert saved.key == "key::c-1::2026-02-18"
+  assert len(saved) == 1
+  assert saved[0].key == "key::c-1::2026-02-18"
   assert captured[
     "collection"] == fs.AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION
   assert captured["doc_id"] == "key::c-1::2026-02-18"
+  assert captured["doc_ref"] == "doc::key::c-1::2026-02-18"
   assert captured["merge"] is True
+  assert captured["committed"] is True
   assert isinstance(captured["data"], dict)
+  assert captured["data"]["gross_profit_before_ads"] == 7.5
+  assert captured["data"]["gross_profit"] == 3.25
 
 
 def test_list_amazon_ads_daily_campaign_stats_filters_by_date_range(
@@ -2972,6 +2986,7 @@ def test_list_amazon_ads_daily_campaign_stats_filters_by_date_range(
         "kenp_royalties": 1.2,
         "total_attributed_sales": 23.0,
         "total_units_sold": 4,
+        "gross_profit_before_ads": 12.0,
         "gross_profit": 9.0,
         "sale_items": [],
       }

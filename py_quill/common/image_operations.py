@@ -954,7 +954,7 @@ def _load_page_number_font_bytes(url: str) -> bytes | None:
 
 
 @lru_cache(maxsize=16)
-def _get_page_number_font(
+def get_text_font(
     font_size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
   """Return a cached Nunito font instance for the requested size."""
   safe_size = max(1, font_size)
@@ -1431,7 +1431,7 @@ def _add_page_number_to_image(
     return image
 
   draw = ImageDraw.Draw(image)
-  font = _get_page_number_font(_PAGE_NUMBER_FONT_SIZE)
+  font = get_text_font(_PAGE_NUMBER_FONT_SIZE)
   stroke_width = max(
     1, int(round(_PAGE_NUMBER_FONT_SIZE * _PAGE_NUMBER_STROKE_RATIO)))
   text = str(page_number)

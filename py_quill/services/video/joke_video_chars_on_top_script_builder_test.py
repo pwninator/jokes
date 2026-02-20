@@ -63,6 +63,17 @@ def _load_firestore_sequence(
   raise AssertionError(f"Unexpected sequence id: {sequence_id}")
 
 
+def test_chars_on_top_vertical_constants_sum_to_canvas_height():
+  total_height = (
+    joke_video_chars_on_top_script_builder._TOP_MARGIN_PX +  # pylint: disable=protected-access
+    joke_video_chars_on_top_script_builder._SUBTITLE_HEIGHT_PX +  # pylint: disable=protected-access
+    joke_video_chars_on_top_script_builder._CHARACTER_HEIGHT_PX +  # pylint: disable=protected-access
+    joke_video_chars_on_top_script_builder._JOKE_IMAGE_HEIGHT_PX +  # pylint: disable=protected-access
+    joke_video_chars_on_top_script_builder._BOTTOM_MARGIN_PX)  # pylint: disable=protected-access
+  assert total_height == (
+    joke_video_chars_on_top_script_builder._CANVAS_HEIGHT_PX)  # pylint: disable=protected-access
+
+
 def test_chars_on_top_layout_lowers_image_and_uses_footer_margin():
   teller = _SizedCharacter(width=220, height=300)
   listener = _SizedCharacter(width=140, height=220)
@@ -87,18 +98,34 @@ def test_chars_on_top_layout_lowers_image_and_uses_footer_margin():
   image_items = [item for item in script.items if isinstance(item, TimedImage)]
   setup_image_item = next(item for item in image_items
                           if item.gcs_uri == "gs://bucket/setup.png")
-  assert setup_image_item.rect.y_px == 690
-  assert setup_image_item.rect.height_px == 1080
+  assert setup_image_item.rect.y_px == (
+    joke_video_chars_on_top_script_builder._JOKE_IMAGE_TOP_PX)  # pylint: disable=protected-access
+  assert setup_image_item.rect.height_px == (
+    joke_video_chars_on_top_script_builder._JOKE_IMAGE_HEIGHT_PX)  # pylint: disable=protected-access
   assert script.subtitle_rect is not None
   assert script.subtitle_rect.x_px == 0
-  assert script.subtitle_rect.y_px == 590
+  assert script.subtitle_rect.y_px == (
+    joke_video_chars_on_top_script_builder._TOP_MARGIN_PX)  # pylint: disable=protected-access
   assert script.subtitle_rect.width_px == 1080
-  assert script.subtitle_rect.height_px == 100
+  assert script.subtitle_rect.height_px == (
+    joke_video_chars_on_top_script_builder._SUBTITLE_HEIGHT_PX)  # pylint: disable=protected-access
 
   background_item = next(item for item in image_items
                          if item.gcs_uri.endswith("blank_paper.png"))
   assert background_item.rect.y_px == 0
-  assert background_item.rect.height_px == 1920
+  assert background_item.rect.height_px == (
+    joke_video_chars_on_top_script_builder._CANVAS_HEIGHT_PX)  # pylint: disable=protected-access
+
+  banner_item = next(
+    item for item in image_items if
+    item.gcs_uri == joke_video_chars_on_top_script_builder._PORTRAIT_BANNER_GCS_URI)  # pylint: disable=protected-access
+  assert banner_item.rect.x_px == (
+    joke_video_chars_on_top_script_builder._CANVAS_WIDTH_PX -  # pylint: disable=protected-access
+    banner_item.rect.width_px -
+    joke_video_chars_on_top_script_builder._BANNER_HORIZONTAL_MARGIN_PX)  # pylint: disable=protected-access
+  assert banner_item.rect.y_px == (
+    joke_video_chars_on_top_script_builder._TOP_MARGIN_PX -  # pylint: disable=protected-access
+    banner_item.rect.height_px) // 2
 
   character_items = [
     item for item in script.items if isinstance(item, TimedCharacterSequence)

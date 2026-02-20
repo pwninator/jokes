@@ -15,19 +15,26 @@ from services.video.script import (SceneCanvas, SceneRect, SceneScript,
                                    TimedCharacterSequence, TimedImage)
 from services.video.script_utils import PortraitJokeTimeline
 
-_VIDEO_CANVAS_WIDTH_PX = 1080
-_VIDEO_CANVAS_HEIGHT_PX = 1920
+_CANVAS_WIDTH_PX = 1080
+_CANVAS_HEIGHT_PX = 1920
 
-_BANNER_HEIGHT_PX = 240
-_BANNER_HORIZONTAL_MARGIN_PX = 80
-_JOKE_IMAGE_HEIGHT_PX = 1080
-_BOTTOM_MARGIN_PX = 250
-_CHARACTER_SIDE_MARGIN_PX = 80
+_TOP_MARGIN_PX = 140
 _SUBTITLE_HEIGHT_PX = 100
+_CHARACTER_HEIGHT_PX = 360
+_JOKE_IMAGE_HEIGHT_PX = 1080
+_BOTTOM_MARGIN_PX = 240
 
-_JOKE_IMAGE_BOTTOM_PX = _VIDEO_CANVAS_HEIGHT_PX - _BOTTOM_MARGIN_PX
-_JOKE_IMAGE_TOP_PX = (_JOKE_IMAGE_BOTTOM_PX - _JOKE_IMAGE_HEIGHT_PX +
-                      _SUBTITLE_HEIGHT_PX)
+_CHARACTER_MASK_FROM_BOTTOM_PX = 50
+
+_BANNER_HORIZONTAL_MARGIN_PX = 80
+_CHARACTER_SIDE_MARGIN_PX = 80
+
+_BANNER_HEIGHT_PX = _TOP_MARGIN_PX // 3
+_BANNER_WIDTH_PX = _CANVAS_WIDTH_PX - (_BANNER_HORIZONTAL_MARGIN_PX * 2)
+
+_SUBTITLE_TOP_PX = _TOP_MARGIN_PX
+_CHARACTER_TOP_PX = _SUBTITLE_TOP_PX + _SUBTITLE_HEIGHT_PX
+_JOKE_IMAGE_TOP_PX = _CHARACTER_TOP_PX + _CHARACTER_HEIGHT_PX
 
 _BACKGROUND_Z_INDEX = 0
 _BANNER_LOGO_Z_INDEX = 10
@@ -39,37 +46,38 @@ _BACKGROUND_GCS_URI = (
 _PORTRAIT_BANNER_GCS_URI = (
   "gs://images.quillsstorybook.com/_joke_assets/logos/icon_words_transparent_light.png"
 )
+
 _CANVAS_RECT = SceneRect(
   x_px=0,
   y_px=0,
-  width_px=_VIDEO_CANVAS_WIDTH_PX,
-  height_px=_VIDEO_CANVAS_HEIGHT_PX,
+  width_px=_CANVAS_WIDTH_PX,
+  height_px=_CANVAS_HEIGHT_PX,
 )
-_PORTRAIT_BANNER_LOGO_RECT = SceneRect(
+_BANNER_LOGO_RECT = SceneRect(
   x_px=_BANNER_HORIZONTAL_MARGIN_PX,
-  y_px=0,
-  width_px=_VIDEO_CANVAS_WIDTH_PX - (_BANNER_HORIZONTAL_MARGIN_PX * 2),
+  y_px=(_TOP_MARGIN_PX - _BANNER_HEIGHT_PX) // 2,
+  width_px=_BANNER_WIDTH_PX,
   height_px=_BANNER_HEIGHT_PX,
-)
-_PORTRAIT_TOP_RECT = SceneRect(
-  x_px=0,
-  y_px=_JOKE_IMAGE_TOP_PX,
-  width_px=_VIDEO_CANVAS_WIDTH_PX,
-  height_px=_JOKE_IMAGE_HEIGHT_PX,
-)
-_PORTRAIT_CHARACTER_RECT = SceneRect(
-  x_px=0,
-  y_px=_JOKE_IMAGE_TOP_PX,
-  width_px=_VIDEO_CANVAS_WIDTH_PX,
-  height_px=_JOKE_IMAGE_HEIGHT_PX,
 )
 _SUBTITLE_RECT = SceneRect(
   x_px=0,
-  y_px=_JOKE_IMAGE_TOP_PX - _SUBTITLE_HEIGHT_PX,
-  width_px=_VIDEO_CANVAS_WIDTH_PX,
+  y_px=_SUBTITLE_TOP_PX,
+  width_px=_CANVAS_WIDTH_PX,
   height_px=_SUBTITLE_HEIGHT_PX,
 )
-_CHARACTER_MASK_FROM_BOTTOM_PX = 50
+_CHARACTER_RECT = SceneRect(
+  x_px=0,
+  # This will be adjusted by _align_character_mask_tops_to_image_top
+  y_px=_CHARACTER_TOP_PX,
+  width_px=_CANVAS_WIDTH_PX,
+  height_px=_CHARACTER_HEIGHT_PX + _CHARACTER_MASK_FROM_BOTTOM_PX,
+)
+_JOKE_IMAGE_RECT = SceneRect(
+  x_px=0,
+  y_px=_JOKE_IMAGE_TOP_PX,
+  width_px=_CANVAS_WIDTH_PX,
+  height_px=_JOKE_IMAGE_HEIGHT_PX,
+)
 
 
 def build_script(
@@ -142,7 +150,7 @@ def build_script(
     listener_laugh_sequence=listener_laugh_sequence,
     timeline=timeline,
     z_index=_CHARACTER_LAYER_Z_INDEX,
-    actor_band_rect=_PORTRAIT_CHARACTER_RECT,
+    actor_band_rect=_CHARACTER_RECT,
     actor_side_margin_px=_CHARACTER_SIDE_MARGIN_PX,
     extend_first_sequence=True,
     surface_line_visible=False,
@@ -151,8 +159,8 @@ def build_script(
 
   script = SceneScript(
     canvas=SceneCanvas(
-      width_px=_VIDEO_CANVAS_WIDTH_PX,
-      height_px=_VIDEO_CANVAS_HEIGHT_PX,
+      width_px=_CANVAS_WIDTH_PX,
+      height_px=_CANVAS_HEIGHT_PX,
     ),
     items=[*timed_images, *character_items],
     duration_sec=timeline.total_duration_sec,
@@ -202,7 +210,7 @@ def _build_background_image_items(
       gcs_uri=_PORTRAIT_BANNER_GCS_URI,
       duration_sec=timeline.total_duration_sec,
       z_index=_BANNER_LOGO_Z_INDEX,
-      rect=_PORTRAIT_BANNER_LOGO_RECT,
+      rect=_BANNER_LOGO_RECT,
       fit_mode="contain",
     ),
   ]
@@ -221,7 +229,7 @@ def _build_joke_image_items(
       start_time_sec=0.0,
       end_time_sec=timeline.punchline_start_sec,
       z_index=_JOKE_IMAGE_LAYER_Z_INDEX,
-      rect=_PORTRAIT_TOP_RECT,
+      rect=_JOKE_IMAGE_RECT,
       fit_mode="fill",
     ),
     TimedImage(
@@ -229,7 +237,7 @@ def _build_joke_image_items(
       start_time_sec=timeline.punchline_start_sec,
       end_time_sec=timeline.total_duration_sec,
       z_index=_JOKE_IMAGE_LAYER_Z_INDEX,
-      rect=_PORTRAIT_TOP_RECT,
+      rect=_JOKE_IMAGE_RECT,
       fit_mode="fill",
     ),
   ]

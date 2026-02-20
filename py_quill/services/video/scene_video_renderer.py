@@ -27,7 +27,7 @@ _AUDIO_DURATION_COMPARISON_TOLERANCE_SEC = 0.001
 _AudioScheduleEntry = tuple[str, float, float, float]
 _DownloadedAudioEntry = tuple[str, float, float, float, str]
 _SubtitleScheduleEntry = tuple[float, float, str]
-_SUBTITLE_FONT_SIZE_PX = 36
+_SUBTITLE_FONT_SIZE_PX = 72
 _SUBTITLE_TEXT_FILL = (33, 33, 33, 255)
 _SUBTITLE_STROKE_FILL = (255, 255, 255, 255)
 _SUBTITLE_STROKE_WIDTH_PX = 3
@@ -522,7 +522,7 @@ def _render_subtitle_overlay(
     return
 
   draw = ImageDraw.Draw(base)
-  font = image_operations._get_page_number_font(_SUBTITLE_FONT_SIZE_PX)  # pylint: disable=protected-access
+  font = image_operations.get_text_font(_SUBTITLE_FONT_SIZE_PX)
   text_bbox = draw.textbbox(
     (0, 0),
     active_text,

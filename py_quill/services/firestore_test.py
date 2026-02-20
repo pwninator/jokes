@@ -2746,3 +2746,292 @@ def test_get_joke_feed_page_partial_document_consumption(monkeypatch):
   assert cursor2 is None
   # Should have started at doc1
   assert "doc1" in accessed_docs
+
+
+def test_upsert_amazon_ads_report_uses_report_name_as_doc_id(monkeypatch):
+  """Reports should be upserted into Firestore keyed by report_name."""
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyDocRef:
+
+    def set(self, data, merge=False):
+      captured["data"] = data
+      captured["merge"] = merge
+
+  class DummyCollection:
+
+    def document(self, doc_id):
+      captured["doc_id"] = doc_id
+      return DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      captured["collection"] = name
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  report = models.AmazonAdsReport(
+    report_id="report-123",
+    report_name="20260219_053012_spCampaigns_US",
+    status="PENDING",
+    report_type_id="spCampaigns",
+    start_date=datetime.date(2026, 2, 18),
+    end_date=datetime.date(2026, 2, 18),
+    created_at=datetime.datetime(
+      2026,
+      2,
+      19,
+      5,
+      30,
+      12,
+      tzinfo=datetime.timezone.utc,
+    ),
+    updated_at=datetime.datetime(
+      2026,
+      2,
+      19,
+      5,
+      30,
+      12,
+      tzinfo=datetime.timezone.utc,
+    ),
+  )
+
+  saved = fs.upsert_amazon_ads_report(report)
+
+  assert saved.key == "20260219_053012_spCampaigns_US"
+  assert captured["collection"] == fs.AMAZON_ADS_REPORTS_COLLECTION
+  assert captured["doc_id"] == "20260219_053012_spCampaigns_US"
+  assert captured["merge"] is True
+  assert isinstance(captured["data"], dict)
+
+
+def test_list_amazon_ads_reports_filters_by_created_at(monkeypatch):
+  """Report listing should apply a Firestore-side created_at lower bound."""
+  from services import firestore as fs
+
+  captured_filters: list[object] = []
+
+  class DummyFieldFilter:
+
+    def __init__(self, field_path, op_string, value):
+      self.field_path = field_path
+      self.op_string = op_string
+      self.value = value
+
+  class DummyDoc:
+    exists = True
+    id = "report_doc_1"
+
+    def to_dict(self):
+      return {
+        "report_id":
+        "report-1",
+        "report_name":
+        "20260219_060000_spCampaigns_US",
+        "status":
+        "COMPLETED",
+        "report_type_id":
+        "spCampaigns",
+        "start_date":
+        "2026-02-18",
+        "end_date":
+        "2026-02-18",
+        "created_at":
+        datetime.datetime(2026, 2, 19, 6, 0, 0, tzinfo=datetime.timezone.utc),
+        "updated_at":
+        datetime.datetime(2026, 2, 19, 6, 5, 0, tzinfo=datetime.timezone.utc),
+      }
+
+  class DummyQuery:
+
+    def where(self, *, filter):
+      captured_filters.append(filter)
+      return self
+
+    def order_by(self, _field_path, direction=None):
+      del direction
+      return self
+
+    def stream(self):
+      return [DummyDoc()]
+
+  class DummyCollection:
+
+    def where(self, *, filter):
+      return DummyQuery().where(filter=filter)
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "FieldFilter", DummyFieldFilter)
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  reports = fs.list_amazon_ads_reports(
+    created_on_or_after=datetime.date(2026, 2, 19))
+
+  assert len(reports) == 1
+  assert reports[0].key == "report_doc_1"
+  assert len(captured_filters) == 1
+  created_filter = captured_filters[0]
+  assert isinstance(created_filter, DummyFieldFilter)
+  assert created_filter.field_path == "created_at"
+  assert created_filter.op_string == ">="
+  assert created_filter.value == datetime.datetime(
+    2026,
+    2,
+    19,
+    0,
+    0,
+    0,
+    tzinfo=datetime.timezone.utc,
+  )
+
+
+def test_upsert_amazon_ads_daily_campaign_stats_uses_firestore_key(
+    monkeypatch):
+  """Daily stats should be upserted using create_firestore_key."""
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyDocRef:
+
+    def set(self, data, merge=False):
+      captured["data"] = data
+      captured["merge"] = merge
+
+  class DummyCollection:
+
+    def document(self, doc_id):
+      captured["doc_id"] = doc_id
+      return DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      captured["collection"] = name
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+  monkeypatch.setattr(
+    fs.utils,
+    "create_firestore_key",
+    lambda campaign_name, day: f"key::{campaign_name}::{day}",
+  )
+
+  stats = models.AmazonAdsDailyCampaignStats(
+    campaign_id="c-1",
+    campaign_name="Animal P - Auto",
+    date=datetime.date(2026, 2, 18),
+    spend=12.34,
+  )
+
+  saved = fs.upsert_amazon_ads_daily_campaign_stats(stats)
+
+  assert saved.key == "key::Animal P - Auto::2026-02-18"
+  assert captured[
+    "collection"] == fs.AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION
+  assert captured["doc_id"] == "key::Animal P - Auto::2026-02-18"
+  assert captured["merge"] is True
+  assert isinstance(captured["data"], dict)
+
+
+def test_list_amazon_ads_daily_campaign_stats_filters_by_date_range(
+    monkeypatch):
+  """Daily stats listing should apply Firestore-side date range filters."""
+  from services import firestore as fs
+
+  captured_filters: list[object] = []
+
+  class DummyFieldFilter:
+
+    def __init__(self, field_path, op_string, value):
+      self.field_path = field_path
+      self.op_string = op_string
+      self.value = value
+
+  class DummyDoc:
+    exists = True
+    id = "daily_doc_1"
+
+    def to_dict(self):
+      return {
+        "campaign_id": "c-1",
+        "campaign_name": "Animal P - Auto",
+        "date": "2026-02-18",
+        "spend": 10.0,
+        "impressions": 100,
+        "clicks": 10,
+        "kenp_royalties": 1.2,
+        "total_attributed_sales": 23.0,
+        "total_units_sold": 4,
+        "gross_profit": 9.0,
+        "sale_items": [],
+      }
+
+  class DummyQuery:
+
+    def where(self, *, filter):
+      captured_filters.append(filter)
+      return self
+
+    def order_by(self, _field_path, direction=None):
+      del direction
+      return self
+
+    def stream(self):
+      return [DummyDoc()]
+
+  class DummyCollection:
+
+    def where(self, *, filter):
+      return DummyQuery().where(filter=filter)
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "FieldFilter", DummyFieldFilter)
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  rows = fs.list_amazon_ads_daily_campaign_stats(
+    start_date=datetime.date(2026, 2, 1),
+    end_date=datetime.date(2026, 2, 28),
+  )
+
+  assert len(rows) == 1
+  assert rows[0].key == "daily_doc_1"
+  assert len(captured_filters) == 2
+  lower = captured_filters[0]
+  upper = captured_filters[1]
+  assert isinstance(lower, DummyFieldFilter)
+  assert isinstance(upper, DummyFieldFilter)
+  assert (lower.field_path, lower.op_string, lower.value) == (
+    "date",
+    ">=",
+    "2026-02-01",
+  )
+  assert (upper.field_path, upper.op_string, upper.value) == (
+    "date",
+    "<=",
+    "2026-02-28",
+  )
+
+
+def test_list_amazon_ads_daily_campaign_stats_invalid_range_raises():
+  """Invalid range should fail fast before querying Firestore."""
+  from services import firestore as fs
+
+  with pytest.raises(ValueError):
+    fs.list_amazon_ads_daily_campaign_stats(
+      start_date=datetime.date(2026, 2, 3),
+      end_date=datetime.date(2026, 2, 2),
+    )

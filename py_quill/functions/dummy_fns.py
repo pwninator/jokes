@@ -57,6 +57,7 @@ def dummy_endpoint(req: flask.Request) -> flask.Response:
     "eight to nine",
   ]
   ages = [
+    "",
     "year old", "year olds",
     "years old",
     "year-old", "year-olds",
@@ -64,6 +65,7 @@ def dummy_endpoint(req: flask.Request) -> flask.Response:
   ]
   recipients = [
     "",
+    "kids", "children",
     "boy", "boys",
     "girl", "girls",
     "son", "daughter",
@@ -92,10 +94,12 @@ def dummy_endpoint(req: flask.Request) -> flask.Response:
   for product in products:
     phrases.append(product.strip())
     for recipient in recipients:
-      phrases.append(f"{product} for {recipient}".strip())
-      for number in numbers:
-        for age in ages:
-          phrases.append(f"{product} for {number} {age} {recipient}".strip())
+      if recipient not in product:
+        phrases.append(f"{product} for {recipient}".strip())
+        for number in numbers:
+          for age in ages:
+            phrases.append(f"{product} for {number} {age} {recipient}".strip())
+            phrases.append(f"{product} for {recipient} {number} {age}".strip())
 
     for grade in grades:
       phrases.append(f"{product} for {grade}".strip())

@@ -1377,9 +1377,342 @@ class PosableCharacterDef:
 
     # Filter to dataclass fields
     allowed = {f.name for f in dataclasses.fields(cls)}
-    filtered = {k: v for k, v in data.items() if k in allowed}
+    filtered: dict[str, Any] = {k: v for k, v in data.items() if k in allowed}
 
     return cls(**filtered)
+
+
+@dataclass(kw_only=True)
+class AmazonAdsProductStats:
+  """Daily product-level metrics for one ASIN within a campaign."""
+
+  asin: str
+  units_sold: int = 0
+  sales_amount: float = 0.0
+  total_profit: float = 0.0
+
+  def to_dict(self) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data = dataclasses.asdict(self)
+    return data
+
+  @classmethod
+  def from_dict(cls, data: dict[str, Any]) -> AmazonAdsProductStats:
+    """Create a product-stats model from a dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    asin = str(data.get("asin", "")).strip()
+    _parse_int_field(data, "units_sold", 0)
+    _parse_float_field(data, "sales_amount", 0.0)
+    _parse_float_field(data, "total_profit", 0.0)
+
+    return cls(
+      asin=asin,
+      units_sold=data.get("units_sold", 0),
+      sales_amount=data.get("sales_amount", 0.0),
+      total_profit=data.get("total_profit", 0.0),
+    )
+
+
+@dataclass(kw_only=True)
+class AmazonAdsDailyCampaignStats:
+  """Daily campaign metrics merged from Amazon Ads reporting outputs."""
+
+  key: str | None = None
+  campaign_id: str
+  campaign_name: str
+  date: datetime.date
+  spend: float = 0.0
+  impressions: int = 0
+  clicks: int = 0
+  kenp_royalties: float = 0.0
+  total_attributed_sales: float = 0.0
+  total_units_sold: int = 0
+  gross_profit: float = 0.0
+  sale_items: list[AmazonAdsProductStats] = field(default_factory=list)
+
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data: dict[str, object] = {
+      "campaign_id": self.campaign_id,
+      "campaign_name": self.campaign_name,
+      "date": self.date.isoformat(),
+      "spend": self.spend,
+      "impressions": self.impressions,
+      "clicks": self.clicks,
+      "kenp_royalties": self.kenp_royalties,
+      "total_attributed_sales": self.total_attributed_sales,
+      "total_units_sold": self.total_units_sold,
+      "gross_profit": self.gross_profit,
+      "sale_items": [item.to_dict() for item in self.sale_items],
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    key: str | None = None,
+  ) -> AmazonAdsDailyCampaignStats:
+    """Create a daily campaign stats model from snake_case dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    parsed_date = _parse_required_date(
+      data.get("date"),
+      field_name="AmazonAdsDailyCampaignStats.date",
+    )
+
+    _parse_float_field(data, "spend", 0.0)
+    _parse_int_field(data, "impressions", 0)
+    _parse_int_field(data, "clicks", 0)
+    _parse_float_field(data, "kenp_royalties", 0.0)
+    _parse_float_field(data, "total_attributed_sales", 0.0)
+    _parse_int_field(data, "total_units_sold", 0)
+    _parse_float_field(data, "gross_profit", 0.0)
+
+    sale_items = _parse_amazon_ads_product_stats_list(data.get("sale_items"))
+
+    campaign_id = str(data.get("campaign_id", "")).strip()
+    campaign_name = str(data.get("campaign_name", "")).strip()
+    if not campaign_id:
+      raise ValueError("AmazonAdsDailyCampaignStats.campaign_id is required")
+    if not campaign_name:
+      raise ValueError("AmazonAdsDailyCampaignStats.campaign_name is required")
+
+    return cls(
+      key=key,
+      campaign_id=campaign_id,
+      campaign_name=campaign_name,
+      date=parsed_date,
+      spend=data.get("spend", 0.0),
+      impressions=data.get("impressions", 0),
+      clicks=data.get("clicks", 0),
+      kenp_royalties=data.get("kenp_royalties", 0.0),
+      total_attributed_sales=data.get("total_attributed_sales", 0.0),
+      total_units_sold=data.get("total_units_sold", 0),
+      gross_profit=data.get("gross_profit", 0.0),
+      sale_items=sale_items,
+    )
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    key: str,
+  ) -> AmazonAdsDailyCampaignStats:
+    """Create a daily campaign stats model from Firestore data."""
+    return cls.from_dict(data, key=key)
+
+
+@dataclass(kw_only=True)
+class AmazonAdsReport:
+  """Amazon Ads report metadata persisted in Firestore."""
+
+  key: str | None = None
+  report_id: str
+  report_name: str
+  status: str
+  report_type_id: str
+  start_date: datetime.date
+  end_date: datetime.date
+  created_at: datetime.datetime
+  updated_at: datetime.datetime
+  profile_id: str | None = None
+  profile_country: str | None = None
+  region: str | None = None
+  api_base: str | None = None
+  generated_at: datetime.datetime | None = None
+  file_size: int | None = None
+  url: str | None = None
+  url_expires_at: datetime.datetime | None = None
+  failure_reason: str | None = None
+
+  @property
+  def name(self) -> str:
+    """Compatibility alias for existing call sites using `name`."""
+    return self.report_name
+
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data: dict[str, object] = {
+      "report_id": self.report_id,
+      "report_name": self.report_name,
+      "status": self.status,
+      "report_type_id": self.report_type_id,
+      "start_date": self.start_date.isoformat(),
+      "end_date": self.end_date.isoformat(),
+      "created_at": self.created_at,
+      "updated_at": self.updated_at,
+      "profile_id": self.profile_id,
+      "profile_country": self.profile_country,
+      "region": self.region,
+      "api_base": self.api_base,
+      "generated_at": self.generated_at,
+      "file_size": self.file_size,
+      "url": self.url,
+      "url_expires_at": self.url_expires_at,
+      "failure_reason": self.failure_reason,
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    key: str | None = None,
+  ) -> AmazonAdsReport:
+    """Create an Amazon Ads report model from snake_case dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    def _parse_date(value: Any, field_name: str) -> datetime.date:
+      if isinstance(value, datetime.datetime):
+        return value.date()
+      if isinstance(value, datetime.date):
+        return value
+      if isinstance(value, str):
+        stripped = value.strip()
+        if stripped:
+          return datetime.date.fromisoformat(stripped)
+      raise ValueError(f"AmazonAdsReport.{field_name} is required")
+
+    def _parse_datetime(value: Any,
+                        field_name: str) -> datetime.datetime | None:
+      if value is None:
+        return None
+      if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+          return value.replace(tzinfo=datetime.timezone.utc)
+        return value.astimezone(datetime.timezone.utc)
+      if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+          return None
+        normalized = stripped[:-1] + "+00:00" if stripped.endswith(
+          "Z") else stripped
+        parsed = datetime.datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+          return parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.astimezone(datetime.timezone.utc)
+      raise ValueError(f"Invalid datetime for AmazonAdsReport.{field_name}")
+
+    report_id = str(data.get("report_id", "")).strip()
+    report_name = str(data.get("report_name", "")).strip()
+    status = str(data.get("status", "")).strip()
+    report_type_id = str(data.get("report_type_id", "")).strip()
+    if not report_id:
+      raise ValueError("AmazonAdsReport.report_id is required")
+    if not report_name:
+      raise ValueError("AmazonAdsReport.report_name is required")
+    if not status:
+      raise ValueError("AmazonAdsReport.status is required")
+    if not report_type_id:
+      raise ValueError("AmazonAdsReport.report_type_id is required")
+
+    created_at = _parse_datetime(data.get("created_at"), "created_at")
+    updated_at = _parse_datetime(data.get("updated_at"), "updated_at")
+    if created_at is None:
+      raise ValueError("AmazonAdsReport.created_at is required")
+    if updated_at is None:
+      raise ValueError("AmazonAdsReport.updated_at is required")
+
+    file_size_value = data.get("file_size")
+    file_size_wrapper: dict[str, Any] = {"file_size": file_size_value}
+    _parse_int_field(file_size_wrapper, "file_size")
+
+    return cls(
+      key=key,
+      report_id=report_id,
+      report_name=report_name,
+      status=status,
+      report_type_id=report_type_id,
+      start_date=_parse_date(
+        data.get("start_date"),
+        "start_date",
+      ),
+      end_date=_parse_date(
+        data.get("end_date"),
+        "end_date",
+      ),
+      created_at=created_at,
+      updated_at=updated_at,
+      profile_id=str(data.get("profile_id", "")).strip() or None,
+      profile_country=str(data.get("profile_country", "")).strip() or None,
+      region=str(data.get("region", "")).strip() or None,
+      api_base=str(data.get("api_base", "")).strip() or None,
+      generated_at=_parse_datetime(
+        data.get("generated_at"),
+        "generated_at",
+      ),
+      file_size=cast(int | None, file_size_wrapper["file_size"]),
+      url=str(data.get("url", "")).strip() or None,
+      url_expires_at=_parse_datetime(
+        data.get("url_expires_at"),
+        "url_expires_at",
+      ),
+      failure_reason=str(data.get("failure_reason", "")).strip() or None,
+    )
+
+  @classmethod
+  def from_amazon_payload(
+    cls,
+    data: dict[str, Any],
+    *,
+    key: str | None = None,
+  ) -> AmazonAdsReport:
+    """Create an Amazon Ads report model from API response payload."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    configuration_raw = data.get("configuration")
+    if not isinstance(configuration_raw, dict):
+      raise ValueError("AmazonAdsReport.configuration is required")
+
+    configuration = cast(dict[str, Any], configuration_raw)
+    report_type_id = str(configuration.get("reportTypeId", "")).strip()
+    if not report_type_id:
+      raise ValueError(
+        "AmazonAdsReport.configuration.reportTypeId is required")
+
+    translated = {
+      "report_id": data.get("reportId"),
+      "report_name": data.get("name"),
+      "status": data.get("status"),
+      "report_type_id": report_type_id,
+      "start_date": data.get("startDate"),
+      "end_date": data.get("endDate"),
+      "created_at": data.get("createdAt"),
+      "updated_at": data.get("updatedAt"),
+      "generated_at": data.get("generatedAt"),
+      "file_size": data.get("fileSize"),
+      "url": data.get("url"),
+      "url_expires_at": data.get("urlExpiresAt"),
+      "failure_reason": data.get("failureReason"),
+    }
+    return cls.from_dict(translated, key=key)
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    key: str,
+  ) -> AmazonAdsReport:
+    """Create an Amazon Ads report model from Firestore data."""
+    return cls.from_dict(data, key=key)
 
 
 def _parse_enum_field(
@@ -1397,6 +1730,34 @@ def _parse_enum_field(
     data[field_name] = enum_cls(value) if value else default_value
   except Exception:
     data[field_name] = default_value
+
+
+def _parse_required_date(value: Any, *, field_name: str) -> datetime.date:
+  """Parse a required date from datetime/date/ISO string input."""
+  if isinstance(value, datetime.datetime):
+    return value.date()
+  if isinstance(value, datetime.date):
+    return value
+  if isinstance(value, str):
+    stripped = value.strip()
+    if stripped:
+      return datetime.date.fromisoformat(stripped)
+  raise ValueError(f"{field_name} is required")
+
+
+def _parse_amazon_ads_product_stats_list(
+  value: Any, ) -> list[AmazonAdsProductStats]:
+  """Parse a list of dictionaries into `AmazonAdsProductStats` items."""
+  if not isinstance(value, list):
+    return []
+
+  value_dicts = cast(list[dict[str, Any]], value)
+  parsed: list[AmazonAdsProductStats] = []
+  for item in value_dicts:
+    if not isinstance(item, dict):
+      continue
+    parsed.append(AmazonAdsProductStats.from_dict(item))
+  return parsed
 
 
 def _parse_string_list(
@@ -1447,21 +1808,24 @@ def _parse_float_field(data: dict,
   data[field_name] = default
 
 
-def _parse_int_field(data: dict,
+def _parse_int_field(data: dict[str, object],
                      field_name: str,
                      default: int | None = None) -> None:
   """Coerce a value in `data[field_name]` to an int or default."""
   val = data.get(field_name)
-  if isinstance(val, int):
-    return
-  if isinstance(val, float):
-    data[field_name] = int(val)
-    return
-  if isinstance(val, str):
+  if isinstance(val, bool):
+    val = int(val)
+  elif isinstance(val, int):
+    pass
+  elif isinstance(val, float):
+    val = int(val)
+  elif isinstance(val, str):
     if stripped := val.strip():
       try:
-        data[field_name] = int(stripped)
-        return
+        val = int(stripped)
       except ValueError:
         pass
-  data[field_name] = default
+  else:
+    val = default
+
+  data[field_name] = val

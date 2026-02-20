@@ -294,7 +294,12 @@ def test_joke_social_post_from_firestore_filters_jokes():
 
 def test_joke_social_post_from_firestore_keeps_creation_time():
   """JokeSocialPost should keep creation_time when present."""
-  created_at = datetime.datetime(2024, 6, 7, 8, 9, 10,
+  created_at = datetime.datetime(2024,
+                                 6,
+                                 7,
+                                 8,
+                                 9,
+                                 10,
                                  tzinfo=datetime.timezone.utc)
   post = models.JokeSocialPost.from_firestore_dict(
     {
@@ -422,3 +427,93 @@ def test_jokecategory_from_firestore_parses_negative_tags():
   }
   category = models.JokeCategory.from_firestore_dict(data, key="cats")
   assert category.negative_tags == ["nsfw", "politics"]
+
+
+def test_amazon_ads_daily_campaign_stats_to_and_from_dict():
+  source = models.AmazonAdsDailyCampaignStats(
+    campaign_id="camp-1",
+    campaign_name="Animal P - Auto",
+    date=datetime.date(2026, 2, 18),
+    spend=12.5,
+    impressions=1500,
+    clicks=45,
+    kenp_royalties=0.75,
+    total_attributed_sales=54.0,
+    total_units_sold=9,
+    gross_profit=32.25,
+    sale_items=[
+      models.AmazonAdsProductStats(
+        asin="B09XYZ",
+        units_sold=2,
+        sales_amount=20.0,
+        total_profit=9.0,
+      )
+    ],
+  )
+
+  payload = source.to_dict()
+  restored = models.AmazonAdsDailyCampaignStats.from_dict(payload,
+                                                          key="daily-key")
+
+  assert restored.key == "daily-key"
+  assert restored.campaign_id == "camp-1"
+  assert restored.campaign_name == "Animal P - Auto"
+  assert restored.date == datetime.date(2026, 2, 18)
+  assert restored.sale_items[0].asin == "B09XYZ"
+  assert restored.sale_items[0].total_profit == 9.0
+
+
+def test_amazon_ads_report_from_amazon_payload_supports_camel_case_fields():
+  report = models.AmazonAdsReport.from_amazon_payload(
+    {
+      "reportId": "r-1",
+      "name": "20260219_060000_spCampaigns_US",
+      "status": "PENDING",
+      "configuration": {
+        "reportTypeId": "spCampaigns"
+      },
+      "startDate": "2026-02-18",
+      "endDate": "2026-02-18",
+      "createdAt": "2026-02-19T06:00:00Z",
+      "updatedAt": "2026-02-19T06:05:00Z",
+      "generatedAt": "2026-02-19T06:07:00Z",
+      "fileSize": 1234,
+      "url": "https://example.com/report.gz",
+      "urlExpiresAt": "2026-02-19T07:00:00Z",
+      "failureReason": "",
+    },
+    key="doc-key",
+  )
+
+  assert report.key == "doc-key"
+  assert report.report_id == "r-1"
+  assert report.report_name == "20260219_060000_spCampaigns_US"
+  assert report.report_type_id == "spCampaigns"
+  assert report.start_date == datetime.date(2026, 2, 18)
+  assert report.end_date == datetime.date(2026, 2, 18)
+  assert report.created_at == datetime.datetime(
+    2026,
+    2,
+    19,
+    6,
+    0,
+    0,
+    tzinfo=datetime.timezone.utc,
+  )
+  assert report.file_size == 1234
+  assert report.url == "https://example.com/report.gz"
+
+
+def test_amazon_ads_report_from_dict_rejects_camel_case_fields():
+  with pytest.raises(ValueError):
+    models.AmazonAdsReport.from_dict(
+      {
+        "reportId": "r-1",
+        "name": "20260219_060000_spCampaigns_US",
+        "status": "PENDING",
+        "reportTypeId": "spCampaigns",
+        "startDate": "2026-02-18",
+        "endDate": "2026-02-18",
+        "createdAt": "2026-02-19T06:00:00Z",
+        "updatedAt": "2026-02-19T06:05:00Z",
+      }, )

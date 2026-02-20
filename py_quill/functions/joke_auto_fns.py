@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import dataclasses
 import html
 import time
 from collections import deque
@@ -24,6 +25,7 @@ _MAX_FIRESTORE_WRITE_BATCH_SIZE = 100
 _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
 _ADS_STATS_TARGET_COUNTRY_CODES = {"US", "CA", "UK", "GB"}
 _ADS_STATS_REPORT_METADATA_WAIT_SEC = 5
+_ADS_STATS_REQUIRED_REPORT_TYPES = ("spCampaigns", "spPurchasedProduct")
 
 
 @scheduler_fn.on_schedule(
@@ -160,7 +162,10 @@ def _auto_ads_stats_internal(
     run_time_utc: datetime.datetime) -> dict[str, object]:
   """Fetch target country profiles and request daily ads reports."""
   report_date = run_time_utc.date() - datetime.timedelta(days=1)
+  today_utc = run_time_utc.date()
   profiles = amazon.get_profiles(region="all")
+  existing_reports = firestore.list_amazon_ads_reports(
+    created_on_or_after=today_utc - datetime.timedelta(days=2))
 
   selected_profiles = sorted(
     [
@@ -171,14 +176,31 @@ def _auto_ads_stats_internal(
     (profile.country_code, profile.region, profile.profile_id),
   )
 
+  reports_by_expected_key = _select_today_reports_for_date(
+    reports=existing_reports,
+    today_utc=today_utc,
+    report_date=report_date,
+  )
+
   report_requests: list[dict[str, str]] = []
   for profile in selected_profiles:
-    report_ids = amazon.request_daily_campaign_stats_reports(
-      profile_id=profile.profile_id,
+    if _has_all_required_reports(
+        profile_id=profile.profile_id,
+        reports_by_expected_key=reports_by_expected_key,
+    ):
+      continue
+
+    report_pair = amazon.request_daily_campaign_stats_reports(
+      profile=profile,
       start_date=report_date,
       end_date=report_date,
-      region=profile.region,
     )
+    reports_by_expected_key[(profile.profile_id,
+                             report_pair.campaigns_report.report_type_id
+                             )] = report_pair.campaigns_report
+    reports_by_expected_key[(
+      profile.profile_id, report_pair.purchased_products_report.report_type_id
+    )] = report_pair.purchased_products_report
     report_requests.append({
       "profile_id":
       profile.profile_id,
@@ -187,42 +209,34 @@ def _auto_ads_stats_internal(
       "region":
       profile.region,
       "campaigns_report_id":
-      report_ids.campaigns_report_id,
+      report_pair.campaigns_report.report_id,
       "purchased_products_report_id":
-      report_ids.purchased_products_report_id,
+      report_pair.purchased_products_report.report_id,
     })
 
   time.sleep(_ADS_STATS_REPORT_METADATA_WAIT_SEC)
-  report_metadata: list[dict[str, str]] = []
-  for report_request in report_requests:
-    profile_id = report_request["profile_id"]
-    region = report_request["region"]
-    statuses = amazon.get_report_statuses(
-      profile_id=profile_id,
-      report_ids=[
-        report_request["campaigns_report_id"],
-        report_request["purchased_products_report_id"],
-      ],
-      region=region,
+  report_metadata: list[dict[str, object]] = []
+  for profile in selected_profiles:
+    report_ids = _collect_expected_report_ids_for_profile(
+      profile_id=profile.profile_id,
+      reports_by_expected_key=reports_by_expected_key,
     )
-    metadata_by_id = {status.report_id: status for status in statuses}
-    for report_type, report_id in (
-      ("spCampaigns", report_request["campaigns_report_id"]),
-      ("spPurchasedProduct", report_request["purchased_products_report_id"]),
-    ):
-      status = metadata_by_id.get(report_id)
-      status_url = status.url if status and status.url else ""
-      status_failure_reason = status.failure_reason if status and status.failure_reason else ""
-      report_metadata.append({
-        "profile_id": profile_id,
-        "country_code": report_request["country_code"],
-        "region": region,
-        "report_type": report_type,
-        "report_id": report_id,
-        "status": status.status if status else "UNKNOWN",
-        "url": status_url,
-        "failure_reason": status_failure_reason,
-      })
+    if not report_ids:
+      continue
+    statuses = amazon.get_reports(
+      profile_id=profile.profile_id,
+      report_ids=report_ids,
+      region=profile.region,
+    )
+    for status in statuses:
+      status_row = status.to_dict(include_key=True)
+      if not status_row.get("profile_country"):
+        status_row["profile_country"] = profile.country_code
+      if not status_row.get("region"):
+        status_row["region"] = profile.region
+      if not status_row.get("api_base"):
+        status_row["api_base"] = profile.api_base
+      report_metadata.append(status_row)
 
   stats: dict[str, object] = {
     "report_date": report_date.isoformat(),
@@ -232,38 +246,32 @@ def _auto_ads_stats_internal(
     "requests": report_requests,
     "report_metadata": report_metadata,
   }
+  stats["reports_fetched"] = len(report_metadata)
   logger.info(f"Ads stats report metadata: {report_metadata}")
   logger.info(f"Ads stats fetcher completed with stats: {stats}")
   return stats
 
 
 def _render_ads_stats_html(stats: dict[str, object]) -> str:
-  """Render report IDs and report metadata as a simple HTML table."""
+  """Render report metadata with all `AmazonAdsReport` dataclass fields."""
   report_rows: list[dict[str, object]] = cast(list[dict[str, object]],
                                               stats.get("report_metadata", []))
+  report_fields = [
+    field_def.name for field_def in dataclasses.fields(models.AmazonAdsReport)
+  ]
   rows: list[str] = []
   for row in report_rows:
-    rows.append("<tr>"
-                f"<td>{html.escape(str(row.get('profile_id', '')))}</td>"
-                f"<td>{html.escape(str(row.get('country_code', '')))}</td>"
-                f"<td>{html.escape(str(row.get('region', '')))}</td>"
-                f"<td>{html.escape(str(row.get('report_type', '')))}</td>"
-                f"<td>{html.escape(str(row.get('report_id', '')))}</td>"
-                f"<td>{html.escape(str(row.get('status', '')))}</td>"
-                f"<td>{html.escape(str(row.get('failure_reason', '')))}</td>"
-                "</tr>")
+    field_cells = "".join(
+      f"<td>{html.escape(str(row.get(field_name, '')))}</td>"
+      for field_name in report_fields)
+    rows.append(f"<tr>{field_cells}</tr>")
+
+  header_cells = "".join(f"<th>{html.escape(field_name)}</th>"
+                         for field_name in report_fields)
 
   table_html = ("<p>No report metadata found.</p>" if not rows else
                 "<table border='1' cellpadding='6' cellspacing='0'>"
-                "<thead><tr>"
-                "<th>Profile ID</th>"
-                "<th>Country</th>"
-                "<th>Region</th>"
-                "<th>Report Type</th>"
-                "<th>Report ID</th>"
-                "<th>Status</th>"
-                "<th>Failure Reason</th>"
-                "</tr></thead>"
+                f"<thead><tr>{header_cells}</tr></thead>"
                 f"<tbody>{''.join(rows)}</tbody>"
                 "</table>")
   return f"""<!DOCTYPE html>
@@ -275,17 +283,69 @@ def _render_ads_stats_html(stats: dict[str, object]) -> str:
   <p><strong>Profiles Considered:</strong> {html.escape(str(stats.get("profiles_considered", "")))}</p>
   <p><strong>Profiles Selected:</strong> {html.escape(str(stats.get("profiles_selected", "")))}</p>
   <p><strong>Reports Requested:</strong> {html.escape(str(stats.get("reports_requested", "")))}</p>
+  <p><strong>Reports Fetched:</strong> {html.escape(str(stats.get("reports_fetched", "")))}</p>
   {table_html}
 </body>
 </html>"""
 
 
-joke_hourly_maintenance_scheduler = auto_joke_hourly_scheduler
-joke_hourly_maintenance_http = auto_joke_hourly_http
-user_daily_maintenance_scheduler = auto_user_daily_scheduler
-user_daily_maintenance_http = auto_user_daily_http
-auto_ads_stats_scheduler = auto_ads_stats_scheduler
-auto_ads_stats_http = auto_ads_stats_http
+def _select_today_reports_for_date(
+  *,
+  reports: list[models.AmazonAdsReport],
+  today_utc: datetime.date,
+  report_date: datetime.date,
+) -> dict[tuple[str, str], models.AmazonAdsReport]:
+  """Pick most recent report per profile/type created today for the target date."""
+  selected: dict[tuple[str, str], models.AmazonAdsReport] = {}
+  for report in reports:
+    profile_id = report.profile_id or ""
+    if not profile_id:
+      continue
+    if report.report_type_id not in _ADS_STATS_REQUIRED_REPORT_TYPES:
+      continue
+    if report.start_date != report_date or report.end_date != report_date:
+      continue
+    if report.created_at.date() != today_utc:
+      continue
+
+    key = (profile_id, report.report_type_id)
+    existing = selected.get(key)
+    if existing is None:
+      selected[key] = report
+      continue
+
+    if report.created_at > existing.created_at:
+      selected[key] = report
+      continue
+    if (report.created_at == existing.created_at
+        and report.updated_at > existing.updated_at):
+      selected[key] = report
+  return selected
+
+
+def _has_all_required_reports(
+  *,
+  profile_id: str,
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+) -> bool:
+  """Return whether both required report types exist for the profile."""
+  return all((profile_id, report_type) in reports_by_expected_key
+             for report_type in _ADS_STATS_REQUIRED_REPORT_TYPES)
+
+
+def _collect_expected_report_ids_for_profile(
+  *,
+  profile_id: str,
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+) -> list[str]:
+  """Collect report IDs in required report-type order for a profile."""
+  report_ids: list[str] = []
+  for report_type in _ADS_STATS_REQUIRED_REPORT_TYPES:
+    report = reports_by_expected_key.get((profile_id, report_type))
+    if not report:
+      continue
+    report_ids.append(report.report_id)
+  return report_ids
 
 
 def _should_skip_recent_update(

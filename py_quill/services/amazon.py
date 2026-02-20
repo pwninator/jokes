@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import gzip
 import json
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, cast
 
 import requests
-from common import config
+from common import config, models
 from firebase_functions import logger
+from services import firestore
 
 _AMAZON_TOKEN_URL = "https://api.amazon.com/auth/o2/token"
 _AMAZON_ADS_API_BY_REGION = {
@@ -21,6 +22,7 @@ _AMAZON_ADS_API_BY_REGION = {
 }
 _GZIP_JSON_FORMAT = "GZIP_JSON"
 _DAILY_TIME_UNIT = "DAILY"
+_CREATE_REPORT_CONTENT_TYPE = "application/vnd.createasyncreportrequest.v3+json"
 _REPORT_STATUS_COMPLETED = {"COMPLETED", "SUCCESS"}
 _REPORT_STATUS_FAILED = {"FAILED", "CANCELLED"}
 _REQUEST_TIMEOUT_SEC = 30
@@ -35,6 +37,11 @@ class AmazonAdsError(Exception):
   """Raised when an Amazon Ads request or report operation fails."""
 
 
+AmazonAdsReport = models.AmazonAdsReport
+AmazonAdsDailyCampaignStats = models.AmazonAdsDailyCampaignStats
+AmazonAdsProductStats = models.AmazonAdsProductStats
+
+
 @dataclass(frozen=True, kw_only=True)
 class AmazonAdsProfile:
   """Amazon Ads profile identity used for profile-scoped API calls."""
@@ -46,48 +53,11 @@ class AmazonAdsProfile:
 
 
 @dataclass(frozen=True, kw_only=True)
-class ProductStats:
-  """Daily ASIN performance for a campaign."""
+class ReportPair:
+  """Pair of report objects required for daily campaign stat computation."""
 
-  asin: str
-  units_sold: int = 0
-  sales_amount: float = 0.0
-  total_profit: float = 0.0
-
-
-@dataclass(frozen=True, kw_only=True)
-class DailyCampaignStats:  # pylint: disable=too-many-instance-attributes
-  """Merged daily campaign performance and profit summary."""
-
-  campaign_id: str
-  campaign_name: str
-  date: datetime.date
-  spend: float = 0.0
-  impressions: int = 0
-  clicks: int = 0
-  kenp_royalties: float = 0.0
-  total_attributed_sales: float = 0.0
-  total_units_sold: int = 0
-  gross_profit: float = 0.0
-  sale_items: list[ProductStats] = field(default_factory=list)
-
-
-@dataclass(frozen=True, kw_only=True)
-class ReportIdPair:
-  """Pair of report IDs required for daily campaign stat computation."""
-
-  campaigns_report_id: str
-  purchased_products_report_id: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class ReportStatus:
-  """Amazon Ads report status details."""
-
-  report_id: str
-  status: str
-  url: str | None = None
-  failure_reason: str | None = None
+  campaigns_report: models.AmazonAdsReport
+  purchased_products_report: models.AmazonAdsReport
 
 
 def get_profiles(*, region: str = "all") -> list[AmazonAdsProfile]:
@@ -115,98 +85,97 @@ def get_profiles(*, region: str = "all") -> list[AmazonAdsProfile]:
 
 def request_daily_campaign_stats_reports(
   *,
-  profile_id: str,
+  profile: AmazonAdsProfile,
   start_date: datetime.date,
   end_date: datetime.date,
-  region: str = "na",
-) -> ReportIdPair:
+) -> ReportPair:
   """Kick off the two DAILY reports needed for campaign profit stats."""
   _validate_report_date_range(start_date=start_date, end_date=end_date)
 
   access_token = _get_access_token()
-  api_base = _resolve_region_api_base(region)
+  api_base = profile.api_base or _resolve_region_api_base(profile.region)
 
-  campaigns_report_id = _create_report(
+  campaigns_report = _create_report(
     api_base=api_base,
     access_token=access_token,
-    profile_id=profile_id,
+    profile=profile,
     payload=_build_sp_campaigns_report_payload(
       start_date=start_date,
       end_date=end_date,
     ),
   )
-  purchased_products_report_id = _create_report(
+  purchased_products_report = _create_report(
     api_base=api_base,
     access_token=access_token,
-    profile_id=profile_id,
+    profile=profile,
     payload=_build_sp_purchased_product_report_payload(
       start_date=start_date,
       end_date=end_date,
     ),
   )
+  campaigns_report = firestore.upsert_amazon_ads_report(campaigns_report)
+  purchased_products_report = firestore.upsert_amazon_ads_report(
+    purchased_products_report)
 
-  return ReportIdPair(
-    campaigns_report_id=campaigns_report_id,
-    purchased_products_report_id=purchased_products_report_id,
+  return ReportPair(
+    campaigns_report=campaigns_report,
+    purchased_products_report=purchased_products_report,
   )
 
 
-def get_report_statuses(
+def get_reports(
   *,
   profile_id: str,
   report_ids: list[str],
   region: str = "na",
-) -> list[ReportStatus]:
-  """Fetch status details for each provided report ID."""
-  if not report_ids:
-    return []
+) -> list[models.AmazonAdsReport]:
+  """Fetch reports by report IDs for a profile."""
 
   access_token = _get_access_token()
   api_base = _resolve_region_api_base(region)
 
-  statuses: list[ReportStatus] = []
+  if not report_ids:
+    return []
+
+  statuses: list[models.AmazonAdsReport] = []
   for report_id in report_ids:
     if not report_id.strip():
       continue
-    statuses.append(
-      _fetch_report_status(
-        api_base=api_base,
-        access_token=access_token,
-        profile_id=profile_id,
-        report_id=report_id.strip(),
-      ))
+    status = _fetch_report(
+      api_base=api_base,
+      access_token=access_token,
+      profile_id=profile_id,
+      report_id=report_id.strip(),
+    )
+    statuses.append(firestore.upsert_amazon_ads_report(status))
   return statuses
 
 
-def get_daily_campaign_stats_from_report_ids(  # pylint: disable=too-many-arguments
+def get_daily_campaign_stats_from_report_ids(
   *,
   profile_id: str,
   campaigns_report_id: str,
   purchased_products_report_id: str,
   region: str = "na",
-  poll_interval_sec: int = 5,
-  poll_timeout_sec: int = 900,
-) -> list[DailyCampaignStats]:
-  """Fetch, merge, and return daily campaign stats from two report IDs."""
+) -> list[models.AmazonAdsDailyCampaignStats]:
+  """Fetch, merge, and return daily campaign stats from two completed reports."""
   access_token = _get_access_token()
   api_base = _resolve_region_api_base(region)
 
-  campaigns_status = _wait_for_report_completion(
+  campaigns_status = _fetch_report(
     api_base=api_base,
     access_token=access_token,
     profile_id=profile_id,
     report_id=campaigns_report_id,
-    poll_interval_sec=poll_interval_sec,
-    poll_timeout_sec=poll_timeout_sec,
   )
-  purchased_products_status = _wait_for_report_completion(
+  purchased_products_status = _fetch_report(
     api_base=api_base,
     access_token=access_token,
     profile_id=profile_id,
     report_id=purchased_products_report_id,
-    poll_interval_sec=poll_interval_sec,
-    poll_timeout_sec=poll_timeout_sec,
   )
+  _raise_if_report_not_completed(campaigns_status)
+  _raise_if_report_not_completed(purchased_products_status)
 
   campaign_rows = _download_report_rows(campaigns_status)
   product_rows = _download_report_rows(purchased_products_status)
@@ -263,15 +232,17 @@ def _build_ads_headers(
   *,
   access_token: str,
   profile_id: str,
-  content_type: str = "application/json",
+  content_type: str | None = None,
 ) -> dict[str, str]:
   """Build standard Amazon Ads headers for a profile-scoped request."""
-  return {
+  headers = {
     "Amazon-Advertising-API-ClientId": config.AMAZON_API_CLIENT_ID,
     "Amazon-Advertising-API-Scope": profile_id,
     "Authorization": f"Bearer {access_token}",
-    "Content-Type": content_type,
   }
+  if content_type:
+    headers["Content-Type"] = content_type
+  return headers
 
 
 def _list_profiles_for_region(
@@ -389,85 +360,90 @@ def _create_report(
   *,
   api_base: str,
   access_token: str,
-  profile_id: str,
+  profile: AmazonAdsProfile,
   payload: dict[str, Any],
-) -> str:
-  """Create a report and return its Amazon-generated report ID."""
+) -> models.AmazonAdsReport:
+  """Create a report and return the full Amazon report metadata."""
+  report_type_id = _extract_report_type_id(payload)
+  payload_with_name = dict(payload)
+  payload_with_name["name"] = _build_report_name(
+    report_type_id=report_type_id,
+    profile_country=profile.country_code,
+  )
   response = _request_json(
     "POST",
     f"{api_base}/reporting/reports",
-    headers=_build_ads_headers(access_token=access_token,
-                               profile_id=profile_id),
-    json_payload=payload,
+    headers=_build_ads_headers(
+      access_token=access_token,
+      profile_id=profile.profile_id,
+      content_type=_CREATE_REPORT_CONTENT_TYPE,
+    ),
+    json_payload=payload_with_name,
   )
-  report_id = str(response.get("reportId", "")).strip()
-  if not report_id:
-    raise AmazonAdsError(
-      f"Report creation response missing reportId: {response}")
-  return report_id
+  parsed = _parse_report_status_payload(response)
+  return dataclasses.replace(
+    parsed,
+    profile_id=profile.profile_id,
+    profile_country=profile.country_code,
+    region=profile.region,
+    api_base=api_base,
+  )
 
 
-def _fetch_report_status(
+def _fetch_report(
   *,
   api_base: str,
   access_token: str,
   profile_id: str,
   report_id: str,
-) -> ReportStatus:
-  """Fetch status details for a single report ID."""
+) -> models.AmazonAdsReport:
+  """Fetch details for a single report ID."""
   response = _request_json(
     "GET",
     f"{api_base}/reporting/reports/{report_id}",
     headers=_build_ads_headers(access_token=access_token,
                                profile_id=profile_id),
   )
-  status = str(response.get("status", "")).strip()
-  if not status:
-    raise AmazonAdsError(f"Report status response missing status: {response}")
-  return ReportStatus(
-    report_id=report_id,
-    status=status,
-    url=_optional_str(response.get("url")),
-    failure_reason=_optional_str(response.get("failureReason")),
+  parsed = _parse_report_status_payload(response)
+  parsed_with_context = dataclasses.replace(
+    parsed,
+    profile_id=profile_id,
+    region=_region_from_api_base(api_base),
+    api_base=api_base,
   )
-
-
-def _wait_for_report_completion(  # pylint: disable=too-many-arguments
-  *,
-  api_base: str,
-  access_token: str,
-  profile_id: str,
-  report_id: str,
-  poll_interval_sec: int,
-  poll_timeout_sec: int,
-) -> ReportStatus:
-  """Poll report status until completion, failure, or timeout."""
-  deadline = time.monotonic() + max(poll_timeout_sec, 0)
-
-  while True:
-    status = _fetch_report_status(
-      api_base=api_base,
-      access_token=access_token,
-      profile_id=profile_id,
+  if parsed.report_id != report_id:
+    return dataclasses.replace(
+      parsed_with_context,
       report_id=report_id,
     )
-    normalized_status = status.status.upper()
-    if normalized_status in _REPORT_STATUS_COMPLETED:
-      return status
-    if normalized_status in _REPORT_STATUS_FAILED:
-      raise AmazonAdsError(
-        f"Report {report_id} failed with status={status.status} "
-        f"reason={status.failure_reason}")
-
-    if time.monotonic() >= deadline:
-      raise AmazonAdsError(
-        f"Timed out waiting for report {report_id} to complete. "
-        f"Last status: {status.status}")
-
-    time.sleep(max(poll_interval_sec, 1))
+  return parsed_with_context
 
 
-def _download_report_rows(status: ReportStatus) -> list[dict[str, Any]]:
+def _parse_report_status_payload(
+  payload: dict[str, Any], ) -> models.AmazonAdsReport:
+  """Parse a report status payload from the Amazon Ads API."""
+  try:
+    return models.AmazonAdsReport.from_amazon_payload(payload)
+  except ValueError as exc:
+    raise AmazonAdsError(
+      f"Invalid report status payload: {exc}. payload={payload}") from exc
+
+
+def _raise_if_report_not_completed(status: models.AmazonAdsReport) -> None:
+  """Raise if a report is failed or still processing instead of completed."""
+  normalized_status = status.status.upper()
+  if normalized_status in _REPORT_STATUS_COMPLETED:
+    return
+  if normalized_status in _REPORT_STATUS_FAILED:
+    raise AmazonAdsError(
+      f"Report {status.report_id} failed with status={status.status} "
+      f"reason={status.failure_reason}")
+  raise AmazonAdsError(f"Report {status.report_id} is not completed yet. "
+                       f"Current status: {status.status}")
+
+
+def _download_report_rows(
+  status: models.AmazonAdsReport, ) -> list[dict[str, Any]]:
   """Download and decompress a completed report into raw row dictionaries."""
   if not status.url:
     raise AmazonAdsError(
@@ -523,7 +499,7 @@ def _merge_report_rows(
   *,
   campaign_rows: list[dict[str, Any]],
   product_rows: list[dict[str, Any]],
-) -> list[DailyCampaignStats]:
+) -> list[models.AmazonAdsDailyCampaignStats]:
   """Merge campaign and purchased-product rows into daily campaign stats."""
   products_by_campaign_date: dict[tuple[str, datetime.date],
                                   list[dict[str, Any]]] = {}
@@ -535,7 +511,7 @@ def _merge_report_rows(
     key = (campaign_id, date_value)
     products_by_campaign_date.setdefault(key, []).append(row)
 
-  output: list[DailyCampaignStats] = []
+  output: list[models.AmazonAdsDailyCampaignStats] = []
   for campaign_row in campaign_rows:
     campaign_id = _required_str(campaign_row.get("campaignId"))
     date_value = _parse_report_date(campaign_row.get("date"))
@@ -555,7 +531,7 @@ def _merge_report_rows(
       kenp_royalties = _as_float(
         campaign_row.get("attributedKindleEditionNormalizedPagesRoyalties14d"))
 
-    sale_items: list[ProductStats] = []
+    sale_items: list[models.AmazonAdsProductStats] = []
     total_attributed_sales = 0.0
     total_units_sold = 0
     product_profit_total = 0.0
@@ -571,7 +547,7 @@ def _merge_report_rows(
 
     gross_profit = product_profit_total + kenp_royalties
     output.append(
-      DailyCampaignStats(
+      models.AmazonAdsDailyCampaignStats(
         campaign_id=campaign_id,
         campaign_name=campaign_name,
         date=date_value,
@@ -588,7 +564,8 @@ def _merge_report_rows(
   return sorted(output, key=lambda stat: (stat.date, stat.campaign_id))
 
 
-def _build_product_stats(product_row: dict[str, Any]) -> ProductStats:
+def _build_product_stats(
+  product_row: dict[str, Any], ) -> models.AmazonAdsProductStats:
   """Convert one purchased-product report row into `ProductStats`."""
   asin = _required_str(product_row.get("purchasedAsin"))
   units_sold = _as_int(product_row.get("purchases14d"))
@@ -601,12 +578,46 @@ def _build_product_stats(product_row: dict[str, Any]) -> ProductStats:
   profit_margin = _ASIN_PROFIT_MARGINS_USD.get(asin, 0.0)
   total_profit = units_sold * profit_margin
 
-  return ProductStats(
+  return models.AmazonAdsProductStats(
     asin=asin,
     units_sold=units_sold,
     sales_amount=sales_amount,
     total_profit=total_profit,
   )
+
+
+def _extract_report_type_id(payload: dict[str, Any]) -> str:
+  """Extract reportTypeId from a create-report payload."""
+  configuration_raw = payload.get("configuration")
+  if not isinstance(configuration_raw, dict):
+    raise AmazonAdsError(
+      f"Report payload missing configuration object: {payload}")
+  configuration = cast(dict[str, Any], configuration_raw)
+  report_type_id = _required_str(configuration.get("reportTypeId"))
+  if not report_type_id:
+    raise AmazonAdsError(
+      f"Report payload missing configuration.reportTypeId: {payload}")
+  return report_type_id
+
+
+def _build_report_name(
+  *,
+  report_type_id: str,
+  profile_country: str,
+) -> str:
+  """Build canonical report name `YYYYMMDD_HHMMSS_[reportTypeId]_[country]`."""
+  timestamp_utc = datetime.datetime.now(
+    datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+  country_code = _required_str(profile_country).upper() or "UNKNOWN"
+  return f"{timestamp_utc}_{report_type_id}_{country_code}"
+
+
+def _region_from_api_base(api_base: str) -> str | None:
+  """Return a region key matching the provided API base URL."""
+  for region_name, candidate in _AMAZON_ADS_API_BY_REGION.items():
+    if candidate == api_base:
+      return region_name
+  return None
 
 
 def _request_json(  # pylint: disable=too-many-arguments
@@ -670,12 +681,6 @@ def _required_str(value: Any) -> str:
   if value is None:
     return ""
   return str(value).strip()
-
-
-def _optional_str(value: Any) -> str | None:
-  """Normalize a value to an optional stripped string."""
-  text = _required_str(value)
-  return text or None
 
 
 def _as_int(value: Any) -> int:

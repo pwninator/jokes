@@ -181,22 +181,73 @@ class TestAdsStatsFetcher:
 
     monkeypatch.setattr('functions.joke_auto_fns.amazon.get_profiles',
                         lambda region: profiles)
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
+      lambda created_on_or_after: [],
+    )
     sleep_calls: list[int] = []
     monkeypatch.setattr('functions.joke_auto_fns.time.sleep',
                         lambda sec: sleep_calls.append(sec))
 
     calls: list[dict[str, object]] = []
 
-    def _mock_request_reports(*, profile_id, start_date, end_date, region):
+    def _mock_request_reports(*, profile, start_date, end_date):
       calls.append({
-        "profile_id": profile_id,
+        "profile_id": profile.profile_id,
+        "country_code": profile.country_code,
         "start_date": start_date,
         "end_date": end_date,
-        "region": region,
+        "region": profile.region,
       })
-      return amazon.ReportIdPair(
-        campaigns_report_id=f"campaigns-{profile_id}",
-        purchased_products_report_id=f"products-{profile_id}",
+      return amazon.ReportPair(
+        campaigns_report=amazon.AmazonAdsReport(
+          report_id=f"campaigns-{profile.profile_id}",
+          status="PENDING",
+          report_name="Campaign report request",
+          report_type_id="spCampaigns",
+          start_date=datetime.date(2026, 2, 17),
+          end_date=datetime.date(2026, 2, 17),
+          created_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            tzinfo=datetime.timezone.utc,
+          ),
+          updated_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            tzinfo=datetime.timezone.utc,
+          ),
+        ),
+        purchased_products_report=amazon.AmazonAdsReport(
+          report_id=f"products-{profile.profile_id}",
+          status="PENDING",
+          report_name="Product report request",
+          report_type_id="spPurchasedProduct",
+          start_date=datetime.date(2026, 2, 17),
+          end_date=datetime.date(2026, 2, 17),
+          created_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            tzinfo=datetime.timezone.utc,
+          ),
+          updated_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            tzinfo=datetime.timezone.utc,
+          ),
+        ),
       )
 
     monkeypatch.setattr(
@@ -205,19 +256,78 @@ class TestAdsStatsFetcher:
 
     status_calls: list[dict[str, object]] = []
 
-    def _mock_get_report_statuses(*, profile_id, report_ids, region):
+    def _mock_get_reports(*, profile_id, region, report_ids):
       status_calls.append({
         "profile_id": profile_id,
-        "report_ids": report_ids,
         "region": region,
+        "report_ids": report_ids,
       })
       return [
-        amazon.ReportStatus(report_id=report_ids[0], status="IN_PROGRESS"),
-        amazon.ReportStatus(report_id=report_ids[1], status="COMPLETED"),
+        amazon.AmazonAdsReport(
+          report_id=f"campaigns-{profile_id}",
+          status="IN_PROGRESS",
+          report_name="Campaign report",
+          report_type_id="spCampaigns",
+          start_date=datetime.date(2026, 2, 17),
+          end_date=datetime.date(2026, 2, 17),
+          created_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            tzinfo=datetime.timezone.utc,
+          ),
+          updated_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            tzinfo=datetime.timezone.utc,
+          ),
+          url="",
+        ),
+        amazon.AmazonAdsReport(
+          report_id=f"products-{profile_id}",
+          status="COMPLETED",
+          report_name="Product report",
+          report_type_id="spPurchasedProduct",
+          start_date=datetime.date(2026, 2, 17),
+          end_date=datetime.date(2026, 2, 17),
+          created_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            1,
+            tzinfo=datetime.timezone.utc,
+          ),
+          updated_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            3,
+            tzinfo=datetime.timezone.utc,
+          ),
+          generated_at=datetime.datetime(
+            2026,
+            2,
+            18,
+            5,
+            0,
+            3,
+            tzinfo=datetime.timezone.utc,
+          ),
+          url="https://example.com/products.gz",
+        ),
       ]
 
-    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_report_statuses',
-                        _mock_get_report_statuses)
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_reports',
+                        _mock_get_reports)
 
     stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
 
@@ -233,7 +343,140 @@ class TestAdsStatsFetcher:
       assert call["start_date"] == datetime.date(2026, 2, 17)
       assert call["end_date"] == datetime.date(2026, 2, 17)
     assert len(status_calls) == 3
+    for call in status_calls:
+      assert len(cast(list[str], call["report_ids"])) == 2
+      assert cast(list[str], call["report_ids"])[0].startswith("campaigns-")
+      assert cast(list[str], call["report_ids"])[1].startswith("products-")
+    assert stats["reports_fetched"] == 6
     assert len(cast(list[dict[str, object]], stats["report_metadata"])) == 6
+
+  def test_internal_skips_creation_when_today_reports_already_exist(
+      self, monkeypatch):
+    now_utc = _create_test_datetime(2026, 2, 18, 5, 30)
+    report_date = datetime.date(2026, 2, 17)
+    profiles = [
+      amazon.AmazonAdsProfile(
+        profile_id="us-profile",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+        country_code="US",
+      ),
+      amazon.AmazonAdsProfile(
+        profile_id="uk-profile",
+        region="eu",
+        api_base="https://advertising-api-eu.amazon.com",
+        country_code="UK",
+      ),
+    ]
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_profiles',
+                        lambda region: profiles)
+
+    existing_reports = [
+      amazon.AmazonAdsReport(
+        report_id="campaigns-us-profile",
+        report_name="campaigns-us",
+        status="PENDING",
+        report_type_id="spCampaigns",
+        start_date=report_date,
+        end_date=report_date,
+        created_at=now_utc,
+        updated_at=now_utc,
+        profile_id="us-profile",
+        profile_country="US",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+      ),
+      amazon.AmazonAdsReport(
+        report_id="products-us-profile",
+        report_name="products-us",
+        status="PENDING",
+        report_type_id="spPurchasedProduct",
+        start_date=report_date,
+        end_date=report_date,
+        created_at=now_utc,
+        updated_at=now_utc,
+        profile_id="us-profile",
+        profile_country="US",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+      ),
+      amazon.AmazonAdsReport(
+        report_id="campaigns-uk-profile",
+        report_name="campaigns-uk",
+        status="PENDING",
+        report_type_id="spCampaigns",
+        start_date=report_date,
+        end_date=report_date,
+        created_at=now_utc,
+        updated_at=now_utc,
+        profile_id="uk-profile",
+        profile_country="UK",
+        region="eu",
+        api_base="https://advertising-api-eu.amazon.com",
+      ),
+      amazon.AmazonAdsReport(
+        report_id="products-uk-profile",
+        report_name="products-uk",
+        status="PENDING",
+        report_type_id="spPurchasedProduct",
+        start_date=report_date,
+        end_date=report_date,
+        created_at=now_utc,
+        updated_at=now_utc,
+        profile_id="uk-profile",
+        profile_country="UK",
+        region="eu",
+        api_base="https://advertising-api-eu.amazon.com",
+      ),
+    ]
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
+      lambda created_on_or_after: existing_reports,
+    )
+
+    def _raise_request(*, profile, start_date, end_date):
+      del profile, start_date, end_date
+      raise AssertionError("Should not create new reports")
+
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.request_daily_campaign_stats_reports',
+      _raise_request)
+    monkeypatch.setattr('functions.joke_auto_fns.time.sleep', lambda sec: None)
+
+    status_calls: list[dict[str, object]] = []
+
+    def _mock_get_reports(*, profile_id, region, report_ids):
+      status_calls.append({
+        "profile_id": profile_id,
+        "region": region,
+        "report_ids": report_ids,
+      })
+      return [
+        amazon.AmazonAdsReport(
+          report_id=report_id,
+          report_name=f"{report_id}-name",
+          status="COMPLETED",
+          report_type_id=("spCampaigns" if "campaigns" in report_id else
+                          "spPurchasedProduct"),
+          start_date=report_date,
+          end_date=report_date,
+          created_at=now_utc,
+          updated_at=now_utc,
+          profile_id=profile_id,
+          region=region,
+        ) for report_id in report_ids
+      ]
+
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_reports',
+                        _mock_get_reports)
+
+    stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
+
+    assert stats["reports_requested"] == 0
+    assert stats["reports_fetched"] == 4
+    assert len(status_calls) == 2
+    for call in status_calls:
+      assert len(cast(list[str], call["report_ids"])) == 2
 
   def test_ads_stats_fetcher_scheduler_invokes_internal_with_scheduled_time(
       self, monkeypatch):
@@ -286,14 +529,26 @@ class TestAdsStatsFetcher:
       2,
       "reports_requested":
       2,
+      "reports_fetched":
+      1,
       "report_metadata": [{
-        "profile_id": "us-profile",
-        "country_code": "US",
-        "region": "na",
-        "report_type": "spCampaigns",
+        "key": "report-key",
         "report_id": "campaigns-us-profile",
+        "report_name": "campaigns-us-profile-name",
         "status": "IN_PROGRESS",
+        "report_type_id": "spCampaigns",
+        "start_date": "2026-02-17",
+        "end_date": "2026-02-17",
+        "created_at": "2026-02-18T05:00:00Z",
+        "updated_at": "",
+        "profile_id": "us-profile",
+        "profile_country": "US",
+        "region": "na",
+        "api_base": "https://advertising-api.amazon.com",
+        "generated_at": "",
+        "file_size": None,
         "url": "",
+        "url_expires_at": "",
         "failure_reason": "",
       }]
     }
@@ -308,6 +563,8 @@ class TestAdsStatsFetcher:
     assert "Ads Report Metadata" in html
     assert "campaigns-us-profile" in html
     assert "IN_PROGRESS" in html
+    assert "report_name" in html
+    assert "url_expires_at" in html
 
   def test_ads_stats_fetcher_http_failure(self, monkeypatch):
 
@@ -490,7 +747,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
                         _capture)
 
-    joke_auto_fns.joke_hourly_maintenance_http(Mock())
+    joke_auto_fns.auto_joke_hourly_http(Mock())
 
     assert 'run_time' in captured
     assert captured['run_time'].tzinfo == datetime.timezone.utc
@@ -512,7 +769,7 @@ class TestDecayRecentJokeStats:
                                             0,
                                             tzinfo=datetime.timezone.utc)
 
-    joke_auto_fns.joke_hourly_maintenance_scheduler.__wrapped__(event)
+    joke_auto_fns.auto_joke_hourly_scheduler.__wrapped__(event)
 
     assert 'run_time' in captured
     assert captured['run_time'] == event.schedule_time
@@ -530,7 +787,7 @@ class TestDecayRecentJokeStats:
     event = MagicMock()
     event.schedule_time = None
 
-    joke_auto_fns.joke_hourly_maintenance_scheduler.__wrapped__(event)
+    joke_auto_fns.auto_joke_hourly_scheduler.__wrapped__(event)
 
     assert 'run_time' in captured
     assert captured['run_time'].tzinfo == datetime.timezone.utc
@@ -549,7 +806,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
                         mock_decay)
 
-    response = joke_auto_fns.joke_hourly_maintenance_http(Mock())
+    response = joke_auto_fns.auto_joke_hourly_http(Mock())
 
     mock_decay.assert_called_once()
     data = response.get_json()["data"]
@@ -565,7 +822,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns._joke_maintenance_internal',
                         _raise)
 
-    response = joke_auto_fns.joke_hourly_maintenance_http(Mock())
+    response = joke_auto_fns.auto_joke_hourly_http(Mock())
 
     data = response.get_json()["data"]
     assert "boom" in data["error"]

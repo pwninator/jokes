@@ -8,6 +8,34 @@ import pytest
 from services import amazon
 
 
+def _report_status(
+  report_id: str,
+  status: str,
+  **kwargs,
+) -> amazon.AmazonAdsReport:
+  return amazon.AmazonAdsReport(
+    report_id=report_id,
+    status=status,
+    report_name=kwargs.get("report_name", "Report"),
+    report_type_id=kwargs.get("report_type_id", "spCampaigns"),
+    start_date=kwargs.get("start_date", datetime.date(2026, 2, 14)),
+    end_date=kwargs.get("end_date", datetime.date(2026, 2, 14)),
+    created_at=kwargs.get(
+      "created_at",
+      datetime.datetime(2026, 2, 14, 0, 0, tzinfo=datetime.timezone.utc),
+    ),
+    updated_at=kwargs.get(
+      "updated_at",
+      datetime.datetime(2026, 2, 14, 0, 0, tzinfo=datetime.timezone.utc),
+    ),
+    generated_at=kwargs.get("generated_at"),
+    file_size=kwargs.get("file_size"),
+    url=kwargs.get("url"),
+    url_expires_at=kwargs.get("url_expires_at"),
+    failure_reason=kwargs.get("failure_reason"),
+  )
+
+
 def test_get_profiles_queries_all_regions(monkeypatch):
   monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
 
@@ -71,60 +99,149 @@ def test_get_profiles_invalid_region_raises_value_error(monkeypatch):
     amazon.get_profiles(region="bad-region")
 
 
+def test_create_report_sets_canonical_report_name_and_profile_context(
+    monkeypatch):
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  captured: dict[str, object] = {}
+
+  def _fake_request_json(method, url, **kwargs):
+    captured["method"] = method
+    captured["url"] = url
+    captured["headers"] = kwargs.get("headers")
+    captured["json_payload"] = kwargs.get("json_payload")
+    json_payload = kwargs["json_payload"]
+    return {
+      "reportId": "report-1",
+      "name": json_payload["name"],
+      "status": "PENDING",
+      "startDate": "2026-02-18",
+      "endDate": "2026-02-18",
+      "createdAt": "2026-02-19T06:00:00Z",
+      "updatedAt": "2026-02-19T06:00:00Z",
+      "configuration": {
+        "reportTypeId": "spCampaigns"
+      },
+    }
+
+  monkeypatch.setattr(
+    amazon,
+    "_build_report_name",
+    lambda report_type_id, profile_country:
+    f"fixed_{report_type_id}_{profile_country}",
+  )
+  monkeypatch.setattr(amazon, "_request_json", _fake_request_json)
+
+  report = amazon._create_report(
+    api_base="https://advertising-api.amazon.com",
+    access_token="access-token",
+    profile=profile,
+    payload=amazon._build_sp_campaigns_report_payload(
+      start_date=datetime.date(2026, 2, 18),
+      end_date=datetime.date(2026, 2, 18),
+    ),
+  )
+
+  assert isinstance(captured["json_payload"], dict)
+  assert captured["json_payload"]["name"] == "fixed_spCampaigns_US"
+  assert captured["method"] == "POST"
+  assert captured[
+    "url"] == "https://advertising-api.amazon.com/reporting/reports"
+  assert report.report_name == "fixed_spCampaigns_US"
+  assert report.profile_id == "profile-1"
+  assert report.profile_country == "US"
+  assert report.region == "na"
+  assert report.api_base == "https://advertising-api.amazon.com"
+
+
 def test_request_daily_campaign_stats_reports_requests_two_reports(
     monkeypatch):
   calls: list[dict] = []
+  upserted_report_ids: list[str] = []
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
 
-  def _fake_create_report(*, api_base, access_token, profile_id, payload):
+  def _fake_create_report(*, api_base, access_token, profile, payload):
     calls.append({
       "api_base": api_base,
       "access_token": access_token,
-      "profile_id": profile_id,
+      "profile_id": profile.profile_id,
+      "profile_country": profile.country_code,
       "payload": payload,
     })
     report_type = payload["configuration"]["reportTypeId"]
     if report_type == "spCampaigns":
-      return "campaigns-report-id"
+      return _report_status(
+        report_id="campaigns-report-id",
+        status="PENDING",
+        report_type_id="spCampaigns",
+      )
     if report_type == "spPurchasedProduct":
-      return "products-report-id"
+      return _report_status(
+        report_id="products-report-id",
+        status="PENDING",
+        report_type_id="spPurchasedProduct",
+      )
     raise AssertionError(f"Unexpected report type: {report_type}")
 
   monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
   monkeypatch.setattr(amazon, "_create_report", _fake_create_report)
+  monkeypatch.setattr(
+    amazon.firestore,
+    "upsert_amazon_ads_report",
+    lambda report: _upsert_report(report, upserted_report_ids),
+  )
 
   result = amazon.request_daily_campaign_stats_reports(
-    profile_id="profile-1",
+    profile=profile,
     start_date=datetime.date(2026, 2, 10),
     end_date=datetime.date(2026, 2, 17),
-    region="na",
   )
 
-  assert result == amazon.ReportIdPair(
-    campaigns_report_id="campaigns-report-id",
-    purchased_products_report_id="products-report-id",
-  )
+  assert result.campaigns_report.report_id == "campaigns-report-id"
+  assert result.campaigns_report.key == "campaigns-report-id-key"
+  assert result.campaigns_report.report_type_id == "spCampaigns"
+  assert result.purchased_products_report.report_id == "products-report-id"
+  assert result.purchased_products_report.key == "products-report-id-key"
+  assert result.purchased_products_report.report_type_id == "spPurchasedProduct"
   assert len(calls) == 2
+  assert upserted_report_ids == ["campaigns-report-id", "products-report-id"]
   assert calls[0]["api_base"] == "https://advertising-api.amazon.com"
   assert calls[0]["profile_id"] == "profile-1"
+  assert calls[0]["profile_country"] == "US"
   assert calls[0]["access_token"] == "access-token"
   assert calls[0]["payload"]["configuration"]["reportTypeId"] == "spCampaigns"
   assert calls[1]["payload"]["configuration"][
     "reportTypeId"] == "spPurchasedProduct"
 
 
-def test_get_report_statuses_returns_status_for_each_report(monkeypatch):
+def test_get_reports_returns_report_for_each_report_id(monkeypatch):
+  upserted_report_ids: list[str] = []
 
   def _fake_fetch_status(*, api_base, access_token, profile_id, report_id):
-    return amazon.ReportStatus(
+    return _report_status(
       report_id=report_id,
       status="COMPLETED",
       url=f"https://example.com/{report_id}.json.gz",
     )
 
   monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
-  monkeypatch.setattr(amazon, "_fetch_report_status", _fake_fetch_status)
+  monkeypatch.setattr(amazon, "_fetch_report", _fake_fetch_status)
+  monkeypatch.setattr(
+    amazon.firestore,
+    "upsert_amazon_ads_report",
+    lambda report: _upsert_report(report, upserted_report_ids),
+  )
 
-  statuses = amazon.get_report_statuses(
+  statuses = amazon.get_reports(
     profile_id="profile-1",
     report_ids=["r1", "r2"],
     region="eu",
@@ -132,7 +249,28 @@ def test_get_report_statuses_returns_status_for_each_report(monkeypatch):
 
   assert [status.report_id for status in statuses] == ["r1", "r2"]
   assert all(status.status == "COMPLETED" for status in statuses)
+  assert upserted_report_ids == ["r1", "r2"]
+  assert statuses[0].key == "r1-key"
   assert statuses[0].url == "https://example.com/r1.json.gz"
+
+
+def test_get_reports_with_empty_ids_returns_empty(monkeypatch):
+  monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
+
+  statuses = amazon.get_reports(
+    profile_id="profile-1",
+    report_ids=[],
+    region="na",
+  )
+
+  assert statuses == []
+
+
+def _upsert_report(report: amazon.AmazonAdsReport,
+                   upserted_report_ids: list[str]) -> amazon.AmazonAdsReport:
+  upserted_report_ids.append(report.report_id)
+  report.key = f"{report.report_id}-key"
+  return report
 
 
 def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
@@ -164,32 +302,24 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
 
   statuses = {
     "campaigns-id":
-    amazon.ReportStatus(
+    _report_status(
       report_id="campaigns-id",
       status="COMPLETED",
       url="https://example.com/campaigns.gz",
     ),
     "products-id":
-    amazon.ReportStatus(
+    _report_status(
       report_id="products-id",
       status="COMPLETED",
       url="https://example.com/products.gz",
     ),
   }
 
-  def _fake_wait_for_completion(
-    *,
-    api_base,
-    access_token,
-    profile_id,
-    report_id,
-    poll_interval_sec,
-    poll_timeout_sec,
-  ):
-    del api_base, access_token, profile_id, poll_interval_sec, poll_timeout_sec
+  def _fake_fetch_status(*, api_base, access_token, profile_id, report_id):
+    del api_base, access_token, profile_id
     return statuses[report_id]
 
-  def _fake_download(status: amazon.ReportStatus):
+  def _fake_download(status: amazon.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "products-id":
@@ -197,8 +327,7 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
-  monkeypatch.setattr(amazon, "_wait_for_report_completion",
-                      _fake_wait_for_completion)
+  monkeypatch.setattr(amazon, "_fetch_report", _fake_fetch_status)
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
 
   output = amazon.get_daily_campaign_stats_from_report_ids(
@@ -206,8 +335,6 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
     campaigns_report_id="campaigns-id",
     purchased_products_report_id="products-id",
     region="na",
-    poll_interval_sec=1,
-    poll_timeout_sec=10,
   )
 
   assert len(output) == 1
@@ -224,3 +351,36 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
   # 2 * 4.50 margin for B09XYZ + 0 for unknown + 1.0 KENP
   assert daily.gross_profit == 10.0
   assert [item.asin for item in daily.sale_items] == ["B000UNKNOWN", "B09XYZ"]
+
+
+def test_get_daily_campaign_stats_from_report_ids_raises_when_not_completed(
+    monkeypatch):
+  statuses = {
+    "campaigns-id":
+    _report_status(
+      report_id="campaigns-id",
+      status="IN_PROGRESS",
+      url=None,
+    ),
+    "products-id":
+    _report_status(
+      report_id="products-id",
+      status="COMPLETED",
+      url="https://example.com/products.gz",
+    ),
+  }
+
+  def _fake_fetch_status(*, api_base, access_token, profile_id, report_id):
+    del api_base, access_token, profile_id
+    return statuses[report_id]
+
+  monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
+  monkeypatch.setattr(amazon, "_fetch_report", _fake_fetch_status)
+
+  with pytest.raises(amazon.AmazonAdsError, match="is not completed yet"):
+    amazon.get_daily_campaign_stats_from_report_ids(
+      profile_id="profile-1",
+      campaigns_report_id="campaigns-id",
+      purchased_products_report_id="products-id",
+      region="na",
+    )

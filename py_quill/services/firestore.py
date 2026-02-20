@@ -8,9 +8,9 @@ from zoneinfo import ZoneInfo
 from common import models, posable_character_sequence, utils
 from firebase_admin import firestore, firestore_async
 from firebase_functions import logger
-from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
-                                    FieldFilter, Query, Transaction,
-                                    transactional, AsyncClient, Client)
+from google.cloud.firestore import (SERVER_TIMESTAMP, AsyncClient, Client,
+                                    DocumentReference, FieldFilter, Query,
+                                    Transaction, transactional)
 from google.cloud.firestore_v1.field_path import FieldPath
 
 _db: Client | None = None  # pylint: disable=invalid-name
@@ -53,6 +53,8 @@ JOKE_FIELDS_TO_LOG = {
 # Single source of truth for the "uncategorized" sentinel value used across
 # web/admin reads and maintenance jobs.
 UNCATEGORIZED_CATEGORY_ID = "_uncategorized"
+AMAZON_ADS_REPORTS_COLLECTION = "amazon_ads_reports"
+AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION = "amazon_ads_daily_campaign_stats"
 
 
 def get_async_db() -> AsyncClient:
@@ -69,6 +71,90 @@ def db() -> Client:
   if _db is None:
     _db = firestore.client()
   return _db
+
+
+def upsert_amazon_ads_report(
+  report: models.AmazonAdsReport, ) -> models.AmazonAdsReport:
+  """Upsert an Amazon Ads report document keyed by report_name."""
+  report_name = report.report_name.strip()
+  if not report_name:
+    raise ValueError("AmazonAdsReport.report_name is required for upsert")
+
+  payload = report.to_dict(include_key=False)
+  _ = db().collection(AMAZON_ADS_REPORTS_COLLECTION).document(report_name).set(
+    payload,
+    merge=True,
+  )
+  report.key = report_name
+  return report
+
+
+def list_amazon_ads_reports(
+  *,
+  created_on_or_after: datetime.date,
+) -> list[models.AmazonAdsReport]:
+  """List report metadata with Firestore-side created_at filtering."""
+  start_of_day_utc = datetime.datetime.combine(
+    created_on_or_after,
+    datetime.time.min,
+    tzinfo=datetime.timezone.utc,
+  )
+  query = db().collection(AMAZON_ADS_REPORTS_COLLECTION).where(
+    filter=FieldFilter("created_at", ">=", start_of_day_utc), ).order_by(
+      "created_at",
+      direction=Query.DESCENDING,
+    )
+  docs = query.stream()
+  return [
+    models.AmazonAdsReport.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
+def upsert_amazon_ads_daily_campaign_stats(
+  stats: models.AmazonAdsDailyCampaignStats,
+) -> models.AmazonAdsDailyCampaignStats:
+  """Upsert daily campaign stats keyed by campaign name and date."""
+  stats_key = utils.create_firestore_key(
+    stats.campaign_name,
+    stats.date.isoformat(),
+  )
+  payload = stats.to_dict(include_key=False)
+  db().collection(AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION).document(
+    stats_key).set(
+      payload,
+      merge=True,
+    )
+  stats.key = stats_key
+  return stats
+
+
+def list_amazon_ads_daily_campaign_stats(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> list[models.AmazonAdsDailyCampaignStats]:
+  """List daily campaign stats with Firestore-side date range filtering."""
+  if end_date < start_date:
+    raise ValueError("end_date must be on or after start_date")
+
+  query = db().collection(AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION).where(
+    filter=FieldFilter("date", ">=",
+                       start_date.isoformat()), ).where(filter=FieldFilter(
+                         "date", "<=", end_date.isoformat()), ).order_by(
+                           "date",
+                           direction=Query.ASCENDING,
+                         ).order_by(
+                           "campaign_name",
+                           direction=Query.ASCENDING,
+                         )
+  docs = query.stream()
+  return [
+    models.AmazonAdsDailyCampaignStats.from_firestore_dict(
+      doc.to_dict(),
+      key=doc.id,
+    ) for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
 
 
 def _prepare_jokes_query(

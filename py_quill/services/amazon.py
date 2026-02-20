@@ -6,6 +6,7 @@ import dataclasses
 import datetime
 import gzip
 import json
+import pprint
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -26,6 +27,118 @@ _CREATE_REPORT_CONTENT_TYPE = "application/vnd.createasyncreportrequest.v3+json"
 _REPORT_STATUS_COMPLETED = {"COMPLETED", "SUCCESS"}
 _REPORT_STATUS_FAILED = {"FAILED", "CANCELLED"}
 _REQUEST_TIMEOUT_SEC = 30
+_SP_CAMPAIGNS_COLUMNS: list[str] = [
+  "attributedSalesSameSku1d",
+  "date",
+  "campaignBiddingStrategy",
+  "roasClicks14d",
+  "unitsSoldClicks1d",
+  "attributedSalesSameSku7d",
+  "attributedSalesSameSku14d",
+  "royaltyQualifiedBorrows",
+  "sales1d",
+  "sales7d",
+  "addToList",
+  "attributedSalesSameSku30d",
+  "purchasesSameSku14d",
+  "kindleEditionNormalizedPagesRoyalties14d",
+  "purchasesSameSku1d",
+  "spend",
+  "unitsSoldSameSku1d",
+  "purchases1d",
+  "purchasesSameSku7d",
+  "unitsSoldSameSku7d",
+  "purchases7d",
+  "unitsSoldSameSku30d",
+  "cost",
+  "costPerClick",
+  "unitsSoldClicks14d",
+  "retailer",
+  "sales14d",
+  "sales30d",
+  "clickThroughRate",
+  "impressions",
+  "kindleEditionNormalizedPagesRead14d",
+  "purchasesSameSku30d",
+  "purchases14d",
+  "unitsSoldClicks30d",
+  "qualifiedBorrows",
+  "acosClicks14d",
+  "purchases30d",
+  "clicks",
+  "unitsSoldClicks7d",
+  "unitsSoldSameSku14d",
+  "campaignRuleBasedBudgetAmount",
+  "campaignBudgetCurrencyCode",
+  "campaignId",
+  "campaignApplicableBudgetRuleId",
+  "campaignBudgetType",
+  "topOfSearchImpressionShare",
+  "campaignStatus",
+  "campaignName",
+  "campaignApplicableBudgetRuleName",
+  "campaignBudgetAmount",
+]
+_SP_PURCHASED_PRODUCT_COLUMNS: list[str] = [
+  "date",
+  "purchasesOtherSku7d",
+  "unitsSoldClicks1d",
+  "matchType",
+  "unitsSoldOtherSku14d",
+  "unitsSoldOtherSku30d",
+  "sales7d",
+  "salesOtherSku14d",
+  "kindleEditionNormalizedPagesRoyalties14d",
+  "salesOtherSku30d",
+  "advertisedSku",
+  "keyword",
+  "salesOtherSku7d",
+  "purchases7d",
+  "targetId",
+  "unitsSoldClicks14d",
+  "adGroupName",
+  "campaignId",
+  "kindleEditionNormalizedPagesRead14d",
+  "unitsSoldClicks30d",
+  "qualifiedBorrows",
+  "purchasesOtherSku30d",
+  "portfolioId",
+  "campaignBudgetCurrencyCode",
+  "purchasesOtherSku14d",
+  "purchasedAsin",
+  "unitsSoldClicks7d",
+  "keywordId",
+  "royaltyQualifiedBorrows",
+  "sales1d",
+  "adGroupId",
+  "addToList",
+  "targeting",
+  "unitsSoldOtherSku7d",
+  "salesOtherSku1d",
+  "keywordType",
+  "advertisedAsin",
+  "purchases1d",
+  "purchasesOtherSku1d",
+  "retailer",
+  "sales14d",
+  "sales30d",
+  "unitsSoldOtherSku1d",
+  "targetingExpression",
+  "purchases14d",
+  "purchases30d",
+  "campaignName",
+]
+_SP_ADVERTISED_PRODUCT_COLUMNS: list[str] = [
+  "campaignId",
+  "date",
+  "advertisedAsin",
+  "attributedSalesSameSku14d",
+  "unitsSoldSameSku14d",
+  "sales14d",
+  "unitsSoldClicks14d",
+  "purchasesSameSku14d",
+  "purchases14d",
+]
 
 # Temporary static profit margins used during report merge.
 _ASIN_PROFIT_MARGINS_USD: dict[str, float] = {
@@ -54,9 +167,10 @@ class AmazonAdsProfile:
 
 @dataclass(frozen=True, kw_only=True)
 class ReportPair:
-  """Pair of report objects required for daily campaign stat computation."""
+  """Set of reports required for daily campaign stat computation."""
 
   campaigns_report: models.AmazonAdsReport
+  advertised_products_report: models.AmazonAdsReport
   purchased_products_report: models.AmazonAdsReport
 
 
@@ -89,7 +203,7 @@ def request_daily_campaign_stats_reports(
   start_date: datetime.date,
   end_date: datetime.date,
 ) -> ReportPair:
-  """Kick off the two DAILY reports needed for campaign profit stats."""
+  """Kick off the three DAILY reports needed for campaign profit stats."""
   _validate_report_date_range(start_date=start_date, end_date=end_date)
 
   access_token = _get_access_token()
@@ -104,6 +218,15 @@ def request_daily_campaign_stats_reports(
       end_date=end_date,
     ),
   )
+  advertised_products_report = _create_report(
+    api_base=api_base,
+    access_token=access_token,
+    profile=profile,
+    payload=_build_sp_advertised_product_report_payload(
+      start_date=start_date,
+      end_date=end_date,
+    ),
+  )
   purchased_products_report = _create_report(
     api_base=api_base,
     access_token=access_token,
@@ -114,11 +237,14 @@ def request_daily_campaign_stats_reports(
     ),
   )
   campaigns_report = firestore.upsert_amazon_ads_report(campaigns_report)
+  advertised_products_report = firestore.upsert_amazon_ads_report(
+    advertised_products_report)
   purchased_products_report = firestore.upsert_amazon_ads_report(
     purchased_products_report)
 
   return ReportPair(
     campaigns_report=campaigns_report,
+    advertised_products_report=advertised_products_report,
     purchased_products_report=purchased_products_report,
   )
 
@@ -151,36 +277,29 @@ def get_reports(
   return statuses
 
 
-def get_daily_campaign_stats_from_report_ids(
+def get_daily_campaign_stats_from_reports(
   *,
-  profile_id: str,
-  campaigns_report_id: str,
-  purchased_products_report_id: str,
-  region: str = "na",
+  profile: AmazonAdsProfile,
+  campaigns_report: models.AmazonAdsReport,
+  advertised_products_report: models.AmazonAdsReport,
+  purchased_products_report: models.AmazonAdsReport,
 ) -> list[models.AmazonAdsDailyCampaignStats]:
-  """Fetch, merge, and return daily campaign stats from two completed reports."""
-  access_token = _get_access_token()
-  api_base = _resolve_region_api_base(region)
+  """Merge daily campaign stats from three completed report objects."""
+  _validate_report_profile_match(profile=profile, report=campaigns_report)
+  _validate_report_profile_match(profile=profile,
+                                 report=advertised_products_report)
+  _validate_report_profile_match(profile=profile,
+                                 report=purchased_products_report)
+  _raise_if_report_not_completed(campaigns_report)
+  _raise_if_report_not_completed(advertised_products_report)
+  _raise_if_report_not_completed(purchased_products_report)
 
-  campaigns_status = _fetch_report(
-    api_base=api_base,
-    access_token=access_token,
-    profile_id=profile_id,
-    report_id=campaigns_report_id,
-  )
-  purchased_products_status = _fetch_report(
-    api_base=api_base,
-    access_token=access_token,
-    profile_id=profile_id,
-    report_id=purchased_products_report_id,
-  )
-  _raise_if_report_not_completed(campaigns_status)
-  _raise_if_report_not_completed(purchased_products_status)
-
-  campaign_rows = _download_report_rows(campaigns_status)
-  product_rows = _download_report_rows(purchased_products_status)
+  campaign_rows = _download_report_rows(campaigns_report)
+  advertised_product_rows = _download_report_rows(advertised_products_report)
+  purchased_product_rows = _download_report_rows(purchased_products_report)
   return _merge_report_rows(campaign_rows=campaign_rows,
-                            product_rows=product_rows)
+                            advertised_product_rows=advertised_product_rows,
+                            purchased_product_rows=purchased_product_rows)
 
 
 def _validate_report_date_range(
@@ -302,24 +421,12 @@ def _build_sp_campaigns_report_payload(
     "startDate": start_date.isoformat(),
     "endDate": end_date.isoformat(),
     "configuration": {
-      "adProduct":
-      "SPONSORED_PRODUCTS",
+      "adProduct": "SPONSORED_PRODUCTS",
       "groupBy": ["campaign"],
-      "columns": [
-        "campaignId",
-        "campaignName",
-        "date",
-        "cost",
-        "clicks",
-        "impressions",
-        "kindleEditionNormalizedPagesRoyalties14d",
-      ],
-      "reportTypeId":
-      "spCampaigns",
-      "timeUnit":
-      _DAILY_TIME_UNIT,
-      "format":
-      _GZIP_JSON_FORMAT,
+      "columns": _SP_CAMPAIGNS_COLUMNS,
+      "reportTypeId": "spCampaigns",
+      "timeUnit": _DAILY_TIME_UNIT,
+      "format": _GZIP_JSON_FORMAT,
     },
   }
 
@@ -336,22 +443,34 @@ def _build_sp_purchased_product_report_payload(
     "startDate": start_date.isoformat(),
     "endDate": end_date.isoformat(),
     "configuration": {
-      "adProduct":
-      "SPONSORED_PRODUCTS",
+      "adProduct": "SPONSORED_PRODUCTS",
       "groupBy": ["asin"],
-      "columns": [
-        "campaignId",
-        "date",
-        "purchasedAsin",
-        "sales14d",
-        "purchases14d",
-      ],
-      "reportTypeId":
-      "spPurchasedProduct",
-      "timeUnit":
-      _DAILY_TIME_UNIT,
-      "format":
-      _GZIP_JSON_FORMAT,
+      "columns": _SP_PURCHASED_PRODUCT_COLUMNS,
+      "reportTypeId": "spPurchasedProduct",
+      "timeUnit": _DAILY_TIME_UNIT,
+      "format": _GZIP_JSON_FORMAT,
+    },
+  }
+
+
+def _build_sp_advertised_product_report_payload(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, Any]:
+  """Construct the report payload for daily Sponsored Products advertised ASINs."""
+  return {
+    "name":
+    f"spAdvertisedProduct {start_date.isoformat()} to {end_date.isoformat()}",
+    "startDate": start_date.isoformat(),
+    "endDate": end_date.isoformat(),
+    "configuration": {
+      "adProduct": "SPONSORED_PRODUCTS",
+      "groupBy": ["advertiser"],
+      "columns": _SP_ADVERTISED_PRODUCT_COLUMNS,
+      "reportTypeId": "spAdvertisedProduct",
+      "timeUnit": _DAILY_TIME_UNIT,
+      "format": _GZIP_JSON_FORMAT,
     },
   }
 
@@ -442,14 +561,30 @@ def _raise_if_report_not_completed(status: models.AmazonAdsReport) -> None:
                        f"Current status: {status.status}")
 
 
-def _download_report_rows(
-  status: models.AmazonAdsReport, ) -> list[dict[str, Any]]:
-  """Download and decompress a completed report into raw row dictionaries."""
-  if not status.url:
-    raise AmazonAdsError(
-      f"Report {status.report_id} is completed but missing download URL")
+def _validate_report_profile_match(
+  *,
+  profile: AmazonAdsProfile,
+  report: models.AmazonAdsReport,
+) -> None:
+  """Validate report.profile_id matches the provided profile when present."""
+  report_profile_id = (report.profile_id or "").strip()
+  if not report_profile_id:
+    return
+  if report_profile_id != profile.profile_id:
+    raise ValueError(
+      f"Report {report.report_id} belongs to profile {report_profile_id}, "
+      f"but expected {profile.profile_id}")
 
-  response = requests.get(status.url, timeout=_REQUEST_TIMEOUT_SEC)
+
+def _download_report_rows(
+  report: models.AmazonAdsReport, ) -> list[dict[str, Any]]:
+  """Download and decompress a completed report into raw row dictionaries."""
+  if not report.url:
+    raise AmazonAdsError(
+      f"Report {report.report_id} is completed but missing download URL")
+
+  logger.info(f"Downloading report {report.report_id} from {report.url}")
+  response = requests.get(report.url, timeout=_REQUEST_TIMEOUT_SEC)
   response.raise_for_status()
   compressed_data = response.content
 
@@ -457,19 +592,22 @@ def _download_report_rows(
     decoded_text = gzip.decompress(compressed_data).decode("utf-8")
   except OSError as exc:
     raise AmazonAdsError(
-      f"Failed to decompress report {status.report_id}: {exc}") from exc
+      f"Failed to decompress report {report.report_id}: {exc}") from exc
 
-  return _parse_report_rows_text(decoded_text)
+  return _parse_report_rows_text(report.report_name, decoded_text)
 
 
-def _parse_report_rows_text(text: str) -> list[dict[str, Any]]:
+def _parse_report_rows_text(report_name: str,
+                            text: str) -> list[dict[str, Any]]:
   """Parse report text that may be JSON array/object or JSON-lines."""
   stripped = text.strip()
   if not stripped:
     return []
 
+  logger.info(f"Parsing text for report {report_name}: {stripped}")
   try:
     parsed_raw = json.loads(stripped)
+    logger.info(f"Parsed report {report_name}: {pprint.pformat(parsed_raw)}")
     if isinstance(parsed_raw, list):
       rows_from_list: list[dict[str, Any]] = []
       for row in cast(list[Any], parsed_raw):
@@ -498,18 +636,14 @@ def _parse_report_rows_text(text: str) -> list[dict[str, Any]]:
 def _merge_report_rows(
   *,
   campaign_rows: list[dict[str, Any]],
-  product_rows: list[dict[str, Any]],
+  advertised_product_rows: list[dict[str, Any]],
+  purchased_product_rows: list[dict[str, Any]],
 ) -> list[models.AmazonAdsDailyCampaignStats]:
-  """Merge campaign and purchased-product rows into daily campaign stats."""
-  products_by_campaign_date: dict[tuple[str, datetime.date],
-                                  list[dict[str, Any]]] = {}
-  for row in product_rows:
-    campaign_id = _required_str(row.get("campaignId"))
-    date_value = _parse_report_date(row.get("date"))
-    if not campaign_id or date_value is None:
-      continue
-    key = (campaign_id, date_value)
-    products_by_campaign_date.setdefault(key, []).append(row)
+  """Merge campaign + advertised-product + purchased-product rows by day."""
+  advertised_by_campaign_date = _index_rows_by_campaign_and_date(
+    advertised_product_rows)
+  purchased_by_campaign_date = _index_rows_by_campaign_and_date(
+    purchased_product_rows)
 
   output: list[models.AmazonAdsDailyCampaignStats] = []
   for campaign_row in campaign_rows:
@@ -525,25 +659,21 @@ def _merge_report_rows(
     spend = _as_float(campaign_row.get("cost"))
     impressions = _as_int(campaign_row.get("impressions"))
     clicks = _as_int(campaign_row.get("clicks"))
+    total_attributed_sales = _as_float(campaign_row.get("sales14d"))
+    total_units_sold = _as_int(campaign_row.get("unitsSoldClicks14d"))
     kenp_royalties = _as_float(
       campaign_row.get("kindleEditionNormalizedPagesRoyalties14d"))
     if kenp_royalties == 0.0:
       kenp_royalties = _as_float(
         campaign_row.get("attributedKindleEditionNormalizedPagesRoyalties14d"))
 
-    sale_items: list[models.AmazonAdsProductStats] = []
-    total_attributed_sales = 0.0
-    total_units_sold = 0
-    product_profit_total = 0.0
-
-    matching_products = products_by_campaign_date.get(
-      (campaign_id, date_value), [])
-    for product_row in matching_products:
-      sale_item = _build_product_stats(product_row)
-      sale_items.append(sale_item)
-      total_attributed_sales += sale_item.sales_amount
-      total_units_sold += sale_item.units_sold
-      product_profit_total += sale_item.total_profit
+    sale_items = _build_merged_sale_items_for_campaign_day(
+      campaign_id=campaign_id,
+      date_value=date_value,
+      advertised_by_campaign_date=advertised_by_campaign_date,
+      purchased_by_campaign_date=purchased_by_campaign_date,
+    )
+    product_profit_total = sum(item.total_profit for item in sale_items)
 
     gross_profit = product_profit_total + kenp_royalties
     output.append(
@@ -558,23 +688,113 @@ def _merge_report_rows(
         total_attributed_sales=total_attributed_sales,
         total_units_sold=total_units_sold,
         gross_profit=gross_profit,
-        sale_items=sorted(sale_items, key=lambda item: item.asin),
+        sale_items=sale_items,
       ))
 
   return sorted(output, key=lambda stat: (stat.date, stat.campaign_id))
 
 
-def _build_product_stats(
-  product_row: dict[str, Any], ) -> models.AmazonAdsProductStats:
-  """Convert one purchased-product report row into `ProductStats`."""
-  asin = _required_str(product_row.get("purchasedAsin"))
-  units_sold = _as_int(product_row.get("purchases14d"))
-  if units_sold == 0:
-    units_sold = _as_int(product_row.get("attributedUnitsOrdered14d"))
+def _index_rows_by_campaign_and_date(
+  rows: list[dict[str, Any]],
+) -> dict[tuple[str, datetime.date], list[dict[str, Any]]]:
+  """Index report rows by `(campaign_id, date)`."""
+  rows_by_campaign_date: dict[tuple[str, datetime.date], list[dict[str,
+                                                                   Any]]] = {}
+  for row in rows:
+    campaign_id = _required_str(row.get("campaignId"))
+    date_value = _parse_report_date(row.get("date"))
+    if not campaign_id or date_value is None:
+      continue
+    rows_by_campaign_date.setdefault((campaign_id, date_value), []).append(row)
+  return rows_by_campaign_date
 
-  sales_amount = _as_float(product_row.get("sales14d"))
-  if sales_amount == 0.0:
-    sales_amount = _as_float(product_row.get("attributedSales14d"))
+
+def _build_merged_sale_items_for_campaign_day(
+  *,
+  campaign_id: str,
+  date_value: datetime.date,
+  advertised_by_campaign_date: dict[tuple[str, datetime.date],
+                                    list[dict[str, Any]]],
+  purchased_by_campaign_date: dict[tuple[str, datetime.date], list[dict[str,
+                                                                        Any]]],
+) -> list[models.AmazonAdsProductStats]:
+  """Build merged ASIN sale items by combining direct and halo sources."""
+  merged_totals_by_asin: dict[str, tuple[int, float]] = {}
+  key = (campaign_id, date_value)
+
+  for row in advertised_by_campaign_date.get(key, []):
+    asin = _required_str(row.get("advertisedAsin"))
+    if not asin:
+      continue
+    direct_units = _extract_direct_units_sold(row)
+    direct_sales = _extract_direct_sales_amount(row)
+    _accumulate_asin_totals(merged_totals_by_asin, asin, direct_units,
+                            direct_sales)
+
+  for row in purchased_by_campaign_date.get(key, []):
+    asin = _required_str(row.get("purchasedAsin"))
+    if not asin:
+      continue
+    halo_units = _as_int(row.get("unitsSoldOtherSku14d"))
+    halo_sales = _as_float(row.get("salesOtherSku14d"))
+    _accumulate_asin_totals(merged_totals_by_asin, asin, halo_units,
+                            halo_sales)
+
+  sale_items: list[models.AmazonAdsProductStats] = []
+  for asin, (units_sold,
+             sales_amount) in sorted(merged_totals_by_asin.items()):
+    sale_items.append(
+      _build_product_stats(
+        asin=asin,
+        units_sold=units_sold,
+        sales_amount=sales_amount,
+      ))
+  return sale_items
+
+
+def _extract_direct_sales_amount(advertised_row: dict[str, Any]) -> float:
+  """Return direct sales amount from an advertised-product row."""
+  sales_amount = _as_float(advertised_row.get("attributedSalesSameSku14d"))
+  if sales_amount != 0.0:
+    return sales_amount
+  return _as_float(advertised_row.get("sales14d"))
+
+
+def _extract_direct_units_sold(advertised_row: dict[str, Any]) -> int:
+  """Return direct unit count from an advertised-product row."""
+  units_sold = _as_int(advertised_row.get("unitsSoldSameSku14d"))
+  if units_sold != 0:
+    return units_sold
+  units_sold = _as_int(advertised_row.get("unitsSoldClicks14d"))
+  if units_sold != 0:
+    return units_sold
+  units_sold = _as_int(advertised_row.get("purchasesSameSku14d"))
+  if units_sold != 0:
+    return units_sold
+  return _as_int(advertised_row.get("purchases14d"))
+
+
+def _accumulate_asin_totals(
+  merged_totals_by_asin: dict[str, tuple[int, float]],
+  asin: str,
+  units_sold: int,
+  sales_amount: float,
+) -> None:
+  """Add sales totals into an ASIN accumulator, merging repeated rows."""
+  existing_units, existing_sales = merged_totals_by_asin.get(asin, (0, 0.0))
+  merged_totals_by_asin[asin] = (
+    existing_units + units_sold,
+    existing_sales + sales_amount,
+  )
+
+
+def _build_product_stats(
+  *,
+  asin: str,
+  units_sold: int,
+  sales_amount: float,
+) -> models.AmazonAdsProductStats:
+  """Build a normalized `ProductStats` object from merged ASIN totals."""
   profit_margin = _ASIN_PROFIT_MARGINS_USD.get(asin, 0.0)
   total_profit = units_sold * profit_margin
 

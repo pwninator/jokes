@@ -33,6 +33,10 @@ def _report_status(
     url=kwargs.get("url"),
     url_expires_at=kwargs.get("url_expires_at"),
     failure_reason=kwargs.get("failure_reason"),
+    profile_id=kwargs.get("profile_id"),
+    profile_country=kwargs.get("profile_country"),
+    region=kwargs.get("region"),
+    api_base=kwargs.get("api_base"),
   )
 
 
@@ -158,7 +162,7 @@ def test_create_report_sets_canonical_report_name_and_profile_context(
   assert report.api_base == "https://advertising-api.amazon.com"
 
 
-def test_request_daily_campaign_stats_reports_requests_two_reports(
+def test_request_daily_campaign_stats_reports_requests_three_reports(
     monkeypatch):
   calls: list[dict] = []
   upserted_report_ids: list[str] = []
@@ -183,6 +187,12 @@ def test_request_daily_campaign_stats_reports_requests_two_reports(
         report_id="campaigns-report-id",
         status="PENDING",
         report_type_id="spCampaigns",
+      )
+    if report_type == "spAdvertisedProduct":
+      return _report_status(
+        report_id="advertised-report-id",
+        status="PENDING",
+        report_type_id="spAdvertisedProduct",
       )
     if report_type == "spPurchasedProduct":
       return _report_status(
@@ -209,17 +219,27 @@ def test_request_daily_campaign_stats_reports_requests_two_reports(
   assert result.campaigns_report.report_id == "campaigns-report-id"
   assert result.campaigns_report.key == "campaigns-report-id-key"
   assert result.campaigns_report.report_type_id == "spCampaigns"
+  assert result.advertised_products_report.report_id == "advertised-report-id"
+  assert result.advertised_products_report.key == "advertised-report-id-key"
+  assert (
+    result.advertised_products_report.report_type_id == "spAdvertisedProduct")
   assert result.purchased_products_report.report_id == "products-report-id"
   assert result.purchased_products_report.key == "products-report-id-key"
   assert result.purchased_products_report.report_type_id == "spPurchasedProduct"
-  assert len(calls) == 2
-  assert upserted_report_ids == ["campaigns-report-id", "products-report-id"]
+  assert len(calls) == 3
+  assert upserted_report_ids == [
+    "campaigns-report-id",
+    "advertised-report-id",
+    "products-report-id",
+  ]
   assert calls[0]["api_base"] == "https://advertising-api.amazon.com"
   assert calls[0]["profile_id"] == "profile-1"
   assert calls[0]["profile_country"] == "US"
   assert calls[0]["access_token"] == "access-token"
   assert calls[0]["payload"]["configuration"]["reportTypeId"] == "spCampaigns"
   assert calls[1]["payload"]["configuration"][
+    "reportTypeId"] == "spAdvertisedProduct"
+  assert calls[2]["payload"]["configuration"][
     "reportTypeId"] == "spPurchasedProduct"
 
 
@@ -273,7 +293,7 @@ def _upsert_report(report: amazon.AmazonAdsReport,
   return report
 
 
-def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
+def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   campaign_rows = [{
     "campaignId": "123",
     "campaignName": "Campaign A",
@@ -281,60 +301,84 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
     "cost": 5.0,
     "impressions": 100,
     "clicks": 10,
+    "sales14d": 99.0,
+    "unitsSoldClicks14d": 9,
     "kindleEditionNormalizedPagesRoyalties14d": 1.0,
   }]
-  product_rows = [
+  advertised_product_rows = [
+    {
+      "campaignId": "123",
+      "date": "2026-02-14",
+      "advertisedAsin": "B09XYZ",
+      "attributedSalesSameSku14d": 20.0,
+      "unitsSoldSameSku14d": 2,
+    },
+    {
+      "campaignId": "123",
+      "date": "2026-02-14",
+      "advertisedAsin": "B000UNKNOWN",
+      "attributedSalesSameSku14d": 10.0,
+      "unitsSoldSameSku14d": 1,
+    },
+  ]
+  purchased_product_rows = [
     {
       "campaignId": "123",
       "date": "2026-02-14",
       "purchasedAsin": "B09XYZ",
-      "sales14d": 20.0,
-      "purchases14d": 2,
+      "salesOtherSku14d": 5.0,
+      "unitsSoldOtherSku14d": 1,
     },
     {
       "campaignId": "123",
       "date": "2026-02-14",
-      "purchasedAsin": "B000UNKNOWN",
-      "sales14d": 10.0,
-      "purchases14d": 1,
+      "purchasedAsin": "B0HALO",
+      "salesOtherSku14d": 7.0,
+      "unitsSoldOtherSku14d": 2,
     },
   ]
 
-  statuses = {
-    "campaigns-id":
-    _report_status(
-      report_id="campaigns-id",
-      status="COMPLETED",
-      url="https://example.com/campaigns.gz",
-    ),
-    "products-id":
-    _report_status(
-      report_id="products-id",
-      status="COMPLETED",
-      url="https://example.com/products.gz",
-    ),
-  }
-
-  def _fake_fetch_status(*, api_base, access_token, profile_id, report_id):
-    del api_base, access_token, profile_id
-    return statuses[report_id]
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  campaigns_report = _report_status(
+    report_id="campaigns-id",
+    status="COMPLETED",
+    url="https://example.com/campaigns.gz",
+    profile_id="profile-1",
+  )
+  advertised_products_report = _report_status(
+    report_id="advertised-id",
+    status="COMPLETED",
+    url="https://example.com/advertised.gz",
+    profile_id="profile-1",
+  )
+  purchased_products_report = _report_status(
+    report_id="products-id",
+    status="COMPLETED",
+    url="https://example.com/products.gz",
+    profile_id="profile-1",
+  )
 
   def _fake_download(status: amazon.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
+    if status.report_id == "advertised-id":
+      return advertised_product_rows
     if status.report_id == "products-id":
-      return product_rows
+      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
-  monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
-  monkeypatch.setattr(amazon, "_fetch_report", _fake_fetch_status)
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
 
-  output = amazon.get_daily_campaign_stats_from_report_ids(
-    profile_id="profile-1",
-    campaigns_report_id="campaigns-id",
-    purchased_products_report_id="products-id",
-    region="na",
+  output = amazon.get_daily_campaign_stats_from_reports(
+    profile=profile,
+    campaigns_report=campaigns_report,
+    advertised_products_report=advertised_products_report,
+    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
@@ -346,41 +390,82 @@ def test_get_daily_campaign_stats_from_report_ids_merges_rows(monkeypatch):
   assert daily.impressions == 100
   assert daily.clicks == 10
   assert daily.kenp_royalties == 1.0
-  assert daily.total_attributed_sales == 30.0
-  assert daily.total_units_sold == 3
-  # 2 * 4.50 margin for B09XYZ + 0 for unknown + 1.0 KENP
-  assert daily.gross_profit == 10.0
-  assert [item.asin for item in daily.sale_items] == ["B000UNKNOWN", "B09XYZ"]
+  assert daily.total_attributed_sales == 99.0
+  assert daily.total_units_sold == 9
+  # (3 * 4.50 margin for B09XYZ) + 1.0 KENP
+  assert daily.gross_profit == 14.5
+  assert [item.asin
+          for item in daily.sale_items] == ["B000UNKNOWN", "B09XYZ", "B0HALO"]
+  b09_item = next(item for item in daily.sale_items if item.asin == "B09XYZ")
+  assert b09_item.units_sold == 3
+  assert b09_item.sales_amount == 25.0
 
 
-def test_get_daily_campaign_stats_from_report_ids_raises_when_not_completed(
-    monkeypatch):
-  statuses = {
-    "campaigns-id":
-    _report_status(
-      report_id="campaigns-id",
-      status="IN_PROGRESS",
-      url=None,
-    ),
-    "products-id":
-    _report_status(
-      report_id="products-id",
-      status="COMPLETED",
-      url="https://example.com/products.gz",
-    ),
-  }
-
-  def _fake_fetch_status(*, api_base, access_token, profile_id, report_id):
-    del api_base, access_token, profile_id
-    return statuses[report_id]
-
-  monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
-  monkeypatch.setattr(amazon, "_fetch_report", _fake_fetch_status)
+def test_get_daily_campaign_stats_from_reports_raises_when_not_completed():
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  campaigns_report = _report_status(
+    report_id="campaigns-id",
+    status="IN_PROGRESS",
+    url=None,
+    profile_id="profile-1",
+  )
+  purchased_products_report = _report_status(
+    report_id="products-id",
+    status="COMPLETED",
+    url="https://example.com/products.gz",
+    profile_id="profile-1",
+  )
+  advertised_products_report = _report_status(
+    report_id="advertised-id",
+    status="COMPLETED",
+    url="https://example.com/advertised.gz",
+    profile_id="profile-1",
+  )
 
   with pytest.raises(amazon.AmazonAdsError, match="is not completed yet"):
-    amazon.get_daily_campaign_stats_from_report_ids(
-      profile_id="profile-1",
-      campaigns_report_id="campaigns-id",
-      purchased_products_report_id="products-id",
-      region="na",
+    amazon.get_daily_campaign_stats_from_reports(
+      profile=profile,
+      campaigns_report=campaigns_report,
+      advertised_products_report=advertised_products_report,
+      purchased_products_report=purchased_products_report,
+    )
+
+
+def test_get_daily_campaign_stats_from_reports_raises_on_profile_mismatch():
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  campaigns_report = _report_status(
+    report_id="campaigns-id",
+    status="COMPLETED",
+    url="https://example.com/campaigns.gz",
+    profile_id="different-profile",
+  )
+  purchased_products_report = _report_status(
+    report_id="products-id",
+    status="COMPLETED",
+    url="https://example.com/products.gz",
+    profile_id="profile-1",
+  )
+  advertised_products_report = _report_status(
+    report_id="advertised-id",
+    status="COMPLETED",
+    url="https://example.com/advertised.gz",
+    profile_id="profile-1",
+  )
+
+  with pytest.raises(ValueError, match="belongs to profile"):
+    amazon.get_daily_campaign_stats_from_reports(
+      profile=profile,
+      campaigns_report=campaigns_report,
+      advertised_products_report=advertised_products_report,
+      purchased_products_report=purchased_products_report,
     )

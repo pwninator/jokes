@@ -173,6 +173,13 @@
       </div>
       <p class="admin-card-desc muted">Usage charts and retention views.</p>
     </a>
+    <a class="admin-card" href="{{ url_for('web.admin_ads_stats') }}">
+      <div class="admin-card-title text-body">
+        <span>Ads Stats</span>
+        <span class="muted text-button">+</span>
+      </div>
+      <p class="admin-card-desc muted">7-day Amazon Ads charts for impressions, clicks, cost, and sales.</p>
+    </a>
   </section>
 
   <section class="admin-panel" aria-label="Firestore bundle">
@@ -223,3 +230,4 @@
   bundleButton.addEventListener('click', generateBundle);
 </script>
 {% endblock %}
+

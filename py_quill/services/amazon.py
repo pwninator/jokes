@@ -297,9 +297,15 @@ def get_daily_campaign_stats_from_reports(
   campaign_rows = _download_report_rows(campaigns_report)
   advertised_product_rows = _download_report_rows(advertised_products_report)
   purchased_product_rows = _download_report_rows(purchased_products_report)
-  return _merge_report_rows(campaign_rows=campaign_rows,
-                            advertised_product_rows=advertised_product_rows,
-                            purchased_product_rows=purchased_product_rows)
+  merged_stats = _merge_report_rows(
+    campaign_rows=campaign_rows,
+    advertised_product_rows=advertised_product_rows,
+    purchased_product_rows=purchased_product_rows,
+  )
+  return [
+    firestore.upsert_amazon_ads_daily_campaign_stats(stat)
+    for stat in merged_stats
+  ]
 
 
 def _validate_report_date_range(

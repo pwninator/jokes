@@ -373,6 +373,12 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
+  upserted_stat_keys: list[str] = []
+  monkeypatch.setattr(
+    amazon.firestore,
+    "upsert_amazon_ads_daily_campaign_stats",
+    lambda stat: _upsert_daily_stat(stat, upserted_stat_keys),
+  )
 
   output = amazon.get_daily_campaign_stats_from_reports(
     profile=profile,
@@ -399,6 +405,8 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   b09_item = next(item for item in daily.sale_items if item.asin == "B09XYZ")
   assert b09_item.units_sold == 3
   assert b09_item.sales_amount == 25.0
+  assert upserted_stat_keys == ["123-2026-02-14"]
+  assert daily.key == "123-2026-02-14"
 
 
 def test_get_daily_campaign_stats_from_reports_raises_when_not_completed():
@@ -469,3 +477,13 @@ def test_get_daily_campaign_stats_from_reports_raises_on_profile_mismatch():
       advertised_products_report=advertised_products_report,
       purchased_products_report=purchased_products_report,
     )
+
+
+def _upsert_daily_stat(
+  stat: amazon.AmazonAdsDailyCampaignStats,
+  upserted_stat_keys: list[str],
+) -> amazon.AmazonAdsDailyCampaignStats:
+  stat_key = f"{stat.campaign_id}-{stat.date.isoformat()}"
+  stat.key = stat_key
+  upserted_stat_keys.append(stat_key)
+  return stat

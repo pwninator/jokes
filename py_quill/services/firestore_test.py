@@ -2923,7 +2923,7 @@ def test_upsert_amazon_ads_daily_campaign_stats_uses_firestore_key(
   monkeypatch.setattr(
     fs.utils,
     "create_firestore_key",
-    lambda campaign_name, day: f"key::{campaign_name}::{day}",
+    lambda campaign_id, day: f"key::{campaign_id}::{day}",
   )
 
   stats = models.AmazonAdsDailyCampaignStats(
@@ -2935,10 +2935,10 @@ def test_upsert_amazon_ads_daily_campaign_stats_uses_firestore_key(
 
   saved = fs.upsert_amazon_ads_daily_campaign_stats(stats)
 
-  assert saved.key == "key::Animal P - Auto::2026-02-18"
+  assert saved.key == "key::c-1::2026-02-18"
   assert captured[
     "collection"] == fs.AMAZON_ADS_DAILY_CAMPAIGN_STATS_COLLECTION
-  assert captured["doc_id"] == "key::Animal P - Auto::2026-02-18"
+  assert captured["doc_id"] == "key::c-1::2026-02-18"
   assert captured["merge"] is True
   assert isinstance(captured["data"], dict)
 

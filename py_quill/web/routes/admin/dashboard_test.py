@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import Mock
 
 import pytest
 
+from common import models
 from functions import auth_helpers
 from services import firestore as firestore_service
 from web.app import app
@@ -270,3 +272,123 @@ def test_admin_dashboard_includes_character_animator_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert '/admin/character-animator' in html
   assert 'Character Animator' in html
+
+
+def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
+  """Ads stats page aggregates campaign rows by day and fills missing dates."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  class _FixedDate(datetime.date):
+
+    @classmethod
+    def today(cls):
+      return cls(2026, 2, 20)
+
+  monkeypatch.setattr(dashboard_routes.datetime, "date", _FixedDate)
+
+  captured: dict = {}
+
+  def _fake_render(template_name, **context):
+    captured["template"] = template_name
+    captured.update(context)
+    return "OK"
+
+  monkeypatch.setattr(dashboard_routes.flask, "render_template", _fake_render)
+
+  call_args: dict = {}
+
+  def _fake_list_stats(*, start_date, end_date):
+    call_args["start_date"] = start_date
+    call_args["end_date"] = end_date
+    return [
+      models.AmazonAdsDailyCampaignStats(
+        campaign_id="c-1",
+        campaign_name="Campaign One",
+        date=_FixedDate(2026, 2, 19),
+        impressions=100,
+        clicks=10,
+        spend=15.25,
+        total_attributed_sales=25.00,
+      ),
+      models.AmazonAdsDailyCampaignStats(
+        campaign_id="c-2",
+        campaign_name="Campaign Two",
+        date=_FixedDate(2026, 2, 19),
+        impressions=75,
+        clicks=5,
+        spend=9.75,
+        total_attributed_sales=12.00,
+      ),
+      models.AmazonAdsDailyCampaignStats(
+        campaign_id="c-3",
+        campaign_name="Campaign Three",
+        date=_FixedDate(2026, 2, 17),
+        impressions=30,
+        clicks=3,
+        spend=4.50,
+        total_attributed_sales=9.00,
+      ),
+    ]
+
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_campaign_stats",
+    _fake_list_stats,
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  assert captured["template"] == "admin/ads_stats.html"
+  assert call_args["start_date"] == _FixedDate(2026, 2, 14)
+  assert call_args["end_date"] == _FixedDate(2026, 2, 20)
+  assert captured["start_date"] == "2026-02-14"
+  assert captured["end_date"] == "2026-02-20"
+
+  chart_data = captured["chart_data"]
+  assert chart_data["labels"] == [
+    "2026-02-14",
+    "2026-02-15",
+    "2026-02-16",
+    "2026-02-17",
+    "2026-02-18",
+    "2026-02-19",
+    "2026-02-20",
+  ]
+  assert chart_data["impressions"] == [0, 0, 0, 30, 0, 175, 0]
+  assert chart_data["clicks"] == [0, 0, 0, 3, 0, 15, 0]
+  assert chart_data["cost"] == [0.0, 0.0, 0.0, 4.5, 0.0, 25.0, 0.0]
+  assert chart_data["sales"] == [0.0, 0.0, 0.0, 9.0, 0.0, 37.0, 0.0]
+
+
+def test_admin_dashboard_includes_ads_stats_link(monkeypatch):
+  """Admin dashboard includes the ads stats tile."""
+  _mock_admin_session(monkeypatch)
+
+  with app.test_client() as client:
+    resp = client.get('/admin')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '/admin/ads-stats' in html
+  assert 'Ads Stats' in html
+
+
+def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
+  """Ads stats page renders the admin top-nav link."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_campaign_stats",
+    lambda *, start_date, end_date: [],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'href="/admin/ads-stats"' in html
+  assert 'Ads Stats' in html

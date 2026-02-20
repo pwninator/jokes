@@ -114,9 +114,9 @@ def list_amazon_ads_reports(
 def upsert_amazon_ads_daily_campaign_stats(
   stats: models.AmazonAdsDailyCampaignStats,
 ) -> models.AmazonAdsDailyCampaignStats:
-  """Upsert daily campaign stats keyed by campaign name and date."""
+  """Upsert daily campaign stats keyed by campaign id and date."""
   stats_key = utils.create_firestore_key(
-    stats.campaign_name,
+    stats.campaign_id,
     stats.date.isoformat(),
   )
   payload = stats.to_dict(include_key=False)
@@ -143,9 +143,6 @@ def list_amazon_ads_daily_campaign_stats(
                        start_date.isoformat()), ).where(filter=FieldFilter(
                          "date", "<=", end_date.isoformat()), ).order_by(
                            "date",
-                           direction=Query.ASCENDING,
-                         ).order_by(
-                           "campaign_name",
                            direction=Query.ASCENDING,
                          )
   docs = query.stream()

@@ -1,0 +1,79 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Ads Stats · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+  <h2>Ads Stats</h2>
+  <a href="{{ url_for('web.admin_dashboard') }}">Back to Dashboard</a>
+</div>
+
+<p class="muted" style="margin: 0 0 16px;">
+  Aggregated daily Amazon Ads performance for {{ start_date }} to {{ end_date }}.
+</p>
+
+<section class="stats-charts">
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>Impressions</h3>
+    <canvas id="impressionsChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>Clicks</h3>
+    <canvas id="clicksChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>Cost</h3>
+    <canvas id="costChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%;">
+    <h3>Sales</h3>
+    <canvas id="salesChart"></canvas>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const adsStatsData = {{ chart_data | tojson }};
+
+  function createLineChart(canvasId, label, values, color, isCurrency) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: adsStatsData.labels,
+        datasets: [{
+          label: label,
+          data: values,
+          borderColor: color,
+          backgroundColor: color + '22',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                if (!isCurrency) {
+                  return value;
+                }
+                return '$' + Number(value).toFixed(2);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  createLineChart('impressionsChart', 'Impressions', adsStatsData.impressions, '#2e7d32', false);
+  createLineChart('clicksChart', 'Clicks', adsStatsData.clicks, '#1565c0', false);
+  createLineChart('costChart', 'Cost', adsStatsData.cost, '#6a1b9a', true);
+  createLineChart('salesChart', 'Sales', adsStatsData.sales, '#ef6c00', true);
+</script>
+{% endblock %}

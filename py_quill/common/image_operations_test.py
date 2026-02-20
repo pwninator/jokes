@@ -1339,7 +1339,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
     with patch('common.image_operations.ImageDraw.Draw',
                return_value=draw_mock):
       fake_font = ImageFont.load_default()
-      with patch('common.image_operations._get_page_number_font',
+      with patch('common.image_operations.get_text_font',
                  return_value=fake_font) as mock_get_font:
         image_operations._add_page_number_to_image(
           image,
@@ -1376,7 +1376,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
     with patch('common.image_operations.ImageDraw.Draw',
                return_value=draw_mock):
       fake_font = ImageFont.load_default()
-      with patch('common.image_operations._get_page_number_font',
+      with patch('common.image_operations.get_text_font',
                  return_value=fake_font) as mock_get_font:
         image_operations._add_page_number_to_image(
           image,
@@ -1405,7 +1405,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
     with patch('common.image_operations.ImageDraw.Draw',
                return_value=draw_mock):
       fake_font = ImageFont.load_default()
-      with patch('common.image_operations._get_page_number_font',
+      with patch('common.image_operations.get_text_font',
                  return_value=fake_font) as mock_get_font:
         image_operations._add_page_number_to_image(
           image,

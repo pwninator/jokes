@@ -13,6 +13,7 @@
 {% set printable_notes_manual_url = url_for('web.admin_printable_notes_manual') %}
 {% set jokes_url = url_for('web.admin_jokes') %}
 {% set social_url = url_for('web.admin_social') %}
+{% set ads_stats_url = url_for('web.admin_ads_stats') %}
 <div class="site-shell admin-site-shell">
   {% call site_header(dashboard_url, site_name + " Admin", site_name, True) %}
         <a class="nav-link text-button{% if current_path == dashboard_url %} nav-link--active{% endif %}"
@@ -56,6 +57,10 @@
         <a class="nav-link text-button{% if current_path.startswith(joke_books_prefix) %} nav-link--active{% endif %}"
           href="{{ joke_books_url }}">
           Joke Books
+        </a>
+        <a class="nav-link text-button{% if current_path == ads_stats_url %} nav-link--active{% endif %}"
+          href="{{ ads_stats_url }}">
+          Ads Stats
         </a>
         {% include "partials/user_nav_menu.html" %}
   {% endcall %}

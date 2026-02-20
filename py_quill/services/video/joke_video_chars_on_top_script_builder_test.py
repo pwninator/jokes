@@ -103,10 +103,12 @@ def test_chars_on_top_layout_lowers_image_and_uses_footer_margin():
   assert setup_image_item.rect.height_px == (
     joke_video_chars_on_top_script_builder._JOKE_IMAGE_HEIGHT_PX)  # pylint: disable=protected-access
   assert script.subtitle_rect is not None
-  assert script.subtitle_rect.x_px == 0
+  assert script.subtitle_rect.x_px == (
+    joke_video_chars_on_top_script_builder._CONTENT_HORIZONTAL_MARGIN_PX)  # pylint: disable=protected-access
   assert script.subtitle_rect.y_px == (
     joke_video_chars_on_top_script_builder._TOP_MARGIN_PX)  # pylint: disable=protected-access
-  assert script.subtitle_rect.width_px == 1080
+  assert script.subtitle_rect.width_px == (
+    joke_video_chars_on_top_script_builder._CONTENT_WIDTH_PX)  # pylint: disable=protected-access
   assert script.subtitle_rect.height_px == (
     joke_video_chars_on_top_script_builder._SUBTITLE_HEIGHT_PX)  # pylint: disable=protected-access
 
@@ -120,9 +122,9 @@ def test_chars_on_top_layout_lowers_image_and_uses_footer_margin():
     item for item in image_items if
     item.gcs_uri == joke_video_chars_on_top_script_builder._PORTRAIT_BANNER_GCS_URI)  # pylint: disable=protected-access
   assert banner_item.rect.x_px == (
-    joke_video_chars_on_top_script_builder._CANVAS_WIDTH_PX -  # pylint: disable=protected-access
-    banner_item.rect.width_px -
-    joke_video_chars_on_top_script_builder._BANNER_HORIZONTAL_MARGIN_PX)  # pylint: disable=protected-access
+    joke_video_chars_on_top_script_builder._CONTENT_HORIZONTAL_MARGIN_PX)  # pylint: disable=protected-access
+  assert banner_item.rect.width_px == (
+    joke_video_chars_on_top_script_builder._CONTENT_WIDTH_PX)  # pylint: disable=protected-access
   assert banner_item.rect.y_px == (
     joke_video_chars_on_top_script_builder._TOP_MARGIN_PX -  # pylint: disable=protected-access
     banner_item.rect.height_px) // 2

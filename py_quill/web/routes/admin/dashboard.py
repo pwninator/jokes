@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import datetime
+
 import flask
 
 from common import amazon_redirect
+from common import models
 from functions import auth_helpers
 from services import firestore
 from web.routes import web_bp
 from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
+
+_ADS_STATS_LOOKBACK_DAYS = 7
 
 
 @web_bp.route('/admin')
@@ -98,10 +103,10 @@ def admin_stats():
                             key=stats_utils.day_bucket_sort_key)
 
   # Identify all unique joke buckets in the matrix
-  retention_buckets = set()
+  retention_buckets: set[str] = set()
   for day_data in retention_matrix.values():
     retention_buckets.update(day_data.keys())
-  sorted_ret_buckets = sorted(list(retention_buckets),
+  sorted_ret_buckets = sorted(retention_buckets,
                               key=stats_utils.bucket_label_sort_key)
 
   retention_datasets = []
@@ -135,3 +140,68 @@ def admin_stats():
       'datasets': retention_datasets
     },
   )
+
+
+@web_bp.route('/admin/ads-stats')
+@auth_helpers.require_admin
+def admin_ads_stats():
+  """Render Amazon Ads daily metrics (last 7 days), aggregated by date."""
+  end_date = datetime.date.today()
+  start_date = end_date - datetime.timedelta(days=_ADS_STATS_LOOKBACK_DAYS - 1)
+  stats_list = firestore.list_amazon_ads_daily_campaign_stats(
+    start_date=start_date,
+    end_date=end_date,
+  )
+  chart_data = _build_ads_stats_chart_data(
+    stats_list=stats_list,
+    start_date=start_date,
+    end_date=end_date,
+  )
+  return flask.render_template(
+    'admin/ads_stats.html',
+    site_name='Snickerdoodle',
+    chart_data=chart_data,
+    start_date=start_date.isoformat(),
+    end_date=end_date.isoformat(),
+  )
+
+
+def _build_ads_stats_chart_data(
+  *,
+  stats_list: list[models.AmazonAdsDailyCampaignStats],
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, list[str] | list[int] | list[float]]:
+  """Aggregate campaign stats by day for charting."""
+  daily_totals: dict[str, dict[str, float]] = {}
+  current_date = start_date
+  while current_date <= end_date:
+    daily_totals[current_date.isoformat()] = {
+      "impressions": 0.0,
+      "clicks": 0.0,
+      "cost": 0.0,
+      "sales": 0.0,
+    }
+    current_date += datetime.timedelta(days=1)
+
+  for stat in stats_list:
+    date_key = stat.date.isoformat()
+    if date_key not in daily_totals:
+      continue
+
+    daily_entry = daily_totals[date_key]
+    daily_entry["impressions"] += float(stat.impressions)
+    daily_entry["clicks"] += float(stat.clicks)
+    daily_entry["cost"] += stat.spend
+    daily_entry["sales"] += stat.total_attributed_sales
+
+  labels = list(daily_totals.keys())
+  return {
+    "labels": labels,
+    "impressions":
+    [int(daily_totals[label]["impressions"]) for label in labels],
+    "clicks": [int(daily_totals[label]["clicks"]) for label in labels],
+    "cost": [round(float(daily_totals[label]["cost"]), 2) for label in labels],
+    "sales":
+    [round(float(daily_totals[label]["sales"]), 2) for label in labels],
+  }

@@ -269,14 +269,40 @@ def _auto_ads_stats_internal(
         advertised_products_report=advertised_products_report,
         purchased_products_report=purchased_products_report,
       )
-      daily_campaign_stats = firestore.upsert_amazon_ads_daily_campaign_stats(
-        daily_campaign_stats)
-      for daily_stat in daily_campaign_stats:
-        stat_row = daily_stat.to_dict(include_key=True)
-        stat_row["profile_id"] = profile.profile_id
-        stat_row["profile_country"] = profile.country_code
-        stat_row["region"] = profile.region
-        daily_campaign_stats_rows.append(stat_row)
+
+      # Aggregate stats by date
+      stats_by_date: dict[datetime.date, models.AmazonAdsDailyStats] = {}
+      for campaign_stat in daily_campaign_stats:
+        if campaign_stat.date not in stats_by_date:
+          stats_by_date[campaign_stat.date] = models.AmazonAdsDailyStats(
+            date=campaign_stat.date,
+          )
+
+        daily_stat = stats_by_date[campaign_stat.date]
+        daily_stat.campaigns_by_id[campaign_stat.campaign_id] = campaign_stat
+
+        # Aggregate metrics
+        daily_stat.spend += campaign_stat.spend
+        daily_stat.impressions += campaign_stat.impressions
+        daily_stat.clicks += campaign_stat.clicks
+        daily_stat.kenp_royalties += campaign_stat.kenp_royalties
+        daily_stat.total_attributed_sales += campaign_stat.total_attributed_sales
+        daily_stat.total_units_sold += campaign_stat.total_units_sold
+        daily_stat.gross_profit_before_ads += campaign_stat.gross_profit_before_ads
+        daily_stat.gross_profit += campaign_stat.gross_profit
+
+      # Upsert aggregated stats
+      daily_stats_list = list(stats_by_date.values())
+      _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+
+      # Flatten for logging and debugging response (keeping original format)
+      for daily_stat in daily_stats_list:
+        for campaign_stat in daily_stat.campaigns_by_id.values():
+          stat_row = campaign_stat.to_dict(include_key=True)
+          stat_row["profile_id"] = profile.profile_id
+          stat_row["profile_country"] = profile.country_code
+          stat_row["region"] = profile.region
+          daily_campaign_stats_rows.append(stat_row)
     else:
       logger.info(f"Reports not complete for profile {profile.profile_id}")
 

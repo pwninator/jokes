@@ -607,7 +607,7 @@ class TestAdsStatsFetcher:
       ],
     )
     monkeypatch.setattr(
-      'functions.joke_auto_fns.firestore.upsert_amazon_ads_daily_campaign_stats',
+      'functions.joke_auto_fns.firestore.upsert_amazon_ads_daily_stats',
       lambda stats: stats,
     )
 

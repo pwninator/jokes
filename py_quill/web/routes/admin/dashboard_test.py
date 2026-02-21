@@ -275,7 +275,7 @@ def test_admin_dashboard_includes_character_animator_link(monkeypatch):
 
 
 def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
-  """Ads stats page aggregates campaign rows by day and fills missing dates."""
+  """Ads stats page uses daily stats rows and fills missing dates."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
 
@@ -302,31 +302,16 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     call_args["start_date"] = start_date
     call_args["end_date"] = end_date
     return [
-      models.AmazonAdsDailyCampaignStats(
-        campaign_id="c-1",
-        campaign_name="Campaign One",
+      models.AmazonAdsDailyStats(
         date=_FixedDate(2026, 2, 19),
-        impressions=100,
-        clicks=10,
-        spend=15.25,
-        total_attributed_sales=25.00,
-        gross_profit_before_ads=40.0,
-        gross_profit=24.75,
+        impressions=175,
+        clicks=15,
+        spend=25.0,
+        total_attributed_sales=37.0,
+        gross_profit_before_ads=60.0,
+        gross_profit=35.0,
       ),
-      models.AmazonAdsDailyCampaignStats(
-        campaign_id="c-2",
-        campaign_name="Campaign Two",
-        date=_FixedDate(2026, 2, 19),
-        impressions=75,
-        clicks=5,
-        spend=9.75,
-        total_attributed_sales=12.00,
-        gross_profit_before_ads=20.0,
-        gross_profit=10.25,
-      ),
-      models.AmazonAdsDailyCampaignStats(
-        campaign_id="c-3",
-        campaign_name="Campaign Three",
+      models.AmazonAdsDailyStats(
         date=_FixedDate(2026, 2, 17),
         impressions=30,
         clicks=3,
@@ -339,7 +324,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
 
   monkeypatch.setattr(
     firestore_service,
-    "list_amazon_ads_daily_campaign_stats",
+    "list_amazon_ads_daily_stats",
     _fake_list_stats,
   )
 
@@ -391,7 +376,7 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(
     firestore_service,
-    "list_amazon_ads_daily_campaign_stats",
+    "list_amazon_ads_daily_stats",
     lambda *, start_date, end_date: [],
   )
 

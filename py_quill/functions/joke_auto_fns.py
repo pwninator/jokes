@@ -196,6 +196,9 @@ def _auto_ads_stats_internal(
     if _has_all_required_reports(
         profile_id=profile.profile_id,
         reports_by_expected_key=reports_by_expected_key,
+    ) and not _are_all_reports_processed(
+        profile_id=profile.profile_id,
+        reports_by_expected_key=reports_by_expected_key,
     ):
       continue
 
@@ -263,46 +266,60 @@ def _auto_ads_stats_internal(
           advertised_products_report,
           purchased_products_report,
         )):
-      daily_campaign_stats = amazon.get_daily_campaign_stats_from_reports(
-        profile=profile,
-        campaigns_report=campaigns_report,
-        advertised_products_report=advertised_products_report,
-        purchased_products_report=purchased_products_report,
-      )
+      if (not campaigns_report.processed or
+          not advertised_products_report.processed or
+          not purchased_products_report.processed):
 
-      # Aggregate stats by date
-      stats_by_date: dict[datetime.date, models.AmazonAdsDailyStats] = {}
-      for campaign_stat in daily_campaign_stats:
-        if campaign_stat.date not in stats_by_date:
-          stats_by_date[campaign_stat.date] = models.AmazonAdsDailyStats(
-            date=campaign_stat.date,
-          )
+        daily_campaign_stats = amazon.get_daily_campaign_stats_from_reports(
+          profile=profile,
+          campaigns_report=campaigns_report,
+          advertised_products_report=advertised_products_report,
+          purchased_products_report=purchased_products_report,
+        )
 
-        daily_stat = stats_by_date[campaign_stat.date]
-        daily_stat.campaigns_by_id[campaign_stat.campaign_id] = campaign_stat
+        # Aggregate stats by date
+        stats_by_date: dict[datetime.date, models.AmazonAdsDailyStats] = {}
+        for campaign_stat in daily_campaign_stats:
+          if campaign_stat.date not in stats_by_date:
+            stats_by_date[campaign_stat.date] = models.AmazonAdsDailyStats(
+              date=campaign_stat.date,
+            )
 
-        # Aggregate metrics
-        daily_stat.spend += campaign_stat.spend
-        daily_stat.impressions += campaign_stat.impressions
-        daily_stat.clicks += campaign_stat.clicks
-        daily_stat.kenp_royalties += campaign_stat.kenp_royalties
-        daily_stat.total_attributed_sales += campaign_stat.total_attributed_sales
-        daily_stat.total_units_sold += campaign_stat.total_units_sold
-        daily_stat.gross_profit_before_ads += campaign_stat.gross_profit_before_ads
-        daily_stat.gross_profit += campaign_stat.gross_profit
+          daily_stat = stats_by_date[campaign_stat.date]
+          daily_stat.campaigns_by_id[campaign_stat.campaign_id] = campaign_stat
 
-      # Upsert aggregated stats
-      daily_stats_list = list(stats_by_date.values())
-      _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+          # Aggregate metrics
+          daily_stat.spend += campaign_stat.spend
+          daily_stat.impressions += campaign_stat.impressions
+          daily_stat.clicks += campaign_stat.clicks
+          daily_stat.kenp_royalties += campaign_stat.kenp_royalties
+          daily_stat.total_attributed_sales += campaign_stat.total_attributed_sales
+          daily_stat.total_units_sold += campaign_stat.total_units_sold
+          daily_stat.gross_profit_before_ads += campaign_stat.gross_profit_before_ads
+          daily_stat.gross_profit += campaign_stat.gross_profit
 
-      # Flatten for logging and debugging response (keeping original format)
-      for daily_stat in daily_stats_list:
-        for campaign_stat in daily_stat.campaigns_by_id.values():
-          stat_row = campaign_stat.to_dict(include_key=True)
-          stat_row["profile_id"] = profile.profile_id
-          stat_row["profile_country"] = profile.country_code
-          stat_row["region"] = profile.region
-          daily_campaign_stats_rows.append(stat_row)
+        # Upsert aggregated stats
+        daily_stats_list = list(stats_by_date.values())
+        _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+
+        # Mark reports as processed
+        campaigns_report.processed = True
+        advertised_products_report.processed = True
+        purchased_products_report.processed = True
+        firestore.upsert_amazon_ads_report(campaigns_report)
+        firestore.upsert_amazon_ads_report(advertised_products_report)
+        firestore.upsert_amazon_ads_report(purchased_products_report)
+
+        # Flatten for logging and debugging response (keeping original format)
+        for daily_stat in daily_stats_list:
+          for campaign_stat in daily_stat.campaigns_by_id.values():
+            stat_row = campaign_stat.to_dict(include_key=True)
+            stat_row["profile_id"] = profile.profile_id
+            stat_row["profile_country"] = profile.country_code
+            stat_row["region"] = profile.region
+            daily_campaign_stats_rows.append(stat_row)
+      else:
+        logger.info(f"Reports already processed for profile {profile.profile_id}")
     else:
       logger.info(f"Reports not complete for profile {profile.profile_id}")
 
@@ -455,6 +472,19 @@ def _has_all_required_reports(
   """Return whether all required report types exist for the profile."""
   return all((profile_id, report_type) in reports_by_expected_key
              for report_type in _ADS_STATS_REQUIRED_REPORT_TYPES)
+
+
+def _are_all_reports_processed(
+  *,
+  profile_id: str,
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+) -> bool:
+  """Return whether all required report types for the profile are processed."""
+  for report_type in _ADS_STATS_REQUIRED_REPORT_TYPES:
+    report = reports_by_expected_key.get((profile_id, report_type))
+    if not report or not report.processed:
+      return False
+  return True
 
 
 def _collect_expected_report_ids_for_profile(

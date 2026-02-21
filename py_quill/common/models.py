@@ -1633,6 +1633,7 @@ class AmazonAdsReport:
   url: str | None = None
   url_expires_at: datetime.datetime | None = None
   failure_reason: str | None = None
+  processed: bool = False
 
   @property
   def name(self) -> str:
@@ -1659,6 +1660,7 @@ class AmazonAdsReport:
       "url": self.url,
       "url_expires_at": self.url_expires_at,
       "failure_reason": self.failure_reason,
+      "processed": self.processed,
     }
     if include_key:
       data["key"] = self.key
@@ -1762,6 +1764,7 @@ class AmazonAdsReport:
         "url_expires_at",
       ),
       failure_reason=str(data.get("failure_reason", "")).strip() or None,
+      processed=bool(data.get("processed", False)),
     )
 
   @classmethod

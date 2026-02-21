@@ -8,6 +8,64 @@
   <a href="{{ url_for('web.admin_dashboard') }}">Back to Dashboard</a>
 </div>
 
+<style>
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 12px var(--color-shadow);
+  }
+  .stat-card__label {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .stat-card__value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+</style>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-card__label">Impressions</div>
+    <div class="stat-card__value">{{ "{:,.0f}".format(chart_data.total_impressions) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Clicks</div>
+    <div class="stat-card__value">{{ "{:,.0f}".format(chart_data.total_clicks) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Cost</div>
+    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_cost) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Sales</div>
+    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_sales) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Gross Profit (Pre-Ad)</div>
+    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Gross Profit</div>
+    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_gross_profit) }}</div>
+  </div>
+</div>
+
 <p class="muted" style="margin: 0 0 16px;">
   Aggregated daily Amazon Ads performance for {{ start_date }} to {{ end_date }}.
 </p>

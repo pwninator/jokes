@@ -148,7 +148,7 @@ def admin_ads_stats():
   """Render Amazon Ads daily metrics (last 7 days), aggregated by date."""
   end_date = datetime.date.today()
   start_date = end_date - datetime.timedelta(days=_ADS_STATS_LOOKBACK_DAYS - 1)
-  stats_list = firestore.list_amazon_ads_daily_campaign_stats(
+  stats_list = firestore.list_amazon_ads_daily_stats(
     start_date=start_date,
     end_date=end_date,
   )
@@ -168,7 +168,7 @@ def admin_ads_stats():
 
 def _build_ads_stats_chart_data(
   *,
-  stats_list: list[models.AmazonAdsDailyCampaignStats],
+  stats_list: list[models.AmazonAdsDailyStats],
   start_date: datetime.date,
   end_date: datetime.date,
 ) -> dict[str, list[str] | list[int] | list[float]]:
@@ -192,12 +192,12 @@ def _build_ads_stats_chart_data(
       continue
 
     daily_entry = daily_totals[date_key]
-    daily_entry["impressions"] += float(stat.impressions)
-    daily_entry["clicks"] += float(stat.clicks)
-    daily_entry["cost"] += stat.spend
-    daily_entry["sales"] += stat.total_attributed_sales
-    daily_entry["gross_profit_before_ads"] += stat.gross_profit_before_ads
-    daily_entry["gross_profit"] += stat.gross_profit
+    daily_entry["impressions"] = float(stat.impressions)
+    daily_entry["clicks"] = float(stat.clicks)
+    daily_entry["cost"] = stat.spend
+    daily_entry["sales"] = stat.total_attributed_sales
+    daily_entry["gross_profit_before_ads"] = stat.gross_profit_before_ads
+    daily_entry["gross_profit"] = stat.gross_profit
 
   labels = list(daily_totals.keys())
   return {

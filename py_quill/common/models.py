@@ -1517,6 +1517,101 @@ class AmazonAdsDailyCampaignStats:
 
 
 @dataclass(kw_only=True)
+class AmazonAdsDailyStats:
+  """Aggregated daily metrics across all Amazon Ads campaigns."""
+
+  key: str | None = None
+  date: datetime.date
+  spend: float = 0.0
+  impressions: int = 0
+  clicks: int = 0
+  kenp_royalties: float = 0.0
+  total_attributed_sales: float = 0.0
+  total_units_sold: int = 0
+  gross_profit_before_ads: float = 0.0
+  gross_profit: float = 0.0
+  campaigns_by_id: dict[str, AmazonAdsDailyCampaignStats] = field(
+    default_factory=dict)
+
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data: dict[str, object] = {
+      "date": self.date.isoformat(),
+      "spend": self.spend,
+      "impressions": self.impressions,
+      "clicks": self.clicks,
+      "kenp_royalties": self.kenp_royalties,
+      "total_attributed_sales": self.total_attributed_sales,
+      "total_units_sold": self.total_units_sold,
+      "gross_profit_before_ads": self.gross_profit_before_ads,
+      "gross_profit": self.gross_profit,
+      "campaigns_by_id": {
+        cid: stats.to_dict()
+        for cid, stats in self.campaigns_by_id.items()
+      },
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    key: str | None = None,
+  ) -> AmazonAdsDailyStats:
+    """Create a daily stats model from dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    parsed_date = _parse_required_date(
+      data.get("date"),
+      field_name="AmazonAdsDailyStats.date",
+    )
+
+    _parse_float_field(data, "spend", 0.0)
+    _parse_int_field(data, "impressions", 0)
+    _parse_int_field(data, "clicks", 0)
+    _parse_float_field(data, "kenp_royalties", 0.0)
+    _parse_float_field(data, "total_attributed_sales", 0.0)
+    _parse_int_field(data, "total_units_sold", 0)
+    _parse_float_field(data, "gross_profit_before_ads", 0.0)
+    _parse_float_field(data, "gross_profit", 0.0)
+
+    campaigns_raw = data.get("campaigns_by_id")
+    campaigns_by_id: dict[str, AmazonAdsDailyCampaignStats] = {}
+    if isinstance(campaigns_raw, dict):
+      for cid, cdata in campaigns_raw.items():
+        if isinstance(cdata, dict):
+          campaigns_by_id[cid] = AmazonAdsDailyCampaignStats.from_dict(cdata)
+
+    return cls(
+      key=key,
+      date=parsed_date,
+      spend=data.get("spend", 0.0),
+      impressions=data.get("impressions", 0),
+      clicks=data.get("clicks", 0),
+      kenp_royalties=data.get("kenp_royalties", 0.0),
+      total_attributed_sales=data.get("total_attributed_sales", 0.0),
+      total_units_sold=data.get("total_units_sold", 0),
+      gross_profit_before_ads=data.get("gross_profit_before_ads", 0.0),
+      gross_profit=data.get("gross_profit", 0.0),
+      campaigns_by_id=campaigns_by_id,
+    )
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    key: str,
+  ) -> AmazonAdsDailyStats:
+    """Create a daily stats model from Firestore data."""
+    return cls.from_dict(data, key=key)
+
+
+@dataclass(kw_only=True)
 class AmazonAdsReport:
   """Amazon Ads report metadata persisted in Firestore."""
 

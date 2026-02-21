@@ -372,6 +372,14 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   ]
   assert chart_data["gross_profit"] == [0.0, 0.0, 0.0, 4.5, 0.0, 35.0, 0.0]
 
+  # Verify totals
+  assert chart_data["total_impressions"] == 205
+  assert chart_data["total_clicks"] == 18
+  assert chart_data["total_cost"] == 29.5
+  assert chart_data["total_sales"] == 46.0
+  assert chart_data["total_gross_profit_before_ads"] == 69.0
+  assert chart_data["total_gross_profit"] == 39.5
+
 
 def test_admin_dashboard_includes_ads_stats_link(monkeypatch):
   """Admin dashboard includes the ads stats tile."""

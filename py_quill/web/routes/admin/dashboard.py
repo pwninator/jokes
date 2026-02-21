@@ -171,7 +171,7 @@ def _build_ads_stats_chart_data(
   stats_list: list[models.AmazonAdsDailyCampaignStats],
   start_date: datetime.date,
   end_date: datetime.date,
-) -> dict[str, list[str] | list[int] | list[float]]:
+) -> dict[str, list[str] | list[int] | list[float] | int | float]:
   """Aggregate campaign stats by day for charting."""
   daily_totals: dict[str, dict[str, float]] = {}
   current_date = start_date
@@ -200,19 +200,30 @@ def _build_ads_stats_chart_data(
     daily_entry["gross_profit"] += stat.gross_profit
 
   labels = list(daily_totals.keys())
+  impressions = [int(daily_totals[label]["impressions"]) for label in labels]
+  clicks = [int(daily_totals[label]["clicks"]) for label in labels]
+  cost = [round(float(daily_totals[label]["cost"]), 2) for label in labels]
+  sales = [round(float(daily_totals[label]["sales"]), 2) for label in labels]
+  gross_profit_before_ads = [
+    round(float(daily_totals[label]["gross_profit_before_ads"]), 2)
+    for label in labels
+  ]
+  gross_profit = [
+    round(float(daily_totals[label]["gross_profit"]), 2) for label in labels
+  ]
+
   return {
-    "labels":
-    labels,
-    "impressions":
-    [int(daily_totals[label]["impressions"]) for label in labels],
-    "clicks": [int(daily_totals[label]["clicks"]) for label in labels],
-    "cost": [round(float(daily_totals[label]["cost"]), 2) for label in labels],
-    "sales":
-    [round(float(daily_totals[label]["sales"]), 2) for label in labels],
-    "gross_profit_before_ads": [
-      round(float(daily_totals[label]["gross_profit_before_ads"]), 2)
-      for label in labels
-    ],
-    "gross_profit":
-    [round(float(daily_totals[label]["gross_profit"]), 2) for label in labels],
+    "labels": labels,
+    "impressions": impressions,
+    "clicks": clicks,
+    "cost": cost,
+    "sales": sales,
+    "gross_profit_before_ads": gross_profit_before_ads,
+    "gross_profit": gross_profit,
+    "total_impressions": sum(impressions),
+    "total_clicks": sum(clicks),
+    "total_cost": round(sum(cost), 2),
+    "total_sales": round(sum(sales), 2),
+    "total_gross_profit_before_ads": round(sum(gross_profit_before_ads), 2),
+    "total_gross_profit": round(sum(gross_profit), 2),
   }

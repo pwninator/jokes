@@ -135,8 +135,8 @@ def _user_daily_maintenance_internal(
 
 
 @scheduler_fn.on_schedule(
-  # Runs every 6 hours.
-  schedule="0 */6 * * *",
+  # Runs at 5am, 6am, noon, and 1pm PST.
+  schedule="0 5,6,12,13 * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,

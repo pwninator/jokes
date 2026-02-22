@@ -171,19 +171,24 @@ def _build_ads_stats_chart_data(
   stats_list: list[models.AmazonAdsDailyStats],
   start_date: datetime.date,
   end_date: datetime.date,
-) -> dict[str, list[str] | list[int] | list[float] | int | float]:
+) -> dict[str, object]:
   """Aggregate campaign stats by day for charting."""
   daily_totals: dict[str, dict[str, float]] = {}
+  daily_campaigns: dict[str, list[dict[str, object]]] = {}
+
   current_date = start_date
   while current_date <= end_date:
-    daily_totals[current_date.isoformat()] = {
+    date_key = current_date.isoformat()
+    daily_totals[date_key] = {
       "impressions": 0.0,
       "clicks": 0.0,
       "cost": 0.0,
       "sales": 0.0,
+      "units_sold": 0.0,
       "gross_profit_before_ads": 0.0,
       "gross_profit": 0.0,
     }
+    daily_campaigns[date_key] = []
     current_date += datetime.timedelta(days=1)
 
   for stat in stats_list:
@@ -196,14 +201,20 @@ def _build_ads_stats_chart_data(
     daily_entry["clicks"] = float(stat.clicks)
     daily_entry["cost"] = stat.spend
     daily_entry["sales"] = stat.total_attributed_sales
+    daily_entry["units_sold"] = float(stat.total_units_sold)
     daily_entry["gross_profit_before_ads"] = stat.gross_profit_before_ads
     daily_entry["gross_profit"] = stat.gross_profit
+
+    # Serialize campaign details for client-side filtering
+    for campaign_stat in stat.campaigns_by_id.values():
+      daily_campaigns[date_key].append(campaign_stat.to_dict())
 
   labels = list(daily_totals.keys())
   impressions = [int(daily_totals[label]["impressions"]) for label in labels]
   clicks = [int(daily_totals[label]["clicks"]) for label in labels]
   cost = [round(float(daily_totals[label]["cost"]), 2) for label in labels]
   sales = [round(float(daily_totals[label]["sales"]), 2) for label in labels]
+  units_sold = [int(daily_totals[label]["units_sold"]) for label in labels]
   gross_profit_before_ads = [
     round(float(daily_totals[label]["gross_profit_before_ads"]), 2)
     for label in labels
@@ -218,12 +229,15 @@ def _build_ads_stats_chart_data(
     "clicks": clicks,
     "cost": cost,
     "sales": sales,
+    "units_sold": units_sold,
     "gross_profit_before_ads": gross_profit_before_ads,
     "gross_profit": gross_profit,
+    "daily_campaigns": daily_campaigns,
     "total_impressions": sum(impressions),
     "total_clicks": sum(clicks),
     "total_cost": round(sum(cost), 2),
     "total_sales": round(sum(sales), 2),
+    "total_units_sold": sum(units_sold),
     "total_gross_profit_before_ads": round(sum(gross_profit_before_ads), 2),
     "total_gross_profit": round(sum(gross_profit), 2),
   }

@@ -610,6 +610,10 @@ class TestAdsStatsFetcher:
       'functions.joke_auto_fns.firestore.upsert_amazon_ads_daily_stats',
       lambda stats: stats,
     )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.upsert_amazon_ads_report',
+      lambda report: report,
+    )
 
     stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
     expected_selected_profiles = [
@@ -750,6 +754,106 @@ class TestAdsStatsFetcher:
 
     data = response.get_json()["data"]
     assert "ads fetch failed" in data["error"]
+
+  def test_internal_requests_new_reports_when_all_existing_are_processed(
+      self, monkeypatch):
+    """Test that if existing reports are all processed, we request new ones."""
+    now_utc = _create_test_datetime(2026, 2, 18, 5, 30)
+    report_end_date = now_utc.date() - datetime.timedelta(days=1)
+    report_start_date = report_end_date - datetime.timedelta(
+      days=joke_auto_fns._ADS_STATS_REPORT_WINDOW_DAYS)
+    profiles = [
+      amazon.AmazonAdsProfile(
+        profile_id="us-profile",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+        country_code="US",
+      ),
+    ]
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_profiles',
+                        lambda region: profiles)
+
+    # Existing reports are COMPLETE and PROCESSED=True
+    existing_reports = [
+      amazon.AmazonAdsReport(
+        report_id=f"{type_id}-us-profile",
+        report_name=f"{type_id}-us",
+        status="COMPLETED",
+        report_type_id=type_id,
+        start_date=report_start_date,
+        end_date=report_end_date,
+        created_at=now_utc,
+        updated_at=now_utc,
+        profile_id="us-profile",
+        profile_country="US",
+        region="na",
+        api_base="https://advertising-api.amazon.com",
+        processed=True,  # Crucial: Marked as processed
+      )
+      for type_id in [
+        "spCampaigns", "spAdvertisedProduct", "spPurchasedProduct"
+      ]
+    ]
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
+      lambda created_on_or_after: existing_reports,
+    )
+
+    request_calls = []
+
+    def _mock_request_reports(*, profile, start_date, end_date):
+      request_calls.append(profile.profile_id)
+      # Return new reports (unprocessed)
+      return amazon.ReportPair(
+        campaigns_report=amazon.AmazonAdsReport(
+          report_id=f"new-campaigns-{profile.profile_id}",
+          status="PENDING",
+          report_name="New Campaign report",
+          report_type_id="spCampaigns",
+          start_date=start_date,
+          end_date=end_date,
+          created_at=now_utc,
+          updated_at=now_utc,
+          processed=False,
+        ),
+        advertised_products_report=amazon.AmazonAdsReport(
+          report_id=f"new-advertised-{profile.profile_id}",
+          status="PENDING",
+          report_name="New Advertised report",
+          report_type_id="spAdvertisedProduct",
+          start_date=start_date,
+          end_date=end_date,
+          created_at=now_utc,
+          updated_at=now_utc,
+          processed=False,
+        ),
+        purchased_products_report=amazon.AmazonAdsReport(
+          report_id=f"new-products-{profile.profile_id}",
+          status="PENDING",
+          report_name="New Product report",
+          report_type_id="spPurchasedProduct",
+          start_date=start_date,
+          end_date=end_date,
+          created_at=now_utc,
+          updated_at=now_utc,
+          processed=False,
+        ),
+      )
+
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.request_daily_campaign_stats_reports',
+      _mock_request_reports)
+    monkeypatch.setattr('functions.joke_auto_fns.time.sleep', lambda sec: None)
+
+    # For status check, just return PENDING for new reports so we don't process them in this test run
+    monkeypatch.setattr('functions.joke_auto_fns.amazon.get_reports',
+                        lambda **kwargs: [])
+
+    stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
+
+    # Verify that we REQUESTED new reports
+    assert stats["reports_requested"] == 1
+    assert request_calls == ["us-profile"]
 
 
 class TestDecayRecentJokeStats:

@@ -3,9 +3,17 @@
 {% block title %}Ads Stats · {{ site_name }} Admin{% endblock %}
 
 {% block content %}
-<div class="dashboard-header">
-  <h2>Ads Stats</h2>
-  <a href="{{ url_for('web.admin_dashboard') }}">Back to Dashboard</a>
+<div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <h2>Ads Stats</h2>
+    <a href="{{ url_for('web.admin_dashboard') }}">Back to Dashboard</a>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <label for="campaignSelector" style="font-weight: bold; color: var(--color-text);">Campaign:</label>
+    <select id="campaignSelector" style="padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);">
+      <option value="All">All</option>
+    </select>
+  </div>
 </div>
 
 <style>
@@ -42,27 +50,35 @@
 <div class="stats-grid">
   <div class="stat-card">
     <div class="stat-card__label">Impressions</div>
-    <div class="stat-card__value">{{ "{:,.0f}".format(chart_data.total_impressions) }}</div>
+    <div class="stat-card__value" id="stat-impressions">{{ "{:,.0f}".format(chart_data.total_impressions) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Clicks</div>
-    <div class="stat-card__value">{{ "{:,.0f}".format(chart_data.total_clicks) }}</div>
+    <div class="stat-card__value" id="stat-clicks">{{ "{:,.0f}".format(chart_data.total_clicks) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Cost</div>
-    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_cost) }}</div>
+    <div class="stat-card__value" id="stat-cost">{{ "${:,.2f}".format(chart_data.total_cost) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Sales</div>
-    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_sales) }}</div>
+    <div class="stat-card__value" id="stat-sales">{{ "${:,.2f}".format(chart_data.total_sales) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">CPC</div>
+    <div class="stat-card__value" id="stat-cpc">$0.00</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Conv. Rate</div>
+    <div class="stat-card__value" id="stat-conversion-rate">0.0%</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Gross Profit (Pre-Ad)</div>
-    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads) }}</div>
+    <div class="stat-card__value" id="stat-gp-pre-ad">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Gross Profit</div>
-    <div class="stat-card__value">{{ "${:,.2f}".format(chart_data.total_gross_profit) }}</div>
+    <div class="stat-card__value" id="stat-gp">{{ "${:,.2f}".format(chart_data.total_gross_profit) }}</div>
   </div>
 </div>
 
@@ -83,6 +99,14 @@
     <h3>Cost</h3>
     <canvas id="costChart"></canvas>
   </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>CPC</h3>
+    <canvas id="cpcChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>Conversion Rate</h3>
+    <canvas id="conversionRateChart"></canvas>
+  </div>
   <div class="chart-container" style="position: relative; height:320px; width:100%;">
     <h3>Sales</h3>
     <canvas id="salesChart"></canvas>
@@ -100,10 +124,29 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   const adsStatsData = {{ chart_data | tojson }};
+  const charts = {};
 
-  function createLineChart(canvasId, label, values, color, isCurrency) {
+  function formatCurrency(value) {
+    return '$' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatNumber(value) {
+    return Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  function formatPercentage(value) {
+    return Number(value).toFixed(1) + '%';
+  }
+
+  function createLineChart(canvasId, label, values, color, formatType) {
     const ctx = document.getElementById(canvasId).getContext('2d');
-    new Chart(ctx, {
+
+    // Destroy existing chart if it exists
+    if (charts[canvasId]) {
+      charts[canvasId].destroy();
+    }
+
+    charts[canvasId] = new Chart(ctx, {
       type: 'line',
       data: {
         labels: adsStatsData.labels,
@@ -125,10 +168,21 @@
             beginAtZero: true,
             ticks: {
               callback: function(value) {
-                if (!isCurrency) {
-                  return value;
-                }
-                return '$' + Number(value).toFixed(2);
+                if (formatType === 'currency') return '$' + Number(value).toFixed(2);
+                if (formatType === 'percent') return Number(value).toFixed(1) + '%';
+                return value;
+              }
+            }
+          }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                let value = context.parsed.y;
+                if (formatType === 'currency') return label + ': ' + formatCurrency(value);
+                if (formatType === 'percent') return label + ': ' + formatPercentage(value);
+                return label + ': ' + formatNumber(value);
               }
             }
           }
@@ -137,11 +191,134 @@
     });
   }
 
-  createLineChart('impressionsChart', 'Impressions', adsStatsData.impressions, '#2e7d32', false);
-  createLineChart('clicksChart', 'Clicks', adsStatsData.clicks, '#1565c0', false);
-  createLineChart('costChart', 'Cost', adsStatsData.cost, '#6a1b9a', true);
-  createLineChart('salesChart', 'Sales', adsStatsData.sales, '#ef6c00', true);
-  createLineChart('grossProfitBeforeAdsChart', 'Gross Profit Before Ads', adsStatsData.gross_profit_before_ads, '#00695c', true);
-  createLineChart('grossProfitChart', 'Gross Profit', adsStatsData.gross_profit, '#ad1457', true);
+  function calculateAndRender(campaignName) {
+    let stats = {
+      impressions: [],
+      clicks: [],
+      cost: [],
+      sales: [],
+      units_sold: [],
+      gross_profit_before_ads: [],
+      gross_profit: [],
+      cpc: [],
+      conversion_rate: [],
+      totals: {
+        impressions: 0,
+        clicks: 0,
+        cost: 0,
+        sales: 0,
+        units_sold: 0,
+        gross_profit_before_ads: 0,
+        gross_profit: 0
+      }
+    };
+
+    // Iterate through each day (label)
+    adsStatsData.labels.forEach((dateKey, index) => {
+      let dayImpressions = 0;
+      let dayClicks = 0;
+      let dayCost = 0;
+      let daySales = 0;
+      let dayUnitsSold = 0;
+      let dayGpPreAd = 0;
+      let dayGp = 0;
+
+      if (campaignName === 'All') {
+        // Use pre-aggregated totals from the server response structure
+        // Note: The arrays in adsStatsData are parallel to labels
+        dayImpressions = adsStatsData.impressions[index];
+        dayClicks = adsStatsData.clicks[index];
+        dayCost = adsStatsData.cost[index];
+        daySales = adsStatsData.sales[index];
+        dayUnitsSold = adsStatsData.units_sold[index];
+        dayGpPreAd = adsStatsData.gross_profit_before_ads[index];
+        dayGp = adsStatsData.gross_profit[index];
+      } else {
+        // Aggregate from specific campaign
+        const campaigns = adsStatsData.daily_campaigns[dateKey] || [];
+        campaigns.forEach(camp => {
+          if (camp.campaign_name === campaignName) {
+            dayImpressions += camp.impressions;
+            dayClicks += camp.clicks;
+            dayCost += camp.spend;
+            daySales += camp.total_attributed_sales;
+            dayUnitsSold += camp.total_units_sold;
+            dayGpPreAd += camp.gross_profit_before_ads;
+            dayGp += camp.gross_profit;
+          }
+        });
+      }
+
+      stats.impressions.push(dayImpressions);
+      stats.clicks.push(dayClicks);
+      stats.cost.push(dayCost);
+      stats.sales.push(daySales);
+      stats.units_sold.push(dayUnitsSold);
+      stats.gross_profit_before_ads.push(dayGpPreAd);
+      stats.gross_profit.push(dayGp);
+
+      // Calculate derived daily metrics
+      stats.cpc.push(dayClicks > 0 ? dayCost / dayClicks : 0);
+      stats.conversion_rate.push(dayClicks > 0 ? (dayUnitsSold / dayClicks) * 100 : 0);
+
+      // Accumulate totals
+      stats.totals.impressions += dayImpressions;
+      stats.totals.clicks += dayClicks;
+      stats.totals.cost += dayCost;
+      stats.totals.sales += daySales;
+      stats.totals.units_sold += dayUnitsSold;
+      stats.totals.gross_profit_before_ads += dayGpPreAd;
+      stats.totals.gross_profit += dayGp;
+    });
+
+    // Render Charts
+    createLineChart('impressionsChart', 'Impressions', stats.impressions, '#2e7d32', 'number');
+    createLineChart('clicksChart', 'Clicks', stats.clicks, '#1565c0', 'number');
+    createLineChart('costChart', 'Cost', stats.cost, '#6a1b9a', 'currency');
+    createLineChart('cpcChart', 'CPC', stats.cpc, '#d81b60', 'currency');
+    createLineChart('conversionRateChart', 'Conversion Rate', stats.conversion_rate, '#00838f', 'percent');
+    createLineChart('salesChart', 'Sales', stats.sales, '#ef6c00', 'currency');
+    createLineChart('grossProfitBeforeAdsChart', 'Gross Profit Before Ads', stats.gross_profit_before_ads, '#00695c', 'currency');
+    createLineChart('grossProfitChart', 'Gross Profit', stats.gross_profit, '#ad1457', 'currency');
+
+    // Update Stat Cards
+    document.getElementById('stat-impressions').textContent = formatNumber(stats.totals.impressions);
+    document.getElementById('stat-clicks').textContent = formatNumber(stats.totals.clicks);
+    document.getElementById('stat-cost').textContent = formatCurrency(stats.totals.cost);
+    document.getElementById('stat-sales').textContent = formatCurrency(stats.totals.sales);
+    document.getElementById('stat-gp-pre-ad').textContent = formatCurrency(stats.totals.gross_profit_before_ads);
+    document.getElementById('stat-gp').textContent = formatCurrency(stats.totals.gross_profit);
+
+    // Derived Totals
+    const totalCpc = stats.totals.clicks > 0 ? stats.totals.cost / stats.totals.clicks : 0;
+    const totalCr = stats.totals.clicks > 0 ? (stats.totals.units_sold / stats.totals.clicks) * 100 : 0;
+
+    document.getElementById('stat-cpc').textContent = formatCurrency(totalCpc);
+    document.getElementById('stat-conversion-rate').textContent = formatPercentage(totalCr);
+  }
+
+  // Initial Setup
+  document.addEventListener('DOMContentLoaded', () => {
+    // Populate Dropdown
+    const campaignNames = new Set();
+    Object.values(adsStatsData.daily_campaigns).forEach(campaignList => {
+      campaignList.forEach(c => campaignNames.add(c.campaign_name));
+    });
+
+    const selector = document.getElementById('campaignSelector');
+    Array.from(campaignNames).sort().forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      selector.appendChild(option);
+    });
+
+    selector.addEventListener('change', (e) => {
+      calculateAndRender(e.target.value);
+    });
+
+    // Initial render
+    calculateAndRender('All');
+  });
 </script>
 {% endblock %}

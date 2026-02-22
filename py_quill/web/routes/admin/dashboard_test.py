@@ -95,6 +95,14 @@ def test_admin_stats_rebuckets_and_colors(monkeypatch):
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
 
+  class _FixedDate(datetime.date):
+
+    @classmethod
+    def today(cls):
+      return cls(2026, 2, 20)
+
+  monkeypatch.setattr(dashboard_routes.datetime, "date", _FixedDate)
+
   captured: dict = {}
 
   def _fake_render(template_name, **context):
@@ -395,3 +403,88 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/admin/ads-stats"' in html
   assert 'Ads Stats' in html
+
+
+def test_admin_ads_stats_filtering(monkeypatch):
+  """Ads stats page includes detailed campaign data for client-side filtering."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  captured: dict = {}
+
+  def _fake_render(template_name, **context):
+    captured["template"] = template_name
+    captured.update(context)
+    return "OK"
+
+  monkeypatch.setattr(dashboard_routes.flask, "render_template", _fake_render)
+
+  # Setup mock stats with nested campaigns
+  stats = models.AmazonAdsDailyStats(
+    date=datetime.date(2026, 2, 20),
+    impressions=100,
+    clicks=10,
+    spend=5.0,
+    total_attributed_sales=20.0,
+    total_units_sold=2,
+    gross_profit_before_ads=30.0,
+    gross_profit=10.0,
+  )
+
+  # Add campaign details
+  stats.campaigns_by_id["c1"] = models.AmazonAdsDailyCampaignStats(
+    campaign_id="c1",
+    campaign_name="Campaign A",
+    date=datetime.date(2026, 2, 20),
+    impressions=60,
+    clicks=6,
+    spend=3.0,
+    total_attributed_sales=12.0,
+    total_units_sold=1,
+    gross_profit_before_ads=18.0,
+    gross_profit=6.0,
+  )
+  stats.campaigns_by_id["c2"] = models.AmazonAdsDailyCampaignStats(
+    campaign_id="c2",
+    campaign_name="Campaign B",
+    date=datetime.date(2026, 2, 20),
+    impressions=40,
+    clicks=4,
+    spend=2.0,
+    total_attributed_sales=8.0,
+    total_units_sold=1,
+    gross_profit_before_ads=12.0,
+    gross_profit=4.0,
+  )
+
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [stats],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  chart_data = captured["chart_data"]
+
+  # Verify daily campaigns are serialized
+  daily_campaigns = chart_data["daily_campaigns"]
+  assert "2026-02-20" in daily_campaigns
+  campaign_list = daily_campaigns["2026-02-20"]
+  assert len(campaign_list) == 2
+
+  # Verify campaign A details
+  camp_a = next(c for c in campaign_list if c["campaign_name"] == "Campaign A")
+  assert camp_a["impressions"] == 60
+  assert camp_a["clicks"] == 6
+  assert camp_a["spend"] == 3.0
+  assert camp_a["total_units_sold"] == 1
+
+  # Verify top-level aggregation includes units_sold
+  assert chart_data["total_units_sold"] == 2
+
+  # Find index of the stats date
+  date_idx = chart_data["labels"].index("2026-02-20")
+  assert chart_data["units_sold"][date_idx] == 2

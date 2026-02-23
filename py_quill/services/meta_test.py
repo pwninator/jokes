@@ -19,8 +19,8 @@ class _FakeResponse:
     return self._payload
 
 
-def _make_image(url: str) -> models.Image:
-  return models.Image(url=url)
+def _make_image(url: str, alt_text: str | None = None) -> models.Image:
+  return models.Image(url=url, alt_text=alt_text)
 
 
 def test_publish_instagram_single_image(monkeypatch):
@@ -34,7 +34,12 @@ def test_publish_instagram_single_image(monkeypatch):
   ]
 
   def fake_request(method, url, params=None, data=None, timeout=None):
-    calls.append({"method": method, "url": url, "data": data, "params": params})
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params
+    })
     return responses.pop(0)
 
   monkeypatch.setattr(meta.requests, "request", fake_request)
@@ -63,15 +68,19 @@ def test_publish_instagram_single_image_includes_alt_text(monkeypatch):
   ]
 
   def fake_request(method, url, params=None, data=None, timeout=None):
-    calls.append({"method": method, "url": url, "data": data, "params": params})
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params
+    })
     return responses.pop(0)
 
   monkeypatch.setattr(meta.requests, "request", fake_request)
 
   result = meta.publish_instagram_post(
-    images=[_make_image("https://example.com/ig.png")],
+    images=[_make_image("https://example.com/ig.png", alt_text="Alt text")],
     caption="Hello",
-    alt_text="Alt text",
   )
 
   assert result == "media_1"
@@ -91,7 +100,12 @@ def test_publish_instagram_carousel(monkeypatch):
   ]
 
   def fake_request(method, url, params=None, data=None, timeout=None):
-    calls.append({"method": method, "url": url, "data": data, "params": params})
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params
+    })
     return responses.pop(0)
 
   monkeypatch.setattr(meta.requests, "request", fake_request)
@@ -111,7 +125,7 @@ def test_publish_instagram_carousel(monkeypatch):
   assert calls[2]["data"]["children"] == "item_1,item_2"
 
 
-def test_publish_instagram_carousel_alt_text_on_first(monkeypatch):
+def test_publish_instagram_carousel_alt_text_for_each_image(monkeypatch):
   monkeypatch.setattr(config, "INSTAGRAM_USER_ID", "ig_2")
   monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
 
@@ -124,23 +138,27 @@ def test_publish_instagram_carousel_alt_text_on_first(monkeypatch):
   ]
 
   def fake_request(method, url, params=None, data=None, timeout=None):
-    calls.append({"method": method, "url": url, "data": data, "params": params})
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params
+    })
     return responses.pop(0)
 
   monkeypatch.setattr(meta.requests, "request", fake_request)
 
   result = meta.publish_instagram_post(
     images=[
-      _make_image("https://example.com/1.png"),
-      _make_image("https://example.com/2.png"),
+      _make_image("https://example.com/1.png", alt_text="Alt text 1"),
+      _make_image("https://example.com/2.png", alt_text="Alt text 2"),
     ],
     caption="Carousel",
-    alt_text="Alt text",
   )
 
   assert result == "media_2"
-  assert calls[0]["data"]["alt_text"] == "Alt text"
-  assert "alt_text" not in calls[1]["data"]
+  assert calls[0]["data"]["alt_text"] == "Alt text 1"
+  assert calls[1]["data"]["alt_text"] == "Alt text 2"
 
 
 def test_publish_facebook_single_with_alt_text(monkeypatch):
@@ -154,15 +172,19 @@ def test_publish_facebook_single_with_alt_text(monkeypatch):
   ]
 
   def fake_request(method, url, params=None, data=None, timeout=None):
-    calls.append({"method": method, "url": url, "data": data, "params": params})
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params
+    })
     return responses.pop(0)
 
   monkeypatch.setattr(meta.requests, "request", fake_request)
 
   result = meta.publish_facebook_post(
-    images=[_make_image("https://example.com/fb.png")],
+    images=[_make_image("https://example.com/fb.png", alt_text="Alt text")],
     message="FB post",
-    alt_text="Alt text",
   )
 
   assert result == "post_1"
@@ -173,7 +195,7 @@ def test_publish_facebook_single_with_alt_text(monkeypatch):
   assert calls[1]["data"]["access_token"] == "page_token_1"
 
 
-def test_publish_facebook_carousel_alt_text_on_first(monkeypatch):
+def test_publish_facebook_carousel_alt_text_for_each_image(monkeypatch):
   monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "page_2")
   monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
 
@@ -186,24 +208,32 @@ def test_publish_facebook_carousel_alt_text_on_first(monkeypatch):
   ]
 
   def fake_request(method, url, params=None, data=None, timeout=None):
-    calls.append({"method": method, "url": url, "data": data, "params": params})
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params
+    })
     return responses.pop(0)
 
   monkeypatch.setattr(meta.requests, "request", fake_request)
 
   result = meta.publish_facebook_post(
     images=[
-      _make_image("https://example.com/1.png"),
-      _make_image("https://example.com/2.png"),
+      _make_image("https://example.com/1.png", alt_text="Alt text 1"),
+      _make_image("https://example.com/2.png", alt_text="Alt text 2"),
     ],
     message="Multi",
-    alt_text="Alt text",
   )
 
   assert result == "post_2"
   assert calls[0]["url"].endswith("/v24.0/page_2")
-  assert calls[1]["data"]["alt_text_custom"] == "Alt text"
+  assert calls[1]["data"]["alt_text_custom"] == "Alt text 1"
   assert calls[1]["data"]["access_token"] == "page_token_2"
-  assert "alt_text_custom" not in calls[2]["data"]
+  assert calls[2]["data"]["alt_text_custom"] == "Alt text 2"
   attached_media = json.loads(calls[3]["data"]["attached_media"])
-  assert attached_media == [{"media_fbid": "photo_1"}, {"media_fbid": "photo_2"}]
+  assert attached_media == [{
+    "media_fbid": "photo_1"
+  }, {
+    "media_fbid": "photo_2"
+  }]

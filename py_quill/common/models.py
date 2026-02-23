@@ -222,6 +222,7 @@ class Image:
   """Represents a generated image and its associated metadata."""
   key: str | None = None
   url: str | None = None
+  alt_text: str | None = None
   gcs_uri: str | None = None
   url_upscaled: str | None = None
   gcs_uri_upscaled: str | None = None
@@ -232,7 +233,7 @@ class Image:
   owner_user_id: str | None = None
   generation_metadata: GenerationMetadata = field(
     default_factory=GenerationMetadata)
-  gemini_evaluation: dict | None = None
+  gemini_evaluation: dict[str, Any] | None = None
   generation_id: str | None = None
 
   # Custom temp data not stored in Firestore
@@ -248,6 +249,7 @@ class Image:
     """Convert to dictionary for Firestore storage."""
     return {
       'url': self.url,
+      'alt_text': self.alt_text,
       'gcs_uri': self.gcs_uri,
       'url_upscaled': self.url_upscaled,
       'gcs_uri_upscaled': self.gcs_uri_upscaled,
@@ -272,6 +274,7 @@ class Image:
     return cls(
       key=key if key else data.get("key"),
       url=data.get("url"),
+      alt_text=data.get("alt_text"),
       gcs_uri=data.get("gcs_uri"),
       url_upscaled=data.get("url_upscaled"),
       gcs_uri_upscaled=data.get("gcs_uri_upscaled"),

@@ -104,23 +104,21 @@ def _get_facebook_page_access_token(*, page_id: str) -> str:
 def publish_instagram_post(
   images: list[models.Image],
   caption: str,
-  alt_text: str | None = None,
 ) -> str:
   """Publish a single-image or carousel post to Instagram.
 
   Args:
     images: List of Image objects with public URLs.
     caption: Caption text for the post.
-    alt_text: Optional alt text for the first/only image.
 
   Returns:
     Published media ID.
   """
   urls = _extract_image_urls(images)
   ig_user_id = config.INSTAGRAM_USER_ID
-  alt_text = (alt_text or "").strip() or None
 
   if len(urls) == 1:
+    image_alt_text = (images[0].alt_text or "").strip()
     container = _make_graph_request(
       "POST",
       f"/{ig_user_id}/media",
@@ -128,15 +126,15 @@ def publish_instagram_post(
         "image_url": urls[0],
         "caption": caption,
         **({
-          "alt_text": alt_text
-        } if alt_text else {}),
+          "alt_text": image_alt_text
+        } if image_alt_text else {}),
       },
     )
     creation_id = container.get("id")
   else:
     item_ids: list[str] = []
-    for index, url in enumerate(urls):
-      item_alt_text = alt_text if (alt_text and index == 0) else None
+    for image, url in zip(images, urls):
+      item_alt_text = (image.alt_text or "").strip()
       container = _make_graph_request(
         "POST",
         f"/{ig_user_id}/media",
@@ -181,32 +179,29 @@ def publish_instagram_post(
 def publish_facebook_post(
   images: list[models.Image],
   message: str,
-  alt_text: str | None = None,
 ) -> str:
   """Publish a single-image or multi-photo post to Facebook.
 
   Args:
     images: List of Image objects with public URLs.
     message: Message text for the post.
-    alt_text: Optional alt text for the first/only image.
 
   Returns:
     Published post ID.
   """
   urls = _extract_image_urls(images)
   page_id = config.FACEBOOK_PAGE_ID
-  alt_text = (alt_text or "").strip() or None
   page_access_token = _get_facebook_page_access_token(page_id=page_id)
 
   if len(urls) == 1:
-    # Future improvement: support per-image alt text lists for multi-photo posts.
+    image_alt_text = (images[0].alt_text or "").strip()
     params: dict[str, Any] = {
       "url": urls[0],
       "message": message,
       "published": "true",
     }
-    if alt_text:
-      params["alt_text_custom"] = alt_text
+    if image_alt_text:
+      params["alt_text_custom"] = image_alt_text
     resp = _make_graph_request(
       "POST",
       f"/{page_id}/photos",
@@ -216,15 +211,15 @@ def publish_facebook_post(
     post_id = resp.get("post_id") or resp.get("id")
   else:
     photo_ids: list[str] = []
-    # Future improvement: support per-image alt text lists for multi-photo posts.
-    for index, url in enumerate(urls):
+    for image, url in zip(images, urls):
       params = {
         "url": url,
         "published": "false",
         "temporary": "false",
       }
-      if alt_text and index == 0:
-        params["alt_text_custom"] = alt_text
+      image_alt_text = (image.alt_text or "").strip()
+      if image_alt_text:
+        params["alt_text_custom"] = image_alt_text
       upload = _make_graph_request(
         "POST",
         f"/{page_id}/photos",

@@ -141,6 +141,27 @@ def test_set_punchline_image_skips_text_update_when_false():
   assert joke.punchline_image_prompt == "before"
 
 
+def test_image_as_dict_includes_alt_text():
+  image = models.Image(
+    url="http://example.com/img.png",
+    alt_text="An image alt text",
+  )
+
+  payload = image.as_dict
+
+  assert payload["alt_text"] == "An image alt text"
+
+
+def test_image_from_dict_reads_alt_text():
+  image = models.Image.from_dict({
+    "url": "http://example.com/img.png",
+    "alt_text": "An image alt text",
+  })
+
+  assert image.url == "http://example.com/img.png"
+  assert image.alt_text == "An image alt text"
+
+
 def test_get_minimal_joke_data_returns_correct_fields():
   """Test that get_minimal_joke_data returns a dictionary with the correct fields."""
   joke = models.PunnyJoke(

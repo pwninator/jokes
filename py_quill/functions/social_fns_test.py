@@ -543,10 +543,10 @@ def test_social_post_creation_process_publish_platform_instagram(
 
   captured = {}
 
-  def _fake_publish_instagram_post(*, images, caption, alt_text=None):
+  def _fake_publish_instagram_post(*, images, caption):
     captured["caption"] = caption
-    captured["alt_text"] = alt_text
     captured["urls"] = [img.url for img in images]
+    captured["alt_texts"] = [img.alt_text for img in images]
     return "ig-999"
 
   monkeypatch.setattr(social_fns.social_operations.meta_service,
@@ -569,13 +569,70 @@ def test_social_post_creation_process_publish_platform_instagram(
   assert isinstance(post_data["instagram_post_time"], str)
 
   assert captured["caption"] == "Caption"
-  assert captured["alt_text"] == "Alt"
   assert captured["urls"] == ["https://cdn.example.com/ig.png"]
+  assert captured["alt_texts"] == ["Alt"]
 
   saved_post = update_mock.call_args[0][0]
   assert saved_post.instagram_post_id == "ig-999"
 
   assert update_mock.call_args.kwargs["operation"] == "PUBLISH_INSTAGRAM"
+
+
+def test_social_post_creation_process_publish_platform_facebook_sets_alt_text_on_all_images(
+  monkeypatch: pytest.MonkeyPatch, ):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_CAROUSEL,
+    link_url="https://snickerdoodlejokes.com/jokes/fb",
+    facebook_message="FB message",
+    instagram_alt_text="Alt",
+    facebook_image_urls=[
+      "https://cdn.example.com/fb1.png",
+      "https://cdn.example.com/fb2.png",
+    ],
+  )
+  post.key = "post1"
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_joke_social_post", lambda _post_id: post)
+
+  captured = {}
+
+  def _fake_publish_facebook_post(*, images, message):
+    captured["message"] = message
+    captured["urls"] = [img.url for img in images]
+    captured["alt_texts"] = [img.alt_text for img in images]
+    return "fb-999"
+
+  monkeypatch.setattr(social_fns.social_operations.meta_service,
+                      "publish_facebook_post", _fake_publish_facebook_post)
+
+  update_mock = Mock(side_effect=lambda post, **_kwargs: post)
+  monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "post_id": "post1",
+    "publish_platform": "facebook",
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 200
+  payload = _json_payload(resp)
+  post_data = payload["data"]["post_data"]
+  assert post_data["facebook_post_id"] == "fb-999"
+  assert isinstance(post_data["facebook_post_time"], str)
+
+  assert captured["message"] == "FB message"
+  assert captured["urls"] == [
+    "https://cdn.example.com/fb1.png",
+    "https://cdn.example.com/fb2.png",
+  ]
+  assert captured["alt_texts"] == ["Alt", "Alt"]
+
+  saved_post = update_mock.call_args[0][0]
+  assert saved_post.facebook_post_id == "fb-999"
+  assert update_mock.call_args.kwargs["operation"] == "PUBLISH_FACEBOOK"
 
 
 def test_social_post_creation_process_rejects_publish_and_manual_mark(
@@ -637,7 +694,8 @@ def test_social_post_creation_process_skips_pinterest_updates_when_posted(
   update_mock.assert_not_called()
 
 
-def test_social_post_creation_process_deletes_post(monkeypatch: pytest.MonkeyPatch):
+def test_social_post_creation_process_deletes_post(
+    monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
 
   post = models.JokeSocialPost(
@@ -652,15 +710,16 @@ def test_social_post_creation_process_deletes_post(monkeypatch: pytest.MonkeyPat
   monkeypatch.setattr(social_fns.social_operations.firestore,
                       "delete_joke_social_post", delete_mock)
 
-  req = DummyReq(data={
-    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
-    "post_id": "post1",
-    "delete": True,
-    # Should be ignored.
-    "regenerate_text": True,
-    "type": "JOKE_GRID",
-    "joke_ids": ["j1"],
-  }, )
+  req = DummyReq(
+    data={
+      "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+      "post_id": "post1",
+      "delete": True,
+      # Should be ignored.
+      "regenerate_text": True,
+      "type": "JOKE_GRID",
+      "joke_ids": ["j1"],
+    }, )
   resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp.status_code == 200

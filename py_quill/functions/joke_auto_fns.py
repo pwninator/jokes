@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import datetime
 import dataclasses
+import datetime
 import html
 import time
 from collections import deque
@@ -15,7 +15,8 @@ import flask
 from common import (joke_category_operations, joke_lead_operations,
                     joke_operations, models)
 from firebase_functions import https_fn, logger, options, scheduler_fn
-from functions.function_utils import error_response, html_response, success_response
+from functions.function_utils import (error_response, html_response,
+                                      success_response)
 from google.cloud.firestore import (SERVER_TIMESTAMP, Client,
                                     DocumentReference, DocumentSnapshot)
 from services import amazon, firestore
@@ -67,31 +68,6 @@ def auto_joke_hourly_http(req: flask.Request) -> flask.Response:
     return error_response(f'Failed to run daily maintenance: {exc}')
 
 
-def _joke_maintenance_internal(
-    run_time_utc: datetime.datetime) -> dict[str, int]:
-  """Run maintenance tasks for jokes.
-  
-  Returns:
-    Combined dictionary with all maintenance statistics from joke updates and category cache refresh
-  """
-
-  joke_stats, jokes_by_id = _update_joke_attributes(run_time_utc)
-
-  # After updating jokes (including is_public), refresh cached category results
-  category_stats = joke_category_operations.refresh_category_caches(
-    jokes_by_id=jokes_by_id)
-
-  # Rebuild the cached category index document used by the admin UI.
-  categories_index_stats = joke_category_operations.rebuild_joke_categories_index(
-    jokes_by_id=jokes_by_id)
-
-  # Combine all statistics
-  combined_stats = {**joke_stats, **category_stats, **categories_index_stats}
-
-  logger.info(f"Joke maintenance completed with stats: {combined_stats}")
-  return combined_stats
-
-
 @scheduler_fn.on_schedule(
   # Runs daily at 2:30 AM PST
   schedule="30 2 * * *",
@@ -125,18 +101,9 @@ def auto_user_daily_http(req: flask.Request) -> flask.Response:
     return error_response(f'Failed to run user maintenance: {exc}')
 
 
-def _user_daily_maintenance_internal(
-    run_time_utc: datetime.datetime) -> dict[str, int]:
-  """Run daily maintenance tasks for users."""
-  del run_time_utc
-  stats = joke_lead_operations.ensure_users_subscribed()
-  logger.info(f"User maintenance completed with stats: {stats}")
-  return stats
-
-
 @scheduler_fn.on_schedule(
-  # Runs at 5am, 6am, noon, and 1pm PST.
-  schedule="0 5,6,12,13 * * *",
+  # Runs every 3 hours.
+  schedule="0 */3 * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
   memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
@@ -162,6 +129,40 @@ def auto_ads_stats_http(req: flask.Request) -> flask.Response:
     return html_response(_render_ads_stats_html(stats))
   except Exception as exc:  # pylint: disable=broad-except
     return error_response(f"Failed to run ads stats fetcher: {exc}")
+
+
+def _joke_maintenance_internal(
+    run_time_utc: datetime.datetime) -> dict[str, int]:
+  """Run maintenance tasks for jokes.
+  
+  Returns:
+    Combined dictionary with all maintenance statistics from joke updates and category cache refresh
+  """
+
+  joke_stats, jokes_by_id = _update_joke_attributes(run_time_utc)
+
+  # After updating jokes (including is_public), refresh cached category results
+  category_stats = joke_category_operations.refresh_category_caches(
+    jokes_by_id=jokes_by_id)
+
+  # Rebuild the cached category index document used by the admin UI.
+  categories_index_stats = joke_category_operations.rebuild_joke_categories_index(
+    jokes_by_id=jokes_by_id)
+
+  # Combine all statistics
+  combined_stats = {**joke_stats, **category_stats, **categories_index_stats}
+
+  logger.info(f"Joke maintenance completed with stats: {combined_stats}")
+  return combined_stats
+
+
+def _user_daily_maintenance_internal(
+    run_time_utc: datetime.datetime) -> dict[str, int]:
+  """Run daily maintenance tasks for users."""
+  del run_time_utc
+  stats = joke_lead_operations.ensure_users_subscribed()
+  logger.info(f"User maintenance completed with stats: {stats}")
+  return stats
 
 
 def _auto_ads_stats_internal(
@@ -266,9 +267,9 @@ def _auto_ads_stats_internal(
           advertised_products_report,
           purchased_products_report,
         )):
-      if (not campaigns_report.processed or
-          not advertised_products_report.processed or
-          not purchased_products_report.processed):
+      if (not campaigns_report.processed
+          or not advertised_products_report.processed
+          or not purchased_products_report.processed):
 
         daily_campaign_stats = amazon.get_daily_campaign_stats_from_reports(
           profile=profile,
@@ -282,8 +283,7 @@ def _auto_ads_stats_internal(
         for campaign_stat in daily_campaign_stats:
           if campaign_stat.date not in stats_by_date:
             stats_by_date[campaign_stat.date] = models.AmazonAdsDailyStats(
-              date=campaign_stat.date,
-            )
+              date=campaign_stat.date, )
 
           daily_stat = stats_by_date[campaign_stat.date]
           daily_stat.campaigns_by_id[campaign_stat.campaign_id] = campaign_stat
@@ -306,9 +306,9 @@ def _auto_ads_stats_internal(
         campaigns_report.processed = True
         advertised_products_report.processed = True
         purchased_products_report.processed = True
-        firestore.upsert_amazon_ads_report(campaigns_report)
-        firestore.upsert_amazon_ads_report(advertised_products_report)
-        firestore.upsert_amazon_ads_report(purchased_products_report)
+        _ = firestore.upsert_amazon_ads_report(campaigns_report)
+        _ = firestore.upsert_amazon_ads_report(advertised_products_report)
+        _ = firestore.upsert_amazon_ads_report(purchased_products_report)
 
         # Flatten for logging and debugging response (keeping original format)
         for daily_stat in daily_stats_list:
@@ -319,7 +319,8 @@ def _auto_ads_stats_internal(
             stat_row["region"] = profile.region
             daily_campaign_stats_rows.append(stat_row)
       else:
-        logger.info(f"Reports already processed for profile {profile.profile_id}")
+        logger.info(
+          f"Reports already processed for profile {profile.profile_id}")
     else:
       logger.info(f"Reports not complete for profile {profile.profile_id}")
 

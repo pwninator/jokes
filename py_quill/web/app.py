@@ -22,6 +22,7 @@ import web.routes.admin.image_prompt_tuner as _admin_image_prompt_tuner
 import web.routes.admin.joke_media_generator as _admin_joke_media_generator
 import web.routes.admin.joke_picker_api as _admin_joke_picker_api
 import web.routes.admin.printable_notes as _admin_printable_notes
+import web.routes.admin.rhyming_words as _admin_rhyming_words
 import web.routes.admin.social as _admin_social
 import web.routes.auth as _auth
 import web.routes.books as _books

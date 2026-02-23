@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import datetime
 import traceback
-from typing import Any
+from typing import Any, cast
 
 from common import models, social_operations, utils
-from firebase_functions import https_fn, logger
+from firebase_functions import logger
 from functions.function_utils import (AuthError, error_response,
                                       get_bool_param, get_param, get_user_id,
                                       handle_cors_preflight,
@@ -15,8 +15,7 @@ from functions.function_utils import (AuthError, error_response,
 from services import firestore
 
 
-def run_social_post_creation_process(
-    req: https_fn.Request) -> https_fn.Response:
+def run_social_post_creation_process(req: Any) -> Any:
   """Handle social post creation and updates."""
   if response := handle_cors_preflight(req):
     return response
@@ -31,7 +30,7 @@ def run_social_post_creation_process(
 
   if not utils.is_emulator():
     try:
-      get_user_id(req, require_admin=True)
+      _ = get_user_id(req, require_admin=True)
     except AuthError:
       return error_response('Unauthorized', req=req, status=403)
 
@@ -43,7 +42,7 @@ def run_social_post_creation_process(
       if not post_id:
         raise social_operations.SocialPostRequestError(
           'post_id is required to delete a social post')
-      social_operations.delete_social_post(post_id=post_id)
+      _ = social_operations.delete_social_post(post_id=post_id)
       return success_response(
         {
           "post_id": post_id,
@@ -52,7 +51,7 @@ def run_social_post_creation_process(
         req=req,
       )
 
-    joke_ids = get_param(req, 'joke_ids')
+    joke_ids = cast(list[str] | None, get_param(req, 'joke_ids'))
     type_raw = get_param(req, 'type')
 
     regenerate_text = get_bool_param(req, 'regenerate_text', False)
@@ -210,9 +209,8 @@ def _parse_platform(
 ) -> models.SocialPlatform | None:
   if platform_raw is None:
     return None
-  if not isinstance(platform_raw, str) or not platform_raw.strip():
-    raise social_operations.SocialPostRequestError(
-      f"{param_name} is required")
+  if not platform_raw.strip():
+    raise social_operations.SocialPostRequestError(f"{param_name} is required")
   normalized = platform_raw.strip().lower()
   try:
     return models.SocialPlatform(normalized)

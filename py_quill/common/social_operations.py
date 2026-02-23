@@ -157,11 +157,13 @@ def publish_platform(
       raise SocialPostRequestError("Instagram image URLs are required")
     if not caption:
       raise SocialPostRequestError("Instagram caption is required")
-    images = [models.Image(url=url) for url in image_urls]
+    images = _build_publish_images(
+      image_urls=image_urls,
+      alt_text=post.instagram_alt_text,
+    )
     platform_post_id = meta_service.publish_instagram_post(
       images=images,
       caption=caption,
-      alt_text=post.instagram_alt_text,
     )
     return mark_platform_posted(
       post,
@@ -177,11 +179,13 @@ def publish_platform(
       raise SocialPostRequestError("Facebook image URLs are required")
     if not message:
       raise SocialPostRequestError("Facebook message is required")
-    images = [models.Image(url=url) for url in image_urls]
+    images = _build_publish_images(
+      image_urls=image_urls,
+      alt_text=post.instagram_alt_text,
+    )
     platform_post_id = meta_service.publish_facebook_post(
       images=images,
       message=message,
-      alt_text=post.instagram_alt_text,
     )
     return mark_platform_posted(
       post,
@@ -191,6 +195,18 @@ def publish_platform(
     )
 
   raise SocialPostRequestError(f"Unsupported platform: {platform.value}")
+
+
+def _build_publish_images(
+  *,
+  image_urls: list[str],
+  alt_text: str | None,
+) -> list[models.Image]:
+  """Build publish-ready image objects with the same optional alt text."""
+  normalized_alt_text = (alt_text or "").strip() or None
+  return [
+    models.Image(url=url, alt_text=normalized_alt_text) for url in image_urls
+  ]
 
 
 def mark_platform_posted(

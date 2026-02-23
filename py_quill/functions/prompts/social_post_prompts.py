@@ -211,7 +211,7 @@ _COMMON_SYSTEM_PROMPT = """\
 You are also given a list of recent posts. Use this information to avoid repeating content and ensure that each post is unique and fresh. For example, if including a pun, make sure it's not already in the recent posts.
 """
 
-_LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient] = {
+_LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient[Any]] = {
   platform:
   llm_client.get_client(
     label=f"{platform.value} Social Post Text",
@@ -232,7 +232,8 @@ def _get_platform_config(platform: models.SocialPlatform) -> PlatformConfig:
   return config
 
 
-def _get_llm_client(platform: models.SocialPlatform) -> llm_client.LlmClient:
+def _get_llm_client(
+    platform: models.SocialPlatform) -> llm_client.LlmClient[Any]:
   client = _LLM_CLIENTS.get(platform)
   if not client:
     raise ValueError(f"Unsupported social platform: {platform}")
@@ -285,7 +286,8 @@ RECENT POSTS
     logger.error("Missing Pinterest fields in response: %s", response.text)
     raise ValueError("Failed to generate Pinterest post text")
 
-  return title, description, alt_text, response.metadata
+  return title, description, alt_text, models.GenerationMetadata.from_single_generation_metadata(
+    response.metadata)
 
 
 def generate_instagram_post_text(
@@ -333,7 +335,8 @@ RECENT POSTS
     logger.error("Missing Instagram fields in response: %s", response.text)
     raise ValueError("Failed to generate Instagram post text")
 
-  return caption, alt_text, response.metadata
+  return caption, alt_text, models.GenerationMetadata.from_single_generation_metadata(
+    response.metadata)
 
 
 def generate_facebook_post_text(
@@ -346,7 +349,7 @@ def generate_facebook_post_text(
   """Generate Facebook text fields based on the provided image(s)."""
   if not image_bytes_list:
     raise ValueError("image_bytes_list must contain at least one image")
-  if not isinstance(link_url, str) or not link_url.strip():
+  if not link_url.strip():
     raise ValueError("link_url is required for Facebook post text generation")
   normalized_link_url = link_url.strip()
   config = _get_platform_config(models.SocialPlatform.FACEBOOK)
@@ -385,7 +388,8 @@ RECENT POSTS
     logger.error("Missing Facebook fields in response: %s", response.text)
     raise ValueError("Failed to generate Facebook post text")
 
-  return message, response.metadata
+  return message, models.GenerationMetadata.from_single_generation_metadata(
+    response.metadata)
 
 
 def _get_recent_posts_prompt_str(recent_posts: list[models.JokeSocialPost],

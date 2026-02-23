@@ -198,6 +198,15 @@ class GenerationMetadata:
     }
 
   @classmethod
+  def from_single_generation_metadata(
+      cls, metadata: SingleGenerationMetadata | None) -> GenerationMetadata:
+    """Create GenerationMetadata from SingleGenerationMetadata."""
+    result = cls()
+    if metadata:
+      result.add_generation(metadata)
+    return result
+
+  @classmethod
   def from_dict(cls, data: dict[str, Any] | None) -> GenerationMetadata:
     """Create GenerationMetadata from Firestore dictionary."""
     if not data:

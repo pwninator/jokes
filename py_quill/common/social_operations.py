@@ -17,6 +17,8 @@ NUM_RECENT_POSTS_TO_INCLUDE = 10
 class SocialPostRequestError(Exception):
   """Request validation error with an HTTP status code."""
 
+  status: int
+
   def __init__(self, message: str, status: int = 400):
     super().__init__(message)
     self.status = status
@@ -142,8 +144,6 @@ def publish_platform(
     - For Facebook alt text, uses Instagram alt text since the post model does
       not currently store a facebook-specific alt text field.
   """
-  if not isinstance(platform, models.SocialPlatform):
-    raise SocialPostRequestError("platform must be a SocialPlatform")
   if post.is_platform_posted(platform):
     raise SocialPostRequestError(
       f"{platform.value.title()} post already marked as posted")
@@ -201,8 +201,6 @@ def mark_platform_posted(
   post_time: datetime.datetime | None = None,
 ) -> models.JokeSocialPost:
   """Stamp the post id and post date for a platform."""
-  if not isinstance(platform, models.SocialPlatform):
-    raise SocialPostRequestError("platform must be a SocialPlatform")
   if post.is_platform_posted(platform):
     raise SocialPostRequestError(
       f"{platform.value.title()} post already marked as posted")
@@ -234,12 +232,10 @@ def _validate_joke_ids(joke_ids: list[str] | None) -> list[str]:
 def _load_ordered_jokes(joke_ids: list[str]) -> list[models.PunnyJoke]:
   jokes = firestore.get_punny_jokes(joke_ids)
   jokes_by_id = {joke.key: joke for joke in jokes if joke.key}
-  ordered_jokes = [jokes_by_id.get(joke_id) for joke_id in joke_ids]
-  if any(joke is None for joke in ordered_jokes):
-    missing = [
-      jid for jid, joke in zip(joke_ids, ordered_jokes) if joke is None
-    ]
+  missing = [jid for jid in joke_ids if jokes_by_id.get(jid) is None]
+  if missing:
     raise SocialPostRequestError(f'Jokes not found: {missing}')
+  ordered_jokes = [jokes_by_id[joke_id] for joke_id in joke_ids]
   return ordered_jokes
 
 
@@ -251,12 +247,9 @@ def _build_social_post_link_url(
   if post_type == models.JokeSocialPostType.JOKE_GRID_TEASER:
     last_joke = jokes[-1]
     slug = last_joke.human_readable_setup_text_slug
-  elif post_type in (models.JokeSocialPostType.JOKE_GRID,
-                     models.JokeSocialPostType.JOKE_CAROUSEL):
+  else:
     tag = _select_joke_grid_tag(jokes)
     slug = utils.get_text_slug(tag, human_readable=True)
-  else:
-    raise SocialPostRequestError(f'Unsupported post type: {post_type}')
 
   return f"{PUBLIC_JOKE_BASE_URL}/{slug}"
 
@@ -407,8 +400,6 @@ def generate_social_post_text(
           platform_image_bytes,
         )
         updated = True
-      case _:
-        raise SocialPostRequestError(f"Unsupported platform: {platform}")
 
   return post, updated
 
@@ -500,6 +491,7 @@ def _create_social_post_image(
     contain one element. For carousel posts, lists contain multiple elements,
     except Pinterest which uses a single stacked image.
   """
+  post_images = []
   if post.type == models.JokeSocialPostType.JOKE_CAROUSEL:
     if platform == models.SocialPlatform.PINTEREST:
       post_images = [
@@ -509,10 +501,8 @@ def _create_social_post_image(
                       models.SocialPlatform.FACEBOOK):
       post_images = image_operations.create_single_joke_images_4by5(
         jokes=post.jokes, )
-    else:
-      raise SocialPostRequestError(f"Unsupported platform: {platform}")
-  elif (post.type == models.JokeSocialPostType.JOKE_GRID
-        or post.type == models.JokeSocialPostType.JOKE_GRID_TEASER):
+  elif post.type in (models.JokeSocialPostType.JOKE_GRID,
+                     models.JokeSocialPostType.JOKE_GRID_TEASER):
     if platform == models.SocialPlatform.PINTEREST:
       post_images = [
         image_operations.create_joke_grid_image_3x2(
@@ -530,13 +520,14 @@ def _create_social_post_image(
           models.JokeSocialPostType.JOKE_GRID_TEASER,
         )
       ]
-    else:
-      raise SocialPostRequestError(f"Unsupported platform: {platform}")
   else:
     raise SocialPostRequestError(f"Unsupported post type: {post.type}")
+  if not post_images:
+    raise SocialPostRequestError(
+      f"Unsupported platform: {platform} for post type: {post.type}")
 
-  image_urls = []
-  image_bytes_list = []
+  image_urls: list[str] = []
+  image_bytes_list: list[bytes] = []
   for img in post_images:
     uploaded_gcs_uri, img_bytes = cloud_storage.upload_image_to_gcs(
       img,

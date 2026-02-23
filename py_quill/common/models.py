@@ -172,10 +172,9 @@ class GenerationMetadata:
   @property
   def counts_and_costs_by_label(self) -> dict[str, tuple[int, float]]:
     """Costs by label."""
-    result = {}
+    result: dict[str, tuple[int, float]] = {}
     for generation in self.generations:
-      result.setdefault(generation.label, (0, 0))
-      count, cost = result[generation.label]
+      count, cost = result.setdefault(generation.label, (0, 0))
       result[generation.label] = (count + 1, cost + generation.cost)
     return result
 
@@ -245,7 +244,7 @@ class Image:
     return self.url is not None
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return {
       'url': self.url,
@@ -265,7 +264,7 @@ class Image:
     }
 
   @classmethod
-  def from_dict(cls, data: dict, key: str | None = None) -> Image:
+  def from_dict(cls, data: dict[str, Any], key: str | None = None) -> Image:
     """Create Image from Firestore dictionary."""
     generation_metadata = None
     if 'generation_metadata' in data:
@@ -283,7 +282,7 @@ class Image:
       model_thought=data.get("model_thought"),
       error=data.get("error"),
       owner_user_id=data.get("owner_user_id"),
-      generation_metadata=generation_metadata,
+      generation_metadata=generation_metadata or GenerationMetadata(),
       gemini_evaluation=data.get("gemini_evaluation"),
       generation_id=data.get("generation_id"),
     )
@@ -349,7 +348,7 @@ class Character:
     return (f"Name: {name}. Age: {age} year old. {gender_str}"
             f"Description: {sanitized_description} {portrait_description}")
 
-  def to_dict(self, include_key: bool) -> dict:
+  def to_dict(self, include_key: bool) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     data = {
       'name': self.name,
@@ -370,7 +369,9 @@ class Character:
     return data
 
   @classmethod
-  def from_dict(cls, data: dict, key: str | None = None) -> Character:
+  def from_dict(cls,
+                data: dict[str, Any],
+                key: str | None = None) -> Character:
     """Create Character from Firestore dictionary."""
 
     generation_metadata = None
@@ -396,7 +397,7 @@ class Character:
       portrait_image_key=data.get('portrait_image_key'),
       all_portrait_image_keys=data.get('all_portrait_image_keys', []),
       owner_user_id=data.get('owner_user_id', ''),
-      generation_metadata=generation_metadata,
+      generation_metadata=generation_metadata or GenerationMetadata(),
     )
 
   def update(self, other: Character) -> None:
@@ -414,7 +415,8 @@ class Character:
       self.generation_metadata = GenerationMetadata()
     self.generation_metadata.add_generation(other.generation_metadata)
 
-    if self.portrait_image_key not in self.all_portrait_image_keys:
+    if (self.portrait_image_key is not None
+        and self.portrait_image_key not in self.all_portrait_image_keys):
       self.all_portrait_image_keys = [self.portrait_image_key
                                       ] + self.all_portrait_image_keys
 
@@ -433,7 +435,7 @@ class StoryCharacterData:
   """Description of what makes the character funny."""
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return {
       'name': self.name,
@@ -453,7 +455,7 @@ class StoryCharacterData:
 """.strip()
 
   @classmethod
-  def from_dict(cls, data: dict) -> 'StoryCharacterData':
+  def from_dict(cls, data: dict[str, Any]) -> StoryCharacterData:
     """Create a StoryCharacterData instance from a dictionary.
 
     Args:
@@ -478,7 +480,7 @@ class StoryIllustrationData:
   """List of character names that appear in the illustration."""
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return {
       'description': self.description,
@@ -486,7 +488,7 @@ class StoryIllustrationData:
     }
 
   @classmethod
-  def from_dict(cls, data: dict) -> 'StoryIllustrationData':
+  def from_dict(cls, data: dict[str, Any]) -> StoryIllustrationData:
     """Create a StoryIllustrationData instance from a dictionary.
 
     Args:
@@ -521,10 +523,11 @@ class StoryPageData:
   @property
   def is_complete(self) -> bool:
     """Check if the page is complete."""
-    return self.page_number > 0 and self.text and self.illustration.description
+    return bool(self.page_number > 0 and self.text
+                and self.illustration.description)
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return {
       'illustration': self.illustration.as_dict,
@@ -548,7 +551,7 @@ class StoryLearningConceptData:
   """How the concept is actively demonstrated in the story."""
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return {
       'explanation': self.explanation,
@@ -602,7 +605,7 @@ class StoryData:
     return not self.pages
 
   @property
-  def as_dict(self) -> dict:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return {
       'title': self.title,
@@ -631,7 +634,7 @@ class StoryData:
             and self.learning_concepts):
       raise ValueError(f"StoryData is not complete:\n{self}")
 
-    parts = []
+    parts: list[str] = []
 
     for name, concept in self.learning_concepts.items():
       parts.append(f"""
@@ -662,7 +665,7 @@ class StoryData:
     Returns:
         Set of keys that were updated
     """
-    updated_keys = set()
+    updated_keys: set[str] = set()
     if other.title:
       self.title = other.title
       updated_keys.add('title')
@@ -757,7 +760,7 @@ class JokeSheet:
     category_id = category_slug.replace("-", "_")
     return category_id, display_index - 1
 
-  def to_dict(self) -> dict:
+  def to_dict(self) -> dict[str, Any]:
     """Serialize sheet fields for Firestore writes."""
     data = dataclasses.asdict(self)
     # `key` is the Firestore document id, not stored as a field.
@@ -766,7 +769,7 @@ class JokeSheet:
     return data
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> "JokeSheet":
+  def from_firestore_dict(cls, data: dict[str, Any], key: str) -> JokeSheet:
     """Create a JokeSheet from a Firestore dictionary."""
     if not data:
       data = {}
@@ -816,8 +819,6 @@ class JokeSocialPost:
 
   def is_platform_posted(self, platform: SocialPlatform) -> bool:
     """Return True if the platform has already been posted."""
-    if not isinstance(platform, SocialPlatform):
-      raise ValueError("platform must be a SocialPlatform")
     prefix = platform.value
     post_time = getattr(self, f"{prefix}_post_time", None)
     post_id = getattr(self, f"{prefix}_post_id", None)
@@ -846,29 +847,23 @@ class JokeSocialPost:
         lines.append("Facebook post:")
         lines.append(f"Message: {self.facebook_message}")
 
-      case _:
-        raise ValueError(f"Unsupported platform: {platform}")
-
     if post_time:
       lines.append(f"Posted at {post_time.strftime('%Y-%m-%d %H:%M')}")
 
     return "\n".join(lines)
 
-  def to_dict(self) -> dict:
+  def to_dict(self) -> dict[str, Any]:
     """Serialize social post fields for Firestore writes."""
     data = dataclasses.asdict(self)
-    if isinstance(self.type, JokeSocialPostType):
-      data['type'] = self.type.value
-    data['jokes'] = [
-      joke.get_minimal_joke_data() for joke in self.jokes
-      if isinstance(joke, PunnyJoke)
-    ]
+    data['type'] = self.type.value
+    data['jokes'] = [joke.get_minimal_joke_data() for joke in self.jokes]
     data.pop('key', None)
     data.pop('creation_time', None)
     return data
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> JokeSocialPost:
+  def from_firestore_dict(cls, data: dict[str, Any],
+                          key: str) -> JokeSocialPost:
     """Create a JokeSocialPost from a Firestore dictionary."""
     if not data:
       data = {}
@@ -895,12 +890,15 @@ class JokeSocialPost:
     raw_jokes = data.get('jokes')
     jokes: list[PunnyJoke] = []
     if isinstance(raw_jokes, list):
-      for item in raw_jokes:
-        if not isinstance(item, dict):
+      for raw_item in cast(list[Any], raw_jokes):
+        if not isinstance(raw_item, dict):
           continue
+        item = cast(dict[str, Any], raw_item)
         try:
-          jokes.append(PunnyJoke.from_firestore_dict(item,
-                                                     key=item.get('key')))
+          item_key = item.get('key')
+          if not isinstance(item_key, str):
+            continue
+          jokes.append(PunnyJoke.from_firestore_dict(item, key=item_key))
         except (TypeError, ValueError):
           continue
     data['jokes'] = jokes
@@ -968,7 +966,7 @@ class JokeCategory:
     snake = re.sub(r"[^a-z0-9]+", "_", lowered)
     return snake.strip("_")
 
-  def to_dict(self) -> dict:
+  def to_dict(self) -> dict[str, Any]:
     """Serialize category fields for Firestore writes."""
     data = dataclasses.asdict(self)
     # `id` is the Firestore document id, not stored as a field.
@@ -980,7 +978,7 @@ class JokeCategory:
     return data
 
   @classmethod
-  def from_firestore_dict(cls, data: dict, key: str) -> 'JokeCategory':
+  def from_firestore_dict(cls, data: dict[str, Any], key: str) -> JokeCategory:
     """Create a JokeCategory from a Firestore dictionary."""
     if not data:
       data = {}
@@ -1165,7 +1163,7 @@ class PunnyJoke:
 
     def _normalize_book_page_url(url: str | None) -> str | None:
       """Normalize CDN params to the canonical book page format."""
-      if not url or not isinstance(url, str):
+      if not url:
         return url
       prefix = "https://images.quillsstorybook.com/cdn-cgi/image/"
       if not url.startswith(prefix):
@@ -1179,7 +1177,7 @@ class PunnyJoke:
               f"{object_path}")
 
     def _unique_normalized(urls: list[str]) -> list[str]:
-      seen = set()
+      seen: set[str] = set()
       result: list[str] = []
       for url in urls:
         norm = _normalize_book_page_url(url)
@@ -1189,13 +1187,17 @@ class PunnyJoke:
       return result
 
     existing_setup_urls = metadata.get('all_book_page_setup_image_urls')
-    setup_history_raw = (list(existing_setup_urls) if isinstance(
-      existing_setup_urls, list) else [])
+    setup_history_raw = ([
+      item for item in cast(list[Any], existing_setup_urls)
+      if isinstance(item, str)
+    ] if isinstance(existing_setup_urls, list) else [])
 
     existing_punchline_urls = metadata.get(
       'all_book_page_punchline_image_urls')
-    punchline_history_raw = (list(existing_punchline_urls) if isinstance(
-      existing_punchline_urls, list) else [])
+    punchline_history_raw = ([
+      item for item in cast(list[Any], existing_punchline_urls)
+      if isinstance(item, str)
+    ] if isinstance(existing_punchline_urls, list) else [])
 
     previous_setup_url = _normalize_book_page_url(
       metadata.get('book_page_setup_image_url'))
@@ -1595,9 +1597,10 @@ class AmazonAdsDailyStats:
     campaigns_raw = data.get("campaigns_by_id")
     campaigns_by_id: dict[str, AmazonAdsDailyCampaignStats] = {}
     if isinstance(campaigns_raw, dict):
-      for cid, cdata in campaigns_raw.items():
+      for cid, cdata in cast(dict[str, Any], campaigns_raw).items():
         if isinstance(cdata, dict):
-          campaigns_by_id[cid] = AmazonAdsDailyCampaignStats.from_dict(cdata)
+          campaigns_by_id[cid] = AmazonAdsDailyCampaignStats.from_dict(
+            cast(dict[str, Any], cdata))
 
     return cls(
       key=key,
@@ -1830,7 +1833,7 @@ class AmazonAdsReport:
 
 
 def _parse_enum_field(
-  data: dict,
+  data: dict[str, Any],
   field_name: str,
   enum_cls: type[Enum],
   default_value: Enum,
@@ -1868,14 +1871,12 @@ def _parse_amazon_ads_product_stats_list(
   value_dicts = cast(list[dict[str, Any]], value)
   parsed: list[AmazonAdsProductStats] = []
   for item in value_dicts:
-    if not isinstance(item, dict):
-      continue
     parsed.append(AmazonAdsProductStats.from_dict(item))
   return parsed
 
 
 def _parse_string_list(
-  data: dict,
+  data: dict[str, Any],
   field_name: str,
   *,
   trim: bool = True,
@@ -1892,7 +1893,7 @@ def _parse_string_list(
 
   result: list[str] = []
   seen: set[str] = set()
-  for item in raw:
+  for item in cast(list[Any], raw):
     if not isinstance(item, str):
       continue
     val = item.strip() if trim else item
@@ -1904,7 +1905,7 @@ def _parse_string_list(
   data[field_name] = result
 
 
-def _parse_float_field(data: dict,
+def _parse_float_field(data: dict[str, Any],
                        field_name: str,
                        default: float | None = None) -> None:
   """Coerce a value in `data[field_name]` to a float or default."""

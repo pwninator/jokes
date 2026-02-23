@@ -78,6 +78,26 @@ def _extract_image_urls(images: list[models.Image]) -> list[str]:
   return urls
 
 
+def _extract_video_url(video: models.Video) -> str:
+  """Return a non-empty public video URL or raise."""
+  video_url = (video.url or "").strip()
+  if not video_url:
+    raise ValueError("video must include a public url")
+  return video_url
+
+
+def _validate_media_selection(
+  *,
+  images: list[models.Image] | None,
+  video: models.Video | None,
+) -> None:
+  """Validate that exactly one media type is supplied."""
+  if video and images:
+    raise ValueError("images and video are mutually exclusive")
+  if not video and not images:
+    raise ValueError("Either images or video must be provided")
+
+
 def _get_facebook_page_access_token(*, page_id: str) -> str:
   """Return a Page access token for the configured Meta user token.
 
@@ -102,18 +122,25 @@ def _get_facebook_page_access_token(*, page_id: str) -> str:
 
 
 def publish_instagram_post(
-  images: list[models.Image],
-  caption: str,
+  images: list[models.Image] | None = None,
+  video: models.Video | None = None,
+  caption: str = "",
 ) -> str:
-  """Publish a single-image or carousel post to Instagram.
+  """Publish images or a reel to Instagram.
 
   Args:
-    images: List of Image objects with public URLs.
+    images: Optional list of Image objects with public URLs.
+    video: Optional Video object with a public URL. Published as a Reel.
     caption: Caption text for the post.
 
   Returns:
     Published media ID.
   """
+  _validate_media_selection(images=images, video=video)
+  if video:
+    return _publish_instagram_reel(video=video, caption=caption)
+
+  assert images is not None
   urls = _extract_image_urls(images)
   ig_user_id = config.INSTAGRAM_USER_ID
 
@@ -176,19 +203,57 @@ def publish_instagram_post(
   return published_id
 
 
+def _publish_instagram_reel(*, video: models.Video, caption: str) -> str:
+  """Publish a single Reel to Instagram and return the media id."""
+  ig_user_id = config.INSTAGRAM_USER_ID
+  video_url = _extract_video_url(video)
+
+  container = _make_graph_request(
+    "POST",
+    f"/{ig_user_id}/media",
+    params={
+      "media_type": "REELS",
+      "video_url": video_url,
+      **({
+        "caption": caption
+      } if caption else {}),
+    },
+  )
+  creation_id = container.get("id")
+  if not creation_id:
+    raise MetaAPIError("Missing Instagram Reel creation id")
+
+  publish_resp = _make_graph_request(
+    "POST",
+    f"/{ig_user_id}/media_publish",
+    params={"creation_id": creation_id},
+  )
+  published_id = publish_resp.get("id")
+  if not published_id:
+    raise MetaAPIError("Missing Instagram Reel media id")
+  return published_id
+
+
 def publish_facebook_post(
-  images: list[models.Image],
-  message: str,
+  images: list[models.Image] | None = None,
+  message: str = "",
+  video: models.Video | None = None,
 ) -> str:
-  """Publish a single-image or multi-photo post to Facebook.
+  """Publish images or a Reel to Facebook.
 
   Args:
-    images: List of Image objects with public URLs.
+    images: Optional list of Image objects with public URLs.
     message: Message text for the post.
+    video: Optional Video object with a public URL. Published as a Reel.
 
   Returns:
     Published post ID.
   """
+  _validate_media_selection(images=images, video=video)
+  if video:
+    return _publish_facebook_reel(video=video, message=message)
+
+  assert images is not None
   urls = _extract_image_urls(images)
   page_id = config.FACEBOOK_PAGE_ID
   page_access_token = _get_facebook_page_access_token(page_id=page_id)
@@ -246,3 +311,76 @@ def publish_facebook_post(
   if not post_id:
     raise MetaAPIError("Missing Facebook post id")
   return post_id
+
+
+def _upload_facebook_reel_hosted_video(
+  *,
+  upload_url: str,
+  video_url: str,
+  page_access_token: str,
+) -> None:
+  """Upload hosted video URL to a Facebook Reel upload session."""
+  response = requests.request(
+    "POST",
+    upload_url,
+    headers={
+      "Authorization": f"OAuth {page_access_token}",
+      "file_url": video_url,
+    },
+    timeout=30,
+  )
+
+  try:
+    data = response.json()
+  except ValueError:
+    data = {"error": {"message": response.text}}
+
+  if response.status_code < 200 or response.status_code >= 300:
+    raise MetaAPIError(
+      f"Facebook Reel upload error {response.status_code}: {data}")
+
+  if data.get("success") is False:
+    raise MetaAPIError(f"Facebook Reel upload failed: {data}")
+
+
+def _publish_facebook_reel(*, video: models.Video, message: str) -> str:
+  """Publish a single Reel to Facebook and return the video id."""
+  page_id = config.FACEBOOK_PAGE_ID
+  page_access_token = _get_facebook_page_access_token(page_id=page_id)
+  video_url = _extract_video_url(video)
+
+  start_resp = _make_graph_request(
+    "POST",
+    f"/{page_id}/video_reels",
+    params={"upload_phase": "start"},
+    access_token=page_access_token,
+  )
+  video_id = (start_resp.get("video_id") or "").strip()
+  upload_url = (start_resp.get("upload_url") or "").strip()
+  if not video_id:
+    raise MetaAPIError("Missing Facebook Reel video_id")
+  if not upload_url:
+    raise MetaAPIError("Missing Facebook Reel upload_url")
+
+  _upload_facebook_reel_hosted_video(
+    upload_url=upload_url,
+    video_url=video_url,
+    page_access_token=page_access_token,
+  )
+
+  finish_params: dict[str, Any] = {
+    "video_id": video_id,
+    "upload_phase": "finish",
+    "video_state": "PUBLISHED",
+  }
+  if message:
+    finish_params["description"] = message
+  finish_resp = _make_graph_request(
+    "POST",
+    f"/{page_id}/video_reels",
+    params=finish_params,
+    access_token=page_access_token,
+  )
+  if finish_resp.get("success") is False:
+    raise MetaAPIError(f"Facebook Reel publish failed: {finish_resp}")
+  return video_id

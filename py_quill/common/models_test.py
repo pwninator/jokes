@@ -162,6 +162,28 @@ def test_image_from_dict_reads_alt_text():
   assert image.alt_text == "An image alt text"
 
 
+def test_video_as_dict_includes_gcs_uri():
+  video = models.Video(
+    url="https://example.com/video.mp4",
+    gcs_uri="gs://bucket/video.mp4",
+  )
+
+  payload = video.as_dict
+
+  assert payload["url"] == "https://example.com/video.mp4"
+  assert payload["gcs_uri"] == "gs://bucket/video.mp4"
+
+
+def test_video_from_dict_reads_gcs_uri():
+  video = models.Video.from_dict({
+    "url": "https://example.com/video.mp4",
+    "gcs_uri": "gs://bucket/video.mp4",
+  })
+
+  assert video.url == "https://example.com/video.mp4"
+  assert video.gcs_uri == "gs://bucket/video.mp4"
+
+
 def test_get_minimal_joke_data_returns_correct_fields():
   """Test that get_minimal_joke_data returns a dictionary with the correct fields."""
   joke = models.PunnyJoke(

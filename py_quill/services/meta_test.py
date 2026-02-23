@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from common import config, models
 from services import meta
 
@@ -21,6 +22,10 @@ class _FakeResponse:
 
 def _make_image(url: str, alt_text: str | None = None) -> models.Image:
   return models.Image(url=url, alt_text=alt_text)
+
+
+def _make_video(url: str) -> models.Video:
+  return models.Video(url=url)
 
 
 def test_publish_instagram_single_image(monkeypatch):
@@ -161,6 +166,56 @@ def test_publish_instagram_carousel_alt_text_for_each_image(monkeypatch):
   assert calls[1]["data"]["alt_text"] == "Alt text 2"
 
 
+def test_publish_instagram_reel(monkeypatch):
+  monkeypatch.setattr(config, "INSTAGRAM_USER_ID", "ig_reels")
+  monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
+
+  calls = []
+  responses = [
+    _FakeResponse(200, {"id": "reel_container_1"}),
+    _FakeResponse(200, {"id": "reel_media_1"}),
+  ]
+
+  def fake_request(method,
+                   url,
+                   params=None,
+                   data=None,
+                   headers=None,
+                   timeout=None):
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params,
+      "headers": headers,
+    })
+    return responses.pop(0)
+
+  monkeypatch.setattr(meta.requests, "request", fake_request)
+
+  result = meta.publish_instagram_post(
+    caption="Reel caption",
+    video=_make_video("https://example.com/reel.mp4"),
+  )
+
+  assert result == "reel_media_1"
+  assert calls[0]["url"].endswith("/v24.0/ig_reels/media")
+  assert calls[0]["data"]["media_type"] == "REELS"
+  assert calls[0]["data"]["video_url"] == "https://example.com/reel.mp4"
+  assert calls[0]["data"]["caption"] == "Reel caption"
+  assert calls[1]["url"].endswith("/v24.0/ig_reels/media_publish")
+  assert calls[1]["data"]["creation_id"] == "reel_container_1"
+
+
+def test_publish_instagram_rejects_images_and_video():
+  with pytest.raises(ValueError, match="mutually exclusive"):
+    meta.publish_instagram_post(
+      images=[_make_image("https://example.com/ig.png")],
+      caption="Hello",
+      video=_make_video("https://example.com/reel.mp4"),
+    )
+
+
 def test_publish_facebook_single_with_alt_text(monkeypatch):
   monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "page_1")
   monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
@@ -237,3 +292,70 @@ def test_publish_facebook_carousel_alt_text_for_each_image(monkeypatch):
   }, {
     "media_fbid": "photo_2"
   }]
+
+
+def test_publish_facebook_reel(monkeypatch):
+  monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "page_reels")
+  monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
+
+  upload_url = "https://rupload.facebook.com/video-upload/session-1"
+  calls = []
+  responses = [
+    _FakeResponse(200, {"access_token": "page_token_reels"}),
+    _FakeResponse(200, {
+      "video_id": "video_123",
+      "upload_url": upload_url
+    }),
+    _FakeResponse(200, {"success": True}),
+    _FakeResponse(200, {"success": True}),
+  ]
+
+  def fake_request(method,
+                   url,
+                   params=None,
+                   data=None,
+                   headers=None,
+                   timeout=None):
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params,
+      "headers": headers,
+    })
+    return responses.pop(0)
+
+  monkeypatch.setattr(meta.requests, "request", fake_request)
+
+  result = meta.publish_facebook_post(
+    message="FB reel caption",
+    video=_make_video("https://example.com/reel.mp4"),
+  )
+
+  assert result == "video_123"
+  assert calls[0]["url"].endswith("/v24.0/page_reels")
+  assert calls[0]["params"]["fields"] == "access_token"
+
+  assert calls[1]["url"].endswith("/v24.0/page_reels/video_reels")
+  assert calls[1]["data"]["upload_phase"] == "start"
+  assert calls[1]["data"]["access_token"] == "page_token_reels"
+
+  assert calls[2]["url"] == upload_url
+  assert calls[2]["headers"]["Authorization"] == "OAuth page_token_reels"
+  assert calls[2]["headers"]["file_url"] == "https://example.com/reel.mp4"
+
+  assert calls[3]["url"].endswith("/v24.0/page_reels/video_reels")
+  assert calls[3]["data"]["upload_phase"] == "finish"
+  assert calls[3]["data"]["video_id"] == "video_123"
+  assert calls[3]["data"]["video_state"] == "PUBLISHED"
+  assert calls[3]["data"]["description"] == "FB reel caption"
+  assert calls[3]["data"]["access_token"] == "page_token_reels"
+
+
+def test_publish_facebook_rejects_images_and_video():
+  with pytest.raises(ValueError, match="mutually exclusive"):
+    meta.publish_facebook_post(
+      images=[_make_image("https://example.com/fb.png")],
+      message="Hello",
+      video=_make_video("https://example.com/reel.mp4"),
+    )

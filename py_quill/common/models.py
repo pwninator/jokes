@@ -288,6 +288,33 @@ class Image:
     )
 
 
+@dataclass
+class Video:
+  """Represents a generated video and its publishing metadata."""
+  key: str | None = None
+  gcs_uri: str | None = None
+
+  @property
+  def is_success(self) -> bool:
+    """Check if the video generation was successful."""
+    return self.gcs_uri is not None
+
+  @property
+  def as_dict(self) -> dict[str, Any]:
+    """Convert to dictionary for Firestore storage."""
+    return {
+      'gcs_uri': self.gcs_uri,
+    }
+
+  @classmethod
+  def from_dict(cls, data: dict[str, Any], key: str | None = None) -> Video:
+    """Create Video from Firestore dictionary."""
+    return cls(
+      key=key if key else data.get("key"),
+      gcs_uri=data.get("gcs_uri"),
+    )
+
+
 @dataclass(kw_only=True)
 class Character:
   """Represents a character in the story."""

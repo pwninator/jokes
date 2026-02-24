@@ -61,10 +61,6 @@
     <div class="stat-card__value" id="stat-cost">{{ "${:,.2f}".format(chart_data.total_cost) }}</div>
   </div>
   <div class="stat-card">
-    <div class="stat-card__label">Sales</div>
-    <div class="stat-card__value" id="stat-sales">{{ "${:,.2f}".format(chart_data.total_sales) }}</div>
-  </div>
-  <div class="stat-card">
     <div class="stat-card__label">CPC</div>
     <div class="stat-card__value" id="stat-cpc">$0.00</div>
   </div>
@@ -88,36 +84,24 @@
 
 <section class="stats-charts">
   <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>Gross Profit</h3>
+    <canvas id="grossProfitChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>Cost / Gross Profit Before Ads</h3>
+    <canvas id="costAndGrossProfitBeforeAdsChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+    <h3>CPC / Conversion Rate</h3>
+    <canvas id="cpcAndConversionRateChart"></canvas>
+  </div>
+  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
     <h3>Impressions</h3>
     <canvas id="impressionsChart"></canvas>
   </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+  <div class="chart-container" style="position: relative; height:320px; width:100%;">
     <h3>Clicks</h3>
     <canvas id="clicksChart"></canvas>
-  </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
-    <h3>Cost</h3>
-    <canvas id="costChart"></canvas>
-  </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
-    <h3>CPC</h3>
-    <canvas id="cpcChart"></canvas>
-  </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
-    <h3>Conversion Rate</h3>
-    <canvas id="conversionRateChart"></canvas>
-  </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%;">
-    <h3>Sales</h3>
-    <canvas id="salesChart"></canvas>
-  </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-top: 28px; margin-bottom: 28px;">
-    <h3>Gross Profit Before Ads</h3>
-    <canvas id="grossProfitBeforeAdsChart"></canvas>
-  </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%;">
-    <h3>Gross Profit</h3>
-    <canvas id="grossProfitChart"></canvas>
   </div>
 </section>
 
@@ -138,10 +122,21 @@
     return Number(value).toFixed(1) + '%';
   }
 
-  function createLineChart(canvasId, label, values, color, formatType) {
+  function formatValueByType(formatType, value) {
+    if (formatType === 'currency') return formatCurrency(value);
+    if (formatType === 'percent') return formatPercentage(value);
+    return formatNumber(value);
+  }
+
+  function formatTickByType(formatType, value) {
+    if (formatType === 'currency') return '$' + Number(value).toFixed(2);
+    if (formatType === 'percent') return Number(value).toFixed(1) + '%';
+    return value;
+  }
+
+  function createMultiLineChart(canvasId, datasets, scales) {
     const ctx = document.getElementById(canvasId).getContext('2d');
 
-    // Destroy existing chart if it exists
     if (charts[canvasId]) {
       charts[canvasId].destroy();
     }
@@ -150,45 +145,54 @@
       type: 'line',
       data: {
         labels: adsStatsData.labels,
-        datasets: [{
-          label: label,
-          data: values,
-          borderColor: color,
-          backgroundColor: color + '22',
-          fill: true,
-          tension: 0.2,
-          pointRadius: 3
-        }]
+        datasets: datasets,
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              callback: function(value) {
-                if (formatType === 'currency') return '$' + Number(value).toFixed(2);
-                if (formatType === 'percent') return Number(value).toFixed(1) + '%';
-                return value;
-              }
-            }
-          }
-        },
+        scales: scales,
         plugins: {
           tooltip: {
             callbacks: {
               label: function(context) {
-                let value = context.parsed.y;
-                if (formatType === 'currency') return label + ': ' + formatCurrency(value);
-                if (formatType === 'percent') return label + ': ' + formatPercentage(value);
-                return label + ': ' + formatNumber(value);
+                const formatType = context.dataset.formatType || 'number';
+                return context.dataset.label + ': ' + formatValueByType(
+                  formatType,
+                  context.parsed.y,
+                );
               }
             }
           }
         }
       }
     });
+  }
+
+  function createLineChart(canvasId, label, values, color, formatType) {
+    createMultiLineChart(
+      canvasId,
+      [{
+          label: label,
+          data: values,
+          borderColor: color,
+          backgroundColor: color + '22',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y',
+          formatType: formatType,
+      }],
+      {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return formatTickByType(formatType, value);
+            }
+          }
+        }
+      },
+    );
   }
 
   function calculateAndRender(campaignName) {
@@ -272,20 +276,101 @@
     });
 
     // Render Charts
+    createLineChart('grossProfitChart', 'Gross Profit', stats.gross_profit, '#ad1457', 'currency');
+    createMultiLineChart(
+      'costAndGrossProfitBeforeAdsChart',
+      [
+        {
+          label: 'Cost',
+          data: stats.cost,
+          borderColor: '#6a1b9a',
+          backgroundColor: '#6a1b9a22',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y',
+          formatType: 'currency',
+        },
+        {
+          label: 'Gross Profit Before Ads',
+          data: stats.gross_profit_before_ads,
+          borderColor: '#00695c',
+          backgroundColor: '#00695c22',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y',
+          formatType: 'currency',
+        },
+      ],
+      {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return formatTickByType('currency', value);
+            }
+          }
+        }
+      },
+    );
+    createMultiLineChart(
+      'cpcAndConversionRateChart',
+      [
+        {
+          label: 'CPC',
+          data: stats.cpc,
+          borderColor: '#d81b60',
+          backgroundColor: '#d81b6022',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y',
+          formatType: 'currency',
+        },
+        {
+          label: 'Conversion Rate',
+          data: stats.conversion_rate,
+          borderColor: '#00838f',
+          backgroundColor: '#00838f22',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y1',
+          formatType: 'percent',
+        },
+      ],
+      {
+        y: {
+          beginAtZero: true,
+          position: 'left',
+          ticks: {
+            callback: function(value) {
+              return formatTickByType('currency', value);
+            }
+          }
+        },
+        y1: {
+          beginAtZero: true,
+          position: 'right',
+          grid: {
+            drawOnChartArea: false,
+          },
+          ticks: {
+            callback: function(value) {
+              return formatTickByType('percent', value);
+            }
+          }
+        },
+      },
+    );
     createLineChart('impressionsChart', 'Impressions', stats.impressions, '#2e7d32', 'number');
     createLineChart('clicksChart', 'Clicks', stats.clicks, '#1565c0', 'number');
-    createLineChart('costChart', 'Cost', stats.cost, '#6a1b9a', 'currency');
-    createLineChart('cpcChart', 'CPC', stats.cpc, '#d81b60', 'currency');
-    createLineChart('conversionRateChart', 'Conversion Rate', stats.conversion_rate, '#00838f', 'percent');
-    createLineChart('salesChart', 'Sales', stats.sales, '#ef6c00', 'currency');
-    createLineChart('grossProfitBeforeAdsChart', 'Gross Profit Before Ads', stats.gross_profit_before_ads, '#00695c', 'currency');
-    createLineChart('grossProfitChart', 'Gross Profit', stats.gross_profit, '#ad1457', 'currency');
 
     // Update Stat Cards
     document.getElementById('stat-impressions').textContent = formatNumber(stats.totals.impressions);
     document.getElementById('stat-clicks').textContent = formatNumber(stats.totals.clicks);
     document.getElementById('stat-cost').textContent = formatCurrency(stats.totals.cost);
-    document.getElementById('stat-sales').textContent = formatCurrency(stats.totals.sales);
     document.getElementById('stat-gp-pre-ad').textContent = formatCurrency(stats.totals.gross_profit_before_ads);
     document.getElementById('stat-gp').textContent = formatCurrency(stats.totals.gross_profit);
 

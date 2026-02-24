@@ -341,29 +341,29 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
 
   assert resp.status_code == 200
   assert captured["template"] == "admin/ads_stats.html"
-  assert call_args["start_date"] == _FixedDate(2026, 2, 14)
+  assert call_args["start_date"] == _FixedDate(2026, 1, 22)
   assert call_args["end_date"] == _FixedDate(2026, 2, 20)
-  assert captured["start_date"] == "2026-02-14"
+  assert captured["start_date"] == "2026-01-22"
   assert captured["end_date"] == "2026-02-20"
 
   chart_data = captured["chart_data"]
-  assert chart_data["labels"] == [
-    "2026-02-14",
-    "2026-02-15",
-    "2026-02-16",
-    "2026-02-17",
-    "2026-02-18",
-    "2026-02-19",
-    "2026-02-20",
-  ]
-  assert chart_data["impressions"] == [0, 0, 0, 30, 0, 175, 0]
-  assert chart_data["clicks"] == [0, 0, 0, 3, 0, 15, 0]
-  assert chart_data["cost"] == [0.0, 0.0, 0.0, 4.5, 0.0, 25.0, 0.0]
-  assert chart_data["sales"] == [0.0, 0.0, 0.0, 9.0, 0.0, 37.0, 0.0]
-  assert chart_data["gross_profit_before_ads"] == [
-    0.0, 0.0, 0.0, 9.0, 0.0, 60.0, 0.0
-  ]
-  assert chart_data["gross_profit"] == [0.0, 0.0, 0.0, 4.5, 0.0, 35.0, 0.0]
+  assert len(chart_data["labels"]) == 30
+  assert chart_data["labels"][0] == "2026-01-22"
+  assert chart_data["labels"][-1] == "2026-02-20"
+  idx_0217 = chart_data["labels"].index("2026-02-17")
+  idx_0219 = chart_data["labels"].index("2026-02-19")
+  assert chart_data["impressions"][idx_0217] == 30
+  assert chart_data["impressions"][idx_0219] == 175
+  assert chart_data["clicks"][idx_0217] == 3
+  assert chart_data["clicks"][idx_0219] == 15
+  assert chart_data["cost"][idx_0217] == 4.5
+  assert chart_data["cost"][idx_0219] == 25.0
+  assert chart_data["sales"][idx_0217] == 9.0
+  assert chart_data["sales"][idx_0219] == 37.0
+  assert chart_data["gross_profit_before_ads"][idx_0217] == 9.0
+  assert chart_data["gross_profit_before_ads"][idx_0219] == 60.0
+  assert chart_data["gross_profit"][idx_0217] == 4.5
+  assert chart_data["gross_profit"][idx_0219] == 35.0
 
   # Verify totals
   assert chart_data["total_impressions"] == 205
@@ -403,6 +403,40 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/admin/ads-stats"' in html
   assert 'Ads Stats' in html
+
+
+def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
+  """Ads stats page renders combined chart layout in the expected order."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'id="stat-sales"' not in html
+  assert "<h3>Sales</h3>" not in html
+
+  gross_profit_pos = html.find("<h3>Gross Profit</h3>")
+  cost_and_gp_pre_ad_pos = html.find("<h3>Cost / Gross Profit Before Ads</h3>")
+  cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
+  impressions_pos = html.find("<h3>Impressions</h3>")
+  clicks_pos = html.find("<h3>Clicks</h3>")
+
+  assert gross_profit_pos != -1
+  assert cost_and_gp_pre_ad_pos != -1
+  assert cpc_and_cr_pos != -1
+  assert impressions_pos != -1
+  assert clicks_pos != -1
+  assert gross_profit_pos < cost_and_gp_pre_ad_pos
+  assert cost_and_gp_pre_ad_pos < cpc_and_cr_pos
+  assert cpc_and_cr_pos < impressions_pos
+  assert impressions_pos < clicks_pos
 
 
 def test_admin_ads_stats_filtering(monkeypatch):

@@ -14,7 +14,7 @@ from web.routes import web_bp
 from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
 
-_ADS_STATS_LOOKBACK_DAYS = 7
+_ADS_STATS_LOOKBACK_DAYS = 30
 
 
 @web_bp.route('/admin')
@@ -145,7 +145,7 @@ def admin_stats():
 @web_bp.route('/admin/ads-stats')
 @auth_helpers.require_admin
 def admin_ads_stats():
-  """Render Amazon Ads daily metrics (last 7 days), aggregated by date."""
+  """Render Amazon Ads daily metrics, aggregated by date."""
   end_date = datetime.date.today()
   start_date = end_date - datetime.timedelta(days=_ADS_STATS_LOOKBACK_DAYS - 1)
   stats_list = firestore.list_amazon_ads_daily_stats(

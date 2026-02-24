@@ -77,3 +77,28 @@ def test_generate_pinterest_post_text_requires_output(monkeypatch):
       post_type=models.JokeSocialPostType.JOKE_GRID_TEASER,
       recent_posts=[],
     )
+
+
+def test_generate_instagram_post_text_supports_joke_video(monkeypatch):
+  fake_text = json.dumps({
+    "instagram_caption":
+    "Quick reel caption\n\n#funny #jokes #reels",
+    "instagram_alt_text":
+    "Setup and punchline comic panels.",
+  })
+  fake_client = _FakeClient(fake_text)
+  monkeypatch.setitem(
+    social_post_prompts._LLM_CLIENTS,
+    models.SocialPlatform.INSTAGRAM,
+    fake_client,
+  )
+
+  caption, alt_text, metadata = social_post_prompts.generate_instagram_post_text(
+    [b"setup-image", b"punchline-image"],
+    post_type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+    recent_posts=[],
+  )
+
+  assert "reel caption" in caption
+  assert alt_text == "Setup and punchline comic panels."
+  assert isinstance(metadata, models.GenerationMetadata)

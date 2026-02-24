@@ -134,7 +134,7 @@ def run_social_post_creation_process(req: Any) -> Any:
     # Generate images when creating or explicitly requested.
     if is_new or regenerate_image:
       post, image_bytes_by_platform, did_generate_images = (
-        social_operations.generate_social_post_images(post))
+        social_operations.generate_social_post_media(post))
       if did_generate_images:
         operation = "GENERATE_IMAGES"
 

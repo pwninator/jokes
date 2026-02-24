@@ -73,6 +73,14 @@ Descriptions:
         cta="Visit site to see more jokes",
         audience="All",
       ),
+      models.JokeSocialPostType.JOKE_REEL_VIDEO:
+      SocialPostStrategy(
+        goal="Drive saves, shares, and clickthrough from a short-form video",
+        guidelines=
+        "Treat this as a joke reel post. Keep wording punchy and scannable while still being SEO-friendly. Highlight the joke payoff and why someone should save/share it.",
+        cta="Visit site to see more jokes",
+        audience="All",
+      ),
     },
     output_schema={
       "type":
@@ -128,6 +136,14 @@ Write a caption to optimize for engagement. Include exactly 3-5 relevant hashtag
       models.JokeSocialPostType.JOKE_CAROUSEL:
       SocialPostStrategy(
         goal="Drive engagement and comments",
+        guidelines=
+        "The caption should be a short pun related to the content theme that's not already in the content, like a side comment that adds humor to the content.",
+        cta="None",
+        audience="All",
+      ),
+      models.JokeSocialPostType.JOKE_REEL_VIDEO:
+      SocialPostStrategy(
+        goal="Drive reel watch-through, comments, and shares",
         guidelines=
         "The caption should be a short pun related to the content theme that's not already in the content, like a side comment that adds humor to the content.",
         cta="None",
@@ -191,6 +207,14 @@ Write a short post message in this format:
         guidelines=
         "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, once every 4-8 posts, include a CTA to encourage sharing or commenting.",
         cta="None",
+        audience="All",
+      ),
+      models.JokeSocialPostType.JOKE_REEL_VIDEO:
+      SocialPostStrategy(
+        goal="Drive reel engagement and clickthrough",
+        guidelines=
+        "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, once every 4-8 posts, include a CTA to encourage sharing or commenting.",
+        cta="None`",
         audience="All",
       ),
     },

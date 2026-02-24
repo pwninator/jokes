@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Any, cast
 
 from common import utils
+from services import cloud_storage
 
 
 class ReadingLevel(Enum):
@@ -63,7 +64,7 @@ class JokeAdminRating(Enum):
 
 
 class JokeSocialPostType(Enum):
-  """Social post layout type for joke grids."""
+  """Social post layout type."""
 
   JOKE_GRID = (
     "JOKE_GRID",
@@ -81,6 +82,12 @@ A grid of joke setup and punchline images with the last punchline covered as a t
     "JOKE_CAROUSEL",
     """\
 A sequence of setup and punchline images to be shown in a swipeable carousel. The goal purely entertainment to make the viewer laugh in order to drive follows and shares.
+""",
+  )
+  JOKE_REEL_VIDEO = (
+    "JOKE_REEL_VIDEO",
+    """\
+A single-joke short-form vertical video reel. The goal is fast entertainment optimized for reel-style consumption and social sharing.
 """,
   )
 
@@ -121,7 +128,7 @@ class SingleGenerationMetadata:
     return not self.model_name
 
   @property
-  def as_dict(self) -> dict[str, object]:
+  def as_dict(self) -> dict[str, Any]:
     """Convert to dictionary for Firestore storage."""
     return dataclasses.asdict(self)
 
@@ -293,6 +300,13 @@ class Video:
   """Represents a generated video and its publishing metadata."""
   key: str | None = None
   gcs_uri: str | None = None
+
+  @property
+  def url(self) -> str | None:
+    """Return the public URL of the video."""
+    if not self.gcs_uri:
+      return None
+    return cloud_storage.get_public_cdn_url(self.gcs_uri)
 
   @property
   def is_success(self) -> bool:
@@ -823,6 +837,7 @@ class JokeSocialPost:
   creation_time: datetime.datetime | None = None
 
   pinterest_image_urls: list[str] = field(default_factory=list)
+  pinterest_video_gcs_uri: str | None = None
   pinterest_post_id: str | None = None
   pinterest_post_time: datetime.datetime | None = None
   pinterest_title: str | None = None
@@ -830,12 +845,14 @@ class JokeSocialPost:
   pinterest_alt_text: str | None = None
 
   instagram_image_urls: list[str] = field(default_factory=list)
+  instagram_video_gcs_uri: str | None = None
   instagram_post_id: str | None = None
   instagram_post_time: datetime.datetime | None = None
   instagram_caption: str | None = None
   instagram_alt_text: str | None = None
 
   facebook_image_urls: list[str] = field(default_factory=list)
+  facebook_video_gcs_uri: str | None = None
   facebook_post_id: str | None = None
   facebook_post_time: datetime.datetime | None = None
   facebook_message: str | None = None

@@ -163,25 +163,34 @@ def test_image_from_dict_reads_alt_text():
 
 
 def test_video_as_dict_includes_gcs_uri():
-  video = models.Video(
-    url="https://example.com/video.mp4",
-    gcs_uri="gs://bucket/video.mp4",
-  )
+  video = models.Video(gcs_uri="gs://bucket/video.mp4")
 
   payload = video.as_dict
 
-  assert payload["url"] == "https://example.com/video.mp4"
   assert payload["gcs_uri"] == "gs://bucket/video.mp4"
 
 
 def test_video_from_dict_reads_gcs_uri():
-  video = models.Video.from_dict({
-    "url": "https://example.com/video.mp4",
-    "gcs_uri": "gs://bucket/video.mp4",
-  })
+  video = models.Video.from_dict({"gcs_uri": "gs://bucket/video.mp4"})
 
-  assert video.url == "https://example.com/video.mp4"
   assert video.gcs_uri == "gs://bucket/video.mp4"
+
+
+def test_video_url_maps_gcs_uri_to_public_cdn_url(monkeypatch):
+  monkeypatch.setattr(
+    "services.cloud_storage.get_public_cdn_url",
+    lambda gcs_uri:
+    f"https://cdn.example.com/{gcs_uri.removeprefix('gs://bucket/')}",
+  )
+  video = models.Video(gcs_uri="gs://bucket/video.mp4")
+
+  assert video.url == "https://cdn.example.com/video.mp4"
+
+
+def test_video_url_none_without_gcs_uri():
+  video = models.Video(gcs_uri=None)
+
+  assert video.url is None
 
 
 def test_get_minimal_joke_data_returns_correct_fields():
@@ -360,6 +369,32 @@ def test_joke_social_post_type_description():
   assert "grid" in models.JokeSocialPostType.JOKE_GRID.description.lower()
   assert "teaser" in models.JokeSocialPostType.JOKE_GRID_TEASER.description.lower(
   )
+  assert "video" in models.JokeSocialPostType.JOKE_REEL_VIDEO.description.lower(
+  )
+
+
+def test_joke_social_post_video_uri_fields_round_trip():
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+    link_url="https://snickerdoodlejokes.com/jokes/video-joke",
+    pinterest_video_gcs_uri="gs://bucket/social/video.mp4",
+    instagram_video_gcs_uri="gs://bucket/social/video.mp4",
+    facebook_video_gcs_uri="gs://bucket/social/video.mp4",
+  )
+  post.key = "post-video-1"
+
+  payload = post.to_dict()
+  assert payload["type"] == "JOKE_REEL_VIDEO"
+  assert payload["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert payload["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert payload["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+
+  restored = models.JokeSocialPost.from_firestore_dict(payload,
+                                                       key="post-video-1")
+  assert restored.type == models.JokeSocialPostType.JOKE_REEL_VIDEO
+  assert restored.pinterest_video_gcs_uri == "gs://bucket/social/video.mp4"
+  assert restored.instagram_video_gcs_uri == "gs://bucket/social/video.mp4"
+  assert restored.facebook_video_gcs_uri == "gs://bucket/social/video.mp4"
 
 
 def test_joke_social_post_platform_summary_pinterest_with_time():

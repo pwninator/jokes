@@ -56,8 +56,9 @@ def test_admin_social_renders_picker_shell(monkeypatch):
   assert 'admin-social-create-button' in html
   assert 'admin-social-post-type' in html
   assert f"https://{config.JOKE_CREATION_API_HOST}" in html
-  assert (f'createPostEndpoint = "https://{config.JOKE_CREATION_API_HOST}"'
-          ) in html
+  assert (
+    f'createPostEndpoint = "https://{config.JOKE_CREATION_API_HOST}"') in html
+  assert 'value="JOKE_REEL_VIDEO"' in html
   assert "op: 'social'" in html
   assert "postModalInput.focus()" in html
 
@@ -75,7 +76,12 @@ def test_admin_social_renders_social_posts(monkeypatch):
     facebook_message="FB message",
     pinterest_image_urls=["https://example.com/pin.png"],
   )
-  created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
+  created_at = datetime.datetime(2024,
+                                 1,
+                                 2,
+                                 3,
+                                 4,
+                                 5,
                                  tzinfo=datetime.timezone.utc)
   post.creation_time = created_at
 
@@ -124,7 +130,12 @@ def test_admin_social_hides_delete_when_posted(monkeypatch):
     link_url="https://snickerdoodlejokes.com/jokes/social",
     pinterest_post_id="pin-123",
   )
-  created_at = datetime.datetime(2024, 1, 2, 3, 4, 5,
+  created_at = datetime.datetime(2024,
+                                 1,
+                                 2,
+                                 3,
+                                 4,
+                                 5,
                                  tzinfo=datetime.timezone.utc)
   post.creation_time = created_at
 
@@ -169,7 +180,12 @@ def test_admin_social_renders_carousel_grid(monkeypatch):
       "https://example.com/carousel-2.png",
     ],
   )
-  created_at = datetime.datetime(2024, 2, 3, 4, 5, 6,
+  created_at = datetime.datetime(2024,
+                                 2,
+                                 3,
+                                 4,
+                                 5,
+                                 6,
                                  tzinfo=datetime.timezone.utc)
   post.creation_time = created_at
 
@@ -203,3 +219,54 @@ def test_admin_social_renders_carousel_grid(monkeypatch):
   assert 'href="https://example.com/carousel-2.png"' in html
   assert 'alt="Carousel image 1"' in html
   assert 'alt="Carousel image 2"' in html
+
+
+def test_admin_social_renders_video_preview(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+    link_url="https://snickerdoodlejokes.com/jokes/video",
+    pinterest_video_gcs_uri="gs://bucket/social/video.mp4",
+    instagram_video_gcs_uri="gs://bucket/social/video.mp4",
+    facebook_video_gcs_uri="gs://bucket/social/video.mp4",
+    instagram_caption="Video caption",
+    facebook_message="Video message",
+  )
+  created_at = datetime.datetime(2024,
+                                 2,
+                                 3,
+                                 4,
+                                 5,
+                                 6,
+                                 tzinfo=datetime.timezone.utc)
+  post.creation_time = created_at
+
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_social_posts",
+    Mock(return_value=[post]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_all_joke_categories",
+    Mock(return_value=[]),
+  )
+  monkeypatch.setattr(
+    social_routes.firestore,
+    "get_joke_by_state",
+    Mock(return_value=([], None)),
+  )
+
+  with app.test_client() as client:
+    resp = client.get("/admin/social")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'data-post-type="JOKE_REEL_VIDEO"' in html
+  assert 'data-instagram-video-gcs-uri="gs://bucket/social/video.mp4"' in html
+  assert 'data-facebook-video-gcs-uri="gs://bucket/social/video.mp4"' in html
+  assert 'data-pinterest-video-gcs-uri="gs://bucket/social/video.mp4"' in html
+  assert '<video class="social-posts-thumb social-posts-video-thumb"' in html
+  assert 'src="https://bucket/social/video.mp4"' in html

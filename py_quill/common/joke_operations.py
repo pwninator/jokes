@@ -37,10 +37,8 @@ _LIP_SYNC_METADATA_PUNCHLINE = "animation_lip_sync_punchline"
 _MIN_POSITIVE_WORD_DURATION_SEC = 0.02
 _MIN_SPEECH_CLIP_DURATION_SEC = 0.05
 
-DEFAULT_JOKE_AUDIO_SPEAKER_1_NAME = "Sam"
-DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = audio_voices.Voice.GEMINI_LEDA
-DEFAULT_JOKE_AUDIO_SPEAKER_2_NAME = "Riley"
-DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = audio_voices.Voice.GEMINI_PUCK
+DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP
+DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = audio_voices.Voice.ELEVENLABS_AERISITA
 
 # Preferred dialog template format (turn-based). Each script may include
 # {setup_text} and/or {punchline_text} placeholders.
@@ -1870,7 +1868,7 @@ def generate_joke_video(
     response_sequence=lip_sync.response_sequence,
     punchline_sequence=punchline_sequence,
     output_filename_base=
-    f"joke_video_{(joke.key or '{}'.format(joke.random_id or 'joke')).strip()}",
+    f"joke_video_{(joke.key or str(joke.random_id) or 'joke').strip()}",
     temp_output=temp_output,
   )
   generation_metadata.add_generation(video_generation_metadata)

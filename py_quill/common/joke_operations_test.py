@@ -1726,7 +1726,8 @@ def test_generate_joke_audio_calls_forced_alignment_when_timing_is_missing(
 def test_generate_joke_audio_returns_partial_early_when_forced_alignment_fails(
     monkeypatch, mock_cloud_storage):
   dialog_wav_bytes = b"fake-wav"
-  generation_metadata = models.SingleGenerationMetadata(model_name="elevenlabs")
+  generation_metadata = models.SingleGenerationMetadata(
+    model_name="elevenlabs")
 
   mock_client = Mock()
   mock_client.generate_multi_turn_dialog.return_value = (
@@ -1768,7 +1769,8 @@ def test_generate_joke_audio_returns_partial_early_when_forced_alignment_fails(
 
 def test_generate_joke_audio_raises_early_when_forced_alignment_fails(
     monkeypatch, mock_cloud_storage):
-  generation_metadata = models.SingleGenerationMetadata(model_name="elevenlabs")
+  generation_metadata = models.SingleGenerationMetadata(
+    model_name="elevenlabs")
 
   mock_client = Mock()
   mock_client.generate_multi_turn_dialog.return_value = (
@@ -2022,9 +2024,9 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
   assert call_kwargs["teller_character"].definition.key == "char-teller"
   assert call_kwargs["listener_character"].definition.key == "char-listener"
   assert call_kwargs[
-    "teller_voice"] == joke_operations.audio_voices.Voice.GEMINI_LEDA
+    "teller_voice"] == joke_operations.DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE
   assert call_kwargs[
-    "listener_voice"] == joke_operations.audio_voices.Voice.GEMINI_PUCK
+    "listener_voice"] == joke_operations.DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
   assert mock_firestore.get_posable_character_def.call_count == 2
@@ -2105,9 +2107,9 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   assert call_kwargs["intro_sequence"] is not None
   assert call_kwargs["response_sequence"] is not None
   assert call_kwargs[
-    "teller_voice"] == joke_operations.audio_voices.Voice.GEMINI_LEDA
+    "teller_voice"] == joke_operations.DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE
   assert call_kwargs[
-    "listener_voice"] == joke_operations.audio_voices.Voice.GEMINI_PUCK
+    "listener_voice"] == joke_operations.DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert mock_firestore.get_posable_character_def.call_count == 2
   mock_firestore.get_posable_character_def.assert_any_call("char-teller")
@@ -2870,7 +2872,8 @@ def test_build_lipsync_sequence_falls_back_to_timing_duration_when_audio_read_fa
 
 
 def test_strip_stage_directions_removes_bracketed_prefixes():
-  stripped = utils.strip_stage_directions("[playfully] Hey! want to hear a joke?")
+  stripped = utils.strip_stage_directions(
+    "[playfully] Hey! want to hear a joke?")
   assert stripped == "Hey! want to hear a joke?"
 
   stripped_multi = utils.strip_stage_directions("[curious][quietly] what?")

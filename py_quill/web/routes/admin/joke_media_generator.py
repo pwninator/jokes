@@ -57,12 +57,6 @@ def admin_joke_media_generator():
     default_dialog_turns=default_dialog_turns,
     audio_models=audio_model_options,
     default_audio_model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3.value,
-    default_elevenlabs_voice_names=[
-      audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
-      audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
-      audio_voices.Voice.ELEVENLABS_AERISITA.name,
-      audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP.name,
-    ],
     character_defs=character_defs,
     gemini_voices=gemini_voice_options,
     elevenlabs_voices=elevenlabs_voice_options,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 
-from common import image_operations, models, utils
+from common import image_operations, joke_operations, models, utils
 from functions.prompts import social_post_prompts
 from services import cloud_storage, firestore
 from services import meta as meta_service
@@ -12,6 +12,8 @@ from services import meta as meta_service
 MAX_SOCIAL_POST_JOKES = 5
 PUBLIC_JOKE_BASE_URL = "https://snickerdoodlejokes.com/jokes"
 NUM_RECENT_POSTS_TO_INCLUDE = 10
+DEFAULT_SOCIAL_REEL_TELLER_CHARACTER_DEF_ID = "cat_orange_tabby"
+DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID = "dog_beagle"
 
 
 class SocialPostRequestError(Exception):
@@ -70,6 +72,9 @@ def initialize_social_post(
     joke_id_list = _validate_joke_ids(joke_ids)
     post_type = _validate_post_type(post_type)
     ordered_jokes = _load_ordered_jokes(joke_id_list)
+    if post_type == models.JokeSocialPostType.JOKE_REEL_VIDEO and len(
+        ordered_jokes) != 1:
+      raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
     link_url = _build_social_post_link_url(post_type, ordered_jokes)
     post = models.JokeSocialPost(
       type=post_type,
@@ -141,72 +146,87 @@ def publish_platform(
 
   Notes:
     - Only supports Instagram + Facebook (Meta Graph API) today.
-    - For Facebook alt text, uses Instagram alt text since the post model does
-      not currently store a facebook-specific alt text field.
   """
   if post.is_platform_posted(platform):
     raise SocialPostRequestError(
       f"{platform.value.title()} post already marked as posted")
 
-  now = post_time or datetime.datetime.now(datetime.timezone.utc)
+  post_time = post_time or datetime.datetime.now(datetime.timezone.utc)
 
-  if platform == models.SocialPlatform.INSTAGRAM:
-    image_urls = post.instagram_image_urls or []
-    caption = (post.instagram_caption or "").strip()
-    if not image_urls:
-      raise SocialPostRequestError("Instagram image URLs are required")
-    if not caption:
-      raise SocialPostRequestError("Instagram caption is required")
-    images = _build_publish_images(
-      image_urls=image_urls,
-      alt_text=post.instagram_alt_text,
-    )
-    platform_post_id = meta_service.publish_instagram_post(
-      images=images,
-      caption=caption,
-    )
-    return mark_platform_posted(
-      post,
-      platform=platform,
-      platform_post_id=platform_post_id,
-      post_time=now,
-    )
+  match platform:
+    case models.SocialPlatform.INSTAGRAM:
+      caption = (post.instagram_caption or "").strip()
+      if not caption:
+        raise SocialPostRequestError("Instagram caption is required")
 
-  if platform == models.SocialPlatform.FACEBOOK:
-    image_urls = post.facebook_image_urls or post.instagram_image_urls or []
-    message = (post.facebook_message or "").strip()
-    if not image_urls:
-      raise SocialPostRequestError("Facebook image URLs are required")
-    if not message:
-      raise SocialPostRequestError("Facebook message is required")
-    images = _build_publish_images(
-      image_urls=image_urls,
-      alt_text=post.instagram_alt_text,
-    )
-    platform_post_id = meta_service.publish_facebook_post(
-      images=images,
-      message=message,
-    )
-    return mark_platform_posted(
-      post,
-      platform=platform,
-      platform_post_id=platform_post_id,
-      post_time=now,
-    )
+      images, video = _validate_and_build_publish_media(
+        image_urls=post.instagram_image_urls,
+        alt_text=post.instagram_alt_text,
+        video_gcs_uri=post.instagram_video_gcs_uri,
+        post_type=post.type,
+      )
+      platform_post_id = meta_service.publish_instagram_post(
+        images=images,
+        video=video,
+        caption=caption,
+      )
+    case models.SocialPlatform.FACEBOOK:
+      message = (post.facebook_message or "").strip()
+      if not message:
+        raise SocialPostRequestError("Facebook message is required")
 
-  raise SocialPostRequestError(f"Unsupported platform: {platform.value}")
+      images, video = _validate_and_build_publish_media(
+        image_urls=post.facebook_image_urls or post.instagram_image_urls,
+        alt_text=post.instagram_alt_text,
+        video_gcs_uri=post.facebook_video_gcs_uri,
+        post_type=post.type,
+      )
+      platform_post_id = meta_service.publish_facebook_post(
+        images=images,
+        video=video,
+        message=message,
+      )
+    case _:
+      raise SocialPostRequestError(f"Unsupported platform: {platform.value}")
+
+  return mark_platform_posted(
+    post,
+    platform=platform,
+    platform_post_id=platform_post_id,
+    post_time=post_time,
+  )
 
 
-def _build_publish_images(
+def _validate_and_build_publish_media(
   *,
   image_urls: list[str],
   alt_text: str | None,
-) -> list[models.Image]:
+  video_gcs_uri: str | None,
+  post_type: models.JokeSocialPostType,
+) -> tuple[list[models.Image] | None, models.Video | None]:
   """Build publish-ready image objects with the same optional alt text."""
   normalized_alt_text = (alt_text or "").strip() or None
-  return [
+  images = [
     models.Image(url=url, alt_text=normalized_alt_text) for url in image_urls
-  ]
+  ] if image_urls else None
+  video = models.Video(gcs_uri=video_gcs_uri) if video_gcs_uri else None
+
+  if post_type == models.JokeSocialPostType.JOKE_REEL_VIDEO:
+    if not video:
+      raise SocialPostRequestError(
+        "Video is required for JOKE_REEL_VIDEO posts")
+    if images:
+      raise SocialPostRequestError(
+        "Images are not allowed for JOKE_REEL_VIDEO posts")
+  else:
+    if not images:
+      raise SocialPostRequestError(
+        "Images are required for non-JOKE_REEL_VIDEO posts")
+    if video:
+      raise SocialPostRequestError(
+        "Video is not allowed for non-JOKE_REEL_VIDEO posts")
+
+  return images, video
 
 
 def mark_platform_posted(
@@ -260,7 +280,8 @@ def _build_social_post_link_url(
   jokes: list[models.PunnyJoke],
 ) -> str:
 
-  if post_type == models.JokeSocialPostType.JOKE_GRID_TEASER:
+  if post_type in (models.JokeSocialPostType.JOKE_GRID_TEASER,
+                   models.JokeSocialPostType.JOKE_REEL_VIDEO):
     last_joke = jokes[-1]
     slug = last_joke.human_readable_setup_text_slug
   else:
@@ -311,7 +332,7 @@ def _select_joke_grid_tag(jokes: list[models.PunnyJoke]) -> str:
   return best_tag
 
 
-def generate_social_post_images(
+def generate_social_post_media(
   post: models.JokeSocialPost,
 ) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, list[bytes]],
            bool]:
@@ -320,7 +341,40 @@ def generate_social_post_images(
   For single-image posts (JOKE_GRID, JOKE_GRID_TEASER): Instagram and Facebook
   share the same square image asset. For carousel posts (JOKE_CAROUSEL): each
   platform gets the same set of images.
+
+  Args:
+    post: The social post to generate media for.
+
+  Returns:
+    A tuple containing the updated post, a dictionary of image bytes by platform for text generation,
+    and a boolean indicating if the post was updated.
   """
+
+  if post.type == models.JokeSocialPostType.JOKE_REEL_VIDEO:
+    return _generate_social_post_media_video(post)
+  else:
+    return _generate_social_post_media_images(post)
+
+
+def _generate_social_post_media_video(
+  post: models.JokeSocialPost,
+) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, list[bytes]],
+           bool]:
+  """Generate video assets for each unposted platform."""
+  image_bytes_by_platform: dict[models.SocialPlatform, list[bytes]] = {}
+  prompt_image_bytes = _load_video_prompt_image_bytes(post)
+  for platform in models.SocialPlatform:
+    if not post.is_platform_posted(platform):
+      image_bytes_by_platform[platform] = prompt_image_bytes
+  updated = _ensure_video_uris_for_post(post)
+  return post, image_bytes_by_platform, updated
+
+
+def _generate_social_post_media_images(
+  post: models.JokeSocialPost,
+) -> tuple[models.JokeSocialPost, dict[models.SocialPlatform, list[bytes]],
+           bool]:
+  """Generate image assets for each unposted platform."""
   image_bytes_by_platform: dict[models.SocialPlatform, list[bytes]] = {}
   updated = False
 
@@ -376,12 +430,18 @@ def generate_social_post_text(
 ) -> tuple[models.JokeSocialPost, bool]:
   """Generate text content for each unposted platform."""
   updated = False
+  video_prompt_image_bytes: list[bytes] | None = None
   for platform in models.SocialPlatform:
     if post.is_platform_posted(platform):
       continue
     platform_image_bytes = None
     if image_bytes_by_platform:
       platform_image_bytes = image_bytes_by_platform.get(platform)
+    if (not platform_image_bytes
+        and post.type == models.JokeSocialPostType.JOKE_REEL_VIDEO):
+      if video_prompt_image_bytes is None:
+        video_prompt_image_bytes = _load_video_prompt_image_bytes(post)
+      platform_image_bytes = video_prompt_image_bytes
 
     recent_posts = firestore.get_joke_social_posts(
       post_type=post.type,
@@ -553,3 +613,67 @@ def _create_social_post_image(
     image_urls.append(cloud_storage.get_public_cdn_url(uploaded_gcs_uri))
     image_bytes_list.append(img_bytes)
   return image_urls, image_bytes_list
+
+
+def _load_video_prompt_image_bytes(post: models.JokeSocialPost) -> list[bytes]:
+  """Load setup + punchline image bytes for a single-joke video post."""
+  if len(post.jokes) != 1:
+    raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
+  joke = post.jokes[0]
+  if not joke.setup_image_url or not joke.punchline_image_url:
+    raise SocialPostRequestError(
+      "JOKE_REEL_VIDEO text generation requires setup and punchline images")
+  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    joke.setup_image_url)
+  punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    joke.punchline_image_url)
+  return [
+    cloud_storage.download_bytes_from_gcs(setup_gcs_uri),
+    cloud_storage.download_bytes_from_gcs(punchline_gcs_uri),
+  ]
+
+
+def _ensure_video_uris_for_post(post: models.JokeSocialPost) -> bool:
+  """Ensure all platform video URI fields are set to the same value."""
+  shared_video_gcs_uri = (post.instagram_video_gcs_uri
+                          or post.facebook_video_gcs_uri
+                          or post.pinterest_video_gcs_uri or "").strip()
+  if not shared_video_gcs_uri:
+    generated_video = _generate_social_post_video(post)
+    shared_video_gcs_uri = (generated_video.gcs_uri or "").strip()
+    if not shared_video_gcs_uri:
+      raise SocialPostRequestError("Video generation did not return a GCS URI")
+
+  updated = False
+  if post.instagram_video_gcs_uri != shared_video_gcs_uri:
+    post.instagram_video_gcs_uri = shared_video_gcs_uri
+    updated = True
+  if post.facebook_video_gcs_uri != shared_video_gcs_uri:
+    post.facebook_video_gcs_uri = shared_video_gcs_uri
+    updated = True
+  if post.pinterest_video_gcs_uri != shared_video_gcs_uri:
+    post.pinterest_video_gcs_uri = shared_video_gcs_uri
+    updated = True
+  return updated
+
+
+def _generate_social_post_video(post: models.JokeSocialPost) -> models.Video:
+  """Generate video media for a single-joke JOKE_REEL_VIDEO post."""
+  if len(post.jokes) != 1:
+    raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
+  joke = post.jokes[0]
+  result = joke_operations.generate_joke_video(
+    joke,
+    teller_character_def_id=DEFAULT_SOCIAL_REEL_TELLER_CHARACTER_DEF_ID,
+    listener_character_def_id=DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID,
+    script_template=joke_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE,
+    use_audio_cache=True,
+  )
+  if result.error and not result.video_gcs_uri:
+    raise SocialPostRequestError(
+      f"Video generation failed: {result.error} ({result.error_stage or 'unknown'})"
+    )
+  video_gcs_uri = (result.video_gcs_uri or "").strip()
+  if not video_gcs_uri:
+    raise SocialPostRequestError("Video generation did not return a GCS URI")
+  return models.Video(gcs_uri=video_gcs_uri)

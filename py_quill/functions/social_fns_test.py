@@ -185,6 +185,108 @@ def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   assert created_arg.link_url == expected_link_url
 
 
+def test_social_post_creation_process_success_joke_video(
+  monkeypatch: pytest.MonkeyPatch, ):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  joke = models.PunnyJoke(
+    key="j1",
+    setup_text="Video setup",
+    punchline_text="Video punchline",
+    setup_image_url="https://cdn.example.com/setup.png",
+    punchline_image_url="https://cdn.example.com/punch.png",
+  )
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_punny_jokes", lambda _ids: [joke])
+  expected_link_url = ("https://snickerdoodlejokes.com/jokes/"
+                       f"{joke.human_readable_setup_text_slug}")
+
+  monkeypatch.setattr(
+    social_fns.social_operations.cloud_storage,
+    "extract_gcs_uri_from_image_url",
+    lambda image_url: f"gs://bucket/{image_url.rsplit('/', 1)[-1]}",
+  )
+  monkeypatch.setattr(
+    social_fns.social_operations.cloud_storage,
+    "download_bytes_from_gcs",
+    lambda gcs_uri: (f"bytes-{gcs_uri.rsplit('/', 1)[-1]}".encode("utf-8")),
+  )
+  monkeypatch.setattr(
+    social_fns.social_operations,
+    "DEFAULT_SOCIAL_REEL_TELLER_CHARACTER_DEF_ID",
+    "char_teller",
+  )
+  monkeypatch.setattr(
+    social_fns.social_operations,
+    "DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID",
+    "char_listener",
+  )
+
+  monkeypatch.setattr(
+    social_fns.social_operations.joke_operations,
+    "generate_joke_video",
+    lambda *_args, **_kwargs: Mock(
+      video_gcs_uri="gs://bucket/social/video.mp4",
+      error=None,
+      error_stage=None,
+    ),
+  )
+
+  def _fake_pin_prompt(image_bytes: list[bytes], *, post_type, recent_posts):
+    assert image_bytes == [b"bytes-setup.png", b"bytes-punch.png"]
+    assert post_type == models.JokeSocialPostType.JOKE_REEL_VIDEO
+    assert recent_posts == []
+    return "Pin title", "Pin description", "Pin alt", {}
+
+  def _fake_instagram_prompt(image_bytes: list[bytes], *, post_type,
+                             recent_posts):
+    assert image_bytes == [b"bytes-setup.png", b"bytes-punch.png"]
+    assert post_type == models.JokeSocialPostType.JOKE_REEL_VIDEO
+    assert recent_posts == []
+    return "IG reel caption", "IG alt", {}
+
+  def _fake_facebook_prompt(image_bytes: list[bytes], *, post_type, link_url,
+                            recent_posts):
+    assert image_bytes == [b"bytes-setup.png", b"bytes-punch.png"]
+    assert post_type == models.JokeSocialPostType.JOKE_REEL_VIDEO
+    assert link_url == expected_link_url
+    assert recent_posts == []
+    return "FB reel message", {}
+
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_pinterest_post_text", _fake_pin_prompt)
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_instagram_post_text", _fake_instagram_prompt)
+  monkeypatch.setattr(social_fns.social_operations.social_post_prompts,
+                      "generate_facebook_post_text", _fake_facebook_prompt)
+
+  def _fake_upsert(post, **_kwargs):
+    post.key = "post-video-1"
+    return post
+
+  monkeypatch.setattr(social_fns.firestore, "upsert_social_post",
+                      Mock(side_effect=_fake_upsert))
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "joke_ids": ["j1"],
+    "type": "JOKE_REEL_VIDEO",
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 200
+  payload = _json_payload(resp)
+  post_data = payload["data"]["post_data"]
+  assert post_data["type"] == "JOKE_REEL_VIDEO"
+  assert post_data["link_url"] == expected_link_url
+  assert post_data["pinterest_title"] == "Pin title"
+  assert post_data["instagram_caption"] == "IG reel caption"
+  assert post_data["facebook_message"] == "FB reel message"
+  assert post_data["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert post_data["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert post_data["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+
+
 def test_initialize_social_post_joke_grid_picks_most_shared_tag(
     monkeypatch: pytest.MonkeyPatch):
   jokes = [
@@ -382,7 +484,7 @@ def test_social_post_creation_process_regenerates_text_and_image(
     return post, {models.SocialPlatform.PINTEREST: [b"new-image"]}, True
 
   monkeypatch.setattr(social_fns.social_operations,
-                      "generate_social_post_images", _fake_generate_images)
+                      "generate_social_post_media", _fake_generate_images)
 
   def _fake_prompt(pin_image_bytes: list[bytes], *, post_type, recent_posts):
     assert pin_image_bytes == [b"new-image"]
@@ -543,8 +645,9 @@ def test_social_post_creation_process_publish_platform_instagram(
 
   captured = {}
 
-  def _fake_publish_instagram_post(*, images, caption):
+  def _fake_publish_instagram_post(*, images=None, video=None, caption):
     captured["caption"] = caption
+    captured["video"] = video
     captured["urls"] = [img.url for img in images]
     captured["alt_texts"] = [img.alt_text for img in images]
     return "ig-999"
@@ -569,6 +672,7 @@ def test_social_post_creation_process_publish_platform_instagram(
   assert isinstance(post_data["instagram_post_time"], str)
 
   assert captured["caption"] == "Caption"
+  assert captured["video"] is None
   assert captured["urls"] == ["https://cdn.example.com/ig.png"]
   assert captured["alt_texts"] == ["Alt"]
 
@@ -576,6 +680,51 @@ def test_social_post_creation_process_publish_platform_instagram(
   assert saved_post.instagram_post_id == "ig-999"
 
   assert update_mock.call_args.kwargs["operation"] == "PUBLISH_INSTAGRAM"
+
+
+def test_social_post_creation_process_publish_platform_instagram_video(
+  monkeypatch: pytest.MonkeyPatch, ):
+  monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
+
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+    link_url="https://snickerdoodlejokes.com/jokes/video",
+    instagram_caption="Video caption",
+    instagram_video_gcs_uri="gs://bucket/social/ig-video.mp4",
+  )
+  post.key = "post1"
+  monkeypatch.setattr(social_fns.social_operations.firestore,
+                      "get_joke_social_post", lambda _post_id: post)
+
+  captured = {}
+
+  def _fake_publish_instagram_post(*, images=None, video=None, caption):
+    captured["caption"] = caption
+    captured["video_gcs_uri"] = video.gcs_uri if video else None
+    captured["images"] = images
+    return "ig-video-999"
+
+  monkeypatch.setattr(social_fns.social_operations.meta_service,
+                      "publish_instagram_post", _fake_publish_instagram_post)
+
+  update_mock = Mock(side_effect=lambda post, **_kwargs: post)
+  monkeypatch.setattr(social_fns.firestore, "upsert_social_post", update_mock)
+
+  req = DummyReq(data={
+    "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
+    "post_id": "post1",
+    "publish_platform": "instagram",
+  }, )
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp.status_code == 200
+  payload = _json_payload(resp)
+  post_data = payload["data"]["post_data"]
+  assert post_data["instagram_post_id"] == "ig-video-999"
+  assert isinstance(post_data["instagram_post_time"], str)
+  assert captured["caption"] == "Video caption"
+  assert captured["video_gcs_uri"] == "gs://bucket/social/ig-video.mp4"
+  assert captured["images"] is None
 
 
 def test_social_post_creation_process_publish_platform_facebook_sets_alt_text_on_all_images(
@@ -598,8 +747,9 @@ def test_social_post_creation_process_publish_platform_facebook_sets_alt_text_on
 
   captured = {}
 
-  def _fake_publish_facebook_post(*, images, message):
+  def _fake_publish_facebook_post(*, images=None, video=None, message):
     captured["message"] = message
+    captured["video"] = video
     captured["urls"] = [img.url for img in images]
     captured["alt_texts"] = [img.alt_text for img in images]
     return "fb-999"
@@ -624,6 +774,7 @@ def test_social_post_creation_process_publish_platform_facebook_sets_alt_text_on
   assert isinstance(post_data["facebook_post_time"], str)
 
   assert captured["message"] == "FB message"
+  assert captured["video"] is None
   assert captured["urls"] == [
     "https://cdn.example.com/fb1.png",
     "https://cdn.example.com/fb2.png",

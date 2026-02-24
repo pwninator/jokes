@@ -24,8 +24,8 @@ def _make_image(url: str, alt_text: str | None = None) -> models.Image:
   return models.Image(url=url, alt_text=alt_text)
 
 
-def _make_video(url: str) -> models.Video:
-  return models.Video(url=url)
+def _make_video(gcs_uri: str) -> models.Video:
+  return models.Video(gcs_uri=gcs_uri)
 
 
 def test_publish_instagram_single_image(monkeypatch):
@@ -169,10 +169,15 @@ def test_publish_instagram_carousel_alt_text_for_each_image(monkeypatch):
 def test_publish_instagram_reel(monkeypatch):
   monkeypatch.setattr(config, "INSTAGRAM_USER_ID", "ig_reels")
   monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
+  monkeypatch.setattr(
+    "services.cloud_storage.get_public_cdn_url",
+    lambda _gcs_uri: "https://cdn.example.com/reel.mp4",
+  )
 
   calls = []
   responses = [
     _FakeResponse(200, {"id": "reel_container_1"}),
+    _FakeResponse(200, {"status_code": "FINISHED"}),
     _FakeResponse(200, {"id": "reel_media_1"}),
   ]
 
@@ -195,16 +200,69 @@ def test_publish_instagram_reel(monkeypatch):
 
   result = meta.publish_instagram_post(
     caption="Reel caption",
-    video=_make_video("https://example.com/reel.mp4"),
+    video=_make_video("gs://bucket/reel.mp4"),
   )
 
   assert result == "reel_media_1"
   assert calls[0]["url"].endswith("/v24.0/ig_reels/media")
   assert calls[0]["data"]["media_type"] == "REELS"
-  assert calls[0]["data"]["video_url"] == "https://example.com/reel.mp4"
+  assert calls[0]["data"]["video_url"] == "https://cdn.example.com/reel.mp4"
   assert calls[0]["data"]["caption"] == "Reel caption"
-  assert calls[1]["url"].endswith("/v24.0/ig_reels/media_publish")
-  assert calls[1]["data"]["creation_id"] == "reel_container_1"
+  assert calls[1]["url"].endswith("/v24.0/reel_container_1")
+  assert calls[1]["params"]["fields"] == "status_code"
+  assert calls[2]["url"].endswith("/v24.0/ig_reels/media_publish")
+  assert calls[2]["data"]["creation_id"] == "reel_container_1"
+
+
+def test_publish_instagram_reel_polls_until_media_ready(monkeypatch):
+  monkeypatch.setattr(config, "INSTAGRAM_USER_ID", "ig_reels")
+  monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
+  monkeypatch.setattr(
+    "services.cloud_storage.get_public_cdn_url",
+    lambda _gcs_uri: "https://cdn.example.com/reel.mp4",
+  )
+
+  calls = []
+  responses = [
+    _FakeResponse(200, {"id": "reel_container_1"}),
+    _FakeResponse(200, {"status_code": "IN_PROGRESS"}),
+    _FakeResponse(200, {"status_code": "FINISHED"}),
+    _FakeResponse(200, {"id": "reel_media_1"}),
+  ]
+
+  def fake_request(method,
+                   url,
+                   params=None,
+                   data=None,
+                   headers=None,
+                   timeout=None):
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params,
+      "headers": headers,
+    })
+    return responses.pop(0)
+
+  sleep_calls: list[int] = []
+  monkeypatch.setattr(meta.requests, "request", fake_request)
+  monkeypatch.setattr(meta.time, "sleep", lambda sec: sleep_calls.append(sec))
+
+  result = meta.publish_instagram_post(
+    caption="Reel caption",
+    video=_make_video("gs://bucket/reel.mp4"),
+  )
+
+  assert result == "reel_media_1"
+  assert calls[0]["url"].endswith("/v24.0/ig_reels/media")
+  assert calls[1]["url"].endswith("/v24.0/reel_container_1")
+  assert calls[1]["params"]["fields"] == "status_code"
+  assert calls[2]["url"].endswith("/v24.0/reel_container_1")
+  assert calls[2]["params"]["fields"] == "status_code"
+  assert calls[3]["url"].endswith("/v24.0/ig_reels/media_publish")
+  assert calls[3]["data"]["creation_id"] == "reel_container_1"
+  assert sleep_calls == [meta.REEL_STATUS_POLL_INTERVAL_SEC]
 
 
 def test_publish_instagram_rejects_images_and_video():
@@ -212,7 +270,7 @@ def test_publish_instagram_rejects_images_and_video():
     meta.publish_instagram_post(
       images=[_make_image("https://example.com/ig.png")],
       caption="Hello",
-      video=_make_video("https://example.com/reel.mp4"),
+      video=_make_video("gs://bucket/reel.mp4"),
     )
 
 
@@ -297,6 +355,10 @@ def test_publish_facebook_carousel_alt_text_for_each_image(monkeypatch):
 def test_publish_facebook_reel(monkeypatch):
   monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "page_reels")
   monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
+  monkeypatch.setattr(
+    "services.cloud_storage.get_public_cdn_url",
+    lambda _gcs_uri: "https://cdn.example.com/reel.mp4",
+  )
 
   upload_url = "https://rupload.facebook.com/video-upload/session-1"
   calls = []
@@ -308,6 +370,9 @@ def test_publish_facebook_reel(monkeypatch):
     }),
     _FakeResponse(200, {"success": True}),
     _FakeResponse(200, {"success": True}),
+    _FakeResponse(200, {"status": {
+      "video_status": "ready"
+    }}),
   ]
 
   def fake_request(method,
@@ -329,7 +394,7 @@ def test_publish_facebook_reel(monkeypatch):
 
   result = meta.publish_facebook_post(
     message="FB reel caption",
-    video=_make_video("https://example.com/reel.mp4"),
+    video=_make_video("gs://bucket/reel.mp4"),
   )
 
   assert result == "video_123"
@@ -342,7 +407,7 @@ def test_publish_facebook_reel(monkeypatch):
 
   assert calls[2]["url"] == upload_url
   assert calls[2]["headers"]["Authorization"] == "OAuth page_token_reels"
-  assert calls[2]["headers"]["file_url"] == "https://example.com/reel.mp4"
+  assert calls[2]["headers"]["file_url"] == "https://cdn.example.com/reel.mp4"
 
   assert calls[3]["url"].endswith("/v24.0/page_reels/video_reels")
   assert calls[3]["data"]["upload_phase"] == "finish"
@@ -351,11 +416,73 @@ def test_publish_facebook_reel(monkeypatch):
   assert calls[3]["data"]["description"] == "FB reel caption"
   assert calls[3]["data"]["access_token"] == "page_token_reels"
 
+  assert calls[4]["url"].endswith("/v24.0/video_123")
+  assert calls[4]["params"]["fields"] == "status"
+  assert calls[4]["params"]["access_token"] == "page_token_reels"
+
+
+def test_publish_facebook_reel_polls_until_ready(monkeypatch):
+  monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "page_reels")
+  monkeypatch.setattr(config, "get_meta_long_lived_token", lambda: "token")
+  monkeypatch.setattr(
+    "services.cloud_storage.get_public_cdn_url",
+    lambda _gcs_uri: "https://cdn.example.com/reel.mp4",
+  )
+
+  upload_url = "https://rupload.facebook.com/video-upload/session-1"
+  calls = []
+  responses = [
+    _FakeResponse(200, {"access_token": "page_token_reels"}),
+    _FakeResponse(200, {
+      "video_id": "video_123",
+      "upload_url": upload_url
+    }),
+    _FakeResponse(200, {"success": True}),
+    _FakeResponse(200, {"success": True}),
+    _FakeResponse(200, {"status": {
+      "video_status": "processing"
+    }}),
+    _FakeResponse(200, {"status": {
+      "video_status": "ready"
+    }}),
+  ]
+
+  def fake_request(method,
+                   url,
+                   params=None,
+                   data=None,
+                   headers=None,
+                   timeout=None):
+    calls.append({
+      "method": method,
+      "url": url,
+      "data": data,
+      "params": params,
+      "headers": headers,
+    })
+    return responses.pop(0)
+
+  sleep_calls: list[int] = []
+  monkeypatch.setattr(meta.requests, "request", fake_request)
+  monkeypatch.setattr(meta.time, "sleep", lambda sec: sleep_calls.append(sec))
+
+  result = meta.publish_facebook_post(
+    message="FB reel caption",
+    video=_make_video("gs://bucket/reel.mp4"),
+  )
+
+  assert result == "video_123"
+  assert calls[4]["url"].endswith("/v24.0/video_123")
+  assert calls[4]["params"]["fields"] == "status"
+  assert calls[5]["url"].endswith("/v24.0/video_123")
+  assert calls[5]["params"]["fields"] == "status"
+  assert sleep_calls == [meta.REEL_STATUS_POLL_INTERVAL_SEC]
+
 
 def test_publish_facebook_rejects_images_and_video():
   with pytest.raises(ValueError, match="mutually exclusive"):
     meta.publish_facebook_post(
       images=[_make_image("https://example.com/fb.png")],
       message="Hello",
-      video=_make_video("https://example.com/reel.mp4"),
+      video=_make_video("gs://bucket/reel.mp4"),
     )

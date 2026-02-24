@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+import time
+from typing import Any, cast
 
 import requests
 from common import config, models
@@ -11,10 +12,26 @@ from firebase_functions import logger
 
 GRAPH_API_VERSION = "v24.0"
 GRAPH_API_BASE_URL = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
+REEL_STATUS_POLL_INTERVAL_SEC = 3
+REEL_STATUS_MAX_ATTEMPTS = 60
 
 
 class MetaAPIError(Exception):
   """Raised when the Meta Graph API returns an error."""
+
+  status_code: int | None
+  response_data: dict[str, Any] | None
+
+  def __init__(
+    self,
+    message: str,
+    *,
+    status_code: int | None = None,
+    response_data: dict[str, Any] | None = None,
+  ):
+    super().__init__(message)
+    self.status_code = status_code
+    self.response_data = response_data
 
 
 def _make_graph_request(
@@ -59,7 +76,11 @@ def _make_graph_request(
         }
       },
     )
-    raise MetaAPIError(f"Meta Graph API error {response.status_code}: {data}")
+    raise MetaAPIError(
+      f"Meta Graph API error {response.status_code}: {data}",
+      status_code=response.status_code,
+      response_data=data,
+    )
 
   return data
 
@@ -76,14 +97,6 @@ def _extract_image_urls(images: list[models.Image]) -> list[str]:
       raise ValueError("All images must include a public url")
     urls.append(url)
   return urls
-
-
-def _extract_video_url(video: models.Video) -> str:
-  """Return a non-empty public video URL or raise."""
-  video_url = (video.url or "").strip()
-  if not video_url:
-    raise ValueError("video must include a public url")
-  return video_url
 
 
 def _validate_media_selection(
@@ -130,7 +143,7 @@ def publish_instagram_post(
 
   Args:
     images: Optional list of Image objects with public URLs.
-    video: Optional Video object with a public URL. Published as a Reel.
+    video: Optional Video object with a `gcs_uri`. Published as a Reel.
     caption: Caption text for the post.
 
   Returns:
@@ -206,7 +219,9 @@ def publish_instagram_post(
 def _publish_instagram_reel(*, video: models.Video, caption: str) -> str:
   """Publish a single Reel to Instagram and return the media id."""
   ig_user_id = config.INSTAGRAM_USER_ID
-  video_url = _extract_video_url(video)
+  video_url = video.url
+  if not video_url:
+    raise MetaAPIError("Video URL is required")
 
   container = _make_graph_request(
     "POST",
@@ -223,6 +238,8 @@ def _publish_instagram_reel(*, video: models.Video, caption: str) -> str:
   if not creation_id:
     raise MetaAPIError("Missing Instagram Reel creation id")
 
+  _wait_for_reel_media_ready(creation_id=creation_id)
+
   publish_resp = _make_graph_request(
     "POST",
     f"/{ig_user_id}/media_publish",
@@ -232,6 +249,101 @@ def _publish_instagram_reel(*, video: models.Video, caption: str) -> str:
   if not published_id:
     raise MetaAPIError("Missing Instagram Reel media id")
   return published_id
+
+
+def _parse_instagram_reel_status(response: dict[str, Any]) -> str:
+  """Extract and normalize Instagram reel status from Graph API response."""
+  status: Any = response.get("status_code")
+  if status is None:
+    return ""
+  return str(cast(object, status)).strip().upper()
+
+
+def _parse_facebook_reel_status(response: dict[str, Any]) -> str:
+  """Extract and normalize Facebook reel status from Graph API response."""
+  status_obj = response.get("status")
+  if not isinstance(status_obj, dict):
+    return ""
+
+  typed_status_obj = cast(dict[str, Any], status_obj)
+  status: Any = typed_status_obj.get("video_status")
+  if status is None:
+    return ""
+  return str(cast(object, status)).strip().upper()
+
+
+def _wait_for_reel_media_ready(
+  *,
+  creation_id: str | None = None,
+  video_id: str | None = None,
+  page_access_token: str | None = None,
+) -> None:
+  """Wait for Instagram or Facebook reel media to reach ready status.
+
+  Args:
+    creation_id: Instagram reel container id.
+    video_id: Facebook reel video id.
+    page_access_token: Required when polling Facebook video status.
+  """
+  if bool(creation_id) == bool(video_id):
+    raise ValueError("Specify exactly one of creation_id or video_id")
+
+  if creation_id:
+    platform = "instagram"
+    media_id = creation_id
+    status_field = "status_code"
+    request_params = {"fields": "status_code"}
+    request_access_token = None
+    ready_statuses = {"FINISHED", "PUBLISHED"}
+    terminal_statuses = {"ERROR", "EXPIRED"}
+    parse_status = _parse_instagram_reel_status
+  else:
+    if not page_access_token:
+      raise ValueError("page_access_token is required for Facebook polling")
+    platform = "facebook"
+    media_id = str(video_id)
+    status_field = "status.video_status"
+    request_params = {"fields": "status"}
+    request_access_token = page_access_token
+    ready_statuses = {"READY", "PUBLISHED", "FINISHED"}
+    terminal_statuses = {"ERROR", "FAILED", "BLOCKED", "REJECTED", "EXPIRED"}
+    parse_status = _parse_facebook_reel_status
+
+  last_status = ""
+  for attempt in range(1, REEL_STATUS_MAX_ATTEMPTS + 1):
+    status_resp = _make_graph_request(
+      "GET",
+      f"/{media_id}",
+      params=request_params,
+      access_token=request_access_token,
+    )
+    status = parse_status(status_resp)
+    last_status = status
+
+    if status in ready_statuses:
+      return
+    if status in terminal_statuses:
+      raise MetaAPIError(
+        f"{platform} reel media {media_id} entered terminal status: {status}")
+
+    if attempt < REEL_STATUS_MAX_ATTEMPTS:
+      logger.info(
+        "Reel media not ready yet",
+        extra={
+          "json_fields": {
+            "platform": platform,
+            "attempt": attempt,
+            "media_id": media_id,
+            "status_field": status_field,
+            "status": status,
+          }
+        },
+      )
+      time.sleep(REEL_STATUS_POLL_INTERVAL_SEC)
+
+  raise MetaAPIError(
+    f"{platform} reel media {media_id} not ready after "
+    f"{REEL_STATUS_MAX_ATTEMPTS} polls; last status={last_status}")
 
 
 def publish_facebook_post(
@@ -244,7 +356,7 @@ def publish_facebook_post(
   Args:
     images: Optional list of Image objects with public URLs.
     message: Message text for the post.
-    video: Optional Video object with a public URL. Published as a Reel.
+    video: Optional Video object with a `gcs_uri`. Published as a Reel.
 
   Returns:
     Published post ID.
@@ -347,7 +459,9 @@ def _publish_facebook_reel(*, video: models.Video, message: str) -> str:
   """Publish a single Reel to Facebook and return the video id."""
   page_id = config.FACEBOOK_PAGE_ID
   page_access_token = _get_facebook_page_access_token(page_id=page_id)
-  video_url = _extract_video_url(video)
+  video_url = video.url
+  if not video_url:
+    raise MetaAPIError("Video URL is required")
 
   start_resp = _make_graph_request(
     "POST",
@@ -383,4 +497,9 @@ def _publish_facebook_reel(*, video: models.Video, message: str) -> str:
   )
   if finish_resp.get("success") is False:
     raise MetaAPIError(f"Facebook Reel publish failed: {finish_resp}")
+
+  _wait_for_reel_media_ready(
+    video_id=video_id,
+    page_access_token=page_access_token,
+  )
   return video_id

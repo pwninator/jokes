@@ -211,8 +211,7 @@
             </select>
             <select id="turn{{ idx + 1 }}-voice-eleven" class="is-hidden" disabled>
               {% for voice in elevenlabs_voices %}
-                {% set default_voice = default_elevenlabs_voice_names[idx] if default_elevenlabs_voice_names and (default_elevenlabs_voice_names|length > idx) else '' %}
-                <option value="{{ voice.value }}" {% if voice.value == default_voice %}selected{% endif %}>
+                <option value="{{ voice.value }}" {% if voice.value == turn.voice %}selected{% endif %}>
                   {{ voice.label }}
                 </option>
               {% endfor %}

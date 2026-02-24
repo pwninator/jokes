@@ -890,14 +890,20 @@ class ElevenlabsAudioClient(AudioClient[ElevenLabs]):
       source_label="ElevenLabs forced alignment",
     )
     _log_response("Forced Alignment", response_data)
-    word_timings = [
-      audio_timing.WordTiming(
-        word=str(word.text),
-        start_time=float(word.start),
-        end_time=float(word.end),
-        char_timings=[],
-      ) for word in (response_data.words or [])
-    ]
+    word_timings: list[audio_timing.WordTiming] = []
+    for word in (response_data.words or []):
+      word_text = str(word.text)
+      # Forced-alignment word streams can include whitespace-only placeholders
+      # (for pauses/newlines). Those must not participate in turn segmentation.
+      if not any(ch.isalnum() for ch in word_text):
+        continue
+      word_timings.append(
+        audio_timing.WordTiming(
+          word=word_text,
+          start_time=float(word.start),
+          end_time=float(word.end),
+          char_timings=[],
+        ))
     metadata, request_id = self._create_metadata_from_headers(
       headers=response.headers,
       label=f"{self.label}_forced_alignment",

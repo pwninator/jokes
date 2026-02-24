@@ -773,6 +773,110 @@ def test_elevenlabs_create_forced_alignment_maps_words_directly():
   assert metadata.token_counts["characters_input"] == len("Hi\nthere")
 
 
+def test_elevenlabs_create_forced_alignment_ignores_whitespace_words():
+  from elevenlabs.types.forced_alignment_character_response_model import \
+      ForcedAlignmentCharacterResponseModel
+  from elevenlabs.types.forced_alignment_response_model import \
+      ForcedAlignmentResponseModel
+  from elevenlabs.types.forced_alignment_word_response_model import \
+      ForcedAlignmentWordResponseModel
+
+  class _FakeForcedAlignment:
+
+    def __init__(self, response):
+      self.response = response
+      self.with_raw_response = self
+
+    def create(self, **_kwargs):
+      return self.response
+
+  class _FakeElevenlabsClient:
+
+    def __init__(self, forced_alignment):
+      self.forced_alignment = forced_alignment
+
+  class _FakeRawResponse:
+
+    def __init__(self, *, headers, data):
+      self.headers = headers
+      self.data = data
+
+  response_data = ForcedAlignmentResponseModel(
+    characters=[
+      ForcedAlignmentCharacterResponseModel(text="H", start=0.00, end=0.10),
+      ForcedAlignmentCharacterResponseModel(text="i", start=0.10, end=0.20),
+      ForcedAlignmentCharacterResponseModel(text=" ", start=0.20, end=0.30),
+      ForcedAlignmentCharacterResponseModel(text="t", start=0.30, end=0.40),
+      ForcedAlignmentCharacterResponseModel(text="h", start=0.40, end=0.50),
+      ForcedAlignmentCharacterResponseModel(text="e", start=0.50, end=0.60),
+      ForcedAlignmentCharacterResponseModel(text="r", start=0.60, end=0.70),
+      ForcedAlignmentCharacterResponseModel(text="e", start=0.70, end=0.80),
+    ],
+    words=[
+      ForcedAlignmentWordResponseModel(text="Hi", start=0.00, end=0.20, loss=0.0),
+      ForcedAlignmentWordResponseModel(text=" ", start=0.20, end=0.30, loss=0.0),
+      ForcedAlignmentWordResponseModel(
+        text="there",
+        start=0.30,
+        end=0.80,
+        loss=0.0,
+      ),
+    ],
+    loss=0.0,
+  )
+  response = _FakeRawResponse(
+    headers={"x-character-count": "8"},
+    data=response_data,
+  )
+  fake_forced_alignment = _FakeForcedAlignment(response)
+
+  client = audio_client.ElevenlabsAudioClient(
+    label="test",
+    model=audio_client.AudioModel.ELEVENLABS_ELEVEN_V3,
+    max_retries=0,
+  )
+  with patch.object(
+      audio_client.ElevenlabsAudioClient,
+      "_create_model_client",
+      return_value=_FakeElevenlabsClient(fake_forced_alignment)), \
+      patch.object(audio_client, "_log_response"):
+    timing, _metadata = client.create_forced_alignment(
+      audio_bytes=b"fake-audio",
+      turns=[
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP,
+          script="Hi",
+        ),
+        audio_client.DialogTurn(
+          voice=gen_audio.Voice.ELEVENLABS_MINNIE,
+          script="there",
+        ),
+      ],
+      audio_filename="clip.mp3",
+    )
+
+  assert timing.normalized_alignment is not None
+  assert [w.word for w in timing.normalized_alignment] == ["Hi", "there"]
+  assert timing.voice_segments == [
+    audio_timing.VoiceSegment(
+      voice_id=gen_audio.Voice.ELEVENLABS_LULU_LOLLIPOP.voice_name,
+      start_time_seconds=0.0,
+      end_time_seconds=0.2,
+      word_start_index=0,
+      word_end_index=1,
+      dialogue_input_index=0,
+    ),
+    audio_timing.VoiceSegment(
+      voice_id=gen_audio.Voice.ELEVENLABS_MINNIE.voice_name,
+      start_time_seconds=0.3,
+      end_time_seconds=0.8,
+      word_start_index=1,
+      word_end_index=2,
+      dialogue_input_index=1,
+    ),
+  ]
+
+
 def test_elevenlabs_create_forced_alignment_raises_on_empty_words():
   from elevenlabs.types.forced_alignment_response_model import \
       ForcedAlignmentResponseModel

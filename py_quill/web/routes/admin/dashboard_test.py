@@ -441,24 +441,28 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert "<h3>POAS</h3>" in html
   assert "<h3>Gross Profit</h3>" not in html
   assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
-  assert "POAS Threshold (1.0)" in html
-  assert "suggestedMax: poasSuggestedMax" in html
+  assert '/static/js/ads_stats.js' in html
+  assert 'window.initAdsStatsPage' in html
+  assert 'chartData:' in html
+  assert 'id="modeSelector"' in html
+  assert '<option value="Timeline">Timeline</option>' in html
+  assert '<option value="Days of Week">Days of Week</option>' in html
 
   profit_pos = html.find("<h3>Profit</h3>")
   poas_pos = html.find("<h3>POAS</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
-  impressions_pos = html.find("<h3>Impressions</h3>")
-  clicks_pos = html.find("<h3>Clicks</h3>")
+  impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")
 
   assert profit_pos != -1
   assert poas_pos != -1
   assert cpc_and_cr_pos != -1
-  assert impressions_pos != -1
-  assert clicks_pos != -1
+  assert impressions_and_clicks_pos != -1
+  assert "<h3>Impressions</h3>" not in html
+  assert "<h3>Clicks</h3>" not in html
+  assert '<canvas id="impressionsAndClicksChart"></canvas>' in html
   assert profit_pos < poas_pos
   assert poas_pos < cpc_and_cr_pos
-  assert cpc_and_cr_pos < impressions_pos
-  assert impressions_pos < clicks_pos
+  assert cpc_and_cr_pos < impressions_and_clicks_pos
 
 
 def test_admin_ads_stats_filtering(monkeypatch):

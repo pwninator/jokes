@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common import models
+from common import config, models
 from functions import auth_helpers, joke_creation_fns
 from services import audio_client, gen_audio, firestore
 from web.app import app
@@ -69,6 +69,7 @@ def test_admin_joke_media_generator_page_loads(monkeypatch):
   assert html.count('value="char-2" selected') == 1
   assert 'joke_picker.js' in html
   assert 'name="op"' in html
+  assert f"https://{config.JOKE_CREATION_BIG_API_HOST}" in html
   assert f'value="{joke_creation_fns.JokeCreationOp.JOKE_AUDIO.value}"' in html
   assert f'value="{joke_creation_fns.JokeCreationOp.JOKE_VIDEO.value}"' in html
 

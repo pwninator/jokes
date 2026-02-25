@@ -14,6 +14,7 @@ TEMP_FILE_BUCKET_NAME = "temp.snickerdoodlejokes.com"
 
 ROOT_HOST = "snickerdoodlejokes.com"
 JOKE_CREATION_API_HOST = "api.snickerdoodlejokes.com"
+JOKE_CREATION_BIG_API_HOST = "bigapi.snickerdoodlejokes.com"
 
 # Admin session
 SESSION_COOKIE_NAME = '__session'

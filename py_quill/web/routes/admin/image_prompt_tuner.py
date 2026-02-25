@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import flask
 from agents import constants
-from common import image_generation
+from common import image_generation, utils
 from functions import auth_helpers, joke_creation_fns
 from web.routes import web_bp
-from web.routes.admin import joke_feed_utils
 
 _PROMPT_PREAMBLE = image_generation._IMAGE_GENERATION_PROMPT_PREAMBLE.strip()
 
@@ -41,7 +40,7 @@ def admin_image_prompt_tuner():
   return flask.render_template(
     'admin/image_prompt_tuner.html',
     site_name='Snickerdoodle',
-    joke_creation_url=joke_feed_utils.joke_creation_url(),
+    joke_creation_url=utils.joke_creation_url(),
     joke_image_op=joke_creation_fns.JokeCreationOp.JOKE_IMAGE.value,
     setup_prompt=setup_template,
     punchline_prompt=punchline_template,

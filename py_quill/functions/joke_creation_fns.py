@@ -41,54 +41,82 @@ class JokeCreationOp(str, Enum):
 )
 def joke_creation_process(req: flask.Request) -> flask.Response:
   """Handle joke creation scenarios for text entry, suggestions, and images."""
+  return _handle_joke_creation_process_request(
+    req,
+    function_name="joke_creation_process",
+  )
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_4,
+  timeout_sec=600,
+)
+def joke_creation_process_big(req: flask.Request) -> flask.Response:
+  """Handle joke creation scenarios with higher memory and no warm instance."""
+  return _handle_joke_creation_process_request(
+    req,
+    function_name="joke_creation_process_big",
+  )
+
+
+def _handle_joke_creation_process_request(
+  req: flask.Request,
+  *,
+  function_name: str,
+) -> flask.Response:
+  """Shared request handler for joke creation endpoints."""
   try:
     if response := _handle_admin_request(req):
       return response
-
-    op_value = get_param(req, "op", JokeCreationOp.PROC.value)
-    try:
-      op = JokeCreationOp(op_value)
-    except ValueError:
-      return error_response(f'Unsupported op: {op_value}',
-                            error_type='unsupported_operation',
-                            req=req,
-                            status=400)
-    if op == JokeCreationOp.PROC:
-      return _run_joke_creation_proc(req)
-    if op == JokeCreationOp.JOKE_IMAGE:
-      return _run_joke_image_tuner(req)
-    if op == JokeCreationOp.JOKE_AUDIO:
-      return _run_joke_audio_tuner(req)
-    if op == JokeCreationOp.JOKE_VIDEO:
-      return _run_joke_video_tuner(req)
-    if op == JokeCreationOp.SOCIAL:
-      return social_fns.run_social_post_creation_process(req)
-    if op == JokeCreationOp.PRINTABLE_NOTE:
-      return _run_printable_sheet_proc(req)
-    if op == JokeCreationOp.ANIMATION:
-      return _run_character_animation_op(req)
-    if op == JokeCreationOp.ANIMATION_LAUGH:
-      return _run_character_animation_laugh(req)
-    if op == JokeCreationOp.CHARACTER:
-      return _run_character_def_op(req)
-
-    return error_response(f'Unsupported op: {op_value}',
-                          error_type='unsupported_operation',
-                          req=req,
-                          status=400)
+    return _route_joke_creation_op(req)
 
   except joke_operations.SafetyCheckError as exc:
     error_string = f"Safety check failed: {str(exc)}"
     logger.error(error_string)
     return error_response(error_string, error_type='safety_failed', req=req)
   except Exception as exc:  # pylint: disable=broad-except
-    error_string = (f"Error handling joke_creation_process: {str(exc)}\n"
+    error_string = (f"Error handling {function_name}: {str(exc)}\n"
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string,
                           error_type='internal_error',
                           req=req,
                           status=500)
+
+
+def _route_joke_creation_op(req: flask.Request) -> flask.Response:
+  """Dispatch joke creation requests based on op."""
+  op_value = get_param(req, "op", JokeCreationOp.PROC.value)
+  try:
+    op = JokeCreationOp(op_value)
+  except ValueError:
+    return error_response(f'Unsupported op: {op_value}',
+                          error_type='unsupported_operation',
+                          req=req,
+                          status=400)
+  if op == JokeCreationOp.PROC:
+    return _run_joke_creation_proc(req)
+  if op == JokeCreationOp.JOKE_IMAGE:
+    return _run_joke_image_tuner(req)
+  if op == JokeCreationOp.JOKE_AUDIO:
+    return _run_joke_audio_tuner(req)
+  if op == JokeCreationOp.JOKE_VIDEO:
+    return _run_joke_video_tuner(req)
+  if op == JokeCreationOp.SOCIAL:
+    return social_fns.run_social_post_creation_process(req)
+  if op == JokeCreationOp.PRINTABLE_NOTE:
+    return _run_printable_sheet_proc(req)
+  if op == JokeCreationOp.ANIMATION:
+    return _run_character_animation_op(req)
+  if op == JokeCreationOp.ANIMATION_LAUGH:
+    return _run_character_animation_laugh(req)
+  if op == JokeCreationOp.CHARACTER:
+    return _run_character_def_op(req)
+
+  return error_response(f'Unsupported op: {op_value}',
+                        error_type='unsupported_operation',
+                        req=req,
+                        status=400)
 
 
 def _select_image_client(image_quality: str):
@@ -390,8 +418,8 @@ def _run_joke_video_tuner(req: flask.Request) -> flask.Response:
   listener_character_def_id_raw = get_param(req, 'listener_character_def_id')
   listener_character_def_id: str | None = None
   if listener_character_def_id_raw is not None:
-    listener_character_def_id = (
-      str(listener_character_def_id_raw).strip() or None)
+    listener_character_def_id = (str(listener_character_def_id_raw).strip()
+                                 or None)
 
   try:
     script_template, audio_model, allow_partial, use_audio_cache = _parse_tuner_audio_options(
@@ -557,8 +585,7 @@ def _run_joke_creation_proc(req: flask.Request) -> flask.Response:
       {"joke_data": joke_operations.to_response_joke(saved_joke)},
       req=req,
     )
-  else:
-    return error_response('Failed to save joke', req=req, status=500)
+  return error_response('Failed to save joke', req=req, status=500)
 
 
 def _run_printable_sheet_proc(req: flask.Request) -> flask.Response:

@@ -553,6 +553,30 @@ def test_joke_creation_process_defaults_op_to_proc(monkeypatch):
   assert resp is sentinel
 
 
+def test_joke_creation_process_big_uses_shared_handler(monkeypatch):
+  """Big endpoint should delegate to the same shared request handler."""
+  sentinel = object()
+  captured: dict[str, object] = {}
+
+  def fake_handle(req, *, function_name):
+    captured["req"] = req
+    captured["function_name"] = function_name
+    return sentinel
+
+  monkeypatch.setattr(
+    joke_creation_fns,
+    "_handle_joke_creation_process_request",
+    fake_handle,
+  )
+  req = DummyReq()
+
+  resp = joke_creation_fns.joke_creation_process_big(req)
+
+  assert resp is sentinel
+  assert captured["req"] is req
+  assert captured["function_name"] == "joke_creation_process_big"
+
+
 def test_joke_creation_process_rejects_unknown_op(monkeypatch):
   """Unknown ops should return a validation error."""
   monkeypatch.setattr(joke_creation_fns, "get_user_id",
@@ -869,7 +893,8 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     use_audio_cache=True,
   ):
     captured_video_args["teller_character_def_id"] = teller_character_def_id
-    captured_video_args["listener_character_def_id"] = listener_character_def_id
+    captured_video_args[
+      "listener_character_def_id"] = listener_character_def_id
     captured_video_args["script_template"] = script_template
     captured_video_args["audio_model"] = audio_model
     captured_video_args["temp_output"] = temp_output
@@ -1015,8 +1040,9 @@ def test_joke_creation_process_handles_joke_video_op_requires_teller_character(
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
     "generate_joke_video",
-    lambda *_args, **_kwargs: (_ for _ in ()).throw(
-      AssertionError("generate_joke_video should not be called")),
+    lambda *_args, **_kwargs:
+    (_ for _ in
+     ()).throw(AssertionError("generate_joke_video should not be called")),
   )
 
   resp = joke_creation_fns.joke_creation_process(
@@ -1063,7 +1089,8 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
     use_audio_cache=True,
   ):
     captured_video_args["teller_character_def_id"] = teller_character_def_id
-    captured_video_args["listener_character_def_id"] = listener_character_def_id
+    captured_video_args[
+      "listener_character_def_id"] = listener_character_def_id
     _ = temp_output
     _ = script_template
     _ = audio_model

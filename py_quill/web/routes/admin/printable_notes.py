@@ -11,7 +11,6 @@ from firebase_functions import logger
 from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
-from web.routes.admin import joke_feed_utils
 
 _MAX_PIN_JOKES = 5
 
@@ -80,7 +79,7 @@ def admin_printable_notes_manual():
     'admin/printable_notes_manual.html',
     site_name='Snickerdoodle',
     sheets=sheets_data,
-    joke_creation_url=joke_feed_utils.joke_creation_url(),
+    joke_creation_url=utils.joke_creation_url(),
   )
 
 

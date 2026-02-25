@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 
-from common import config, models, utils
+from common import models, utils
 
 _DEFAULT_THUMB_SIZE = 180
 
@@ -15,19 +15,12 @@ class JokeFeedEntry:
   joke: models.PunnyJoke
   cursor: str
   is_future_daily: bool
-  edit_payload: dict
+  edit_payload: dict[str, object]
 
 
 def parse_category_filter(value: str | None) -> str | None:
   category_id = (value or "").strip()
   return category_id or None
-
-
-def joke_creation_url() -> str:
-  """Return the base URL for joke creation requests."""
-  if utils.is_emulator():
-    return "/joke_creation_process"
-  return f"https://{config.JOKE_CREATION_API_HOST}"
 
 
 def _dedupe_keep_order(values: list[str]) -> list[str]:
@@ -58,9 +51,10 @@ def is_future_daily(joke: models.PunnyJoke, *,
   return public_ts > now_utc
 
 
-def build_edit_payload(joke: models.PunnyJoke,
-                       *,
-                       thumb_size: int = _DEFAULT_THUMB_SIZE) -> dict:
+def build_edit_payload(
+    joke: models.PunnyJoke,
+    *,
+    thumb_size: int = _DEFAULT_THUMB_SIZE) -> dict[str, object]:
   setup_urls = list(getattr(joke, "all_setup_image_urls", None) or [])
   punchline_urls = list(getattr(joke, "all_punchline_image_urls", None) or [])
 

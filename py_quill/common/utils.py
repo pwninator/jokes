@@ -84,6 +84,23 @@ def cloud_functions_base_url() -> str:
           f"{config.PROJECT_ID}.cloudfunctions.net")
 
 
+def joke_creation_url() -> str:
+  """Return the default API URL for joke creation requests."""
+  return _joke_creation_url_for_host(config.JOKE_CREATION_API_HOST)
+
+
+def joke_creation_big_url() -> str:
+  """Return the high-memory API URL for joke creation requests."""
+  return _joke_creation_url_for_host(config.JOKE_CREATION_BIG_API_HOST)
+
+
+def _joke_creation_url_for_host(host: str) -> str:
+  """Build a joke creation URL for the current environment."""
+  if is_emulator():
+    return "/joke_creation_process"
+  return f"https://{host}"
+
+
 def format_image_url(
   image_url: str,
   image_format: str | None = None,

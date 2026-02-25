@@ -55,9 +55,9 @@ def test_admin_social_renders_picker_shell(monkeypatch):
   assert 'new window.JokePicker' in html
   assert 'admin-social-create-button' in html
   assert 'admin-social-post-type' in html
-  assert f"https://{config.JOKE_CREATION_API_HOST}" in html
-  assert (
-    f'createPostEndpoint = "https://{config.JOKE_CREATION_API_HOST}"') in html
+  assert f"https://{config.JOKE_CREATION_BIG_API_HOST}" in html
+  assert (f'createPostEndpoint = "https://{config.JOKE_CREATION_BIG_API_HOST}"'
+          ) in html
   assert 'value="JOKE_REEL_VIDEO"' in html
   assert 'option value="JOKE_REEL_VIDEO" selected' in html
   assert "op: 'social'" in html

@@ -1,6 +1,6 @@
 """Tests for the utils module."""
 
-from common import utils
+from common import config, utils
 
 
 def test_format_image_url_updates_params():
@@ -107,3 +107,19 @@ def test_get_text_slug_human_readable_cleans_punctuation():
   result = utils.get_text_slug("He said 'hi!' and 'hello?'",
                                human_readable=True)
   assert result == "he_said_hi_and_hello"
+
+
+def test_joke_creation_url_uses_standard_api_host(monkeypatch):
+  monkeypatch.setattr(utils, "is_emulator", lambda: False)
+  assert utils.joke_creation_url() == f"https://{config.JOKE_CREATION_API_HOST}"
+
+
+def test_joke_creation_big_url_uses_big_api_host(monkeypatch):
+  monkeypatch.setattr(utils, "is_emulator", lambda: False)
+  assert (utils.joke_creation_big_url() ==
+          f"https://{config.JOKE_CREATION_BIG_API_HOST}")
+
+
+def test_joke_creation_big_url_uses_local_path_in_emulator(monkeypatch):
+  monkeypatch.setattr(utils, "is_emulator", lambda: True)
+  assert utils.joke_creation_big_url() == "/joke_creation_process"

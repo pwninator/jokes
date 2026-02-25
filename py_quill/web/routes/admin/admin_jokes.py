@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 
 import flask
-from common import image_generation, models
+from common import image_generation, models, utils
 from functions import auth_helpers
 from services import firestore
 from web.routes import web_bp
@@ -84,7 +84,7 @@ def admin_jokes():
   return flask.render_template(
     'admin/admin_jokes.html',
     site_name='Snickerdoodle',
-    joke_creation_url=joke_feed_utils.joke_creation_url(),
+    joke_creation_url=utils.joke_creation_url(),
     all_states=[s.value for s in _ALL_STATES],
     selected_states=[s.value for s in selected_states],
     selected_states_param=selected_states_param,

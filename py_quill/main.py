@@ -58,6 +58,7 @@ search_jokes = joke_fns.search_jokes
 # joke_manual_tag = joke_fns.joke_manual_tag
 get_joke_bundle = joke_fns.get_joke_bundle
 joke_creation_process = joke_creation_fns.joke_creation_process
+joke_creation_process_big = joke_creation_fns.joke_creation_process_big
 
 # Export the joke trigger functions
 on_joke_write = joke_trigger_fns.on_joke_write

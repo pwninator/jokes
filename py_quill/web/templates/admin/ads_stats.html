@@ -98,12 +98,12 @@
 
 <section class="stats-charts">
   <div class="chart-container">
-    <h3>Gross Profit</h3>
-    <canvas id="grossProfitChart"></canvas>
+    <h3>Profit</h3>
+    <canvas id="profitChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>Cost / Gross Profit Before Ads</h3>
-    <canvas id="costAndGrossProfitBeforeAdsChart"></canvas>
+    <h3>POAS</h3>
+    <canvas id="poasChart"></canvas>
   </div>
   <div class="chart-container">
     <h3>CPC / Conversion Rate</h3>
@@ -136,15 +136,21 @@
     return Number(value).toFixed(1) + '%';
   }
 
+  function formatRatio(value) {
+    return Number(value).toFixed(2);
+  }
+
   function formatValueByType(formatType, value) {
     if (formatType === 'currency') return formatCurrency(value);
     if (formatType === 'percent') return formatPercentage(value);
+    if (formatType === 'ratio') return formatRatio(value);
     return formatNumber(value);
   }
 
   function formatTickByType(formatType, value) {
     if (formatType === 'currency') return '$' + Number(value).toFixed(2);
     if (formatType === 'percent') return Number(value).toFixed(1) + '%';
+    if (formatType === 'ratio') return Number(value).toFixed(2);
     return value;
   }
 
@@ -218,6 +224,7 @@
       units_sold: [],
       gross_profit_before_ads: [],
       gross_profit: [],
+      poas: [],
       cpc: [],
       conversion_rate: [],
       totals: {
@@ -276,6 +283,7 @@
       stats.gross_profit.push(dayGp);
 
       // Calculate derived daily metrics
+      stats.poas.push(dayCost > 0 ? dayGpPreAd / dayCost : 0);
       stats.cpc.push(dayClicks > 0 ? dayCost / dayClicks : 0);
       stats.conversion_rate.push(dayClicks > 0 ? (dayUnitsSold / dayClicks) * 100 : 0);
 
@@ -290,15 +298,14 @@
     });
 
     // Render Charts
-    createLineChart('grossProfitChart', 'Gross Profit', stats.gross_profit, '#ad1457', 'currency');
     createMultiLineChart(
-      'costAndGrossProfitBeforeAdsChart',
+      'profitChart',
       [
         {
           label: 'Cost',
           data: stats.cost,
-          borderColor: '#6a1b9a',
-          backgroundColor: '#6a1b9a22',
+          borderColor: '#c62828',
+          backgroundColor: '#c6282822',
           fill: false,
           tension: 0.2,
           pointRadius: 3,
@@ -308,8 +315,19 @@
         {
           label: 'Gross Profit Before Ads',
           data: stats.gross_profit_before_ads,
-          borderColor: '#00695c',
-          backgroundColor: '#00695c22',
+          borderColor: '#2e7d32',
+          backgroundColor: '#2e7d3222',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y',
+          formatType: 'currency',
+        },
+        {
+          label: 'Gross Profit',
+          data: stats.gross_profit,
+          borderColor: '#6a1b9a',
+          backgroundColor: '#6a1b9a22',
           fill: false,
           tension: 0.2,
           pointRadius: 3,
@@ -323,6 +341,46 @@
           ticks: {
             callback: function(value) {
               return formatTickByType('currency', value);
+            }
+          }
+        }
+      },
+    );
+    const poasSuggestedMax = Math.max(1.1, ...stats.poas, 1.0);
+    createMultiLineChart(
+      'poasChart',
+      [
+        {
+          label: 'POAS',
+          data: stats.poas,
+          borderColor: '#1565c0',
+          backgroundColor: '#1565c022',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 3,
+          yAxisID: 'y',
+          formatType: 'ratio',
+        },
+        {
+          label: 'POAS Threshold (1.0)',
+          data: stats.poas.map(() => 1.0),
+          borderColor: '#c62828',
+          backgroundColor: '#c6282822',
+          fill: false,
+          tension: 0,
+          pointRadius: 0,
+          borderWidth: 1,
+          yAxisID: 'y',
+          formatType: 'ratio',
+        },
+      ],
+      {
+        y: {
+          beginAtZero: true,
+          suggestedMax: poasSuggestedMax,
+          ticks: {
+            callback: function(value) {
+              return formatTickByType('ratio', value);
             }
           }
         }

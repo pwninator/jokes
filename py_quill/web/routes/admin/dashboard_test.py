@@ -437,19 +437,26 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="stat-sales"' not in html
   assert "<h3>Sales</h3>" not in html
 
-  gross_profit_pos = html.find("<h3>Gross Profit</h3>")
-  cost_and_gp_pre_ad_pos = html.find("<h3>Cost / Gross Profit Before Ads</h3>")
+  assert "<h3>Profit</h3>" in html
+  assert "<h3>POAS</h3>" in html
+  assert "<h3>Gross Profit</h3>" not in html
+  assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
+  assert "POAS Threshold (1.0)" in html
+  assert "suggestedMax: poasSuggestedMax" in html
+
+  profit_pos = html.find("<h3>Profit</h3>")
+  poas_pos = html.find("<h3>POAS</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
   impressions_pos = html.find("<h3>Impressions</h3>")
   clicks_pos = html.find("<h3>Clicks</h3>")
 
-  assert gross_profit_pos != -1
-  assert cost_and_gp_pre_ad_pos != -1
+  assert profit_pos != -1
+  assert poas_pos != -1
   assert cpc_and_cr_pos != -1
   assert impressions_pos != -1
   assert clicks_pos != -1
-  assert gross_profit_pos < cost_and_gp_pre_ad_pos
-  assert cost_and_gp_pre_ad_pos < cpc_and_cr_pos
+  assert profit_pos < poas_pos
+  assert poas_pos < cpc_and_cr_pos
   assert cpc_and_cr_pos < impressions_pos
   assert impressions_pos < clicks_pos
 

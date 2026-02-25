@@ -59,6 +59,7 @@ def test_admin_social_renders_picker_shell(monkeypatch):
   assert (
     f'createPostEndpoint = "https://{config.JOKE_CREATION_API_HOST}"') in html
   assert 'value="JOKE_REEL_VIDEO"' in html
+  assert 'option value="JOKE_REEL_VIDEO" selected' in html
   assert "op: 'social'" in html
   assert "postModalInput.focus()" in html
 

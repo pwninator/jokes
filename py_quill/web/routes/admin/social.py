@@ -22,5 +22,5 @@ def admin_social():
     joke_creation_url=joke_feed_utils.joke_creation_url(),
     social_posts=social_posts,
     post_type_options=[t.value for t in models.JokeSocialPostType],
-    default_post_type=models.JokeSocialPostType.JOKE_GRID.value,
+    default_post_type=models.JokeSocialPostType.JOKE_REEL_VIDEO.value,
   )

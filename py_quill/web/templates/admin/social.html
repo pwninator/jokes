@@ -483,9 +483,8 @@
       <div class="pin-controls">
         <label class="post-type-select-label" for="admin-social-post-type">Post type</label>
         <select class="post-type-select" id="admin-social-post-type">
-          {% set resolved_default_post_type = 'JOKE_CAROUSEL' %}
           {% for option in post_type_options %}
-          <option value="{{ option }}" {% if option==resolved_default_post_type %}selected{% endif %}>
+          <option value="{{ option }}" {% if option==default_post_type %}selected{% endif %}>
             {{ option.replace('_', ' ') }}
           </option>
           {% endfor %}

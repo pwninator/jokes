@@ -27,6 +27,8 @@ BLINK_JITTER_SEC = 1.0
 BLINK_DURATION_SEC = 0.15
 BLINK_EYE_CLOSE_BUFFER_SEC = 2.0
 """Minimum time from open->closed transitions where blinks are disallowed."""
+BLINK_SECOND_ACTOR_FIRST_DELAY_MULTIPLIER = 1.5
+"""First-blink delay multiplier for the second actor track."""
 _EPSILON = 1e-6
 
 
@@ -195,9 +197,12 @@ def build_character_sequences(
       scene_end_sec=timeline.total_duration_sec,
       extend_first_sequence=extend_first_sequence,
     )
+    first_blink_delay_multiplier = (BLINK_SECOND_ACTOR_FIRST_DELAY_MULTIPLIER
+                                    if actor_index == 1 else 1.0)
     dialog_entries = _inject_blinks(
       dialog_entries=dialog_entries,
       rng=random.Random(actor_id),
+      first_blink_delay_multiplier=first_blink_delay_multiplier,
     )
     for start_time, sequence in dialog_entries:
       resolved_sequence = sequence
@@ -308,6 +313,7 @@ def _inject_blinks(
   blink_jitter_sec: float = BLINK_JITTER_SEC,
   blink_duration_sec: float = BLINK_DURATION_SEC,
   eye_close_buffer_sec: float = BLINK_EYE_CLOSE_BUFFER_SEC,
+  first_blink_delay_multiplier: float = 1.0,
 ) -> list[tuple[float, PosableCharacterSequence]]:
   """Inject blinks into resolved per-actor dialog entries.
 
@@ -320,6 +326,8 @@ def _inject_blinks(
     blink_duration_sec: Duration of each injected blink in seconds.
     eye_close_buffer_sec: Minimum distance from open->closed transitions where
       blinks are disallowed.
+    first_blink_delay_multiplier: Multiplier applied to the first sampled blink
+      delay per open window.
 
   Returns:
     A new list of dialog entries where eye tracks include injected blinks while
@@ -335,6 +343,8 @@ def _inject_blinks(
     raise ValueError("blink_duration_sec must be positive")
   if eye_close_buffer_sec < 0.0:
     raise ValueError("eye_close_buffer_sec must be non-negative")
+  if first_blink_delay_multiplier <= 0.0:
+    raise ValueError("first_blink_delay_multiplier must be positive")
 
   resolved_rng = rng or random.Random(0)
   open_windows, eye_close_times = _resolve_open_windows_and_eye_close_times(
@@ -350,6 +360,7 @@ def _inject_blinks(
     blink_jitter_sec=blink_jitter_sec,
     blink_duration_sec=blink_duration_sec,
     eye_close_buffer_sec=eye_close_buffer_sec,
+    first_blink_delay_multiplier=first_blink_delay_multiplier,
   )
   if not blink_times:
     return dialog_entries
@@ -467,6 +478,7 @@ def _generate_blink_times(
   blink_jitter_sec: float,
   blink_duration_sec: float,
   eye_close_buffer_sec: float,
+  first_blink_delay_multiplier: float,
 ) -> list[float]:
   """Generate blink start times inside valid open windows.
 
@@ -478,6 +490,8 @@ def _generate_blink_times(
     blink_jitter_sec: Symmetric jitter range around `blink_period_sec`.
     blink_duration_sec: Duration of each blink interval.
     eye_close_buffer_sec: Required distance from close transitions.
+    first_blink_delay_multiplier: Multiplier applied to the first sampled blink
+      delay per open window.
 
   Returns:
     Global blink start timestamps that satisfy timing and safety constraints.
@@ -487,9 +501,13 @@ def _generate_blink_times(
   blink_times: list[float] = []
   for window_start_sec, window_end_sec in open_windows:
     cursor_sec = window_start_sec
+    is_first_candidate = True
     while cursor_sec < window_end_sec:
       next_period = rng.uniform(min_period, max_period)
+      if is_first_candidate:
+        next_period *= first_blink_delay_multiplier
       candidate_sec = cursor_sec + next_period
+      is_first_candidate = False
       if candidate_sec >= window_end_sec:
         break
       adjusted_sec = _adjust_away_from_eye_close_events(

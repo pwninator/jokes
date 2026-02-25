@@ -251,3 +251,26 @@ def test_inject_blinks_across_sequences_targets_correct_local_sequence():
   left_starts, right_starts = _blink_starts(updated, blink_duration_sec=0.15)
   assert left_starts == pytest.approx([4.0])
   assert right_starts == pytest.approx([4.0])
+
+
+def test_inject_blinks_applies_first_delay_multiplier():
+  entries = [(0.0,
+              _pose_hold_sequence(
+                duration_sec=10.0,
+                left_eye_open=True,
+                right_eye_open=True,
+              ))]
+
+  updated = script_utils._inject_blinks(
+    dialog_entries=entries,
+    rng=_ConstantRandom(4.0),
+    blink_period_sec=4.0,
+    blink_jitter_sec=1.0,
+    blink_duration_sec=0.15,
+    eye_close_buffer_sec=2.0,
+    first_blink_delay_multiplier=1.5,
+  )
+
+  left_starts, right_starts = _blink_starts(updated, blink_duration_sec=0.15)
+  assert left_starts == pytest.approx([6.0])
+  assert right_starts == pytest.approx([6.0])

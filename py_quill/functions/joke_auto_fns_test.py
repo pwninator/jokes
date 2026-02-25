@@ -152,7 +152,7 @@ class TestAdsStatsFetcher:
 
   def test_internal_fetches_us_ca_uk_and_requests_reports(self, monkeypatch):
     now_utc = _create_test_datetime(2026, 2, 18, 5, 30)
-    report_end_date = now_utc.date() - datetime.timedelta(days=1)
+    report_end_date = now_utc.date()
     report_start_date = report_end_date - datetime.timedelta(
       days=joke_auto_fns._ADS_STATS_REPORT_WINDOW_DAYS)
     profiles = [
@@ -439,7 +439,7 @@ class TestAdsStatsFetcher:
   def test_internal_skips_creation_when_today_reports_already_exist(
       self, monkeypatch):
     now_utc = _create_test_datetime(2026, 2, 18, 5, 30)
-    report_end_date = now_utc.date() - datetime.timedelta(days=1)
+    report_end_date = now_utc.date()
     report_start_date = report_end_date - datetime.timedelta(
       days=joke_auto_fns._ADS_STATS_REPORT_WINDOW_DAYS)
     profiles = [
@@ -759,7 +759,7 @@ class TestAdsStatsFetcher:
       self, monkeypatch):
     """Test that if existing reports are all processed, we request new ones."""
     now_utc = _create_test_datetime(2026, 2, 18, 5, 30)
-    report_end_date = now_utc.date() - datetime.timedelta(days=1)
+    report_end_date = now_utc.date()
     report_start_date = report_end_date - datetime.timedelta(
       days=joke_auto_fns._ADS_STATS_REPORT_WINDOW_DAYS)
     profiles = [
@@ -789,10 +789,8 @@ class TestAdsStatsFetcher:
         region="na",
         api_base="https://advertising-api.amazon.com",
         processed=True,  # Crucial: Marked as processed
-      )
-      for type_id in [
-        "spCampaigns", "spAdvertisedProduct", "spPurchasedProduct"
-      ]
+      ) for type_id in
+      ["spCampaigns", "spAdvertisedProduct", "spPurchasedProduct"]
     ]
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.list_amazon_ads_reports',

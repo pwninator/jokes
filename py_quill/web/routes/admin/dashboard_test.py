@@ -286,14 +286,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   """Ads stats page uses daily stats rows and fills missing dates."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
-
-  class _FixedDate(datetime.date):
-
-    @classmethod
-    def today(cls):
-      return cls(2026, 2, 20)
-
-  monkeypatch.setattr(dashboard_routes.datetime, "date", _FixedDate)
+  monkeypatch.setattr(dashboard_routes, "_today_in_los_angeles",
+                      lambda: datetime.date(2026, 2, 20))
 
   captured: dict = {}
 
@@ -311,7 +305,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     call_args["end_date"] = end_date
     return [
       models.AmazonAdsDailyStats(
-        date=_FixedDate(2026, 2, 19),
+        date=datetime.date(2026, 2, 19),
         impressions=175,
         clicks=15,
         spend=25.0,
@@ -320,7 +314,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
         gross_profit=35.0,
       ),
       models.AmazonAdsDailyStats(
-        date=_FixedDate(2026, 2, 17),
+        date=datetime.date(2026, 2, 17),
         impressions=30,
         clicks=3,
         spend=4.50,
@@ -341,8 +335,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
 
   assert resp.status_code == 200
   assert captured["template"] == "admin/ads_stats.html"
-  assert call_args["start_date"] == _FixedDate(2026, 1, 22)
-  assert call_args["end_date"] == _FixedDate(2026, 2, 20)
+  assert call_args["start_date"] == datetime.date(2026, 1, 22)
+  assert call_args["end_date"] == datetime.date(2026, 2, 20)
   assert captured["start_date"] == "2026-01-22"
   assert captured["end_date"] == "2026-02-20"
 
@@ -403,6 +397,27 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/admin/ads-stats"' in html
   assert 'Ads Stats' in html
+
+
+def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
+  """Ads stats page includes refresh link to the Cloud Function URL."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert ('href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/"'
+          in html)
+  assert 'target="_blank"' in html
+  assert 'rel="noopener noreferrer"' in html
+  assert 'Back to Dashboard' not in html
 
 
 def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):

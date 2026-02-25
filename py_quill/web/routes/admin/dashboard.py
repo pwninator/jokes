@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+from zoneinfo import ZoneInfo
 
 import flask
 
@@ -15,6 +16,12 @@ from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
 
 _ADS_STATS_LOOKBACK_DAYS = 30
+_LOS_ANGELES_TIMEZONE = ZoneInfo("America/Los_Angeles")
+
+
+def _today_in_los_angeles() -> datetime.date:
+  """Return today's date in America/Los_Angeles."""
+  return datetime.datetime.now(tz=_LOS_ANGELES_TIMEZONE).date()
 
 
 @web_bp.route('/admin')
@@ -146,7 +153,7 @@ def admin_stats():
 @auth_helpers.require_admin
 def admin_ads_stats():
   """Render Amazon Ads daily metrics, aggregated by date."""
-  end_date = datetime.date.today()
+  end_date = _today_in_los_angeles()
   start_date = end_date - datetime.timedelta(days=_ADS_STATS_LOOKBACK_DAYS - 1)
   stats_list = firestore.list_amazon_ads_daily_stats(
     start_date=start_date,

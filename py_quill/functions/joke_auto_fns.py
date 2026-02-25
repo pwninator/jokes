@@ -168,7 +168,7 @@ def _user_daily_maintenance_internal(
 def _auto_ads_stats_internal(
     run_time_utc: datetime.datetime) -> dict[str, object]:
   """Fetch target country profiles and request daily ads reports."""
-  report_end_date = run_time_utc.date() - datetime.timedelta(days=1)
+  report_end_date = run_time_utc.date()
   report_start_date = report_end_date - datetime.timedelta(
     days=_ADS_STATS_REPORT_WINDOW_DAYS)
   today_utc = run_time_utc.date()

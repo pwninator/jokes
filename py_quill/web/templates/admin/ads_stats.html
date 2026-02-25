@@ -6,13 +6,15 @@
 <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center;">
   <div>
     <h2>Ads Stats</h2>
-    <a href="{{ url_for('web.admin_dashboard') }}">Back to Dashboard</a>
   </div>
-  <div style="display: flex; align-items: center; gap: 8px;">
-    <label for="campaignSelector" style="font-weight: bold; color: var(--color-text);">Campaign:</label>
-    <select id="campaignSelector" style="padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);">
-      <option value="All">All</option>
-    </select>
+  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <label for="campaignSelector" style="font-weight: bold; color: var(--color-text);">Campaign:</label>
+      <select id="campaignSelector" style="padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <a href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/" target="_blank" rel="noopener noreferrer">Refresh</a>
   </div>
 </div>
 
@@ -44,6 +46,18 @@
     font-size: 1.4rem;
     font-weight: 700;
     color: var(--color-text);
+  }
+  .chart-container {
+    position: relative;
+    height: 320px;
+    width: 100%;
+    margin-bottom: 56px;
+  }
+  .chart-container h3 {
+    margin: 0 0 10px;
+  }
+  .chart-container:last-child {
+    margin-bottom: 0;
   }
 </style>
 
@@ -83,23 +97,23 @@
 </p>
 
 <section class="stats-charts">
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+  <div class="chart-container">
     <h3>Gross Profit</h3>
     <canvas id="grossProfitChart"></canvas>
   </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+  <div class="chart-container">
     <h3>Cost / Gross Profit Before Ads</h3>
     <canvas id="costAndGrossProfitBeforeAdsChart"></canvas>
   </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+  <div class="chart-container">
     <h3>CPC / Conversion Rate</h3>
     <canvas id="cpcAndConversionRateChart"></canvas>
   </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%; margin-bottom: 28px;">
+  <div class="chart-container">
     <h3>Impressions</h3>
     <canvas id="impressionsChart"></canvas>
   </div>
-  <div class="chart-container" style="position: relative; height:320px; width:100%;">
+  <div class="chart-container">
     <h3>Clicks</h3>
     <canvas id="clicksChart"></canvas>
   </div>

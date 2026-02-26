@@ -27,6 +27,7 @@ moviepy
 numpy
 opencv-python-headless
 openai
+openpyxl
 pandas
 Pillow
 praat-parselmouth

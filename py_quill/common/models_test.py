@@ -521,7 +521,7 @@ def test_amazon_ads_daily_campaign_stats_to_and_from_dict():
     gross_profit_before_ads=44.75,
     gross_profit=32.25,
     sale_items=[
-      models.AmazonAdsProductStats(
+      models.AmazonProductStats(
         asin="B09XYZ",
         units_sold=2,
         sales_amount=20.0,

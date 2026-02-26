@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import io
 from unittest.mock import Mock
 
 import pytest
@@ -445,24 +446,31 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'window.initAdsStatsPage' in html
   assert 'chartData:' in html
   assert 'id="modeSelector"' in html
+  assert 'id="stat-ctr"' in html
+  assert '<canvas id="ctrChart"></canvas>' in html
   assert '<option value="Timeline">Timeline</option>' in html
   assert '<option value="Days of Week">Days of Week</option>' in html
+  assert 'class="ads-stats-filters-row"' in html
+  assert "flex-wrap: wrap;" in html
 
   profit_pos = html.find("<h3>Profit</h3>")
   poas_pos = html.find("<h3>POAS</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
+  ctr_pos = html.find("<h3>CTR</h3>")
   impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")
 
   assert profit_pos != -1
   assert poas_pos != -1
   assert cpc_and_cr_pos != -1
+  assert ctr_pos != -1
   assert impressions_and_clicks_pos != -1
   assert "<h3>Impressions</h3>" not in html
   assert "<h3>Clicks</h3>" not in html
   assert '<canvas id="impressionsAndClicksChart"></canvas>' in html
   assert profit_pos < poas_pos
   assert poas_pos < cpc_and_cr_pos
-  assert cpc_and_cr_pos < impressions_and_clicks_pos
+  assert cpc_and_cr_pos < ctr_pos
+  assert ctr_pos < impressions_and_clicks_pos
 
 
 def test_admin_ads_stats_filtering(monkeypatch):
@@ -548,3 +556,73 @@ def test_admin_ads_stats_filtering(monkeypatch):
   # Find index of the stats date
   date_idx = chart_data["labels"].index("2026-02-20")
   assert chart_data["units_sold"][date_idx] == 2
+
+
+def test_admin_ads_stats_upload_kdp_success(monkeypatch):
+  """KDP upload route parses and persists daily stats."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  parsed_stats = [
+    models.AmazonKdpDailyStats(date=datetime.date(2026, 2, 25)),
+    models.AmazonKdpDailyStats(date=datetime.date(2026, 2, 24)),
+  ]
+
+  parse_mock = Mock(return_value=parsed_stats)
+  upsert_mock = Mock(return_value=parsed_stats)
+  monkeypatch.setattr(dashboard_routes.amazon_kdp, "parse_kdp_xlsx", parse_mock)
+  monkeypatch.setattr(
+    firestore_service,
+    "upsert_amazon_kdp_daily_stats",
+    upsert_mock,
+  )
+
+  with app.test_client() as client:
+    resp = client.post(
+      "/admin/ads-stats/upload-kdp",
+      data={"file": (io.BytesIO(b"fake xlsx"), "report.xlsx")},
+      content_type="multipart/form-data",
+    )
+
+  assert resp.status_code == 200
+  assert resp.get_json() == {"days_saved": 2}
+  parse_mock.assert_called_once()
+  upsert_mock.assert_called_once_with(parsed_stats)
+
+
+def test_admin_ads_stats_upload_kdp_missing_file_returns_400(monkeypatch):
+  """KDP upload route requires a file."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  with app.test_client() as client:
+    resp = client.post(
+      "/admin/ads-stats/upload-kdp",
+      data={},
+      content_type="multipart/form-data",
+    )
+
+  assert resp.status_code == 400
+  assert resp.get_json() == {"error": "Missing uploaded file"}
+
+
+def test_admin_ads_stats_upload_kdp_parse_error_returns_400(monkeypatch):
+  """KDP upload route surfaces parse errors as 400."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  monkeypatch.setattr(
+    dashboard_routes.amazon_kdp,
+    "parse_kdp_xlsx",
+    Mock(side_effect=dashboard_routes.amazon_kdp.AmazonKdpError("bad report")),
+  )
+
+  with app.test_client() as client:
+    resp = client.post(
+      "/admin/ads-stats/upload-kdp",
+      data={"file": (io.BytesIO(b"broken"), "report.xlsx")},
+      content_type="multipart/form-data",
+    )
+
+  assert resp.status_code == 400
+  assert resp.get_json() == {"error": "bad report"}

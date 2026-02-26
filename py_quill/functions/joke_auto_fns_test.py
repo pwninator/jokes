@@ -203,7 +203,7 @@ class TestAdsStatsFetcher:
         "region": profile.region,
       })
       return amazon.ReportPair(
-        campaigns_report=amazon.AmazonAdsReport(
+        campaigns_report=models.AmazonAdsReport(
           report_id=f"campaigns-{profile.profile_id}",
           status="PENDING",
           report_name="Campaign report request",
@@ -227,7 +227,7 @@ class TestAdsStatsFetcher:
             tzinfo=datetime.timezone.utc,
           ),
         ),
-        advertised_products_report=amazon.AmazonAdsReport(
+        advertised_products_report=models.AmazonAdsReport(
           report_id=f"advertised-{profile.profile_id}",
           status="PENDING",
           report_name="Advertised report request",
@@ -251,7 +251,7 @@ class TestAdsStatsFetcher:
             tzinfo=datetime.timezone.utc,
           ),
         ),
-        purchased_products_report=amazon.AmazonAdsReport(
+        purchased_products_report=models.AmazonAdsReport(
           report_id=f"products-{profile.profile_id}",
           status="PENDING",
           report_name="Product report request",
@@ -290,7 +290,7 @@ class TestAdsStatsFetcher:
         "report_ids": report_ids,
       })
       return [
-        amazon.AmazonAdsReport(
+        models.AmazonAdsReport(
           report_id=f"campaigns-{profile_id}",
           status="IN_PROGRESS",
           report_name="Campaign report",
@@ -315,7 +315,7 @@ class TestAdsStatsFetcher:
           ),
           url="",
         ),
-        amazon.AmazonAdsReport(
+        models.AmazonAdsReport(
           report_id=f"advertised-{profile_id}",
           status="COMPLETED",
           report_name="Advertised report",
@@ -351,7 +351,7 @@ class TestAdsStatsFetcher:
           ),
           url="https://example.com/advertised.gz",
         ),
-        amazon.AmazonAdsReport(
+        models.AmazonAdsReport(
           report_id=f"products-{profile_id}",
           status="COMPLETED",
           report_name="Product report",
@@ -460,7 +460,7 @@ class TestAdsStatsFetcher:
                         lambda region: profiles)
 
     existing_reports = [
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id="campaigns-us-profile",
         report_name="campaigns-us",
         status="PENDING",
@@ -474,7 +474,7 @@ class TestAdsStatsFetcher:
         region="na",
         api_base="https://advertising-api.amazon.com",
       ),
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id="advertised-us-profile",
         report_name="advertised-us",
         status="PENDING",
@@ -488,7 +488,7 @@ class TestAdsStatsFetcher:
         region="na",
         api_base="https://advertising-api.amazon.com",
       ),
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id="products-us-profile",
         report_name="products-us",
         status="PENDING",
@@ -502,7 +502,7 @@ class TestAdsStatsFetcher:
         region="na",
         api_base="https://advertising-api.amazon.com",
       ),
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id="campaigns-uk-profile",
         report_name="campaigns-uk",
         status="PENDING",
@@ -516,7 +516,7 @@ class TestAdsStatsFetcher:
         region="eu",
         api_base="https://advertising-api-eu.amazon.com",
       ),
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id="advertised-uk-profile",
         report_name="advertised-uk",
         status="PENDING",
@@ -530,7 +530,7 @@ class TestAdsStatsFetcher:
         region="eu",
         api_base="https://advertising-api-eu.amazon.com",
       ),
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id="products-uk-profile",
         report_name="products-uk",
         status="PENDING",
@@ -568,7 +568,7 @@ class TestAdsStatsFetcher:
         "report_ids": report_ids,
       })
       return [
-        amazon.AmazonAdsReport(
+        models.AmazonAdsReport(
           report_id=report_id,
           report_name=f"{report_id}-name",
           status="COMPLETED",
@@ -775,7 +775,7 @@ class TestAdsStatsFetcher:
 
     # Existing reports are COMPLETE and PROCESSED=True
     existing_reports = [
-      amazon.AmazonAdsReport(
+      models.AmazonAdsReport(
         report_id=f"{type_id}-us-profile",
         report_name=f"{type_id}-us",
         status="COMPLETED",
@@ -803,7 +803,7 @@ class TestAdsStatsFetcher:
       request_calls.append(profile.profile_id)
       # Return new reports (unprocessed)
       return amazon.ReportPair(
-        campaigns_report=amazon.AmazonAdsReport(
+        campaigns_report=models.AmazonAdsReport(
           report_id=f"new-campaigns-{profile.profile_id}",
           status="PENDING",
           report_name="New Campaign report",
@@ -814,7 +814,7 @@ class TestAdsStatsFetcher:
           updated_at=now_utc,
           processed=False,
         ),
-        advertised_products_report=amazon.AmazonAdsReport(
+        advertised_products_report=models.AmazonAdsReport(
           report_id=f"new-advertised-{profile.profile_id}",
           status="PENDING",
           report_name="New Advertised report",
@@ -825,7 +825,7 @@ class TestAdsStatsFetcher:
           updated_at=now_utc,
           processed=False,
         ),
-        purchased_products_report=amazon.AmazonAdsReport(
+        purchased_products_report=models.AmazonAdsReport(
           report_id=f"new-products-{profile.profile_id}",
           status="PENDING",
           report_name="New Product report",

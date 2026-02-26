@@ -73,6 +73,7 @@ class BookVariant:
   """A specific book format and its Amazon data."""
 
   asin: str
+  isbn13: str | None = None
   format: BookFormat = BookFormat.PAPERBACK
   print_cost: float = 0.0
   royalty_rate: float = 0.0
@@ -104,6 +105,7 @@ BOOKS: dict[BookKey, Book] = {
       BookFormat.PAPERBACK:
       BookVariant(
         asin='B0GNHFKQ8W',
+        isbn13='9798247846802',
         format=BookFormat.PAPERBACK,
         print_cost=2.91,
         royalty_rate=0.6,
@@ -153,6 +155,7 @@ BOOKS: dict[BookKey, Book] = {
       BookFormat.PAPERBACK:
       BookVariant(
         asin='B0GNJZXRDM',
+        isbn13='9798248180011',
         format=BookFormat.PAPERBACK,
         print_cost=2.91,
         royalty_rate=0.6,
@@ -205,6 +208,7 @@ BOOKS: dict[BookKey, Book] = {
       BookVariant(
         # Animal Jokes premium color paperback
         asin='B0G7F82P65',
+        isbn13='9798274472616',
         format=BookFormat.PAPERBACK,
         print_cost=5.88,
         royalty_rate=0.6,
@@ -213,6 +217,7 @@ BOOKS: dict[BookKey, Book] = {
       BookVariant(
         # Valentine's Day premium color ebook
         asin='B0GKYSMX7P',
+        isbn13='9798246291917',
         format=BookFormat.PAPERBACK,
         print_cost=5.88,
         royalty_rate=0.6,
@@ -226,3 +231,15 @@ BOOK_VARIANTS_BY_ASIN: dict[str, BookVariant] = {
   for book in BOOKS.values()
   for variant in book.variants.values()
 }
+
+BOOK_VARIANTS_BY_ISBN13: dict[str, BookVariant] = {
+  variant.isbn13: variant
+  for book in BOOKS.values()
+  for variant in book.variants.values() if variant.isbn13
+}
+
+
+def find_book_variant(asin_or_isbn13: str) -> BookVariant | None:
+  """Find a book variant by ASIN or ISBN-13."""
+  return BOOK_VARIANTS_BY_ASIN.get(
+    asin_or_isbn13) or BOOK_VARIANTS_BY_ISBN13.get(asin_or_isbn13)

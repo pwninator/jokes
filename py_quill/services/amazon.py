@@ -171,11 +171,6 @@ class AmazonAdsError(Exception):
   """Raised when an Amazon Ads request or report operation fails."""
 
 
-AmazonAdsReport = models.AmazonAdsReport
-AmazonAdsDailyCampaignStats = models.AmazonAdsDailyCampaignStats
-AmazonAdsProductStats = models.AmazonAdsProductStats
-
-
 @dataclass(frozen=True, kw_only=True)
 class AmazonAdsProfile:
   """Amazon Ads profile identity used for profile-scoped API calls."""
@@ -761,7 +756,7 @@ def _build_merged_sale_items_for_campaign_day(
   purchased_by_campaign_date: dict[tuple[str, datetime.date], list[dict[str,
                                                                         Any]]],
   currency_code: str,
-) -> list[models.AmazonAdsProductStats]:
+) -> list[models.AmazonProductStats]:
   """Build merged ASIN sale items by combining direct and halo sources."""
   merged_totals_by_asin: dict[str, tuple[int, float]] = {}
   key = (campaign_id, date_value)
@@ -790,7 +785,7 @@ def _build_merged_sale_items_for_campaign_day(
     _accumulate_asin_totals(merged_totals_by_asin, asin, halo_units,
                             halo_sales)
 
-  sale_items: list[models.AmazonAdsProductStats] = []
+  sale_items: list[models.AmazonProductStats] = []
   for asin, (units_sold,
              sales_amount) in sorted(merged_totals_by_asin.items()):
     sale_items.append(
@@ -843,7 +838,7 @@ def _build_product_stats(
   asin: str,
   units_sold: int,
   sales_amount: float,
-) -> models.AmazonAdsProductStats:
+) -> models.AmazonProductStats:
   """Build a normalized `ProductStats` object from merged ASIN totals."""
   book_variant = book_defs.BOOK_VARIANTS_BY_ASIN.get(asin)
   if not book_variant:
@@ -852,7 +847,7 @@ def _build_product_stats(
   total_profit = (sales_amount * book_variant.royalty_rate) - (
     units_sold * book_variant.print_cost)
 
-  return models.AmazonAdsProductStats(
+  return models.AmazonProductStats(
     asin=asin,
     units_sold=units_sold,
     sales_amount=sales_amount,

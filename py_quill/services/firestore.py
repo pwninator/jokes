@@ -55,6 +55,7 @@ JOKE_FIELDS_TO_LOG = {
 UNCATEGORIZED_CATEGORY_ID = "_uncategorized"
 AMAZON_ADS_REPORTS_COLLECTION = "amazon_ads_reports"
 AMAZON_ADS_DAILY_STATS_COLLECTION = "amazon_ads_daily_stats"
+AMAZON_KDP_DAILY_STATS_COLLECTION = "amazon_kdp_daily_stats"
 
 
 def get_async_db() -> AsyncClient:
@@ -153,6 +154,54 @@ def list_amazon_ads_daily_stats(
   docs = query.stream()
   return [
     models.AmazonAdsDailyStats.from_firestore_dict(
+      doc.to_dict(),
+      key=doc.id,
+    ) for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
+def upsert_amazon_kdp_daily_stats(
+  stats: list[models.AmazonKdpDailyStats],
+) -> list[models.AmazonKdpDailyStats]:
+  """Batch upsert KDP daily stats keyed by date."""
+  if not stats:
+    return []
+
+  db_client = db()
+  batch = db_client.batch()
+  collection_ref = db_client.collection(AMAZON_KDP_DAILY_STATS_COLLECTION)
+  for daily_stat in stats:
+    stats_key = daily_stat.date.isoformat()
+    payload = daily_stat.to_dict(include_key=False)
+    batch.set(
+      collection_ref.document(stats_key),
+      payload,
+      merge=True,
+    )
+    daily_stat.key = stats_key
+  batch.commit()
+  return stats
+
+
+def list_amazon_kdp_daily_stats(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> list[models.AmazonKdpDailyStats]:
+  """List KDP daily stats with Firestore-side date range filtering."""
+  if end_date < start_date:
+    raise ValueError("end_date must be on or after start_date")
+
+  query = db().collection(AMAZON_KDP_DAILY_STATS_COLLECTION).where(
+    filter=FieldFilter("date", ">=",
+                       start_date.isoformat()), ).where(filter=FieldFilter(
+                         "date", "<=", end_date.isoformat()), ).order_by(
+                           "date",
+                           direction=Query.ASCENDING,
+                         )
+  docs = query.stream()
+  return [
+    models.AmazonKdpDailyStats.from_firestore_dict(
       doc.to_dict(),
       key=doc.id,
     ) for doc in docs if doc.exists and doc.to_dict() is not None

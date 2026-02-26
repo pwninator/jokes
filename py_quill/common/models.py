@@ -1441,7 +1441,7 @@ class PosableCharacterDef:
 
 
 @dataclass(kw_only=True)
-class AmazonAdsProductStats:
+class AmazonProductStats:
   """Daily product-level metrics for one ASIN within a campaign."""
 
   asin: str
@@ -1455,7 +1455,7 @@ class AmazonAdsProductStats:
     return data
 
   @classmethod
-  def from_dict(cls, data: dict[str, Any]) -> AmazonAdsProductStats:
+  def from_dict(cls, data: dict[str, Any]) -> AmazonProductStats:
     """Create a product-stats model from a dictionary."""
     if not data:
       data = {}
@@ -1491,7 +1491,7 @@ class AmazonAdsDailyCampaignStats:
   total_units_sold: int = 0
   gross_profit_before_ads: float = 0.0
   gross_profit: float = 0.0
-  sale_items: list[AmazonAdsProductStats] = field(default_factory=list)
+  sale_items: list[AmazonProductStats] = field(default_factory=list)
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
@@ -1539,7 +1539,7 @@ class AmazonAdsDailyCampaignStats:
     _parse_float_field(data, "gross_profit_before_ads", 0.0)
     _parse_float_field(data, "gross_profit", 0.0)
 
-    sale_items = _parse_amazon_ads_product_stats_list(data.get("sale_items"))
+    sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
 
     campaign_id = str(data.get("campaign_id", "")).strip()
     campaign_name = str(data.get("campaign_name", "")).strip()
@@ -1667,6 +1667,100 @@ class AmazonAdsDailyStats:
     key: str,
   ) -> AmazonAdsDailyStats:
     """Create a daily stats model from Firestore data."""
+    return cls.from_dict(data, key=key)
+
+
+@dataclass(kw_only=True)
+class AmazonKdpDailyStats:
+  """Aggregated daily metrics from uploaded KDP xlsx data."""
+
+  key: str | None = None
+  date: datetime.date
+  total_units_sold: int = 0
+  kenp_pages_read: int = 0
+  ebook_units_sold: int = 0
+  paperback_units_sold: int = 0
+  hardcover_units_sold: int = 0
+  total_royalties_usd: float = 0.0
+  ebook_royalties_usd: float = 0.0
+  paperback_royalties_usd: float = 0.0
+  hardcover_royalties_usd: float = 0.0
+  total_print_cost_usd: float = 0.0
+  sale_items: list[AmazonProductStats] = field(default_factory=list)
+
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data: dict[str, object] = {
+      "date": self.date.isoformat(),
+      "total_units_sold": self.total_units_sold,
+      "kenp_pages_read": self.kenp_pages_read,
+      "ebook_units_sold": self.ebook_units_sold,
+      "paperback_units_sold": self.paperback_units_sold,
+      "hardcover_units_sold": self.hardcover_units_sold,
+      "total_royalties_usd": self.total_royalties_usd,
+      "ebook_royalties_usd": self.ebook_royalties_usd,
+      "paperback_royalties_usd": self.paperback_royalties_usd,
+      "hardcover_royalties_usd": self.hardcover_royalties_usd,
+      "total_print_cost_usd": self.total_print_cost_usd,
+      "sale_items": [item.to_dict() for item in self.sale_items],
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    key: str | None = None,
+  ) -> AmazonKdpDailyStats:
+    """Create a KDP daily stats model from dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    parsed_date = _parse_required_date(
+      data.get("date"),
+      field_name="AmazonKdpDailyStats.date",
+    )
+
+    _parse_int_field(data, "total_units_sold", 0)
+    _parse_int_field(data, "kenp_pages_read", 0)
+    _parse_int_field(data, "ebook_units_sold", 0)
+    _parse_int_field(data, "paperback_units_sold", 0)
+    _parse_int_field(data, "hardcover_units_sold", 0)
+    _parse_float_field(data, "total_royalties_usd", 0.0)
+    _parse_float_field(data, "ebook_royalties_usd", 0.0)
+    _parse_float_field(data, "paperback_royalties_usd", 0.0)
+    _parse_float_field(data, "hardcover_royalties_usd", 0.0)
+    _parse_float_field(data, "total_print_cost_usd", 0.0)
+
+    sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
+
+    return cls(
+      key=key,
+      date=parsed_date,
+      total_units_sold=data.get("total_units_sold", 0),
+      kenp_pages_read=data.get("kenp_pages_read", 0),
+      ebook_units_sold=data.get("ebook_units_sold", 0),
+      paperback_units_sold=data.get("paperback_units_sold", 0),
+      hardcover_units_sold=data.get("hardcover_units_sold", 0),
+      total_royalties_usd=data.get("total_royalties_usd", 0.0),
+      ebook_royalties_usd=data.get("ebook_royalties_usd", 0.0),
+      paperback_royalties_usd=data.get("paperback_royalties_usd", 0.0),
+      hardcover_royalties_usd=data.get("hardcover_royalties_usd", 0.0),
+      total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
+      sale_items=sale_items,
+    )
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    key: str,
+  ) -> AmazonKdpDailyStats:
+    """Create a KDP daily stats model from Firestore data."""
     return cls.from_dict(data, key=key)
 
 
@@ -1906,16 +2000,16 @@ def _parse_required_date(value: Any, *, field_name: str) -> datetime.date:
   raise ValueError(f"{field_name} is required")
 
 
-def _parse_amazon_ads_product_stats_list(
-  value: Any, ) -> list[AmazonAdsProductStats]:
-  """Parse a list of dictionaries into `AmazonAdsProductStats` items."""
+def _parse_amazon_product_stats_list(
+  value: Any, ) -> list[AmazonProductStats]:
+  """Parse a list of dictionaries into `AmazonProductStats` items."""
   if not isinstance(value, list):
     return []
 
   value_dicts = cast(list[dict[str, Any]], value)
-  parsed: list[AmazonAdsProductStats] = []
+  parsed: list[AmazonProductStats] = []
   for item in value_dicts:
-    parsed.append(AmazonAdsProductStats.from_dict(item))
+    parsed.append(AmazonProductStats.from_dict(item))
   return parsed
 
 

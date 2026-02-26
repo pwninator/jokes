@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 
 import pytest
+from common import models
 from services import amazon
 
 
@@ -12,8 +13,8 @@ def _report_status(
   report_id: str,
   status: str,
   **kwargs,
-) -> amazon.AmazonAdsReport:
-  return amazon.AmazonAdsReport(
+) -> models.AmazonAdsReport:
+  return models.AmazonAdsReport(
     report_id=report_id,
     status=status,
     report_name=kwargs.get("report_name", "Report"),
@@ -286,8 +287,8 @@ def test_get_reports_with_empty_ids_returns_empty(monkeypatch):
   assert statuses == []
 
 
-def _upsert_report(report: amazon.AmazonAdsReport,
-                   upserted_report_ids: list[str]) -> amazon.AmazonAdsReport:
+def _upsert_report(report: models.AmazonAdsReport,
+                   upserted_report_ids: list[str]) -> models.AmazonAdsReport:
   upserted_report_ids.append(report.report_id)
   report.key = f"{report.report_id}-key"
   return report
@@ -363,7 +364,7 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
     profile_id="profile-1",
   )
 
-  def _fake_download(status: amazon.AmazonAdsReport):
+  def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
@@ -451,7 +452,7 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
     profile_id="profile-1",
   )
 
-  def _fake_download(status: amazon.AmazonAdsReport):
+  def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
@@ -526,7 +527,7 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
     profile_id="profile-1",
   )
 
-  def _fake_download(status: amazon.AmazonAdsReport):
+  def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
@@ -604,7 +605,7 @@ def test_get_daily_campaign_stats_from_reports_raises_on_unknown_asin(
     profile_id="profile-1",
   )
 
-  def _fake_download(status: amazon.AmazonAdsReport):
+  def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":

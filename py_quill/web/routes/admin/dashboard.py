@@ -6,10 +6,11 @@ import datetime
 from zoneinfo import ZoneInfo
 
 import flask
-
 from common import amazon_redirect
 from common import models
+from firebase_functions import logger
 from functions import auth_helpers
+from services import amazon_kdp
 from services import firestore
 from web.routes import web_bp
 from web.routes.redirects import amazon_redirect_view_models
@@ -171,6 +172,30 @@ def admin_ads_stats():
     start_date=start_date.isoformat(),
     end_date=end_date.isoformat(),
   )
+
+
+@web_bp.route('/admin/ads-stats/upload-kdp', methods=['POST'])
+@auth_helpers.require_admin
+def admin_ads_stats_upload_kdp():
+  """Upload a KDP xlsx and persist parsed daily stats."""
+  uploaded_file = flask.request.files.get('file')
+  if uploaded_file is None or not uploaded_file.filename:
+    return flask.jsonify({'error': 'Missing uploaded file'}), 400
+
+  filename = uploaded_file.filename.lower()
+  if not filename.endswith('.xlsx'):
+    return flask.jsonify({'error': 'File must be a .xlsx report'}), 400
+
+  try:
+    stats = amazon_kdp.parse_kdp_xlsx(uploaded_file.read())
+    _ = firestore.upsert_amazon_kdp_daily_stats(stats)
+  except amazon_kdp.AmazonKdpError as exc:
+    return flask.jsonify({'error': str(exc)}), 400
+  except Exception as exc:
+    logger.error('Failed to upload KDP daily stats', exc_info=exc)
+    return flask.jsonify({'error': 'Failed to process KDP report'}), 500
+
+  return flask.jsonify({'days_saved': len(stats)})
 
 
 def _build_ads_stats_chart_data(

@@ -687,18 +687,18 @@ def _merge_report_rows(
     )
     impressions = _as_int(campaign_row.get("impressions"))
     clicks = _as_int(campaign_row.get("clicks"))
-    total_attributed_sales = _convert_amount_to_usd(
+    total_attributed_sales_usd = _convert_amount_to_usd(
       _as_float(campaign_row.get("sales14d")),
       currency_code=currency_code,
     )
     total_units_sold = _as_int(campaign_row.get("unitsSoldClicks14d"))
-    kenp_royalties = _as_float(
+    kenp_royalties_usd = _as_float(
       campaign_row.get("kindleEditionNormalizedPagesRoyalties14d"))
-    if kenp_royalties == 0.0:
-      kenp_royalties = _as_float(
+    if kenp_royalties_usd == 0.0:
+      kenp_royalties_usd = _as_float(
         campaign_row.get("attributedKindleEditionNormalizedPagesRoyalties14d"))
-    kenp_royalties = _convert_amount_to_usd(
-      kenp_royalties,
+    kenp_royalties_usd = _convert_amount_to_usd(
+      kenp_royalties_usd,
       currency_code=currency_code,
     )
 
@@ -709,10 +709,10 @@ def _merge_report_rows(
       purchased_by_campaign_date=purchased_by_campaign_date,
       currency_code=currency_code,
     )
-    product_profit_total = sum(item.total_profit for item in sale_items)
+    product_profit_total = sum(item.total_profit_usd for item in sale_items)
 
-    gross_profit_before_ads = product_profit_total + kenp_royalties
-    gross_profit = gross_profit_before_ads - spend
+    gross_profit_before_ads_usd = product_profit_total + kenp_royalties_usd
+    gross_profit_usd = gross_profit_before_ads_usd - spend
     output.append(
       models.AmazonAdsDailyCampaignStats(
         campaign_id=campaign_id,
@@ -721,11 +721,11 @@ def _merge_report_rows(
         spend=spend,
         impressions=impressions,
         clicks=clicks,
-        kenp_royalties=kenp_royalties,
-        total_attributed_sales=total_attributed_sales,
+        kenp_royalties_usd=kenp_royalties_usd,
+        total_attributed_sales_usd=total_attributed_sales_usd,
         total_units_sold=total_units_sold,
-        gross_profit_before_ads=gross_profit_before_ads,
-        gross_profit=gross_profit,
+        gross_profit_before_ads_usd=gross_profit_before_ads_usd,
+        gross_profit_usd=gross_profit_usd,
         sale_items=sale_items,
       ))
 
@@ -792,7 +792,7 @@ def _build_merged_sale_items_for_campaign_day(
       _build_product_stats(
         asin=asin,
         units_sold=units_sold,
-        sales_amount=sales_amount,
+        total_sales_usd=sales_amount,
       ))
   return sale_items
 
@@ -837,21 +837,21 @@ def _build_product_stats(
   *,
   asin: str,
   units_sold: int,
-  sales_amount: float,
+  total_sales_usd: float,
 ) -> models.AmazonProductStats:
   """Build a normalized `ProductStats` object from merged ASIN totals."""
   book_variant = book_defs.BOOK_VARIANTS_BY_ASIN.get(asin)
   if not book_variant:
     raise AmazonAdsError(f"Unknown ASIN: {asin}")
 
-  total_profit = (sales_amount * book_variant.royalty_rate) - (
+  total_profit_usd = (total_sales_usd * book_variant.royalty_rate) - (
     units_sold * book_variant.print_cost)
 
   return models.AmazonProductStats(
     asin=asin,
     units_sold=units_sold,
-    sales_amount=sales_amount,
-    total_profit=total_profit,
+    total_sales_usd=total_sales_usd,
+    total_profit_usd=total_profit_usd,
   )
 
 

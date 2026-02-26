@@ -292,11 +292,11 @@ def _auto_ads_stats_internal(
           daily_stat.spend += campaign_stat.spend
           daily_stat.impressions += campaign_stat.impressions
           daily_stat.clicks += campaign_stat.clicks
-          daily_stat.kenp_royalties += campaign_stat.kenp_royalties
-          daily_stat.total_attributed_sales += campaign_stat.total_attributed_sales
+          daily_stat.kenp_royalties_usd += campaign_stat.kenp_royalties_usd
+          daily_stat.total_attributed_sales_usd += campaign_stat.total_attributed_sales_usd
           daily_stat.total_units_sold += campaign_stat.total_units_sold
-          daily_stat.gross_profit_before_ads += campaign_stat.gross_profit_before_ads
-          daily_stat.gross_profit += campaign_stat.gross_profit
+          daily_stat.gross_profit_before_ads_usd += campaign_stat.gross_profit_before_ads_usd
+          daily_stat.gross_profit_usd += campaign_stat.gross_profit_usd
 
         # Upsert aggregated stats
         daily_stats_list = list(stats_by_date.values())

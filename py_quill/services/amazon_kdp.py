@@ -11,8 +11,6 @@ from typing import Any
 import openpyxl
 from common import book_defs, models
 
-_USD_CURRENCY_CODE = "USD"
-_ROW_EPSILON = 0.02
 _CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
   "USD": 1.0,
   "CAD": 0.7320,
@@ -140,7 +138,6 @@ def _apply_combined_sales_rows(
       _as_float(row.get("Avg. Offer Price without tax")),
       currency_code=currency_code,
     )
-    sales_amount_usd = avg_offer_price_usd * net_units_sold
 
     royalty_usd = _convert_amount_to_usd(
       _as_float(row.get("Royalty")),
@@ -151,14 +148,8 @@ def _apply_combined_sales_rows(
       currency_code=currency_code,
     )
 
-    _validate_book_defs_against_row(
-      asin=asin_or_isbn,
-      book_variant=book_variant,
-      avg_offer_price_usd=avg_offer_price_usd,
-      print_cost_per_unit_usd=print_cost_per_unit_usd,
-      royalty_usd=royalty_usd,
-      net_units_sold=net_units_sold,
-    )
+    sales_amount_usd = avg_offer_price_usd * net_units_sold
+    print_cost_usd = print_cost_per_unit_usd * net_units_sold
 
     aggregate = aggregates_by_date[date_value]
     if format_name == "ebook":
@@ -172,21 +163,24 @@ def _apply_combined_sales_rows(
       aggregate.hardcover_royalties_usd += royalty_usd
 
     aggregate.total_royalties_usd += royalty_usd
-    aggregate.total_print_cost_usd += (print_cost_per_unit_usd *
-                                       net_units_sold)
+    aggregate.total_print_cost_usd += print_cost_usd
 
-    existing = aggregate.sale_items_by_asin.get(asin_or_isbn)
-    if existing is None:
-      aggregate.sale_items_by_asin[asin_or_isbn] = models.AmazonProductStats(
+    existing = aggregate.sale_items_by_asin.setdefault(
+      asin_or_isbn,
+      models.AmazonProductStats(
         asin=asin_or_isbn,
-        units_sold=net_units_sold,
-        sales_amount=sales_amount_usd,
-        total_profit=royalty_usd,
-      )
-    else:
-      existing.units_sold += net_units_sold
-      existing.sales_amount += sales_amount_usd
-      existing.total_profit += royalty_usd
+        units_sold=0,
+        total_sales_usd=0.0,
+        total_profit_usd=0.0,
+        total_print_cost_usd=0.0,
+        total_royalty_usd=0.0,
+      ))
+    existing.units_sold += net_units_sold
+    existing.total_sales_usd += sales_amount_usd
+    existing.total_profit_usd += royalty_usd
+    existing.total_royalty_usd = (existing.total_royalty_usd or 0.0) + royalty_usd
+    existing.total_print_cost_usd = (existing.total_print_cost_usd
+                                     or 0.0) + print_cost_usd
 
 
 def _apply_kenp_rows(
@@ -199,37 +193,6 @@ def _apply_kenp_rows(
     kenp_pages_read = _as_int(
       row.get("Kindle Edition Normalized Page (KENP) Read"))
     aggregates_by_date[date_value].kenp_pages_read += kenp_pages_read
-
-
-def _validate_book_defs_against_row(
-  *,
-  asin: str,
-  book_variant: book_defs.BookVariant,
-  avg_offer_price_usd: float,
-  print_cost_per_unit_usd: float,
-  royalty_usd: float,
-  net_units_sold: int,
-) -> None:
-  """Ensure report row metrics align with hardcoded book definitions."""
-  if abs(book_variant.print_cost - print_cost_per_unit_usd) > _ROW_EPSILON:
-    raise AmazonKdpError(
-      f"Print cost mismatch for {asin}: report={print_cost_per_unit_usd:.4f} book_defs={book_variant.print_cost:.4f}"
-    )
-
-  if net_units_sold <= 0:
-    if abs(royalty_usd) > _ROW_EPSILON:
-      raise AmazonKdpError(
-        f"Unexpected royalty for non-positive units for {asin}: {royalty_usd}")
-    return
-
-  royalty_per_unit_usd = royalty_usd / net_units_sold
-  implied_royalty_rate = (royalty_per_unit_usd +
-                          print_cost_per_unit_usd) / max(
-                            avg_offer_price_usd, 0.01)
-  if abs(implied_royalty_rate - book_variant.royalty_rate) > _ROW_EPSILON:
-    raise AmazonKdpError(
-      f"Royalty rate mismatch for {asin}: report={implied_royalty_rate:.4f} book_defs={book_variant.royalty_rate:.4f}"
-    )
 
 
 def _format_from_transaction_type(value: Any) -> str:

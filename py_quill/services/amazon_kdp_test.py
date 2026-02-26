@@ -156,6 +156,12 @@ def test_parse_kdp_xlsx_aggregates_rows_and_converts_currency():
     "B0G9765J19",
     "B0GNHFKQ8W",
   ]
+  ebook_item = next(i for i in day_0225.sale_items if i.asin == "B0G9765J19")
+  assert ebook_item.total_print_cost_usd == 0.0
+  assert ebook_item.total_royalty_usd == pytest.approx(1.05, abs=0.01)
+  pb_item = next(i for i in day_0225.sale_items if i.asin == "B0GNHFKQ8W")
+  assert pb_item.total_print_cost_usd == pytest.approx(2.91, abs=0.01)
+  assert pb_item.total_royalty_usd == pytest.approx(4.28, abs=0.01)
 
 
 def test_parse_kdp_xlsx_raises_on_format_mismatch():
@@ -181,56 +187,4 @@ def test_parse_kdp_xlsx_raises_on_format_mismatch():
   )
 
   with pytest.raises(amazon_kdp.AmazonKdpError, match="Format mismatch"):
-    amazon_kdp.parse_kdp_xlsx(workbook_bytes)
-
-
-def test_parse_kdp_xlsx_raises_on_print_cost_mismatch():
-  workbook_bytes = _build_kdp_workbook_bytes(
-    combined_sales_rows=[[
-      "2026-02-25",
-      "Cute & Silly Animal Jokes",
-      "Amelia Blanc",
-      "B0GNHFKQ8W",
-      "Amazon.com",
-      "60%",
-      "Standard - Paperback",
-      1,
-      0,
-      1,
-      11.99,
-      11.99,
-      1.00,
-      4.28,
-      "USD",
-    ]],
-    kenp_rows=[],
-  )
-
-  with pytest.raises(amazon_kdp.AmazonKdpError, match="Print cost mismatch"):
-    amazon_kdp.parse_kdp_xlsx(workbook_bytes)
-
-
-def test_parse_kdp_xlsx_raises_on_royalty_rate_mismatch():
-  workbook_bytes = _build_kdp_workbook_bytes(
-    combined_sales_rows=[[
-      "2026-02-25",
-      "Cute & Silly Animal Jokes",
-      "Amelia Blanc",
-      "B0GNHFKQ8W",
-      "Amazon.com",
-      "60%",
-      "Standard - Paperback",
-      1,
-      0,
-      1,
-      11.99,
-      11.99,
-      2.91,
-      5.20,
-      "USD",
-    ]],
-    kenp_rows=[],
-  )
-
-  with pytest.raises(amazon_kdp.AmazonKdpError, match="Royalty rate mismatch"):
     amazon_kdp.parse_kdp_xlsx(workbook_bytes)

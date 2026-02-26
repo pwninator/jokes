@@ -1446,8 +1446,10 @@ class AmazonProductStats:
 
   asin: str
   units_sold: int = 0
-  sales_amount: float = 0.0
-  total_profit: float = 0.0
+  total_sales_usd: float = 0.0
+  total_profit_usd: float = 0.0
+  total_print_cost_usd: float | None = None
+  total_royalty_usd: float | None = None
 
   def to_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
@@ -1461,17 +1463,29 @@ class AmazonProductStats:
       data = {}
     else:
       data = dict(data)
+    if "total_sales_usd" not in data and "sales_amount" in data:
+      data["total_sales_usd"] = data.get("sales_amount")
+    if "total_profit_usd" not in data and "total_profit" in data:
+      data["total_profit_usd"] = data.get("total_profit")
+    if "total_print_cost_usd" not in data and "total_print_cost" in data:
+      data["total_print_cost_usd"] = data.get("total_print_cost")
+    if "total_royalty_usd" not in data and "total_royalty" in data:
+      data["total_royalty_usd"] = data.get("total_royalty")
 
     asin = str(data.get("asin", "")).strip()
     _parse_int_field(data, "units_sold", 0)
-    _parse_float_field(data, "sales_amount", 0.0)
-    _parse_float_field(data, "total_profit", 0.0)
+    _parse_float_field(data, "total_sales_usd", 0.0)
+    _parse_float_field(data, "total_profit_usd", 0.0)
+    total_print_cost_usd = _parse_optional_float(data, "total_print_cost_usd")
+    total_royalty_usd = _parse_optional_float(data, "total_royalty_usd")
 
     return cls(
       asin=asin,
       units_sold=data.get("units_sold", 0),
-      sales_amount=data.get("sales_amount", 0.0),
-      total_profit=data.get("total_profit", 0.0),
+      total_sales_usd=data.get("total_sales_usd", 0.0),
+      total_profit_usd=data.get("total_profit_usd", 0.0),
+      total_print_cost_usd=total_print_cost_usd,
+      total_royalty_usd=total_royalty_usd,
     )
 
 
@@ -1486,11 +1500,11 @@ class AmazonAdsDailyCampaignStats:
   spend: float = 0.0
   impressions: int = 0
   clicks: int = 0
-  kenp_royalties: float = 0.0
-  total_attributed_sales: float = 0.0
+  kenp_royalties_usd: float = 0.0
+  total_attributed_sales_usd: float = 0.0
   total_units_sold: int = 0
-  gross_profit_before_ads: float = 0.0
-  gross_profit: float = 0.0
+  gross_profit_before_ads_usd: float = 0.0
+  gross_profit_usd: float = 0.0
   sale_items: list[AmazonProductStats] = field(default_factory=list)
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
@@ -1502,11 +1516,11 @@ class AmazonAdsDailyCampaignStats:
       "spend": self.spend,
       "impressions": self.impressions,
       "clicks": self.clicks,
-      "kenp_royalties": self.kenp_royalties,
-      "total_attributed_sales": self.total_attributed_sales,
+      "kenp_royalties_usd": self.kenp_royalties_usd,
+      "total_attributed_sales_usd": self.total_attributed_sales_usd,
       "total_units_sold": self.total_units_sold,
-      "gross_profit_before_ads": self.gross_profit_before_ads,
-      "gross_profit": self.gross_profit,
+      "gross_profit_before_ads_usd": self.gross_profit_before_ads_usd,
+      "gross_profit_usd": self.gross_profit_usd,
       "sale_items": [item.to_dict() for item in self.sale_items],
     }
     if include_key:
@@ -1524,6 +1538,16 @@ class AmazonAdsDailyCampaignStats:
       data = {}
     else:
       data = dict(data)
+    if "kenp_royalties_usd" not in data and "kenp_royalties" in data:
+      data["kenp_royalties_usd"] = data.get("kenp_royalties")
+    if ("total_attributed_sales_usd" not in data
+        and "total_attributed_sales" in data):
+      data["total_attributed_sales_usd"] = data.get("total_attributed_sales")
+    if ("gross_profit_before_ads_usd" not in data
+        and "gross_profit_before_ads" in data):
+      data["gross_profit_before_ads_usd"] = data.get("gross_profit_before_ads")
+    if "gross_profit_usd" not in data and "gross_profit" in data:
+      data["gross_profit_usd"] = data.get("gross_profit")
 
     parsed_date = _parse_required_date(
       data.get("date"),
@@ -1533,11 +1557,11 @@ class AmazonAdsDailyCampaignStats:
     _parse_float_field(data, "spend", 0.0)
     _parse_int_field(data, "impressions", 0)
     _parse_int_field(data, "clicks", 0)
-    _parse_float_field(data, "kenp_royalties", 0.0)
-    _parse_float_field(data, "total_attributed_sales", 0.0)
+    _parse_float_field(data, "kenp_royalties_usd", 0.0)
+    _parse_float_field(data, "total_attributed_sales_usd", 0.0)
     _parse_int_field(data, "total_units_sold", 0)
-    _parse_float_field(data, "gross_profit_before_ads", 0.0)
-    _parse_float_field(data, "gross_profit", 0.0)
+    _parse_float_field(data, "gross_profit_before_ads_usd", 0.0)
+    _parse_float_field(data, "gross_profit_usd", 0.0)
 
     sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
 
@@ -1556,11 +1580,11 @@ class AmazonAdsDailyCampaignStats:
       spend=data.get("spend", 0.0),
       impressions=data.get("impressions", 0),
       clicks=data.get("clicks", 0),
-      kenp_royalties=data.get("kenp_royalties", 0.0),
-      total_attributed_sales=data.get("total_attributed_sales", 0.0),
+      kenp_royalties_usd=data.get("kenp_royalties_usd", 0.0),
+      total_attributed_sales_usd=data.get("total_attributed_sales_usd", 0.0),
       total_units_sold=data.get("total_units_sold", 0),
-      gross_profit_before_ads=data.get("gross_profit_before_ads", 0.0),
-      gross_profit=data.get("gross_profit", 0.0),
+      gross_profit_before_ads_usd=data.get("gross_profit_before_ads_usd", 0.0),
+      gross_profit_usd=data.get("gross_profit_usd", 0.0),
       sale_items=sale_items,
     )
 
@@ -1583,11 +1607,11 @@ class AmazonAdsDailyStats:
   spend: float = 0.0
   impressions: int = 0
   clicks: int = 0
-  kenp_royalties: float = 0.0
-  total_attributed_sales: float = 0.0
+  kenp_royalties_usd: float = 0.0
+  total_attributed_sales_usd: float = 0.0
   total_units_sold: int = 0
-  gross_profit_before_ads: float = 0.0
-  gross_profit: float = 0.0
+  gross_profit_before_ads_usd: float = 0.0
+  gross_profit_usd: float = 0.0
   campaigns_by_id: dict[str, AmazonAdsDailyCampaignStats] = field(
     default_factory=dict)
 
@@ -1598,11 +1622,11 @@ class AmazonAdsDailyStats:
       "spend": self.spend,
       "impressions": self.impressions,
       "clicks": self.clicks,
-      "kenp_royalties": self.kenp_royalties,
-      "total_attributed_sales": self.total_attributed_sales,
+      "kenp_royalties_usd": self.kenp_royalties_usd,
+      "total_attributed_sales_usd": self.total_attributed_sales_usd,
       "total_units_sold": self.total_units_sold,
-      "gross_profit_before_ads": self.gross_profit_before_ads,
-      "gross_profit": self.gross_profit,
+      "gross_profit_before_ads_usd": self.gross_profit_before_ads_usd,
+      "gross_profit_usd": self.gross_profit_usd,
       "campaigns_by_id": {
         cid: stats.to_dict()
         for cid, stats in self.campaigns_by_id.items()
@@ -1623,6 +1647,16 @@ class AmazonAdsDailyStats:
       data = {}
     else:
       data = dict(data)
+    if "kenp_royalties_usd" not in data and "kenp_royalties" in data:
+      data["kenp_royalties_usd"] = data.get("kenp_royalties")
+    if ("total_attributed_sales_usd" not in data
+        and "total_attributed_sales" in data):
+      data["total_attributed_sales_usd"] = data.get("total_attributed_sales")
+    if ("gross_profit_before_ads_usd" not in data
+        and "gross_profit_before_ads" in data):
+      data["gross_profit_before_ads_usd"] = data.get("gross_profit_before_ads")
+    if "gross_profit_usd" not in data and "gross_profit" in data:
+      data["gross_profit_usd"] = data.get("gross_profit")
 
     parsed_date = _parse_required_date(
       data.get("date"),
@@ -1632,11 +1666,11 @@ class AmazonAdsDailyStats:
     _parse_float_field(data, "spend", 0.0)
     _parse_int_field(data, "impressions", 0)
     _parse_int_field(data, "clicks", 0)
-    _parse_float_field(data, "kenp_royalties", 0.0)
-    _parse_float_field(data, "total_attributed_sales", 0.0)
+    _parse_float_field(data, "kenp_royalties_usd", 0.0)
+    _parse_float_field(data, "total_attributed_sales_usd", 0.0)
     _parse_int_field(data, "total_units_sold", 0)
-    _parse_float_field(data, "gross_profit_before_ads", 0.0)
-    _parse_float_field(data, "gross_profit", 0.0)
+    _parse_float_field(data, "gross_profit_before_ads_usd", 0.0)
+    _parse_float_field(data, "gross_profit_usd", 0.0)
 
     campaigns_raw = data.get("campaigns_by_id")
     campaigns_by_id: dict[str, AmazonAdsDailyCampaignStats] = {}
@@ -1652,11 +1686,11 @@ class AmazonAdsDailyStats:
       spend=data.get("spend", 0.0),
       impressions=data.get("impressions", 0),
       clicks=data.get("clicks", 0),
-      kenp_royalties=data.get("kenp_royalties", 0.0),
-      total_attributed_sales=data.get("total_attributed_sales", 0.0),
+      kenp_royalties_usd=data.get("kenp_royalties_usd", 0.0),
+      total_attributed_sales_usd=data.get("total_attributed_sales_usd", 0.0),
       total_units_sold=data.get("total_units_sold", 0),
-      gross_profit_before_ads=data.get("gross_profit_before_ads", 0.0),
-      gross_profit=data.get("gross_profit", 0.0),
+      gross_profit_before_ads_usd=data.get("gross_profit_before_ads_usd", 0.0),
+      gross_profit_usd=data.get("gross_profit_usd", 0.0),
       campaigns_by_id=campaigns_by_id,
     )
 
@@ -2000,8 +2034,7 @@ def _parse_required_date(value: Any, *, field_name: str) -> datetime.date:
   raise ValueError(f"{field_name} is required")
 
 
-def _parse_amazon_product_stats_list(
-  value: Any, ) -> list[AmazonProductStats]:
+def _parse_amazon_product_stats_list(value: Any, ) -> list[AmazonProductStats]:
   """Parse a list of dictionaries into `AmazonProductStats` items."""
   if not isinstance(value, list):
     return []
@@ -2041,6 +2074,22 @@ def _parse_string_list(
       seen.add(val)
     result.append(val)
   data[field_name] = result
+
+
+def _parse_optional_float(data: dict[str, Any],
+                          field_name: str) -> float | None:
+  """Return a float from data[field_name] or None if missing/invalid."""
+  val = data.get(field_name)
+  if val is None:
+    return None
+  if isinstance(val, (int, float)):
+    return float(val)
+  if isinstance(val, str) and (stripped := val.strip()):
+    try:
+      return float(stripped)
+    except ValueError:
+      pass
+  return None
 
 
 def _parse_float_field(data: dict[str, Any],

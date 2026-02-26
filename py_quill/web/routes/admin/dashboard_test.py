@@ -310,18 +310,18 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
         impressions=175,
         clicks=15,
         spend=25.0,
-        total_attributed_sales=37.0,
-        gross_profit_before_ads=60.0,
-        gross_profit=35.0,
+        total_attributed_sales_usd=37.0,
+        gross_profit_before_ads_usd=60.0,
+        gross_profit_usd=35.0,
       ),
       models.AmazonAdsDailyStats(
         date=datetime.date(2026, 2, 17),
         impressions=30,
         clicks=3,
         spend=4.50,
-        total_attributed_sales=9.00,
-        gross_profit_before_ads=9.0,
-        gross_profit=4.5,
+        total_attributed_sales_usd=9.00,
+        gross_profit_before_ads_usd=9.0,
+        gross_profit_usd=4.5,
       ),
     ]
 
@@ -353,20 +353,20 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert chart_data["clicks"][idx_0219] == 15
   assert chart_data["cost"][idx_0217] == 4.5
   assert chart_data["cost"][idx_0219] == 25.0
-  assert chart_data["sales"][idx_0217] == 9.0
-  assert chart_data["sales"][idx_0219] == 37.0
-  assert chart_data["gross_profit_before_ads"][idx_0217] == 9.0
-  assert chart_data["gross_profit_before_ads"][idx_0219] == 60.0
-  assert chart_data["gross_profit"][idx_0217] == 4.5
-  assert chart_data["gross_profit"][idx_0219] == 35.0
+  assert chart_data["sales_usd"][idx_0217] == 9.0
+  assert chart_data["sales_usd"][idx_0219] == 37.0
+  assert chart_data["gross_profit_before_ads_usd"][idx_0217] == 9.0
+  assert chart_data["gross_profit_before_ads_usd"][idx_0219] == 60.0
+  assert chart_data["gross_profit_usd"][idx_0217] == 4.5
+  assert chart_data["gross_profit_usd"][idx_0219] == 35.0
 
   # Verify totals
   assert chart_data["total_impressions"] == 205
   assert chart_data["total_clicks"] == 18
   assert chart_data["total_cost"] == 29.5
-  assert chart_data["total_sales"] == 46.0
-  assert chart_data["total_gross_profit_before_ads"] == 69.0
-  assert chart_data["total_gross_profit"] == 39.5
+  assert chart_data["total_sales_usd"] == 46.0
+  assert chart_data["total_gross_profit_before_ads_usd"] == 69.0
+  assert chart_data["total_gross_profit_usd"] == 39.5
 
 
 def test_admin_dashboard_includes_ads_stats_link(monkeypatch):
@@ -493,10 +493,10 @@ def test_admin_ads_stats_filtering(monkeypatch):
     impressions=100,
     clicks=10,
     spend=5.0,
-    total_attributed_sales=20.0,
+    total_attributed_sales_usd=20.0,
     total_units_sold=2,
-    gross_profit_before_ads=30.0,
-    gross_profit=10.0,
+    gross_profit_before_ads_usd=30.0,
+    gross_profit_usd=10.0,
   )
 
   # Add campaign details
@@ -507,10 +507,10 @@ def test_admin_ads_stats_filtering(monkeypatch):
     impressions=60,
     clicks=6,
     spend=3.0,
-    total_attributed_sales=12.0,
+    total_attributed_sales_usd=12.0,
     total_units_sold=1,
-    gross_profit_before_ads=18.0,
-    gross_profit=6.0,
+    gross_profit_before_ads_usd=18.0,
+    gross_profit_usd=6.0,
   )
   stats.campaigns_by_id["c2"] = models.AmazonAdsDailyCampaignStats(
     campaign_id="c2",
@@ -519,10 +519,10 @@ def test_admin_ads_stats_filtering(monkeypatch):
     impressions=40,
     clicks=4,
     spend=2.0,
-    total_attributed_sales=8.0,
+    total_attributed_sales_usd=8.0,
     total_units_sold=1,
-    gross_profit_before_ads=12.0,
-    gross_profit=4.0,
+    gross_profit_before_ads_usd=12.0,
+    gross_profit_usd=4.0,
   )
 
   monkeypatch.setattr(

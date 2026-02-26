@@ -515,17 +515,17 @@ def test_amazon_ads_daily_campaign_stats_to_and_from_dict():
     spend=12.5,
     impressions=1500,
     clicks=45,
-    kenp_royalties=0.75,
-    total_attributed_sales=54.0,
+    kenp_royalties_usd=0.75,
+    total_attributed_sales_usd=54.0,
     total_units_sold=9,
-    gross_profit_before_ads=44.75,
-    gross_profit=32.25,
+    gross_profit_before_ads_usd=44.75,
+    gross_profit_usd=32.25,
     sale_items=[
       models.AmazonProductStats(
         asin="B09XYZ",
         units_sold=2,
-        sales_amount=20.0,
-        total_profit=9.0,
+        total_sales_usd=20.0,
+        total_profit_usd=9.0,
       )
     ],
   )
@@ -538,10 +538,10 @@ def test_amazon_ads_daily_campaign_stats_to_and_from_dict():
   assert restored.campaign_id == "camp-1"
   assert restored.campaign_name == "Animal P - Auto"
   assert restored.date == datetime.date(2026, 2, 18)
-  assert restored.gross_profit_before_ads == 44.75
-  assert restored.gross_profit == 32.25
+  assert restored.gross_profit_before_ads_usd == 44.75
+  assert restored.gross_profit_usd == 32.25
   assert restored.sale_items[0].asin == "B09XYZ"
-  assert restored.sale_items[0].total_profit == 9.0
+  assert restored.sale_items[0].total_profit_usd == 9.0
 
 
 def test_amazon_ads_report_from_amazon_payload_supports_camel_case_fields():

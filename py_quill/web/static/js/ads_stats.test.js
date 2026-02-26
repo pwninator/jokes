@@ -23,50 +23,50 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
       impressions: 100,
       clicks: 10,
       cost: 20,
-      sales: 50,
+      sales_usd: 50,
       units_sold: 2,
-      gross_profit_before_ads: 40,
-      gross_profit: 20,
+      gross_profit_before_ads_usd: 40,
+      gross_profit_usd: 20,
     },
     {
       dateKey: '2026-03-01', // Sun
       impressions: 300,
       clicks: 30,
       cost: 60,
-      sales: 120,
+      sales_usd: 120,
       units_sold: 6,
-      gross_profit_before_ads: 150,
-      gross_profit: 90,
+      gross_profit_before_ads_usd: 150,
+      gross_profit_usd: 90,
     },
     {
       dateKey: '2026-02-23', // Mon (should be excluded from weekday averages)
       impressions: 0,
       clicks: 999,
       cost: 999,
-      sales: 999,
+      sales_usd: 999,
       units_sold: 999,
-      gross_profit_before_ads: 999,
-      gross_profit: 999,
+      gross_profit_before_ads_usd: 999,
+      gross_profit_usd: 999,
     },
     {
       dateKey: '2026-02-24', // Tue
       impressions: 10,
       clicks: 4,
       cost: 0,
-      sales: 8,
+      sales_usd: 8,
       units_sold: 1,
-      gross_profit_before_ads: 8,
-      gross_profit: 8,
+      gross_profit_before_ads_usd: 8,
+      gross_profit_usd: 8,
     },
     {
       dateKey: '2026-02-25', // Wed
       impressions: 10,
       clicks: 0,
       cost: 5,
-      sales: 7,
+      sales_usd: 7,
       units_sold: 0,
-      gross_profit_before_ads: 9,
-      gross_profit: 4,
+      gross_profit_before_ads_usd: 9,
+      gross_profit_usd: 4,
     },
   ];
 
@@ -77,7 +77,7 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
   assertClose(series.impressions[0], 200);
   assertClose(series.clicks[0], 20);
   assertClose(series.cost[0], 40);
-  assertClose(series.gross_profit_before_ads[0], 95);
+  assertClose(series.gross_profit_before_ads_usd[0], 95);
   assertClose(series.poas[0], 2.375);
   assertClose(series.cpc[0], 2);
   assertClose(series.ctr[0], 10);
@@ -104,10 +104,10 @@ test('getDailyStatsForCampaign prefers campaign sums for All when campaign rows 
     impressions: [999, 77],
     clicks: [999, 7],
     cost: [999, 8],
-    sales: [999, 9],
+    sales_usd: [999, 9],
     units_sold: [999, 3],
-    gross_profit_before_ads: [999, 20],
-    gross_profit: [999, 11],
+    gross_profit_before_ads_usd: [999, 20],
+    gross_profit_usd: [999, 11],
     daily_campaigns: {
       '2026-02-22': [
         {
@@ -115,20 +115,20 @@ test('getDailyStatsForCampaign prefers campaign sums for All when campaign rows 
           impressions: 40,
           clicks: 4,
           spend: 8,
-          total_attributed_sales: 12,
+          total_attributed_sales_usd: 12,
           total_units_sold: 2,
-          gross_profit_before_ads: 16,
-          gross_profit: 8,
+          gross_profit_before_ads_usd: 16,
+          gross_profit_usd: 8,
         },
         {
           campaign_name: 'Campaign B',
           impressions: 60,
           clicks: 6,
           spend: 12,
-          total_attributed_sales: 18,
+          total_attributed_sales_usd: 18,
           total_units_sold: 3,
-          gross_profit_before_ads: 24,
-          gross_profit: 12,
+          gross_profit_before_ads_usd: 24,
+          gross_profit_usd: 12,
         },
       ],
       '2026-02-23': [],
@@ -154,10 +154,10 @@ test('buildChartStats keeps totals stable while Days of Week series skips zero-i
     impressions: [10, 0],
     clicks: [2, 100],
     cost: [4, 50],
-    sales: [8, 60],
+    sales_usd: [8, 60],
     units_sold: [1, 20],
-    gross_profit_before_ads: [6, 70],
-    gross_profit: [2, 20],
+    gross_profit_before_ads_usd: [6, 70],
+    gross_profit_usd: [2, 20],
     daily_campaigns: {
       '2026-02-22': [],
       '2026-02-23': [],
@@ -171,7 +171,7 @@ test('buildChartStats keeps totals stable while Days of Week series skips zero-i
   assert.equal(daysOfWeek.totals.impressions, timeline.totals.impressions);
   assert.equal(daysOfWeek.totals.clicks, timeline.totals.clicks);
   assert.equal(daysOfWeek.totals.cost, timeline.totals.cost);
-  assert.equal(daysOfWeek.totals.gross_profit_before_ads, timeline.totals.gross_profit_before_ads);
+  assert.equal(daysOfWeek.totals.gross_profit_before_ads_usd, timeline.totals.gross_profit_before_ads_usd);
 
   // Monday bucket should be zeroed because that day has zero impressions.
   assertClose(daysOfWeek.impressions[1], 0);

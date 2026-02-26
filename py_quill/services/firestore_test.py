@@ -2930,8 +2930,8 @@ def test_upsert_amazon_ads_daily_stats_uses_date_as_key(monkeypatch):
   stats = models.AmazonAdsDailyStats(
     date=datetime.date(2026, 2, 18),
     spend=12.34,
-    gross_profit_before_ads=7.5,
-    gross_profit=3.25,
+    gross_profit_before_ads_usd=7.5,
+    gross_profit_usd=3.25,
   )
 
   saved = fs.upsert_amazon_ads_daily_stats([stats])
@@ -2944,8 +2944,8 @@ def test_upsert_amazon_ads_daily_stats_uses_date_as_key(monkeypatch):
   assert captured["merge"] is True
   assert captured["committed"] is True
   assert isinstance(captured["data"], dict)
-  assert captured["data"]["gross_profit_before_ads"] == 7.5
-  assert captured["data"]["gross_profit"] == 3.25
+  assert captured["data"]["gross_profit_before_ads_usd"] == 7.5
+  assert captured["data"]["gross_profit_usd"] == 3.25
 
 
 def test_list_amazon_ads_daily_stats_filters_by_date_range(monkeypatch):
@@ -2971,11 +2971,11 @@ def test_list_amazon_ads_daily_stats_filters_by_date_range(monkeypatch):
         "spend": 10.0,
         "impressions": 100,
         "clicks": 10,
-        "kenp_royalties": 1.2,
-        "total_attributed_sales": 23.0,
+        "kenp_royalties_usd": 1.2,
+        "total_attributed_sales_usd": 23.0,
         "total_units_sold": 4,
-        "gross_profit_before_ads": 12.0,
-        "gross_profit": 9.0,
+        "gross_profit_before_ads_usd": 12.0,
+        "gross_profit_usd": 9.0,
         "campaigns_by_id": {},
       }
 

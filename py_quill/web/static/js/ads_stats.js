@@ -49,21 +49,21 @@
             dayImpressions += toNumber(camp.impressions);
             dayClicks += toNumber(camp.clicks);
             dayCost += toNumber(camp.spend);
-            daySales += toNumber(camp.total_attributed_sales);
+            daySales += toNumber(camp.total_attributed_sales_usd);
             dayUnitsSold += toNumber(camp.total_units_sold);
-            dayGpPreAd += toNumber(camp.gross_profit_before_ads);
-            dayGp += toNumber(camp.gross_profit);
+            dayGpPreAd += toNumber(camp.gross_profit_before_ads_usd);
+            dayGp += toNumber(camp.gross_profit_usd);
           });
         } else {
           const impressions = Array.isArray(data.impressions) ? data.impressions : [];
           const clicks = Array.isArray(data.clicks) ? data.clicks : [];
           const cost = Array.isArray(data.cost) ? data.cost : [];
-          const sales = Array.isArray(data.sales) ? data.sales : [];
+          const sales = Array.isArray(data.sales_usd) ? data.sales_usd : [];
           const unitsSold = Array.isArray(data.units_sold) ? data.units_sold : [];
-          const grossProfitBeforeAds = Array.isArray(data.gross_profit_before_ads)
-            ? data.gross_profit_before_ads
+          const grossProfitBeforeAds = Array.isArray(data.gross_profit_before_ads_usd)
+            ? data.gross_profit_before_ads_usd
             : [];
-          const grossProfit = Array.isArray(data.gross_profit) ? data.gross_profit : [];
+          const grossProfit = Array.isArray(data.gross_profit_usd) ? data.gross_profit_usd : [];
           dayImpressions = toNumber(impressions[index]);
           dayClicks = toNumber(clicks[index]);
           dayCost = toNumber(cost[index]);
@@ -78,10 +78,10 @@
             dayImpressions += toNumber(camp.impressions);
             dayClicks += toNumber(camp.clicks);
             dayCost += toNumber(camp.spend);
-            daySales += toNumber(camp.total_attributed_sales);
+            daySales += toNumber(camp.total_attributed_sales_usd);
             dayUnitsSold += toNumber(camp.total_units_sold);
-            dayGpPreAd += toNumber(camp.gross_profit_before_ads);
-            dayGp += toNumber(camp.gross_profit);
+            dayGpPreAd += toNumber(camp.gross_profit_before_ads_usd);
+            dayGp += toNumber(camp.gross_profit_usd);
           }
         });
       }
@@ -91,10 +91,10 @@
         impressions: dayImpressions,
         clicks: dayClicks,
         cost: dayCost,
-        sales: daySales,
+        sales_usd: daySales,
         units_sold: dayUnitsSold,
-        gross_profit_before_ads: dayGpPreAd,
-        gross_profit: dayGp,
+        gross_profit_before_ads_usd: dayGpPreAd,
+        gross_profit_usd: dayGp,
       };
     });
   }
@@ -104,20 +104,20 @@
       impressions: 0,
       clicks: 0,
       cost: 0,
-      sales: 0,
+      sales_usd: 0,
       units_sold: 0,
-      gross_profit_before_ads: 0,
-      gross_profit: 0,
+      gross_profit_before_ads_usd: 0,
+      gross_profit_usd: 0,
     };
 
     (dailyStats || []).forEach((day) => {
       totals.impressions += toNumber(day.impressions);
       totals.clicks += toNumber(day.clicks);
       totals.cost += toNumber(day.cost);
-      totals.sales += toNumber(day.sales);
+      totals.sales_usd += toNumber(day.sales_usd);
       totals.units_sold += toNumber(day.units_sold);
-      totals.gross_profit_before_ads += toNumber(day.gross_profit_before_ads);
-      totals.gross_profit += toNumber(day.gross_profit);
+      totals.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
+      totals.gross_profit_usd += toNumber(day.gross_profit_usd);
     });
 
     return totals;
@@ -131,23 +131,23 @@
     const impressions = rows.map((day) => toNumber(day.impressions));
     const clicks = rows.map((day) => toNumber(day.clicks));
     const cost = rows.map((day) => toNumber(day.cost));
-    const sales = rows.map((day) => toNumber(day.sales));
+    const sales = rows.map((day) => toNumber(day.sales_usd));
     const unitsSold = rows.map((day) => toNumber(day.units_sold));
-    const grossProfitBeforeAds = rows.map((day) => toNumber(day.gross_profit_before_ads));
-    const grossProfit = rows.map((day) => toNumber(day.gross_profit));
+    const grossProfitBeforeAds = rows.map((day) => toNumber(day.gross_profit_before_ads_usd));
+    const grossProfit = rows.map((day) => toNumber(day.gross_profit_usd));
 
     return {
       labels: labels,
       impressions: impressions,
       clicks: clicks,
       cost: cost,
-      sales: sales,
+      sales_usd: sales,
       units_sold: unitsSold,
-      gross_profit_before_ads: grossProfitBeforeAds,
-      gross_profit: grossProfit,
+      gross_profit_before_ads_usd: grossProfitBeforeAds,
+      gross_profit_usd: grossProfit,
       poas: rows.map((day) => {
         const dayCost = toNumber(day.cost);
-        return dayCost > 0 ? toNumber(day.gross_profit_before_ads) / dayCost : 0;
+        return dayCost > 0 ? toNumber(day.gross_profit_before_ads_usd) / dayCost : 0;
       }),
       cpc: rows.map((day) => {
         const dayClicks = toNumber(day.clicks);
@@ -170,10 +170,10 @@
       impressions: 0,
       clicks: 0,
       cost: 0,
-      sales: 0,
+      sales_usd: 0,
       units_sold: 0,
-      gross_profit_before_ads: 0,
-      gross_profit: 0,
+      gross_profit_before_ads_usd: 0,
+      gross_profit_usd: 0,
     }));
 
     (dailyStats || []).forEach((day) => {
@@ -186,23 +186,23 @@
       bucket.impressions += toNumber(day.impressions);
       bucket.clicks += toNumber(day.clicks);
       bucket.cost += toNumber(day.cost);
-      bucket.sales += toNumber(day.sales);
+      bucket.sales_usd += toNumber(day.sales_usd);
       bucket.units_sold += toNumber(day.units_sold);
-      bucket.gross_profit_before_ads += toNumber(day.gross_profit_before_ads);
-      bucket.gross_profit += toNumber(day.gross_profit);
+      bucket.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
+      bucket.gross_profit_usd += toNumber(day.gross_profit_usd);
     });
 
     const impressions = weekdayBuckets.map((bucket) => average(bucket.impressions, bucket.count));
     const clicks = weekdayBuckets.map((bucket) => average(bucket.clicks, bucket.count));
     const cost = weekdayBuckets.map((bucket) => average(bucket.cost, bucket.count));
-    const sales = weekdayBuckets.map((bucket) => average(bucket.sales, bucket.count));
+    const sales = weekdayBuckets.map((bucket) => average(bucket.sales_usd, bucket.count));
     const unitsSold = weekdayBuckets.map((bucket) => average(bucket.units_sold, bucket.count));
-    const grossProfitBeforeAds = weekdayBuckets.map((bucket) => average(bucket.gross_profit_before_ads, bucket.count));
-    const grossProfit = weekdayBuckets.map((bucket) => average(bucket.gross_profit, bucket.count));
+    const grossProfitBeforeAds = weekdayBuckets.map((bucket) => average(bucket.gross_profit_before_ads_usd, bucket.count));
+    const grossProfit = weekdayBuckets.map((bucket) => average(bucket.gross_profit_usd, bucket.count));
 
     const poas = weekdayBuckets.map((bucket) => {
       const avgCost = average(bucket.cost, bucket.count);
-      const avgGrossProfitBeforeAds = average(bucket.gross_profit_before_ads, bucket.count);
+      const avgGrossProfitBeforeAds = average(bucket.gross_profit_before_ads_usd, bucket.count);
       return avgCost > 0 ? avgGrossProfitBeforeAds / avgCost : 0;
     });
     const cpc = weekdayBuckets.map((bucket) => {
@@ -226,10 +226,10 @@
       impressions: impressions,
       clicks: clicks,
       cost: cost,
-      sales: sales,
+      sales_usd: sales,
       units_sold: unitsSold,
-      gross_profit_before_ads: grossProfitBeforeAds,
-      gross_profit: grossProfit,
+      gross_profit_before_ads_usd: grossProfitBeforeAds,
+      gross_profit_usd: grossProfit,
       poas: poas,
       cpc: cpc,
       ctr: ctr,
@@ -249,10 +249,10 @@
       impressions: series.impressions,
       clicks: series.clicks,
       cost: series.cost,
-      sales: series.sales,
+      sales_usd: series.sales_usd,
       units_sold: series.units_sold,
-      gross_profit_before_ads: series.gross_profit_before_ads,
-      gross_profit: series.gross_profit,
+      gross_profit_before_ads_usd: series.gross_profit_before_ads_usd,
+      gross_profit_usd: series.gross_profit_usd,
       poas: series.poas,
       cpc: series.cpc,
       ctr: series.ctr,
@@ -385,7 +385,7 @@
             },
             {
               label: 'Gross Profit Before Ads',
-              data: stats.gross_profit_before_ads,
+              data: stats.gross_profit_before_ads_usd,
               borderColor: '#2e7d32',
               backgroundColor: '#2e7d3222',
               fill: false,
@@ -396,7 +396,7 @@
             },
             {
               label: 'Gross Profit',
-              data: stats.gross_profit,
+              data: stats.gross_profit_usd,
               borderColor: '#6a1b9a',
               backgroundColor: '#6a1b9a22',
               fill: 'origin',
@@ -612,10 +612,10 @@
           statCost.textContent = formatCurrency(stats.totals.cost);
         }
         if (statGpPreAd) {
-          statGpPreAd.textContent = formatCurrency(stats.totals.gross_profit_before_ads);
+          statGpPreAd.textContent = formatCurrency(stats.totals.gross_profit_before_ads_usd);
         }
         if (statGp) {
-          statGp.textContent = formatCurrency(stats.totals.gross_profit);
+          statGp.textContent = formatCurrency(stats.totals.gross_profit_usd);
         }
 
         const totalCtr = stats.totals.impressions > 0

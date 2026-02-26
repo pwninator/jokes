@@ -390,18 +390,18 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   assert daily.spend == 5.0
   assert daily.impressions == 100
   assert daily.clicks == 10
-  assert daily.kenp_royalties == 1.0
-  assert daily.total_attributed_sales == 99.0
+  assert daily.kenp_royalties_usd == 1.0
+  assert daily.total_attributed_sales_usd == 99.0
   assert daily.total_units_sold == 9
   # Pre-ads: (25*0.6 - 3*2.91) + (17*0.35 - 3*0.0) + 1.0 KENP
-  assert daily.gross_profit_before_ads == pytest.approx(13.22, rel=1e-6)
-  assert daily.gross_profit == pytest.approx(8.22, rel=1e-6)
+  assert daily.gross_profit_before_ads_usd == pytest.approx(13.22, rel=1e-6)
+  assert daily.gross_profit_usd == pytest.approx(8.22, rel=1e-6)
   assert [item.asin
           for item in daily.sale_items] == ["B0G9765J19", "B0GNHFKQ8W"]
   paperback_item = next(item for item in daily.sale_items
                         if item.asin == "B0GNHFKQ8W")
   assert paperback_item.units_sold == 3
-  assert paperback_item.sales_amount == 25.0
+  assert paperback_item.total_sales_usd == 25.0
 
 
 def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
@@ -473,11 +473,11 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
   assert len(output) == 1
   daily = output[0]
   assert daily.spend == pytest.approx(7.32, rel=1e-6)
-  assert daily.total_attributed_sales == pytest.approx(14.64, rel=1e-6)
-  assert daily.kenp_royalties == pytest.approx(0.732, rel=1e-6)
-  assert daily.gross_profit_before_ads == pytest.approx(3.294, rel=1e-6)
-  assert daily.gross_profit == pytest.approx(-4.026, rel=1e-6)
-  assert daily.sale_items[0].sales_amount == pytest.approx(7.32, rel=1e-6)
+  assert daily.total_attributed_sales_usd == pytest.approx(14.64, rel=1e-6)
+  assert daily.kenp_royalties_usd == pytest.approx(0.732, rel=1e-6)
+  assert daily.gross_profit_before_ads_usd == pytest.approx(3.294, rel=1e-6)
+  assert daily.gross_profit_usd == pytest.approx(-4.026, rel=1e-6)
+  assert daily.sale_items[0].total_sales_usd == pytest.approx(7.32, rel=1e-6)
 
 
 def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
@@ -548,10 +548,10 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
   assert len(output) == 1
   daily = output[0]
   assert daily.spend == pytest.approx(2.7138, rel=1e-6)
-  assert daily.total_attributed_sales == pytest.approx(5.4276, rel=1e-6)
-  assert daily.gross_profit_before_ads == pytest.approx(0.94983, rel=1e-6)
-  assert daily.gross_profit == pytest.approx(-1.76397, rel=1e-6)
-  assert daily.sale_items[0].sales_amount == pytest.approx(2.7138, rel=1e-6)
+  assert daily.total_attributed_sales_usd == pytest.approx(5.4276, rel=1e-6)
+  assert daily.gross_profit_before_ads_usd == pytest.approx(0.94983, rel=1e-6)
+  assert daily.gross_profit_usd == pytest.approx(-1.76397, rel=1e-6)
+  assert daily.sale_items[0].total_sales_usd == pytest.approx(2.7138, rel=1e-6)
 
 
 def test_sp_advertised_product_columns_include_campaign_budget_currency_code():

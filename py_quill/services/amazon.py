@@ -7,6 +7,7 @@ import datetime
 import gzip
 import json
 import pprint
+import time
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -26,6 +27,16 @@ _DAILY_TIME_UNIT = "DAILY"
 _CREATE_REPORT_CONTENT_TYPE = "application/vnd.createasyncreportrequest.v3+json"
 _REPORT_STATUS_COMPLETED = {"COMPLETED", "SUCCESS"}
 _REPORT_STATUS_FAILED = {"FAILED", "CANCELLED"}
+
+# Ads stats report orchestration
+ADS_STATS_TARGET_COUNTRY_CODES = frozenset({"US", "CA", "UK", "GB"})
+ADS_STATS_REPORT_WINDOW_DAYS = 30
+ADS_STATS_REPORT_METADATA_WAIT_SEC = 5
+ADS_STATS_REQUIRED_REPORT_TYPES = (
+  "spCampaigns",
+  "spAdvertisedProduct",
+  "spPurchasedProduct",
+)
 _REQUEST_TIMEOUT_SEC = 30
 _USD_CURRENCY_CODE = "USD"
 
@@ -320,6 +331,301 @@ def get_daily_campaign_stats_from_reports(
     profile_country_code=profile.country_code,
   )
   return merged_stats
+
+
+@dataclasses.dataclass
+class _AdsStatsContext:
+  """Shared context for ads stats request and fetch phases."""
+
+  selected_profiles: list[AmazonAdsProfile]
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport]
+  report_end_date: datetime.date
+  report_start_date: datetime.date
+  profiles_considered: int
+
+
+def _get_ads_stats_context(
+    run_time_utc: datetime.datetime) -> _AdsStatsContext:
+  """Build shared context: profiles, report window, and existing reports."""
+  report_end_date = run_time_utc.date()
+  report_start_date = report_end_date - datetime.timedelta(
+    days=ADS_STATS_REPORT_WINDOW_DAYS)
+  today_utc = run_time_utc.date()
+  profiles = get_profiles(region="all")
+  existing_reports = firestore.list_amazon_ads_reports(
+    created_on_or_after=today_utc - datetime.timedelta(days=2))
+
+  selected_profiles = sorted(
+    [
+      profile for profile in profiles
+      if profile.country_code.upper() in ADS_STATS_TARGET_COUNTRY_CODES
+    ],
+    key=lambda profile:
+    (profile.country_code, profile.region, profile.profile_id),
+  )
+
+  reports_by_expected_key = _select_today_reports_for_window(
+    reports=existing_reports,
+    today_utc=today_utc,
+    report_start_date=report_start_date,
+    report_end_date=report_end_date,
+  )
+
+  return _AdsStatsContext(
+    selected_profiles=selected_profiles,
+    reports_by_expected_key=reports_by_expected_key,
+    report_end_date=report_end_date,
+    report_start_date=report_start_date,
+    profiles_considered=len(profiles),
+  )
+
+
+@dataclasses.dataclass(frozen=True)
+class AdsStatsRequestResult:
+  """Result of requesting ads stats reports."""
+
+  selected_profiles: list[AmazonAdsProfile]
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport]
+  report_requests: list[dict[str, str]]
+  report_end_date: datetime.date
+  report_start_date: datetime.date
+  profiles_considered: int
+
+
+def request_ads_stats_reports(
+    run_time_utc: datetime.datetime) -> AdsStatsRequestResult:
+  """Request ads reports for target profiles if there are no pending ones."""
+  ctx = _get_ads_stats_context(run_time_utc)
+
+  report_requests: list[dict[str, str]] = []
+  for profile in ctx.selected_profiles:
+    if _has_all_required_reports(
+        profile_id=profile.profile_id,
+        reports_by_expected_key=ctx.reports_by_expected_key,
+    ) and not _are_all_reports_processed(
+        profile_id=profile.profile_id,
+        reports_by_expected_key=ctx.reports_by_expected_key,
+    ):
+      continue
+
+    report_pair = request_daily_campaign_stats_reports(
+      profile=profile,
+      start_date=ctx.report_start_date,
+      end_date=ctx.report_end_date,
+    )
+    ctx.reports_by_expected_key[(profile.profile_id,
+                                report_pair.campaigns_report.report_type_id
+                                )] = report_pair.campaigns_report
+    ctx.reports_by_expected_key[(
+      profile.profile_id, report_pair.advertised_products_report.report_type_id
+    )] = report_pair.advertised_products_report
+    ctx.reports_by_expected_key[(
+      profile.profile_id, report_pair.purchased_products_report.report_type_id
+    )] = report_pair.purchased_products_report
+    report_requests.append({
+      "profile_id":
+      profile.profile_id,
+      "country_code":
+      profile.country_code,
+      "region":
+      profile.region,
+      "campaigns_report_id":
+      report_pair.campaigns_report.report_id,
+      "advertised_products_report_id":
+      report_pair.advertised_products_report.report_id,
+      "purchased_products_report_id":
+      report_pair.purchased_products_report.report_id,
+    })
+
+  return AdsStatsRequestResult(
+    selected_profiles=ctx.selected_profiles,
+    reports_by_expected_key=ctx.reports_by_expected_key,
+    report_requests=report_requests,
+    report_end_date=ctx.report_end_date,
+    report_start_date=ctx.report_start_date,
+    profiles_considered=ctx.profiles_considered,
+  )
+
+
+def fetch_ads_stats_reports(
+    run_time_utc: datetime.datetime
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+  """Get report status and, if ready and unprocessed, fetch and process them."""
+  ctx = _get_ads_stats_context(run_time_utc)
+  time.sleep(ADS_STATS_REPORT_METADATA_WAIT_SEC)
+  report_metadata: list[dict[str, Any]] = []
+  daily_campaign_stats_rows: list[dict[str, Any]] = []
+
+  for profile in ctx.selected_profiles:
+    report_ids = _collect_expected_report_ids_for_profile(
+      profile_id=profile.profile_id,
+      reports_by_expected_key=ctx.reports_by_expected_key,
+    )
+    if not report_ids:
+      continue
+    statuses = get_reports(
+      profile_id=profile.profile_id,
+      report_ids=report_ids,
+      region=profile.region,
+    )
+    for status in statuses:
+      status_row = status.to_dict(include_key=True)
+      if not status_row.get("profile_country"):
+        status_row["profile_country"] = profile.country_code
+      if not status_row.get("region"):
+        status_row["region"] = profile.region
+      if not status_row.get("api_base"):
+        status_row["api_base"] = profile.api_base
+      report_metadata.append(status_row)
+
+    reports_by_type = {report.report_type_id: report for report in statuses}
+    campaigns_report = reports_by_type.get("spCampaigns")
+    advertised_products_report = reports_by_type.get("spAdvertisedProduct")
+    purchased_products_report = reports_by_type.get("spPurchasedProduct")
+    if (campaigns_report and advertised_products_report
+        and purchased_products_report and _are_reports_complete(
+          campaigns_report,
+          advertised_products_report,
+          purchased_products_report,
+        )):
+      if (not campaigns_report.processed
+          or not advertised_products_report.processed
+          or not purchased_products_report.processed):
+
+        daily_campaign_stats = get_daily_campaign_stats_from_reports(
+          profile=profile,
+          campaigns_report=campaigns_report,
+          advertised_products_report=advertised_products_report,
+          purchased_products_report=purchased_products_report,
+        )
+
+        # Aggregate stats by date
+        stats_by_date: dict[datetime.date, models.AmazonAdsDailyStats] = {}
+        for campaign_stat in daily_campaign_stats:
+          if campaign_stat.date not in stats_by_date:
+            stats_by_date[campaign_stat.date] = models.AmazonAdsDailyStats(
+              date=campaign_stat.date, )
+
+          daily_stat = stats_by_date[campaign_stat.date]
+          daily_stat.campaigns_by_id[campaign_stat.campaign_id] = campaign_stat
+
+          # Aggregate metrics
+          daily_stat.spend += campaign_stat.spend
+          daily_stat.impressions += campaign_stat.impressions
+          daily_stat.clicks += campaign_stat.clicks
+          daily_stat.kenp_royalties_usd += campaign_stat.kenp_royalties_usd
+          daily_stat.total_attributed_sales_usd += campaign_stat.total_attributed_sales_usd
+          daily_stat.total_units_sold += campaign_stat.total_units_sold
+          daily_stat.gross_profit_before_ads_usd += campaign_stat.gross_profit_before_ads_usd
+          daily_stat.gross_profit_usd += campaign_stat.gross_profit_usd
+
+        # Upsert aggregated stats
+        daily_stats_list = list(stats_by_date.values())
+        _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+
+        # Mark reports as processed
+        campaigns_report.processed = True
+        advertised_products_report.processed = True
+        purchased_products_report.processed = True
+        _ = firestore.upsert_amazon_ads_report(campaigns_report)
+        _ = firestore.upsert_amazon_ads_report(advertised_products_report)
+        _ = firestore.upsert_amazon_ads_report(purchased_products_report)
+
+        # Flatten for logging and debugging response (keeping original format)
+        for daily_stat in daily_stats_list:
+          for campaign_stat in daily_stat.campaigns_by_id.values():
+            stat_row = campaign_stat.to_dict(include_key=True)
+            stat_row["profile_id"] = profile.profile_id
+            stat_row["profile_country"] = profile.country_code
+            stat_row["region"] = profile.region
+            daily_campaign_stats_rows.append(stat_row)
+      else:
+        logger.info(
+          f"Reports already processed for profile {profile.profile_id}")
+    else:
+      logger.info(f"Reports not complete for profile {profile.profile_id}")
+
+  return report_metadata, daily_campaign_stats_rows
+
+
+def _select_today_reports_for_window(
+  *,
+  reports: list[models.AmazonAdsReport],
+  today_utc: datetime.date,
+  report_start_date: datetime.date,
+  report_end_date: datetime.date,
+) -> dict[tuple[str, str], models.AmazonAdsReport]:
+  """Pick most recent report per profile/type created today for the target window."""
+  selected: dict[tuple[str, str], models.AmazonAdsReport] = {}
+  for report in reports:
+    profile_id = report.profile_id or ""
+    if not profile_id:
+      continue
+    if report.report_type_id not in ADS_STATS_REQUIRED_REPORT_TYPES:
+      continue
+    if (report.start_date != report_start_date
+        or report.end_date != report_end_date):
+      continue
+    if report.created_at.date() != today_utc:
+      continue
+
+    key = (profile_id, report.report_type_id)
+    existing = selected.get(key)
+    if existing is None:
+      selected[key] = report
+      continue
+
+    if report.created_at > existing.created_at:
+      selected[key] = report
+      continue
+    if (report.created_at == existing.created_at
+        and report.updated_at > existing.updated_at):
+      selected[key] = report
+  return selected
+
+
+def _has_all_required_reports(
+  *,
+  profile_id: str,
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+) -> bool:
+  """Return whether all required report types exist for the profile."""
+  return all((profile_id, report_type) in reports_by_expected_key
+             for report_type in ADS_STATS_REQUIRED_REPORT_TYPES)
+
+
+def _are_all_reports_processed(
+  *,
+  profile_id: str,
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+) -> bool:
+  """Return whether all required report types for the profile are processed."""
+  for report_type in ADS_STATS_REQUIRED_REPORT_TYPES:
+    report = reports_by_expected_key.get((profile_id, report_type))
+    if not report or not report.processed:
+      return False
+  return True
+
+
+def _collect_expected_report_ids_for_profile(
+  *,
+  profile_id: str,
+  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+) -> list[str]:
+  """Collect report IDs in required report-type order for a profile."""
+  report_ids: list[str] = []
+  for report_type in ADS_STATS_REQUIRED_REPORT_TYPES:
+    report = reports_by_expected_key.get((profile_id, report_type))
+    if not report:
+      continue
+    report_ids.append(report.report_id)
+  return report_ids
+
+
+def _are_reports_complete(*reports: models.AmazonAdsReport) -> bool:
+  """Return True when all provided reports are complete."""
+  return all(report.status.upper() in _REPORT_STATUS_COMPLETED
+             for report in reports)
 
 
 def _validate_report_date_range(

@@ -72,8 +72,10 @@ auto_joke_hourly_scheduler = joke_auto_fns.auto_joke_hourly_scheduler
 auto_joke_hourly_http = joke_auto_fns.auto_joke_hourly_http
 auto_user_daily_scheduler = joke_auto_fns.auto_user_daily_scheduler
 auto_user_daily_http = joke_auto_fns.auto_user_daily_http
-auto_ads_stats_scheduler = joke_auto_fns.auto_ads_stats_scheduler
-auto_ads_stats_http = joke_auto_fns.auto_ads_stats_http
+auto_ads_stats_request_scheduler = joke_auto_fns.auto_ads_stats_request_scheduler
+auto_ads_stats_request_http = joke_auto_fns.auto_ads_stats_request_http
+auto_ads_stats_fetch_scheduler = joke_auto_fns.auto_ads_stats_fetch_scheduler
+auto_ads_stats_fetch_http = joke_auto_fns.auto_ads_stats_fetch_http
 
 # Export the joke notification functions
 send_daily_joke_http = joke_notification_fns.send_daily_joke_http

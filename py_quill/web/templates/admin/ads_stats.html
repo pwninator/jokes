@@ -3,27 +3,83 @@
 {% block title %}Ads Stats · {{ site_name }} Admin{% endblock %}
 
 {% block content %}
-<div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center;">
+<div class="dashboard-header ads-stats-header">
   <div>
     <h2>Ads Stats</h2>
   </div>
-  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <label for="campaignSelector" style="font-weight: bold; color: var(--color-text);">Campaign:</label>
-      <select id="campaignSelector" style="padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);">
-        <option value="All">All</option>
-      </select>
-      <label for="modeSelector" style="font-weight: bold; color: var(--color-text);">Mode:</label>
-      <select id="modeSelector" style="padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text);">
-        <option value="Timeline">Timeline</option>
-        <option value="Days of Week">Days of Week</option>
-      </select>
+  <div class="ads-stats-header-controls">
+    <div class="ads-stats-filters-row">
+      <div class="ads-stats-filter">
+        <label for="campaignSelector">Campaign:</label>
+        <select id="campaignSelector">
+          <option value="All">All</option>
+        </select>
+      </div>
+      <div class="ads-stats-filter">
+        <label for="modeSelector">Mode:</label>
+        <select id="modeSelector">
+          <option value="Timeline">Timeline</option>
+          <option value="Days of Week">Days of Week</option>
+        </select>
+      </div>
     </div>
     <a href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/" target="_blank" rel="noopener noreferrer">Refresh</a>
   </div>
 </div>
 
+<div style="margin: 12px 0 20px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface);">
+  <form id="kdpUploadForm" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+    <label for="kdpFileInput" style="font-weight: bold; color: var(--color-text);">Upload KDP xlsx:</label>
+    <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
+    <button id="kdpUploadButton" type="submit">Upload</button>
+    <span id="kdpUploadStatus" class="muted"></span>
+  </form>
+</div>
+
 <style>
+  .ads-stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .ads-stats-header-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 0;
+  }
+  .ads-stats-filters-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    width: 100%;
+    min-width: 0;
+  }
+  .ads-stats-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .ads-stats-filter label {
+    font-weight: bold;
+    color: var(--color-text);
+    white-space: nowrap;
+  }
+  .ads-stats-filter select {
+    width: min(240px, 100%);
+    min-width: 0;
+    max-width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -64,6 +120,28 @@
   .chart-container:last-child {
     margin-bottom: 0;
   }
+  @media (max-width: 900px) {
+    .ads-stats-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .ads-stats-header-controls {
+      align-items: stretch;
+    }
+    .ads-stats-filters-row {
+      justify-content: flex-start;
+    }
+  }
+  @media (max-width: 640px) {
+    .ads-stats-filter {
+      flex: 1 1 100%;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .ads-stats-filter select {
+      width: 100%;
+    }
+  }
 </style>
 
 <div class="stats-grid">
@@ -78,6 +156,10 @@
   <div class="stat-card">
     <div class="stat-card__label">Cost</div>
     <div class="stat-card__value" id="stat-cost">{{ "${:,.2f}".format(chart_data.total_cost) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">CTR</div>
+    <div class="stat-card__value" id="stat-ctr">0.0%</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">CPC</div>
@@ -115,6 +197,10 @@
     <canvas id="cpcAndConversionRateChart"></canvas>
   </div>
   <div class="chart-container">
+    <h3>CTR</h3>
+    <canvas id="ctrChart"></canvas>
+  </div>
+  <div class="chart-container">
     <h3>Impressions / Clicks</h3>
     <canvas id="impressionsAndClicksChart"></canvas>
   </div>
@@ -126,6 +212,38 @@
   if (window.initAdsStatsPage) {
     window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
+    });
+  }
+
+  const kdpUploadForm = document.getElementById('kdpUploadForm');
+  if (kdpUploadForm) {
+    kdpUploadForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const statusEl = document.getElementById('kdpUploadStatus');
+      const fileInput = document.getElementById('kdpFileInput');
+      const uploadButton = document.getElementById('kdpUploadButton');
+      if (!statusEl || !fileInput || !uploadButton || !fileInput.files || fileInput.files.length === 0) {
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      uploadButton.disabled = true;
+      statusEl.textContent = 'Uploading...';
+      try {
+        const response = await fetch('/admin/ads-stats/upload-kdp', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Upload failed');
+        }
+        statusEl.textContent = `Saved ${data.days_saved} days`;
+      } catch (error) {
+        statusEl.textContent = error?.message || 'Upload failed';
+      } finally {
+        uploadButton.disabled = false;
+      }
     });
   }
 </script>

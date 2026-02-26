@@ -80,6 +80,7 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
   assertClose(series.gross_profit_before_ads[0], 95);
   assertClose(series.poas[0], 2.375);
   assertClose(series.cpc[0], 2);
+  assertClose(series.ctr[0], 10);
   assertClose(series.conversion_rate[0], 20);
 
   // Monday excluded entirely because impressions were zero.
@@ -89,9 +90,11 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
   // Tuesday denominator handling: avg cost is zero -> POAS/CPC are zero.
   assertClose(series.poas[2], 0);
   assertClose(series.cpc[2], 0);
+  assertClose(series.ctr[2], 40);
 
   // Wednesday denominator handling: avg clicks is zero -> CPC/CR are zero.
   assertClose(series.cpc[3], 0);
+  assertClose(series.ctr[3], 0);
   assertClose(series.conversion_rate[3], 0);
 });
 
@@ -174,5 +177,6 @@ test('buildChartStats keeps totals stable while Days of Week series skips zero-i
   assertClose(daysOfWeek.impressions[1], 0);
   assertClose(daysOfWeek.cost[1], 0);
   assertClose(daysOfWeek.cpc[1], 0);
+  assertClose(daysOfWeek.ctr[1], 0);
   assertClose(daysOfWeek.poas[1], 0);
 });

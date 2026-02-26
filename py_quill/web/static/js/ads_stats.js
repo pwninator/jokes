@@ -153,6 +153,10 @@
         const dayClicks = toNumber(day.clicks);
         return dayClicks > 0 ? toNumber(day.cost) / dayClicks : 0;
       }),
+      ctr: rows.map((day) => {
+        const dayImpressions = toNumber(day.impressions);
+        return dayImpressions > 0 ? (toNumber(day.clicks) / dayImpressions) * 100 : 0;
+      }),
       conversion_rate: rows.map((day) => {
         const dayClicks = toNumber(day.clicks);
         return dayClicks > 0 ? (toNumber(day.units_sold) / dayClicks) * 100 : 0;
@@ -206,6 +210,11 @@
       const avgClicks = average(bucket.clicks, bucket.count);
       return avgClicks > 0 ? avgCost / avgClicks : 0;
     });
+    const ctr = weekdayBuckets.map((bucket) => {
+      const avgImpressions = average(bucket.impressions, bucket.count);
+      const avgClicks = average(bucket.clicks, bucket.count);
+      return avgImpressions > 0 ? (avgClicks / avgImpressions) * 100 : 0;
+    });
     const conversionRate = weekdayBuckets.map((bucket) => {
       const avgUnitsSold = average(bucket.units_sold, bucket.count);
       const avgClicks = average(bucket.clicks, bucket.count);
@@ -223,6 +232,7 @@
       gross_profit: grossProfit,
       poas: poas,
       cpc: cpc,
+      ctr: ctr,
       conversion_rate: conversionRate,
     };
   }
@@ -245,6 +255,7 @@
       gross_profit: series.gross_profit,
       poas: series.poas,
       cpc: series.cpc,
+      ctr: series.ctr,
       conversion_rate: series.conversion_rate,
       totals: totals,
     };
@@ -502,6 +513,35 @@
         );
 
         createMultiLineChart(
+          'ctrChart',
+          stats.labels,
+          [
+            {
+              label: 'CTR',
+              data: stats.ctr,
+              borderColor: '#ef6c00',
+              backgroundColor: '#ef6c0022',
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'percent',
+            },
+          ],
+          {
+            y: {
+              beginAtZero: true,
+              position: 'left',
+              ticks: {
+                callback: function (value) {
+                  return formatTickByType('percent', value);
+                },
+              },
+            },
+          },
+        );
+
+        createMultiLineChart(
           'impressionsAndClicksChart',
           stats.labels,
           [
@@ -558,6 +598,7 @@
         const statCost = document.getElementById('stat-cost');
         const statGpPreAd = document.getElementById('stat-gp-pre-ad');
         const statGp = document.getElementById('stat-gp');
+        const statCtr = document.getElementById('stat-ctr');
         const statCpc = document.getElementById('stat-cpc');
         const statConversionRate = document.getElementById('stat-conversion-rate');
 
@@ -577,10 +618,16 @@
           statGp.textContent = formatCurrency(stats.totals.gross_profit);
         }
 
+        const totalCtr = stats.totals.impressions > 0
+          ? (stats.totals.clicks / stats.totals.impressions) * 100
+          : 0;
         const totalCpc = stats.totals.clicks > 0 ? stats.totals.cost / stats.totals.clicks : 0;
         const totalCr = stats.totals.clicks > 0
           ? (stats.totals.units_sold / stats.totals.clicks) * 100
           : 0;
+        if (statCtr) {
+          statCtr.textContent = formatPercentage(totalCtr);
+        }
         if (statCpc) {
           statCpc.textContent = formatCurrency(totalCpc);
         }

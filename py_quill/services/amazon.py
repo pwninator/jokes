@@ -27,6 +27,25 @@ _CREATE_REPORT_CONTENT_TYPE = "application/vnd.createasyncreportrequest.v3+json"
 _REPORT_STATUS_COMPLETED = {"COMPLETED", "SUCCESS"}
 _REPORT_STATUS_FAILED = {"FAILED", "CANCELLED"}
 _REQUEST_TIMEOUT_SEC = 30
+_USD_CURRENCY_CODE = "USD"
+
+# Hard-coded FX rates to normalize all monetary values to USD.
+# Updated: 2026-02-26
+# Source: https://www.currency-converter.org.uk/currency-rates-today.html
+_CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
+  "USD": 1.0,
+  "CAD": 0.7320,
+  "GBP": 1.3569,
+}
+_COUNTRY_CODE_TO_CURRENCY_CODE: dict[str, str] = {
+  "US": "USD",
+  "CA": "CAD",
+  "GB": "GBP",
+  "UK": "GBP",
+}
+
+# Valid columns for Sponsored Products campaigns report
+# https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/campaign
 _SP_CAMPAIGNS_COLUMNS: list[str] = [
   "attributedSalesSameSku1d",
   "date",
@@ -79,6 +98,9 @@ _SP_CAMPAIGNS_COLUMNS: list[str] = [
   "campaignApplicableBudgetRuleName",
   "campaignBudgetAmount",
 ]
+
+# Valid columns for Sponsored Products purchased products report
+# https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/purchased-product
 _SP_PURCHASED_PRODUCT_COLUMNS: list[str] = [
   "date",
   "purchasesOtherSku7d",
@@ -128,8 +150,12 @@ _SP_PURCHASED_PRODUCT_COLUMNS: list[str] = [
   "purchases30d",
   "campaignName",
 ]
+
+# Valid columns for Sponsored Products advertised products report
+# https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/advertised-product
 _SP_ADVERTISED_PRODUCT_COLUMNS: list[str] = [
   "campaignId",
+  "campaignBudgetCurrencyCode",
   "date",
   "advertisedAsin",
   "attributedSalesSameSku14d",
@@ -296,6 +322,7 @@ def get_daily_campaign_stats_from_reports(
     campaign_rows=campaign_rows,
     advertised_product_rows=advertised_product_rows,
     purchased_product_rows=purchased_product_rows,
+    profile_country_code=profile.country_code,
   )
   return merged_stats
 
@@ -636,8 +663,9 @@ def _merge_report_rows(
   campaign_rows: list[dict[str, Any]],
   advertised_product_rows: list[dict[str, Any]],
   purchased_product_rows: list[dict[str, Any]],
+  profile_country_code: str,
 ) -> list[models.AmazonAdsDailyCampaignStats]:
-  """Merge campaign + advertised-product + purchased-product rows by day."""
+  """Merge report rows by day and normalize all monetary fields to USD."""
   advertised_by_campaign_date = _index_rows_by_campaign_and_date(
     advertised_product_rows)
   purchased_by_campaign_date = _index_rows_by_campaign_and_date(
@@ -654,22 +682,37 @@ def _merge_report_rows(
     if not campaign_name:
       campaign_name = _required_str(campaign_row.get("name"))
 
-    spend = _as_float(campaign_row.get("cost"))
+    currency_code = _resolve_currency_code(
+      campaign_row=campaign_row,
+      profile_country_code=profile_country_code,
+    )
+    spend = _convert_amount_to_usd(
+      _as_float(campaign_row.get("cost")),
+      currency_code=currency_code,
+    )
     impressions = _as_int(campaign_row.get("impressions"))
     clicks = _as_int(campaign_row.get("clicks"))
-    total_attributed_sales = _as_float(campaign_row.get("sales14d"))
+    total_attributed_sales = _convert_amount_to_usd(
+      _as_float(campaign_row.get("sales14d")),
+      currency_code=currency_code,
+    )
     total_units_sold = _as_int(campaign_row.get("unitsSoldClicks14d"))
     kenp_royalties = _as_float(
       campaign_row.get("kindleEditionNormalizedPagesRoyalties14d"))
     if kenp_royalties == 0.0:
       kenp_royalties = _as_float(
         campaign_row.get("attributedKindleEditionNormalizedPagesRoyalties14d"))
+    kenp_royalties = _convert_amount_to_usd(
+      kenp_royalties,
+      currency_code=currency_code,
+    )
 
     sale_items = _build_merged_sale_items_for_campaign_day(
       campaign_id=campaign_id,
       date_value=date_value,
       advertised_by_campaign_date=advertised_by_campaign_date,
       purchased_by_campaign_date=purchased_by_campaign_date,
+      currency_code=currency_code,
     )
     product_profit_total = sum(item.total_profit for item in sale_items)
 
@@ -717,6 +760,7 @@ def _build_merged_sale_items_for_campaign_day(
                                     list[dict[str, Any]]],
   purchased_by_campaign_date: dict[tuple[str, datetime.date], list[dict[str,
                                                                         Any]]],
+  currency_code: str,
 ) -> list[models.AmazonAdsProductStats]:
   """Build merged ASIN sale items by combining direct and halo sources."""
   merged_totals_by_asin: dict[str, tuple[int, float]] = {}
@@ -727,7 +771,10 @@ def _build_merged_sale_items_for_campaign_day(
     if not asin:
       continue
     direct_units = _extract_direct_units_sold(row)
-    direct_sales = _extract_direct_sales_amount(row)
+    direct_sales = _convert_amount_to_usd(
+      _extract_direct_sales_amount(row),
+      currency_code=currency_code,
+    )
     _accumulate_asin_totals(merged_totals_by_asin, asin, direct_units,
                             direct_sales)
 
@@ -736,7 +783,10 @@ def _build_merged_sale_items_for_campaign_day(
     if not asin:
       continue
     halo_units = _as_int(row.get("unitsSoldOtherSku14d"))
-    halo_sales = _as_float(row.get("salesOtherSku14d"))
+    halo_sales = _convert_amount_to_usd(
+      _as_float(row.get("salesOtherSku14d")),
+      currency_code=currency_code,
+    )
     _accumulate_asin_totals(merged_totals_by_asin, asin, halo_units,
                             halo_sales)
 
@@ -855,7 +905,7 @@ def _request_json(  # pylint: disable=too-many-arguments
 ) -> dict[str, Any]:
   """Execute an HTTP request and return a validated JSON object payload."""
   logger.info(
-    "Amazon Ads request",
+    f"Amazon Ads request: {method} {url}",
     extra={"json_fields": {
       "method": method,
       "url": url
@@ -931,3 +981,30 @@ def _as_float(value: Any) -> float:
     return float(str(value).strip())
   except (TypeError, ValueError):
     return 0.0
+
+
+def _resolve_currency_code(
+  *,
+  campaign_row: dict[str, Any],
+  profile_country_code: str,
+) -> str:
+  """Resolve row currency from report payload with profile-country fallback."""
+  row_currency_code = _required_str(
+    campaign_row.get("campaignBudgetCurrencyCode")).upper()
+  if row_currency_code:
+    return row_currency_code
+
+  profile_currency_code = _COUNTRY_CODE_TO_CURRENCY_CODE.get(
+    profile_country_code.strip().upper(), "")
+  if profile_currency_code:
+    return profile_currency_code
+  return _USD_CURRENCY_CODE
+
+
+def _convert_amount_to_usd(amount: float, *, currency_code: str) -> float:
+  """Convert a monetary amount from a supported currency into USD."""
+  rate = _CURRENCY_CODE_TO_USD_RATE.get(currency_code.upper())
+  if rate is None:
+    raise AmazonAdsError(f"Unsupported currency code for USD conversion: "
+                         f"{currency_code}")
+  return amount * rate

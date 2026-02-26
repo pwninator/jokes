@@ -24,8 +24,8 @@ from services import amazon, firestore
 _RECENT_STATS_DAILY_DECAY_FACTOR = 0.9
 _MAX_FIRESTORE_WRITE_BATCH_SIZE = 100
 _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
-_ADS_STATS_TARGET_COUNTRY_CODES = {"US"}  #, "CA", "UK", "GB"}
-_ADS_STATS_REPORT_WINDOW_DAYS = 7
+_ADS_STATS_TARGET_COUNTRY_CODES = {"US", "CA", "UK", "GB"}
+_ADS_STATS_REPORT_WINDOW_DAYS = 30
 _ADS_STATS_REPORT_METADATA_WAIT_SEC = 5
 _ADS_STATS_REQUIRED_REPORT_TYPES = (
   "spCampaigns",
@@ -105,7 +105,7 @@ def auto_user_daily_http(req: flask.Request) -> flask.Response:
   # Runs every 3 hours.
   schedule="0 */3 * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_ads_stats_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
@@ -117,7 +117,7 @@ def auto_ads_stats_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_ads_stats_http(req: flask.Request) -> flask.Response:

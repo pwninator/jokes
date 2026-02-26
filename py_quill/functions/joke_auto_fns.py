@@ -94,7 +94,7 @@ def auto_user_daily_http(req: flask.Request) -> flask.Response:
 @scheduler_fn.on_schedule(
   schedule="0 6,13,20 * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
-  memory=options.MemoryOption.GB_2,
+  memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
 def auto_ads_stats_request_scheduler(
@@ -107,7 +107,7 @@ def auto_ads_stats_request_scheduler(
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_2,
+  memory=options.MemoryOption.GB_1,
   timeout_sec=1800,
 )
 def auto_ads_stats_request_http(req: flask.Request) -> flask.Response:
@@ -122,8 +122,7 @@ def auto_ads_stats_request_http(req: flask.Request) -> flask.Response:
 
 
 @scheduler_fn.on_schedule(
-  # Runs 2 hours after auto_ads_stats_request_scheduler runs.
-  schedule="0 8,15,22 * * *",
+  schedule="30 * * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
   memory=options.MemoryOption.GB_2,
   timeout_sec=1800,

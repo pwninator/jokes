@@ -160,8 +160,13 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  events_list = firestore.list_amazon_ads_events(
+    start_date=start_date,
+    end_date=end_date,
+  )
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
+    events_list=events_list,
     start_date=start_date,
     end_date=end_date,
   )
@@ -172,6 +177,26 @@ def admin_ads_stats():
     start_date=start_date.isoformat(),
     end_date=end_date.isoformat(),
   )
+
+
+@web_bp.route('/admin/ads-stats/create-event', methods=['POST'])
+@auth_helpers.require_admin
+def admin_ads_stats_create_event():
+  """Create a new manual Amazon Ads event."""
+  data = flask.request.get_json(silent=True)
+  if not data:
+    return flask.jsonify({'error': 'Missing JSON body'}), 400
+
+  try:
+    event = models.AmazonAdsEvent.from_dict(data)
+    saved_event = firestore.upsert_amazon_ads_event(event)
+  except ValueError as exc:
+    return flask.jsonify({'error': str(exc)}), 400
+  except Exception as exc:
+    logger.error('Failed to create Amazon Ads event', exc_info=exc)
+    return flask.jsonify({'error': 'Failed to create event'}), 500
+
+  return flask.jsonify({'event': saved_event.to_dict(include_key=True)})
 
 
 @web_bp.route('/admin/ads-stats/upload-kdp', methods=['POST'])
@@ -201,6 +226,7 @@ def admin_ads_stats_upload_kdp():
 def _build_ads_stats_chart_data(
   *,
   stats_list: list[models.AmazonAdsDailyStats],
+  events_list: list[models.AmazonAdsEvent],
   start_date: datetime.date,
   end_date: datetime.date,
 ) -> dict[str, object]:
@@ -255,8 +281,11 @@ def _build_ads_stats_chart_data(
     round(float(daily_totals[label]["gross_profit_usd"]), 2) for label in labels
   ]
 
+  events_payload = [e.to_dict(include_key=True) for e in events_list]
+
   return {
     "labels": labels,
+    "events": events_payload,
     "impressions": impressions,
     "clicks": clicks,
     "cost": cost,

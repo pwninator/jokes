@@ -55,6 +55,7 @@ JOKE_FIELDS_TO_LOG = {
 UNCATEGORIZED_CATEGORY_ID = "_uncategorized"
 AMAZON_ADS_REPORTS_COLLECTION = "amazon_ads_reports"
 AMAZON_ADS_DAILY_STATS_COLLECTION = "amazon_ads_daily_stats"
+AMAZON_ADS_EVENTS_COLLECTION = "amazon_ads_events"
 AMAZON_KDP_DAILY_STATS_COLLECTION = "amazon_kdp_daily_stats"
 
 
@@ -154,6 +155,49 @@ def list_amazon_ads_daily_stats(
   docs = query.stream()
   return [
     models.AmazonAdsDailyStats.from_firestore_dict(
+      doc.to_dict(),
+      key=doc.id,
+    ) for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
+def upsert_amazon_ads_event(
+  event: models.AmazonAdsEvent,
+) -> models.AmazonAdsEvent:
+  """Upsert a manually created Amazon Ads event."""
+  payload = event.to_dict(include_key=False)
+
+  # Use a random ID if key is not present, otherwise update existing doc.
+  collection_ref = db().collection(AMAZON_ADS_EVENTS_COLLECTION)
+  if event.key:
+    doc_ref = collection_ref.document(event.key)
+    doc_ref.set(payload, merge=True)
+  else:
+    _, doc_ref = collection_ref.add(payload)
+    event.key = doc_ref.id
+
+  return event
+
+
+def list_amazon_ads_events(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> list[models.AmazonAdsEvent]:
+  """List manually created Amazon Ads events within a date range."""
+  if end_date < start_date:
+    raise ValueError("end_date must be on or after start_date")
+
+  query = db().collection(AMAZON_ADS_EVENTS_COLLECTION).where(
+    filter=FieldFilter("date", ">=",
+                       start_date.isoformat()), ).where(filter=FieldFilter(
+                         "date", "<=", end_date.isoformat()), ).order_by(
+                           "date",
+                           direction=Query.ASCENDING,
+                         )
+  docs = query.stream()
+  return [
+    models.AmazonAdsEvent.from_firestore_dict(
       doc.to_dict(),
       key=doc.id,
     ) for doc in docs if doc.exists and doc.to_dict() is not None

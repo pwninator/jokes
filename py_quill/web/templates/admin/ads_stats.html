@@ -28,12 +28,24 @@
 </div>
 
 <div style="margin: 12px 0 20px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface);">
-  <form id="kdpUploadForm" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+  <form id="kdpUploadForm" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
     <label for="kdpFileInput" style="font-weight: bold; color: var(--color-text);">Upload KDP xlsx:</label>
     <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
     <button id="kdpUploadButton" type="submit">Upload</button>
     <span id="kdpUploadStatus" class="muted"></span>
   </form>
+
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <button id="showCreateEventFormButton" type="button">Create Event</button>
+    <form id="createEventForm" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <label for="eventDateInput" style="font-weight: bold; color: var(--color-text);">Date:</label>
+      <input id="eventDateInput" name="date" type="date" required>
+      <label for="eventTitleInput" style="font-weight: bold; color: var(--color-text);">Title:</label>
+      <input id="eventTitleInput" name="title" type="text" placeholder="Event Title" required>
+      <button id="createEventButton" type="submit">Create</button>
+      <span id="createEventStatus" class="muted"></span>
+    </form>
+  </div>
 </div>
 
 <style>
@@ -207,6 +219,7 @@
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="{{ url_for('static', filename='js/ads_stats.js') }}"></script>
 <script>
   if (window.initAdsStatsPage) {

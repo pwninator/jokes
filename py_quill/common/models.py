@@ -2004,6 +2004,60 @@ class AmazonAdsReport:
     return cls.from_dict(data, key=key)
 
 
+@dataclass(kw_only=True)
+class AmazonAdsEvent:
+  """Represents a manually created event annotation for Amazon Ads stats."""
+
+  key: str | None = None
+  date: datetime.date
+  title: str
+
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data: dict[str, object] = {
+      "date": self.date.isoformat(),
+      "title": self.title,
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    key: str | None = None,
+  ) -> AmazonAdsEvent:
+    """Create an AmazonAdsEvent from a dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    parsed_date = _parse_required_date(
+      data.get("date"),
+      field_name="AmazonAdsEvent.date",
+    )
+    title = str(data.get("title", "")).strip()
+    if not title:
+      raise ValueError("AmazonAdsEvent.title is required")
+
+    return cls(
+      key=key,
+      date=parsed_date,
+      title=title,
+    )
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    key: str,
+  ) -> AmazonAdsEvent:
+    """Create an AmazonAdsEvent from Firestore data."""
+    return cls.from_dict(data, key=key)
+
+
 def _parse_enum_field(
   data: dict[str, Any],
   field_name: str,

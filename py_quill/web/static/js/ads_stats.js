@@ -338,6 +338,40 @@
           charts[canvasId].destroy();
         }
 
+        const annotations = {};
+        if (adsStatsData.events && Array.isArray(adsStatsData.events)) {
+          adsStatsData.events.forEach((event, index) => {
+            if (!event || !event.date) return;
+            // Only add annotation if the date is in the labels (timeline mode)
+            // or if we map it correctly. For now only timeline mode is supported fully for dates.
+            // If the label exists in the chart labels, we use it.
+            if (labels.includes(event.date)) {
+              annotations[`line${index}`] = {
+                type: 'line',
+                xMin: event.date,
+                xMax: event.date,
+                borderColor: 'rgba(255, 99, 132, 0.5)',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                label: {
+                  display: true,
+                  content: event.title,
+                  position: 'start',
+                  backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                  color: 'white',
+                  font: {
+                    size: 10,
+                  },
+                  yAdjust: 0,
+                },
+                enter: function (ctx) {
+                  // Show full title on hover if needed, or rely on standard label
+                },
+              };
+            }
+          });
+        }
+
         charts[canvasId] = new chartCtor(ctx, {
           type: 'line',
           data: {
@@ -349,6 +383,9 @@
             maintainAspectRatio: false,
             scales: scales,
             plugins: {
+              annotation: {
+                annotations: annotations,
+              },
               tooltip: {
                 callbacks: {
                   label: function (context) {
@@ -662,6 +699,83 @@
       campaignSelector.addEventListener('change', renderSelectedView);
       modeSelector.addEventListener('change', renderSelectedView);
       renderSelectedView();
+
+      // Create Event Form Logic
+      const showCreateEventFormButton = document.getElementById('showCreateEventFormButton');
+      const createEventForm = document.getElementById('createEventForm');
+      const createEventButton = document.getElementById('createEventButton');
+      const createEventStatus = document.getElementById('createEventStatus');
+
+      if (showCreateEventFormButton && createEventForm) {
+        showCreateEventFormButton.addEventListener('click', () => {
+          if (createEventForm.style.display === 'none') {
+            createEventForm.style.display = 'flex';
+            showCreateEventFormButton.textContent = 'Cancel';
+          } else {
+            createEventForm.style.display = 'none';
+            showCreateEventFormButton.textContent = 'Create Event';
+          }
+        });
+
+        createEventForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const dateInput = document.getElementById('eventDateInput');
+          const titleInput = document.getElementById('eventTitleInput');
+
+          if (!dateInput || !titleInput || !createEventButton || !createEventStatus) {
+            return;
+          }
+
+          const dateVal = dateInput.value;
+          const titleVal = titleInput.value;
+
+          if (!dateVal || !titleVal) {
+            return;
+          }
+
+          createEventButton.disabled = true;
+          createEventStatus.textContent = 'Creating...';
+
+          try {
+            const response = await fetch('/admin/ads-stats/create-event', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                date: dateVal,
+                title: titleVal,
+              }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error(data.error || 'Creation failed');
+            }
+
+            createEventStatus.textContent = 'Saved!';
+            // Add new event to local data and re-render
+            if (!adsStatsData.events) {
+              adsStatsData.events = [];
+            }
+            adsStatsData.events.push(data.event);
+            renderSelectedView();
+
+            // Clear inputs
+            titleInput.value = '';
+            setTimeout(() => {
+              createEventStatus.textContent = '';
+              createEventForm.style.display = 'none';
+              showCreateEventFormButton.textContent = 'Create Event';
+              createEventButton.disabled = false;
+            }, 1000);
+
+          } catch (error) {
+            createEventStatus.textContent = error.message || 'Failed';
+            createEventButton.disabled = false;
+          }
+        });
+      }
     }
 
     if (document.readyState === 'loading') {

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime
+import gzip
+import json
 
 import pytest
 from common import models
@@ -285,6 +287,42 @@ def test_get_reports_with_empty_ids_returns_empty(monkeypatch):
   )
 
   assert statuses == []
+
+
+def test_download_report_rows_sets_raw_report_text(monkeypatch):
+  report = _report_status(
+    report_id="report-1",
+    status="COMPLETED",
+    report_name="report-name",
+    url="https://example.com/report-1.json.gz",
+  )
+  raw_text = json.dumps([{
+    "campaignId": "123",
+    "date": "2026-02-14",
+  }])
+  compressed_bytes = gzip.compress(raw_text.encode("utf-8"))
+
+  class _DummyResponse:
+
+    def __init__(self, content: bytes):
+      self.content = content
+
+    def raise_for_status(self):
+      return None
+
+  monkeypatch.setattr(
+    amazon.requests,
+    "get",
+    lambda url, timeout: _DummyResponse(compressed_bytes),
+  )
+
+  rows = amazon._download_report_rows(report)
+
+  assert rows == [{
+    "campaignId": "123",
+    "date": "2026-02-14",
+  }]
+  assert report.raw_report_text == raw_text
 
 
 def _upsert_report(report: models.AmazonAdsReport,
@@ -629,6 +667,87 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
   assert daily.gross_profit_before_ads_usd == pytest.approx(0.94983, rel=1e-6)
   assert daily.gross_profit_usd == pytest.approx(-1.76397, rel=1e-6)
   assert daily.sale_items[0].total_sales_usd == pytest.approx(2.7138, rel=1e-6)
+
+
+def test_get_daily_campaign_stats_from_reports_ignores_total_advertised_fallback_fields(
+    monkeypatch):
+  campaign_rows = [{
+    "campaignId": "123",
+    "campaignName": "Campaign A",
+    "date": "2026-02-14",
+    "cost": 0.0,
+    "impressions": 100,
+    "clicks": 10,
+    "sales14d": 11.99,
+    "unitsSoldClicks14d": 1,
+    "kindleEditionNormalizedPagesRoyalties14d": 0.0,
+  }]
+  advertised_product_rows = [{
+    "campaignId": "123",
+    "date": "2026-02-14",
+    "advertisedAsin": "B0G9765J19",
+    # Missing same-SKU direct metrics; totals must not be used as fallback.
+    "attributedSalesSameSku14d": 0.0,
+    "unitsSoldSameSku14d": 0,
+    "sales14d": 11.99,
+    "unitsSoldClicks14d": 1,
+  }]
+  purchased_product_rows = []
+
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  campaigns_report = _report_status(
+    report_id="campaigns-id",
+    status="COMPLETED",
+    url="https://example.com/campaigns.gz",
+    profile_id="profile-1",
+  )
+  advertised_products_report = _report_status(
+    report_id="advertised-id",
+    status="COMPLETED",
+    url="https://example.com/advertised.gz",
+    profile_id="profile-1",
+  )
+  purchased_products_report = _report_status(
+    report_id="products-id",
+    status="COMPLETED",
+    url="https://example.com/products.gz",
+    profile_id="profile-1",
+  )
+
+  def _fake_download(status: models.AmazonAdsReport):
+    if status.report_id == "campaigns-id":
+      return campaign_rows
+    if status.report_id == "advertised-id":
+      return advertised_product_rows
+    if status.report_id == "products-id":
+      return purchased_product_rows
+    raise AssertionError(f"Unexpected status: {status}")
+
+  monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
+
+  output = amazon.get_daily_campaign_stats_from_reports(
+    profile=profile,
+    campaigns_report=campaigns_report,
+    advertised_products_report=advertised_products_report,
+    purchased_products_report=purchased_products_report,
+  )
+
+  assert len(output) == 1
+  daily = output[0]
+  assert daily.total_attributed_sales_usd == 11.99
+  assert daily.total_units_sold == 1
+  assert daily.gross_profit_before_ads_usd == 0.0
+  assert daily.gross_profit_usd == 0.0
+  assert len(daily.sale_items) == 1
+  assert daily.sale_items[0].asin == "B0G9765J19"
+  assert daily.sale_items[0].units_sold == 0
+  assert daily.sale_items[0].total_sales_usd == 0.0
+  assert daily.sale_items[0].total_profit_usd == 0.0
 
 
 def test_sp_advertised_product_columns_include_campaign_budget_currency_code():

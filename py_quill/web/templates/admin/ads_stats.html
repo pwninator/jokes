@@ -4,115 +4,190 @@
 
 {% block content %}
 <div class="dashboard-header ads-stats-header">
-  <div>
+  <div class="ads-stats-title-block">
     <h2>Ads Stats</h2>
-  </div>
-  <div class="ads-stats-header-controls">
-    <div class="ads-stats-filters-row">
-      <div class="ads-stats-filter">
-        <button id="adsStatsRefreshButton" type="button">Refresh</button>
-        <span id="adsStatsRefreshStatus" class="muted"></span>
-      </div>
-      <div class="ads-stats-filter">
-        <label for="campaignSelector">Campaign:</label>
-        <select id="campaignSelector">
-          <option value="All">All</option>
-        </select>
-      </div>
-      <div class="ads-stats-filter">
-        <label for="modeSelector">Mode:</label>
-        <select id="modeSelector">
-          <option value="Timeline">Timeline</option>
-          <option value="Days of Week">Days of Week</option>
-        </select>
-      </div>
-    </div>
-    <div class="ads-stats-event-controls">
-      <button id="adsStatsCreateEventToggleButton" type="button">Create Event</button>
-      <form id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden>
-        <input id="adsStatsEventDateInput" type="text" placeholder="YYYY-MM-DD" required>
-        <input id="adsStatsEventTitleInput" type="text" placeholder="Title" required>
-        <button id="adsStatsEventCreateButton" type="submit">Create</button>
-        <span id="adsStatsCreateEventStatus" class="muted"></span>
-      </form>
-    </div>
+    <p class="muted ads-stats-title-subtitle">Manage filters, imports, and event markers in one place.</p>
   </div>
 </div>
 
-<div style="margin: 12px 0 20px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface);">
-  <form id="kdpUploadForm" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-    <label for="kdpFileInput" style="font-weight: bold; color: var(--color-text);">Upload KDP xlsx:</label>
-    <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
-    <button id="kdpUploadButton" type="submit">Upload</button>
+<section class="ads-stats-control-panel" aria-label="Ads stats controls">
+  <div class="ads-stats-filters-row">
+    <div class="ads-stats-field">
+      <label for="campaignSelector">Campaign</label>
+      <select id="campaignSelector">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <div class="ads-stats-field ads-stats-field--narrow">
+      <label for="modeSelector">Mode</label>
+      <select id="modeSelector">
+        <option value="Timeline">Timeline</option>
+        <option value="Days of Week">Days of Week</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="ads-stats-actions-row">
+    <button id="adsStatsRefreshButton" class="button-primary text-button" type="button">Refresh</button>
+    <span id="adsStatsRefreshStatus" class="muted"></span>
+    <div class="ads-stats-top-data">
+      <button class="chart-data-button ads-stats-top-data-button button-secondary text-button" id="adsStatsTopDataButton" type="button" data-popup-id="adsStatsTopDataPopup">Data</button>
+      <div class="chart-data-popup ads-stats-top-data-popup" id="adsStatsTopDataPopup"></div>
+    </div>
+    <button id="adsStatsCreateEventToggleButton" class="button-secondary text-button" type="button">Create Event</button>
+  </div>
+
+  <form id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden>
+    <div class="ads-stats-field ads-stats-event-field">
+      <label for="adsStatsEventDateInput">Event Date</label>
+      <input id="adsStatsEventDateInput" type="text" placeholder="YYYY-MM-DD" required>
+    </div>
+    <div class="ads-stats-field ads-stats-event-field ads-stats-event-field--title">
+      <label for="adsStatsEventTitleInput">Event Title</label>
+      <input id="adsStatsEventTitleInput" type="text" placeholder="Title" required>
+    </div>
+    <button id="adsStatsEventCreateButton" class="button-primary text-button" type="submit">Create</button>
+    <span id="adsStatsCreateEventStatus" class="muted"></span>
+  </form>
+
+  <form id="kdpUploadForm" class="ads-stats-upload-form">
+    <div class="ads-stats-field ads-stats-upload-field">
+      <label for="kdpFileInput">Upload KDP xlsx</label>
+      <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
+    </div>
+    <button id="kdpUploadButton" class="button-secondary text-button" type="submit">Upload</button>
     <span id="kdpUploadStatus" class="muted"></span>
   </form>
-</div>
+</section>
 
 <style>
   .ads-stats-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
+    margin-bottom: 14px;
   }
-  .ads-stats-header-controls {
+  .ads-stats-title-block h2 {
+    margin: 0;
+  }
+  .ads-stats-title-subtitle {
+    margin: 6px 0 0;
+    font-size: 0.95rem;
+  }
+  .ads-stats-control-panel {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    min-width: 0;
+    gap: 12px;
+    margin: 0 0 20px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: 0 4px 12px var(--color-shadow);
   }
   .ads-stats-filters-row {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(180px, 220px);
+    align-items: end;
+    gap: 12px;
     width: 100%;
     min-width: 0;
   }
-  .ads-stats-filter {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-  .ads-stats-filter label {
-    font-weight: bold;
-    color: var(--color-text);
-    white-space: nowrap;
-  }
-  .ads-stats-filter select {
-    width: min(240px, 100%);
-    min-width: 0;
-    max-width: 100%;
-    padding: 8px;
-    border-radius: 6px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-  .ads-stats-event-controls {
+  .ads-stats-field {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
+    gap: 6px;
+    min-width: 0;
+  }
+  .ads-stats-field label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text);
+  }
+  .ads-stats-field select,
+  .ads-stats-create-event-form input[type="text"],
+  .ads-stats-upload-form input[type="file"] {
     width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-form-border-strong);
+    background: var(--color-form-surface);
+    color: var(--color-text);
+  }
+  .ads-stats-field--narrow {
+    max-width: 220px;
+    justify-self: end;
+  }
+  .ads-stats-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ads-stats-actions-row .button-primary,
+  .ads-stats-actions-row .button-secondary,
+  .ads-stats-create-event-form .button-primary,
+  .ads-stats-upload-form .button-secondary {
+    padding: 8px 14px;
+    border-radius: 999px;
+  }
+  .ads-stats-actions-row .button-secondary,
+  .ads-stats-upload-form .button-secondary {
+    border-color: var(--color-form-border-strong);
+    box-shadow: none;
+  }
+  .ads-stats-actions-row #adsStatsRefreshStatus {
+    min-width: 130px;
+    font-size: 0.9rem;
+  }
+  .ads-stats-top-data {
+    position: relative;
+  }
+  .ads-stats-top-data .ads-stats-top-data-button {
+    min-height: 38px;
+    font-size: 0.95rem;
+  }
+  .ads-stats-top-data-popup {
+    top: 42px;
+    right: 0;
+    max-width: min(90vw, 1100px);
+    max-height: 420px;
+    min-width: min(420px, 80vw);
+    z-index: 40;
   }
   .ads-stats-create-event-form {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-end;
+    gap: 10px;
     flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px dashed var(--color-border);
   }
-  .ads-stats-create-event-form input[type="text"] {
+  .ads-stats-event-field {
     width: min(220px, 100%);
-    min-width: 0;
-    padding: 8px;
-    border-radius: 6px;
-    border: 1px solid var(--color-border);
+  }
+  .ads-stats-event-field--title {
+    width: min(340px, 100%);
+  }
+  .ads-stats-upload-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px dashed var(--color-border);
+  }
+  .ads-stats-upload-field {
+    min-width: min(320px, 100%);
+    flex: 1 1 320px;
+  }
+  .ads-stats-upload-form input[type="file"] {
+    padding: 6px 8px;
     background: var(--color-surface);
-    color: var(--color-text);
+  }
+  .ads-stats-upload-form #kdpUploadStatus {
+    font-size: 0.9rem;
+    min-height: 1.1rem;
   }
   .stats-grid {
     display: grid;
@@ -198,35 +273,40 @@
     margin-bottom: 0;
   }
   @media (max-width: 900px) {
-    .ads-stats-header {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .ads-stats-header-controls {
-      align-items: stretch;
-    }
     .ads-stats-filters-row {
-      justify-content: flex-start;
+      grid-template-columns: 1fr;
     }
-    .ads-stats-event-controls {
-      align-items: stretch;
+    .ads-stats-field--narrow {
+      max-width: none;
+      justify-self: stretch;
     }
   }
   @media (max-width: 640px) {
-    .ads-stats-filter {
-      flex: 1 1 100%;
-      flex-direction: column;
-      align-items: stretch;
+    .ads-stats-control-panel {
+      padding: 12px;
     }
-    .ads-stats-filter select {
+    .ads-stats-actions-row .button-primary,
+    .ads-stats-actions-row .button-secondary,
+    .ads-stats-create-event-form .button-primary,
+    .ads-stats-upload-form .button-secondary {
       width: 100%;
+      justify-content: center;
     }
     .ads-stats-create-event-form {
-      flex-direction: column;
       align-items: stretch;
     }
-    .ads-stats-create-event-form input[type="text"] {
+    .ads-stats-event-field,
+    .ads-stats-event-field--title,
+    .ads-stats-upload-field {
       width: 100%;
+    }
+    .ads-stats-actions-row #adsStatsRefreshStatus {
+      min-width: 0;
+    }
+    .ads-stats-top-data-popup {
+      left: 0;
+      right: auto;
+      min-width: min(100%, 520px);
     }
   }
 </style>
@@ -263,6 +343,14 @@
   <div class="stat-card">
     <div class="stat-card__label">Gross Profit</div>
     <div class="stat-card__value" id="stat-gp">{{ "${:,.2f}".format(chart_data.total_gross_profit_usd) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Gross Profit (Pre-Ad, Reconciled)</div>
+    <div class="stat-card__value" id="stat-gp-pre-ad-reconciled">{{ "${:,.2f}".format(reconciled_click_date_chart_data.total_gross_profit_before_ads_usd) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Gross Profit (Reconciled)</div>
+    <div class="stat-card__value" id="stat-gp-reconciled">{{ "${:,.2f}".format(reconciled_click_date_chart_data.total_gross_profit_usd) }}</div>
   </div>
 </div>
 
@@ -336,6 +424,7 @@
     ? window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
       reconciledClickDateChartData: {{ reconciled_click_date_chart_data | tojson }},
+      reconciliationDebugCsv: {{ reconciliation_debug_csv | tojson }},
       adsEvents: {{ ads_events | tojson }},
     })
     : null;

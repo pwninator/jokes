@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 import datetime
+import io
+import json
 import re
 from zoneinfo import ZoneInfo
 
@@ -16,6 +19,8 @@ from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
 
 _ADS_STATS_LOOKBACK_DAYS = 30
+_ADS_REPORTS_LOOKBACK_DAYS = 3
+_ADS_REPORT_TABLE_MAX_ROWS = 200
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _LOS_ANGELES_TIMEZONE = ZoneInfo("America/Los_Angeles")
 
@@ -160,6 +165,10 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  kdp_stats_list = firestore.list_amazon_kdp_daily_stats(
+    start_date=start_date,
+    end_date=end_date,
+  )
   reconciled_stats_list = firestore.list_amazon_sales_reconciled_daily_stats(
     start_date=start_date,
     end_date=end_date,
@@ -179,14 +188,40 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  reconciliation_debug_csv = _build_reconciliation_debug_csv(
+    stats_list=stats_list,
+    kdp_stats_list=kdp_stats_list,
+    reconciled_stats_list=reconciled_stats_list,
+    start_date=start_date,
+    end_date=end_date,
+  )
   return flask.render_template(
     'admin/ads_stats.html',
     site_name='Snickerdoodle',
     chart_data=chart_data,
     reconciled_click_date_chart_data=reconciled_click_date_chart_data,
+    reconciliation_debug_csv=reconciliation_debug_csv,
     ads_events=[_serialize_amazon_ads_event(event) for event in ads_events],
     start_date=start_date.isoformat(),
     end_date=end_date.isoformat(),
+  )
+
+
+@web_bp.route('/admin/ads-reports')
+@auth_helpers.require_admin
+def admin_ads_reports():
+  """Render recent ads report metadata and cached raw report rows."""
+  end_date = _today_in_los_angeles()
+  start_date = end_date - datetime.timedelta(days=_ADS_REPORTS_LOOKBACK_DAYS -
+                                             1)
+  reports = firestore.list_amazon_ads_reports(created_on_or_after=start_date)
+  return flask.render_template(
+    'admin/ads_reports.html',
+    site_name='Snickerdoodle',
+    start_date=start_date.isoformat(),
+    end_date=end_date.isoformat(),
+    reports=[_serialize_amazon_ads_report(report) for report in reports],
+    cached_report_tables=_build_cached_ads_report_tables(reports),
   )
 
 
@@ -299,6 +334,100 @@ def _serialize_amazon_ads_event(
     'created_at': event.created_at.isoformat() if event.created_at else None,
     'updated_at': event.updated_at.isoformat() if event.updated_at else None,
   }
+
+
+def _serialize_amazon_ads_report(
+  report: models.AmazonAdsReport, ) -> dict[str, object]:
+  """Convert an ads report model to a JSON-safe dictionary for templates."""
+  return {
+    'report_id': report.report_id,
+    'report_name': report.report_name,
+    'status': report.status,
+    'report_type_id': report.report_type_id,
+    'profile_id': report.profile_id or "",
+    'profile_country': report.profile_country or "",
+    'start_date': report.start_date.isoformat(),
+    'end_date': report.end_date.isoformat(),
+    'created_at': report.created_at.isoformat(),
+    'updated_at': report.updated_at.isoformat(),
+    'processed': report.processed,
+    'has_raw_report_text': bool((report.raw_report_text or "").strip()),
+  }
+
+
+def _build_cached_ads_report_tables(
+  reports: list[models.AmazonAdsReport], ) -> list[dict[str, object]]:
+  """Build a small set of parsed report tables for the freshest cached rows."""
+  newest_cached_by_type: dict[str, models.AmazonAdsReport] = {}
+  for report in reports:
+    raw_report_text = (report.raw_report_text or "").strip()
+    if not raw_report_text:
+      continue
+    existing = newest_cached_by_type.get(report.report_type_id)
+    if existing is None or report.created_at > existing.created_at:
+      newest_cached_by_type[report.report_type_id] = report
+
+  tables: list[dict[str, object]] = []
+  for report in newest_cached_by_type.values():
+    rows = amazon.parse_report_rows_text(
+      report.report_name,
+      report.raw_report_text or "",
+      enable_logging=False,
+    )
+    row_count = len(rows)
+    display_rows = rows[:_ADS_REPORT_TABLE_MAX_ROWS]
+    columns = _collect_table_columns(display_rows)
+    tables.append({
+      'report_name':
+      report.report_name,
+      'report_type_id':
+      report.report_type_id,
+      'profile_id':
+      report.profile_id or "",
+      'profile_country':
+      report.profile_country or "",
+      'start_date':
+      report.start_date.isoformat(),
+      'end_date':
+      report.end_date.isoformat(),
+      'created_at':
+      report.created_at.isoformat(),
+      'columns':
+      columns,
+      'rows': [{
+        column: _format_ads_report_table_cell(row.get(column))
+        for column in columns
+      } for row in display_rows],
+      'row_count':
+      row_count,
+      'truncated':
+      row_count > len(display_rows),
+    })
+  return sorted(tables,
+                key=lambda item: str(item.get('created_at', "")),
+                reverse=True)
+
+
+def _collect_table_columns(rows: list[dict[str, object]]) -> list[str]:
+  """Collect and stabilize table columns from parsed JSON row dictionaries."""
+  columns: list[str] = []
+  seen_columns: set[str] = set()
+  for row in rows:
+    for key in row.keys():
+      if key in seen_columns:
+        continue
+      seen_columns.add(key)
+      columns.append(key)
+  return columns
+
+
+def _format_ads_report_table_cell(value: object) -> str:
+  """Format a parsed report cell as readable text for HTML tables."""
+  if value is None:
+    return ""
+  if isinstance(value, (dict, list)):
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+  return str(value)
 
 
 def _build_ads_stats_chart_data(
@@ -460,11 +589,364 @@ def _build_reconciled_click_date_chart_data(
     current_date += datetime.timedelta(days=1)
 
   return {
-    "labels": labels,
-    "cost": cost,
-    "gross_profit_before_ads_usd": gross_profit_before_ads_usd,
-    "gross_profit_usd": gross_profit_usd,
-    "organic_profit_usd": organic_profit_usd,
-    "poas": poas,
-    "tpoas": tpoas,
+    "labels":
+    labels,
+    "cost":
+    cost,
+    "gross_profit_before_ads_usd":
+    gross_profit_before_ads_usd,
+    "gross_profit_usd":
+    gross_profit_usd,
+    "organic_profit_usd":
+    organic_profit_usd,
+    "poas":
+    poas,
+    "tpoas":
+    tpoas,
+    "total_cost":
+    round(sum(cost), 2),
+    "total_gross_profit_before_ads_usd":
+    round(sum(gross_profit_before_ads_usd), 2),
+    "total_gross_profit_usd":
+    round(sum(gross_profit_usd), 2),
+    "total_organic_profit_usd":
+    round(sum(organic_profit_usd), 2),
   }
+
+
+def _iter_date_keys(
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> list[str]:
+  """Build inclusive ISO-date keys from start to end."""
+  keys: list[str] = []
+  current_date = start_date
+  while current_date <= end_date:
+    keys.append(current_date.isoformat())
+    current_date += datetime.timedelta(days=1)
+  return keys
+
+
+def _build_reconciliation_debug_csv(
+  *,
+  stats_list: list[models.AmazonAdsDailyStats],
+  kdp_stats_list: list[models.AmazonKdpDailyStats],
+  reconciled_stats_list: list[models.AmazonSalesReconciledDailyStats],
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> str:
+  """Build a sectioned CSV with raw daily inputs and reconciliation outputs."""
+  ads_by_date = {stat.date.isoformat(): stat for stat in stats_list}
+  kdp_by_date = {stat.date.isoformat(): stat for stat in kdp_stats_list}
+  reconciled_by_date = {
+    stat.date.isoformat(): stat
+    for stat in reconciled_stats_list
+  }
+  date_keys = _iter_date_keys(start_date, end_date)
+
+  output = io.StringIO()
+  writer = csv.writer(output)
+
+  writer.writerow(["Section", "daily_overview"])
+  writer.writerow([
+    "Date",
+    "ads_impressions",
+    "ads_clicks",
+    "ads_spend_usd",
+    "ads_kenp_pages_read",
+    "ads_kenp_royalties_usd",
+    "ads_total_attributed_sales_usd",
+    "ads_total_units_sold",
+    "ads_gross_profit_before_ads_usd",
+    "ads_gross_profit_usd",
+    "kdp_total_units_sold",
+    "kdp_kenp_pages_read",
+    "kdp_total_royalties_usd",
+    "kdp_total_print_cost_usd",
+    "recon_is_settled",
+    "recon_kdp_units_total",
+    "recon_ads_click_date_units_total",
+    "recon_ads_ship_date_units_total",
+    "recon_unmatched_ads_click_date_units_total",
+    "recon_organic_units_total",
+    "recon_kdp_kenp_pages_read_total",
+    "recon_ads_click_date_kenp_pages_read_total",
+    "recon_ads_ship_date_kenp_pages_read_total",
+    "recon_unmatched_ads_click_date_kenp_pages_read_total",
+    "recon_organic_kenp_pages_read_total",
+    "recon_kdp_sales_usd_total",
+    "recon_ads_click_date_sales_usd_est",
+    "recon_ads_ship_date_sales_usd_est",
+    "recon_organic_sales_usd_est",
+    "recon_kdp_royalty_usd_total",
+    "recon_ads_click_date_royalty_usd_est",
+    "recon_ads_ship_date_royalty_usd_est",
+    "recon_organic_royalty_usd_est",
+    "recon_kdp_print_cost_usd_total",
+    "recon_ads_click_date_print_cost_usd_est",
+    "recon_ads_ship_date_print_cost_usd_est",
+    "recon_organic_print_cost_usd_est",
+    "recon_by_asin_count",
+    "recon_unmatched_lot_count",
+  ])
+  for date_key in date_keys:
+    ads_stat = ads_by_date.get(date_key)
+    kdp_stat = kdp_by_date.get(date_key)
+    reconciled_stat = reconciled_by_date.get(date_key)
+    unmatched_lot_count = 0
+    if reconciled_stat is not None:
+      for lots in reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin.values(
+      ):
+        unmatched_lot_count += len(lots)
+    writer.writerow([
+      date_key,
+      ads_stat.impressions if ads_stat is not None else 0,
+      ads_stat.clicks if ads_stat is not None else 0,
+      ads_stat.spend if ads_stat is not None else 0.0,
+      ads_stat.kenp_pages_read if ads_stat is not None else 0,
+      ads_stat.kenp_royalties_usd if ads_stat is not None else 0.0,
+      ads_stat.total_attributed_sales_usd if ads_stat is not None else 0.0,
+      ads_stat.total_units_sold if ads_stat is not None else 0,
+      ads_stat.gross_profit_before_ads_usd if ads_stat is not None else 0.0,
+      ads_stat.gross_profit_usd if ads_stat is not None else 0.0,
+      kdp_stat.total_units_sold if kdp_stat is not None else 0,
+      kdp_stat.kenp_pages_read if kdp_stat is not None else 0,
+      kdp_stat.total_royalties_usd if kdp_stat is not None else 0.0,
+      kdp_stat.total_print_cost_usd if kdp_stat is not None else 0.0,
+      reconciled_stat.is_settled if reconciled_stat is not None else False,
+      reconciled_stat.kdp_units_total if reconciled_stat is not None else 0,
+      (reconciled_stat.ads_click_date_units_total
+       if reconciled_stat is not None else 0),
+      (reconciled_stat.ads_ship_date_units_total
+       if reconciled_stat is not None else 0),
+      (reconciled_stat.unmatched_ads_click_date_units_total
+       if reconciled_stat is not None else 0),
+      reconciled_stat.organic_units_total
+      if reconciled_stat is not None else 0,
+      (reconciled_stat.kdp_kenp_pages_read_total
+       if reconciled_stat is not None else 0),
+      (reconciled_stat.ads_click_date_kenp_pages_read_total
+       if reconciled_stat is not None else 0),
+      (reconciled_stat.ads_ship_date_kenp_pages_read_total
+       if reconciled_stat is not None else 0),
+      (reconciled_stat.unmatched_ads_click_date_kenp_pages_read_total
+       if reconciled_stat is not None else 0),
+      (reconciled_stat.organic_kenp_pages_read_total
+       if reconciled_stat is not None else 0),
+      reconciled_stat.kdp_sales_usd_total
+      if reconciled_stat is not None else 0,
+      (reconciled_stat.ads_click_date_sales_usd_est
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.ads_ship_date_sales_usd_est
+       if reconciled_stat is not None else 0.0),
+      reconciled_stat.organic_sales_usd_est
+      if reconciled_stat is not None else 0,
+      (reconciled_stat.kdp_royalty_usd_total
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.ads_click_date_royalty_usd_est
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.ads_ship_date_royalty_usd_est
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.organic_royalty_usd_est
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.kdp_print_cost_usd_total
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.ads_click_date_print_cost_usd_est
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.ads_ship_date_print_cost_usd_est
+       if reconciled_stat is not None else 0.0),
+      (reconciled_stat.organic_print_cost_usd_est
+       if reconciled_stat is not None else 0.0),
+      len(reconciled_stat.by_asin) if reconciled_stat is not None else 0,
+      unmatched_lot_count,
+    ])
+
+  writer.writerow([])
+  writer.writerow(["Section", "ads_campaign_daily_rows"])
+  writer.writerow([
+    "Date",
+    "campaign_id",
+    "campaign_name",
+    "impressions",
+    "clicks",
+    "spend_usd",
+    "kenp_pages_read",
+    "kenp_royalties_usd",
+    "total_attributed_sales_usd",
+    "total_units_sold",
+    "gross_profit_before_ads_usd",
+    "gross_profit_usd",
+    "sale_items_count",
+  ])
+  for date_key in date_keys:
+    ads_stat = ads_by_date.get(date_key)
+    if ads_stat is None:
+      continue
+    for campaign_id in sorted(ads_stat.campaigns_by_id.keys()):
+      campaign = ads_stat.campaigns_by_id[campaign_id]
+      writer.writerow([
+        date_key,
+        campaign.campaign_id,
+        campaign.campaign_name,
+        campaign.impressions,
+        campaign.clicks,
+        campaign.spend,
+        campaign.kenp_pages_read,
+        campaign.kenp_royalties_usd,
+        campaign.total_attributed_sales_usd,
+        campaign.total_units_sold,
+        campaign.gross_profit_before_ads_usd,
+        campaign.gross_profit_usd,
+        len(campaign.sale_items),
+      ])
+
+  writer.writerow([])
+  writer.writerow(["Section", "ads_campaign_sale_items"])
+  writer.writerow([
+    "Date",
+    "campaign_id",
+    "asin",
+    "units_sold",
+    "kenp_pages_read",
+    "total_sales_usd",
+    "total_profit_usd",
+    "kenp_royalties_usd",
+    "total_royalty_usd",
+    "total_print_cost_usd",
+  ])
+  for date_key in date_keys:
+    ads_stat = ads_by_date.get(date_key)
+    if ads_stat is None:
+      continue
+    for campaign_id in sorted(ads_stat.campaigns_by_id.keys()):
+      campaign = ads_stat.campaigns_by_id[campaign_id]
+      for sale_item in campaign.sale_items:
+        writer.writerow([
+          date_key,
+          campaign_id,
+          sale_item.asin,
+          sale_item.units_sold,
+          sale_item.kenp_pages_read,
+          sale_item.total_sales_usd,
+          sale_item.total_profit_usd,
+          sale_item.kenp_royalties_usd,
+          sale_item.total_royalty_usd if sale_item.total_royalty_usd else 0.0,
+          sale_item.total_print_cost_usd
+          if sale_item.total_print_cost_usd else 0.0,
+        ])
+
+  writer.writerow([])
+  writer.writerow(["Section", "kdp_sale_items"])
+  writer.writerow([
+    "Date",
+    "asin",
+    "units_sold",
+    "kenp_pages_read",
+    "total_sales_usd",
+    "total_profit_usd",
+    "total_royalty_usd",
+    "total_print_cost_usd",
+  ])
+  for date_key in date_keys:
+    kdp_stat = kdp_by_date.get(date_key)
+    if kdp_stat is None:
+      continue
+    for sale_item in kdp_stat.sale_items:
+      writer.writerow([
+        date_key,
+        sale_item.asin,
+        sale_item.units_sold,
+        sale_item.kenp_pages_read,
+        sale_item.total_sales_usd,
+        sale_item.total_profit_usd,
+        sale_item.total_royalty_usd if sale_item.total_royalty_usd else 0.0,
+        sale_item.total_print_cost_usd
+        if sale_item.total_print_cost_usd else 0.0,
+      ])
+
+  writer.writerow([])
+  writer.writerow(["Section", "reconciled_by_asin"])
+  writer.writerow([
+    "Date",
+    "asin",
+    "kdp_units",
+    "ads_click_date_units",
+    "ads_ship_date_units",
+    "unmatched_ads_click_date_units",
+    "organic_units",
+    "kdp_kenp_pages_read",
+    "ads_click_date_kenp_pages_read",
+    "ads_ship_date_kenp_pages_read",
+    "unmatched_ads_click_date_kenp_pages_read",
+    "organic_kenp_pages_read",
+    "kdp_sales_usd",
+    "ads_click_date_sales_usd_est",
+    "ads_ship_date_sales_usd_est",
+    "organic_sales_usd_est",
+    "kdp_royalty_usd",
+    "ads_click_date_royalty_usd_est",
+    "ads_ship_date_royalty_usd_est",
+    "organic_royalty_usd_est",
+    "kdp_print_cost_usd",
+    "ads_click_date_print_cost_usd_est",
+    "ads_ship_date_print_cost_usd_est",
+    "organic_print_cost_usd_est",
+  ])
+  for date_key in date_keys:
+    reconciled_stat = reconciled_by_date.get(date_key)
+    if reconciled_stat is None:
+      continue
+    for asin in sorted(reconciled_stat.by_asin.keys()):
+      asin_stats = reconciled_stat.by_asin[asin]
+      writer.writerow([
+        date_key,
+        asin,
+        asin_stats.kdp_units,
+        asin_stats.ads_click_date_units,
+        asin_stats.ads_ship_date_units,
+        asin_stats.unmatched_ads_click_date_units,
+        asin_stats.organic_units,
+        asin_stats.kdp_kenp_pages_read,
+        asin_stats.ads_click_date_kenp_pages_read,
+        asin_stats.ads_ship_date_kenp_pages_read,
+        asin_stats.unmatched_ads_click_date_kenp_pages_read,
+        asin_stats.organic_kenp_pages_read,
+        asin_stats.kdp_sales_usd,
+        asin_stats.ads_click_date_sales_usd_est,
+        asin_stats.ads_ship_date_sales_usd_est,
+        asin_stats.organic_sales_usd_est,
+        asin_stats.kdp_royalty_usd,
+        asin_stats.ads_click_date_royalty_usd_est,
+        asin_stats.ads_ship_date_royalty_usd_est,
+        asin_stats.organic_royalty_usd_est,
+        asin_stats.kdp_print_cost_usd,
+        asin_stats.ads_click_date_print_cost_usd_est,
+        asin_stats.ads_ship_date_print_cost_usd_est,
+        asin_stats.organic_print_cost_usd_est,
+      ])
+
+  writer.writerow([])
+  writer.writerow(["Section", "reconciled_ending_unmatched_ads_lots"])
+  writer.writerow([
+    "Date",
+    "asin",
+    "purchase_date",
+    "units_remaining",
+    "kenp_pages_remaining",
+  ])
+  for date_key in date_keys:
+    reconciled_stat = reconciled_by_date.get(date_key)
+    if reconciled_stat is None:
+      continue
+    for asin in sorted(reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin):
+      lots = reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin[asin]
+      for lot in lots:
+        writer.writerow([
+          date_key,
+          asin,
+          lot.purchase_date.isoformat(),
+          lot.units_remaining,
+          lot.kenp_pages_remaining,
+        ])
+
+  return output.getvalue().strip()

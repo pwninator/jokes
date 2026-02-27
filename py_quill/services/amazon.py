@@ -932,20 +932,28 @@ def _download_report_rows(
     raise AmazonAdsError(
       f"Failed to decompress report {report.report_id}: {exc}") from exc
 
-  return _parse_report_rows_text(report.report_name, decoded_text)
+  # Persist exact unzipped payload text for debugging/replay in Firestore.
+  report.raw_report_text = decoded_text
+  return parse_report_rows_text(report.report_name, decoded_text)
 
 
-def _parse_report_rows_text(report_name: str,
-                            text: str) -> list[dict[str, Any]]:
+def parse_report_rows_text(
+  report_name: str,
+  text: str,
+  *,
+  enable_logging: bool = True,
+) -> list[dict[str, Any]]:
   """Parse report text that may be JSON array/object or JSON-lines."""
   stripped = text.strip()
   if not stripped:
     return []
 
-  logger.info(f"Parsing text for report {report_name}: {stripped}")
+  if enable_logging:
+    logger.info(f"Parsing text for report {report_name}: {stripped}")
   try:
     parsed_raw = json.loads(stripped)
-    logger.info(f"Parsed report {report_name}: {pprint.pformat(parsed_raw)}")
+    if enable_logging:
+      logger.info(f"Parsed report {report_name}: {pprint.pformat(parsed_raw)}")
     if isinstance(parsed_raw, list):
       rows_from_list: list[dict[str, Any]] = []
       for row in cast(list[Any], parsed_raw):
@@ -969,6 +977,12 @@ def _parse_report_rows_text(report_name: str,
     if isinstance(parsed_line, dict):
       rows.append(cast(dict[str, Any], parsed_line))
   return rows
+
+
+def _parse_report_rows_text(report_name: str,
+                            text: str) -> list[dict[str, Any]]:
+  """Backward-compatible private alias for parse_report_rows_text."""
+  return parse_report_rows_text(report_name, text)
 
 
 def _merge_report_rows(
@@ -1137,25 +1151,21 @@ def _build_merged_sale_items_for_campaign_day(
 
 
 def _extract_direct_sales_amount(advertised_row: dict[str, Any]) -> float:
-  """Return direct sales amount from an advertised-product row."""
-  sales_amount = _as_float(advertised_row.get("attributedSalesSameSku14d"))
-  if sales_amount != 0.0:
-    return sales_amount
-  return _as_float(advertised_row.get("sales14d"))
+  """Return same-SKU direct sales from an advertised-product row.
+
+  Do not fall back to total sales fields (for example `sales14d`), because those
+  can include cross-SKU purchases and misattribute revenue to `advertisedAsin`.
+  """
+  return _as_float(advertised_row.get("attributedSalesSameSku14d"))
 
 
 def _extract_direct_units_sold(advertised_row: dict[str, Any]) -> int:
-  """Return direct unit count from an advertised-product row."""
-  units_sold = _as_int(advertised_row.get("unitsSoldSameSku14d"))
-  if units_sold != 0:
-    return units_sold
-  units_sold = _as_int(advertised_row.get("unitsSoldClicks14d"))
-  if units_sold != 0:
-    return units_sold
-  units_sold = _as_int(advertised_row.get("purchasesSameSku14d"))
-  if units_sold != 0:
-    return units_sold
-  return _as_int(advertised_row.get("purchases14d"))
+  """Return same-SKU direct units from an advertised-product row.
+
+  We intentionally ignore fallback click-level totals (for example
+  `unitsSoldClicks14d` / `purchases14d`) to avoid cross-SKU ASIN misattribution.
+  """
+  return _as_int(advertised_row.get("unitsSoldSameSku14d"))
 
 
 def _accumulate_asin_totals(

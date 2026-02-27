@@ -23,6 +23,16 @@ def _mock_admin_session(monkeypatch):
                       }))
 
 
+@pytest.fixture(autouse=True)
+def _mock_kdp_daily_stats_default(monkeypatch):
+  """Default KDP stats stub for ads-stats route tests."""
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+
+
 def test_admin_stats_page_loads(monkeypatch):
   """Test the stats page loads and renders charts with data."""
   _mock_admin_session(monkeypatch)
@@ -300,6 +310,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   monkeypatch.setattr(dashboard_routes.flask, "render_template", _fake_render)
 
   call_args: dict = {}
+  kdp_call_args: dict = {}
 
   def _fake_list_stats(*, start_date, end_date):
     call_args["start_date"] = start_date
@@ -329,6 +340,22 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     firestore_service,
     "list_amazon_ads_daily_stats",
     _fake_list_stats,
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: kdp_call_args.update({
+      "start_date": start_date,
+      "end_date": end_date,
+    }) or [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 19),
+        total_units_sold=4,
+        kenp_pages_read=100,
+        total_royalties_usd=12.0,
+        total_print_cost_usd=5.0,
+      ),
+    ],
   )
   monkeypatch.setattr(
     firestore_service,
@@ -367,6 +394,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert captured["template"] == "admin/ads_stats.html"
   assert call_args["start_date"] == datetime.date(2026, 1, 22)
   assert call_args["end_date"] == datetime.date(2026, 2, 20)
+  assert kdp_call_args["start_date"] == datetime.date(2026, 1, 22)
+  assert kdp_call_args["end_date"] == datetime.date(2026, 2, 20)
   assert captured["start_date"] == "2026-01-22"
   assert captured["end_date"] == "2026-02-20"
   assert captured["ads_events"] == [{
@@ -409,6 +438,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["organic_profit_usd"][idx_0219] == 7.0
   assert reconciled_chart_data["poas"][idx_0219] == 2.4
   assert reconciled_chart_data["tpoas"][idx_0219] == 2.68
+  assert reconciled_chart_data["total_gross_profit_before_ads_usd"] == 35.0
+  assert reconciled_chart_data["total_gross_profit_usd"] == 14.5
 
   # Verify totals
   assert chart_data["total_impressions"] == 205
@@ -417,6 +448,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert chart_data["total_sales_usd"] == 46.0
   assert chart_data["total_gross_profit_before_ads_usd"] == 69.0
   assert chart_data["total_gross_profit_usd"] == 39.5
+  assert "Section,daily_overview" in captured["reconciliation_debug_csv"]
+  assert "Section,kdp_sale_items" in captured["reconciliation_debug_csv"]
 
 
 def test_admin_dashboard_includes_ads_stats_link(monkeypatch):
@@ -430,6 +463,19 @@ def test_admin_dashboard_includes_ads_stats_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert '/admin/ads-stats' in html
   assert 'Ads Stats' in html
+
+
+def test_admin_dashboard_includes_ads_reports_link(monkeypatch):
+  """Admin dashboard includes the ads reports tile."""
+  _mock_admin_session(monkeypatch)
+
+  with app.test_client() as client:
+    resp = client.get('/admin')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '/admin/ads-reports' in html
+  assert 'Ads Reports' in html
 
 
 def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
@@ -458,6 +504,165 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/admin/ads-stats"' in html
   assert 'Ads Stats' in html
+
+
+def test_admin_ads_reports_page_lists_recent_and_cached_rows(monkeypatch):
+  """Ads reports page renders recent reports and parsed cached JSON tables."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+  monkeypatch.setattr(dashboard_routes, "_today_in_los_angeles",
+                      lambda: datetime.date(2026, 2, 27))
+
+  call_args: dict = {}
+
+  def _fake_list_reports(*, created_on_or_after):
+    call_args["created_on_or_after"] = created_on_or_after
+    return [
+      models.AmazonAdsReport(
+        report_id="r-latest-campaign",
+        report_name="latest_campaign_report",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 27),
+        created_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     11,
+                                     30,
+                                     tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     11,
+                                     31,
+                                     tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=True,
+        raw_report_text=
+        '[{"date":"2026-02-27","campaignId":"123","cost":3.21}]',
+      ),
+      models.AmazonAdsReport(
+        report_id="r-older-campaign",
+        report_name="older_campaign_report",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        start_date=datetime.date(2026, 1, 28),
+        end_date=datetime.date(2026, 2, 26),
+        created_at=datetime.datetime(2026,
+                                     2,
+                                     26,
+                                     11,
+                                     30,
+                                     tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026,
+                                     2,
+                                     26,
+                                     11,
+                                     31,
+                                     tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=True,
+        raw_report_text=
+        '[{"date":"2026-02-26","campaignId":"999","cost":1.11}]',
+      ),
+      models.AmazonAdsReport(
+        report_id="r-advertised",
+        report_name="advertised_product_report",
+        status="COMPLETED",
+        report_type_id="spAdvertisedProduct",
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 27),
+        created_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     10,
+                                     0,
+                                     tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     10,
+                                     1,
+                                     tzinfo=datetime.timezone.utc),
+        profile_id="p-ca",
+        profile_country="CA",
+        processed=False,
+        raw_report_text=
+        ('{"date":"2026-02-27","campaignId":"abc","advertisedAsin":"B0GNHFKQ8W"}\n'
+         '{"date":"2026-02-27","campaignId":"abc","advertisedAsin":"B0G9765J19"}'
+         ),
+      ),
+      models.AmazonAdsReport(
+        report_id="r-no-cache",
+        report_name="pending_report",
+        status="PROCESSING",
+        report_type_id="spPurchasedProduct",
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 27),
+        created_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     8,
+                                     0,
+                                     tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     8,
+                                     1,
+                                     tzinfo=datetime.timezone.utc),
+        profile_id="p-uk",
+        profile_country="UK",
+        processed=False,
+        raw_report_text=None,
+      ),
+    ]
+
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_reports",
+    _fake_list_reports,
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-reports')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert call_args["created_on_or_after"] == datetime.date(2026, 2, 25)
+  assert 'Showing reports created between 2026-02-25 and 2026-02-27' in html
+  assert "latest_campaign_report" in html
+  assert "older_campaign_report" in html
+  assert "advertised_product_report" in html
+  assert "pending_report" in html
+  assert "Most Recent Cached Report Rows (Per Report Type)" in html
+  # Cached table should use latest report per report_type_id.
+  assert "campaignId" in html
+  assert "123" in html
+  assert "<td>999</td>" not in html
+  assert "B0GNHFKQ8W" in html
+  assert "B0G9765J19" in html
+
+
+def test_admin_ads_reports_page_includes_nav_link(monkeypatch):
+  """Ads reports page renders the admin top-nav link."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_reports",
+    lambda *, created_on_or_after: [],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-reports')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'href="/admin/ads-reports"' in html
+  assert 'Ads Reports' in html
 
 
 def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
@@ -532,7 +737,11 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="adsStatsCreateEventForm"' in html
   assert 'id="adsStatsEventDateInput"' in html
   assert 'id="adsStatsEventTitleInput"' in html
+  assert 'id="adsStatsTopDataButton"' in html
+  assert 'id="adsStatsTopDataPopup"' in html
   assert 'id="stat-ctr"' in html
+  assert 'id="stat-gp-pre-ad-reconciled"' in html
+  assert 'id="stat-gp-reconciled"' in html
   assert '<canvas id="ctrChart"></canvas>' in html
   assert '<option value="Timeline">Timeline</option>' in html
   assert '<option value="Days of Week">Days of Week</option>' in html
@@ -565,6 +774,50 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert reconciled_poas_pos < cpc_and_cr_pos
   assert cpc_and_cr_pos < ctr_pos
   assert ctr_pos < impressions_and_clicks_pos
+
+
+def test_admin_ads_stats_page_includes_data_button_and_popup_per_chart(
+    monkeypatch):
+  """Ads stats page includes Data button and popup container for each chart."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+
+  chart_canvas_ids = [
+    'profitChart',
+    'reconciledProfitTimelineChart',
+    'poasChart',
+    'reconciledPoasTimelineChart',
+    'cpcAndConversionRateChart',
+    'ctrChart',
+    'impressionsAndClicksChart',
+  ]
+  for canvas_id in chart_canvas_ids:
+    assert f'data-canvas-id="{canvas_id}"' in html, f"Missing data-canvas-id for {canvas_id}"
+    assert f'id="{canvas_id}-data-popup"' in html, f"Missing popup for {canvas_id}"
+  assert 'id="adsStatsTopDataButton"' in html
+  assert 'id="adsStatsTopDataPopup"' in html
+  assert '>Data</button>' in html
+  assert 'chart-data-popup' in html
 
 
 def test_admin_ads_stats_filtering(monkeypatch):

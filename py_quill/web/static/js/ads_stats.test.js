@@ -7,6 +7,7 @@ const {
   buildDaysOfWeekSeries,
   buildReconciledChartStats,
   buildChartStats,
+  chartDataToCsv,
   isIsoDateString,
   normalizeAdsEvent,
   groupAdsEventsByDate,
@@ -321,4 +322,58 @@ test('getAdsEventTooltipLines returns date followed by one title per line', () =
     }),
     ['2026-02-22', 'Launch', 'Budget increase'],
   );
+});
+
+test('chartDataToCsv returns empty string for null or missing data', () => {
+  assert.equal(chartDataToCsv(null), '');
+  assert.equal(chartDataToCsv(undefined), '');
+  assert.equal(chartDataToCsv({}), '');
+  assert.equal(chartDataToCsv({ data: {} }), '');
+  assert.equal(chartDataToCsv({ data: { labels: [], datasets: [] } }), '');
+});
+
+test('chartDataToCsv produces CSV with Date column and one column per dataset', () => {
+  const chart = {
+    data: {
+      labels: ['2026-02-22', '2026-02-23'],
+      datasets: [
+        { label: 'Cost', data: [12.5, 15.0] },
+        { label: 'Gross Profit', data: [45.0, 52.0] },
+      ],
+    },
+  };
+  const csv = chartDataToCsv(chart);
+  assert.ok(csv.includes('Date,Cost,Gross Profit'));
+  assert.ok(csv.includes('2026-02-22,12.5,45'));
+  assert.ok(csv.includes('2026-02-23,15,52'));
+});
+
+test('chartDataToCsv escapes commas and quotes in values', () => {
+  const chart = {
+    data: {
+      labels: ['2026-02-22'],
+      datasets: [
+        { label: 'A,B', data: ['"quoted"'] },
+      ],
+    },
+  };
+  const csv = chartDataToCsv(chart);
+  assert.ok(csv.includes('"A,B"'));
+  assert.ok(csv.includes('"""quoted"""'));
+});
+
+test('chartDataToCsv handles missing data points with empty string', () => {
+  const chart = {
+    data: {
+      labels: ['2026-02-22', '2026-02-23'],
+      datasets: [
+        { label: 'A', data: [1] },
+        { label: 'B', data: [10, 20] },
+      ],
+    },
+  };
+  const csv = chartDataToCsv(chart);
+  const lines = csv.split('\n');
+  assert.equal(lines.length, 3);
+  assert.ok(lines[2].endsWith(',20'));
 });

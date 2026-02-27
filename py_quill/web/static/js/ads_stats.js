@@ -68,6 +68,40 @@
     return [eventGroup.date, ...titles];
   }
 
+  function chartDataToCsv(chart) {
+    if (!chart || !chart.data) {
+      return '';
+    }
+    const labels = chart.data.labels || [];
+    const datasets = chart.data.datasets || [];
+    if (labels.length === 0 && datasets.length === 0) {
+      return '';
+    }
+    const escapeCsv = (val) => {
+      const s = String(val);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const headerCols = ['Date', ...datasets.map((d) => d.label || '')];
+    const rows = [headerCols.map(escapeCsv).join(',')];
+    for (let i = 0; i < labels.length; i += 1) {
+      const row = [
+        escapeCsv(labels[i]),
+        ...datasets.map((d) => escapeCsv(d.data[i] != null ? d.data[i] : '')),
+      ];
+      rows.push(row.join(','));
+    }
+    return rows.join('\n');
+  }
+
+  function escapeCsvValue(value) {
+    const stringValue = String(value == null ? '' : value);
+    return stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')
+      ? `"${stringValue.replace(/"/g, '""')}"`
+      : stringValue;
+  }
+
   function escapeHtml(value) {
     return String(value)
       .replace(/&/g, '&amp;')
@@ -197,6 +231,23 @@
       totals.gross_profit_usd += toNumber(day.gross_profit_usd);
     });
 
+    return totals;
+  }
+
+  function calculateReconciledTotals(reconciledDailyStats) {
+    const totals = {
+      cost: 0,
+      gross_profit_before_ads_usd: 0,
+      organic_profit_usd: 0,
+      gross_profit_usd: 0,
+    };
+
+    (reconciledDailyStats || []).forEach((day) => {
+      totals.cost += toNumber(day.cost);
+      totals.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
+      totals.organic_profit_usd += toNumber(day.organic_profit_usd);
+      totals.gross_profit_usd += toNumber(day.gross_profit_usd);
+    });
     return totals;
   }
 
@@ -445,6 +496,12 @@
         organic_profit_usd: [],
         poas: [],
         tpoas: [],
+        totals: {
+          cost: 0,
+          gross_profit_before_ads_usd: 0,
+          organic_profit_usd: 0,
+          gross_profit_usd: 0,
+        },
       };
     }
 
@@ -460,9 +517,13 @@
         gross_profit_usd: day.gross_profit_usd,
       }),
     );
+    const totals = calculateReconciledTotals(reconciledDailyStats);
 
     if (mode === DAYS_OF_WEEK_MODE) {
-      return buildReconciledDaysOfWeekSeries(reconciledDailyStats);
+      return {
+        ...buildReconciledDaysOfWeekSeries(reconciledDailyStats),
+        totals: totals,
+      };
     }
 
     return {
@@ -478,13 +539,33 @@
       tpoas: reconciledDailyStats.map((day) => {
         return calculateTpoas(day.raw_gross_profit_before_ads_usd, day.organic_profit_usd, day.cost);
       }),
+      totals: totals,
     };
+  }
+
+  function buildReconciliationDebugCsv(debugPayload) {
+    if (typeof debugPayload === 'string') {
+      return debugPayload;
+    }
+    const payload = debugPayload || {};
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    if (rows.length === 0) {
+      return '';
+    }
+    const header = Object.keys(rows[0]);
+    const lines = [header.map(escapeCsvValue).join(',')];
+    rows.forEach((row) => {
+      const line = header.map((key) => escapeCsvValue(row[key]));
+      lines.push(line.join(','));
+    });
+    return lines.join('\n');
   }
 
   function initAdsStatsPage(options) {
     const config = options || {};
     const adsStatsData = config.chartData || {};
     const reconciledClickDateChartData = config.reconciledClickDateChartData || {};
+    const reconciliationDebugCsv = buildReconciliationDebugCsv(config.reconciliationDebugCsv);
     let adsEvents = Array.isArray(config.adsEvents)
       ? config.adsEvents.map((event) => normalizeAdsEvent(event)).filter(Boolean)
       : [];
@@ -735,33 +816,6 @@
         const top = Math.max(8, Math.min(maxTop, yPos + 12));
         tooltipEl.style.left = `${left}px`;
         tooltipEl.style.top = `${top}px`;
-      }
-
-      function chartDataToCsv(chart) {
-        if (!chart || !chart.data) {
-          return '';
-        }
-        const labels = chart.data.labels || [];
-        const datasets = chart.data.datasets || [];
-        if (labels.length === 0 && datasets.length === 0) {
-          return '';
-        }
-        const escapeCsv = (val) => {
-          const s = String(val);
-          return s.includes(',') || s.includes('"') || s.includes('\n')
-            ? `"${s.replace(/"/g, '""')}"`
-            : s;
-        };
-        const headerCols = ['Date', ...datasets.map((d) => d.label || '')];
-        const rows = [headerCols.map(escapeCsv).join(',')];
-        for (let i = 0; i < labels.length; i += 1) {
-          const row = [
-            escapeCsv(labels[i]),
-            ...datasets.map((d) => escapeCsv(d.data[i] != null ? d.data[i] : '')),
-          ];
-          rows.push(row.join(','));
-        }
-        return rows.join('\n');
       }
 
       function createMultiLineChart(canvasId, labels, datasets, scales, mode) {
@@ -1037,6 +1091,8 @@
         const statCost = document.getElementById('stat-cost');
         const statGpPreAd = document.getElementById('stat-gp-pre-ad');
         const statGp = document.getElementById('stat-gp');
+        const statGpPreAdReconciled = document.getElementById('stat-gp-pre-ad-reconciled');
+        const statGpReconciled = document.getElementById('stat-gp-reconciled');
         const statCtr = document.getElementById('stat-ctr');
         const statCpc = document.getElementById('stat-cpc');
         const statConversionRate = document.getElementById('stat-conversion-rate');
@@ -1055,6 +1111,16 @@
         }
         if (statGp) {
           statGp.textContent = formatCurrency(stats.totals.gross_profit_usd);
+        }
+        if (statGpPreAdReconciled) {
+          statGpPreAdReconciled.textContent = formatCurrency(
+            toNumber(reconciledStats.totals && reconciledStats.totals.gross_profit_before_ads_usd),
+          );
+        }
+        if (statGpReconciled) {
+          statGpReconciled.textContent = formatCurrency(
+            toNumber(reconciledStats.totals && reconciledStats.totals.gross_profit_usd),
+          );
         }
 
         const totalCtr = stats.totals.impressions > 0
@@ -1102,22 +1168,48 @@
       modeSelector.addEventListener('change', renderSelectedView);
       renderSelectedView();
 
-      document.querySelectorAll('.chart-data-button').forEach((btn) => {
+      document.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const btn = target && target.closest ? target.closest('.chart-data-button') : null;
+        if (!btn) {
+          return;
+        }
+        const popupId = btn.getAttribute('data-popup-id');
+        if (popupId) {
+          const popup = document.getElementById(popupId);
+          if (!popup) {
+            return;
+          }
+          if (popup.classList.contains('is-visible')) {
+            popup.classList.remove('is-visible');
+            return;
+          }
+          const safeCsv = reconciliationDebugCsv
+            ? reconciliationDebugCsv.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            : '';
+          popup.innerHTML = safeCsv ? `<pre>${safeCsv}</pre>` : '<pre>No data</pre>';
+          popup.classList.add('is-visible');
+          return;
+        }
         const canvasId = btn.getAttribute('data-canvas-id');
         const popup = document.getElementById(`${canvasId}-data-popup`);
         if (!canvasId || !popup) {
           return;
         }
-        btn.addEventListener('click', () => {
-          const chart = charts[canvasId];
-          if (popup.classList.contains('is-visible')) {
-            popup.classList.remove('is-visible');
-            return;
-          }
-          const csv = chartDataToCsv(chart);
-          popup.innerHTML = csv ? `<pre>${csv.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>` : '<pre>No data</pre>';
-          popup.classList.add('is-visible');
-        });
+        if (popup.classList.contains('is-visible')) {
+          popup.classList.remove('is-visible');
+          return;
+        }
+        const canvas = document.getElementById(canvasId);
+        const chart = canvas && typeof chartCtor.getChart === 'function'
+          ? chartCtor.getChart(canvas)
+          : charts[canvasId];
+        const csv = chartDataToCsv(chart);
+        const safeCsv = csv
+          ? csv.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          : '';
+        popup.innerHTML = safeCsv ? `<pre>${safeCsv}</pre>` : '<pre>No data</pre>';
+        popup.classList.add('is-visible');
       });
     }
 
@@ -1146,6 +1238,7 @@
       normalizeAdsEvent: normalizeAdsEvent,
       groupAdsEventsByDate: groupAdsEventsByDate,
       getAdsEventTooltipLines: getAdsEventTooltipLines,
+      chartDataToCsv: chartDataToCsv,
       toNumber: toNumber,
       dayOfWeekIndexForDate: dayOfWeekIndexForDate,
       average: average,

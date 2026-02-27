@@ -1,0 +1,180 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Ads Reports · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<style>
+  .ads-reports-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .ads-reports-title-row h2 {
+    margin: 0;
+  }
+  .ads-reports-title-row p {
+    margin: 6px 0 0;
+  }
+  .ads-reports-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 4px 12px var(--color-shadow);
+  }
+  .ads-reports-card h3 {
+    margin: 0 0 10px;
+  }
+  .ads-reports-table-wrap {
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+  }
+  .ads-reports-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 880px;
+  }
+  .ads-reports-table th,
+  .ads-reports-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.88rem;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  .ads-reports-table th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: color-mix(in srgb, var(--color-surface) 86%, var(--color-border) 14%);
+  }
+  .ads-reports-table tr:last-child td {
+    border-bottom: none;
+  }
+  .ads-reports-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .ads-reports-chip--yes {
+    border-color: rgba(74, 134, 87, 0.55);
+    color: #2d5d37;
+  }
+  .ads-reports-chip--no {
+    border-color: rgba(156, 90, 57, 0.45);
+    color: #7b3f23;
+  }
+  .ads-reports-meta {
+    margin: 0 0 8px;
+  }
+  .ads-reports-empty {
+    margin: 0;
+  }
+</style>
+
+<div class="ads-reports-layout">
+  <div class="ads-reports-title-row">
+    <h2>Ads Reports</h2>
+    <p class="muted">Showing reports created between {{ start_date }} and {{ end_date }} (last 3 days).</p>
+  </div>
+
+  <section class="ads-reports-card" aria-label="Recent ads reports">
+    <h3>Recent Report Metadata</h3>
+    {% if reports %}
+      <div class="ads-reports-table-wrap">
+        <table class="ads-reports-table">
+          <thead>
+            <tr>
+              <th>Created At (UTC)</th>
+              <th>Report Name</th>
+              <th>Report Type</th>
+              <th>Status</th>
+              <th>Profile</th>
+              <th>Country</th>
+              <th>Range Start</th>
+              <th>Range End</th>
+              <th>Processed</th>
+              <th>Cached JSON</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for report in reports %}
+              <tr>
+                <td>{{ report.created_at }}</td>
+                <td>{{ report.report_name }}</td>
+                <td>{{ report.report_type_id }}</td>
+                <td>{{ report.status }}</td>
+                <td>{{ report.profile_id }}</td>
+                <td>{{ report.profile_country }}</td>
+                <td>{{ report.start_date }}</td>
+                <td>{{ report.end_date }}</td>
+                <td>
+                  <span class="ads-reports-chip {% if report.processed %}ads-reports-chip--yes{% else %}ads-reports-chip--no{% endif %}">
+                    {% if report.processed %}Yes{% else %}No{% endif %}
+                  </span>
+                </td>
+                <td>
+                  <span class="ads-reports-chip {% if report.has_raw_report_text %}ads-reports-chip--yes{% else %}ads-reports-chip--no{% endif %}">
+                    {% if report.has_raw_report_text %}Yes{% else %}No{% endif %}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted ads-reports-empty">No reports found in the selected window.</p>
+    {% endif %}
+  </section>
+
+  <section class="ads-reports-card" aria-label="Cached report data">
+    <h3>Most Recent Cached Report Rows (Per Report Type)</h3>
+    {% if cached_report_tables %}
+      {% for table in cached_report_tables %}
+        <div class="ads-reports-card" style="margin-top: 12px; padding: 12px;">
+          <p class="muted ads-reports-meta">
+            <strong>{{ table.report_type_id }}</strong> · {{ table.report_name }} · profile {{ table.profile_id }} {{ table.profile_country }}
+            · range {{ table.start_date }} to {{ table.end_date }} · created {{ table.created_at }}
+            · rows {{ table.row_count }}{% if table.truncated %} (showing first {{ table.rows|length }}){% endif %}
+          </p>
+          {% if table.columns %}
+            <div class="ads-reports-table-wrap">
+              <table class="ads-reports-table">
+                <thead>
+                  <tr>
+                    {% for column in table.columns %}
+                      <th>{{ column }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in table.rows %}
+                    <tr>
+                      {% for column in table.columns %}
+                        <td>{{ row[column] }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="muted ads-reports-empty">No rows parsed from cached JSON.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted ads-reports-empty">No cached JSON report bodies found in this window.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

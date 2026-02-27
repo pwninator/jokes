@@ -2198,6 +2198,7 @@ class AmazonAdsReport:
   file_size: int | None = None
   url: str | None = None
   url_expires_at: datetime.datetime | None = None
+  raw_report_text: str | None = None
   failure_reason: str | None = None
   processed: bool = False
 
@@ -2228,6 +2229,8 @@ class AmazonAdsReport:
       "failure_reason": self.failure_reason,
       "processed": self.processed,
     }
+    if self.raw_report_text is not None:
+      data["raw_report_text"] = self.raw_report_text
     if include_key:
       data["key"] = self.key
     return data
@@ -2329,6 +2332,8 @@ class AmazonAdsReport:
         data.get("url_expires_at"),
         "url_expires_at",
       ),
+      raw_report_text=(str(data.get("raw_report_text"))
+                       if data.get("raw_report_text") is not None else None),
       failure_reason=str(data.get("failure_reason", "")).strip() or None,
       processed=bool(data.get("processed", False)),
     )

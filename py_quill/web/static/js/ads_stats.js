@@ -13,6 +13,7 @@
     'Sat',
   ]);
   const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const RESERVED_RIGHT_GUTTER_PX = 56;
 
   function isIsoDateString(value) {
     return ISO_DATE_RE.test(String(value || ''));
@@ -126,6 +127,14 @@
 
   function average(sum, count) {
     return count > 0 ? sum / count : 0;
+  }
+
+  function reserveScaleWidth(scale, width) {
+    const reservedWidth = Number(width);
+    if (!scale || !Number.isFinite(reservedWidth) || reservedWidth <= 0) {
+      return;
+    }
+    scale.width = Math.max(scale.width || 0, reservedWidth);
   }
 
   function calculatePoas(grossProfitBeforeAds, cost) {
@@ -950,6 +959,12 @@
           return;
         }
         const ctx = canvas.getContext('2d');
+        const hasVisibleRightAxis = Boolean(
+          scales
+          && Object.values(scales).some((scale) => {
+            return scale && scale.position === 'right' && scale.display !== false;
+          }),
+        );
 
         if (charts[canvasId]) {
           charts[canvasId].destroy();
@@ -964,6 +979,11 @@
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+              padding: {
+                right: hasVisibleRightAxis ? 0 : RESERVED_RIGHT_GUTTER_PX,
+              },
+            },
             scales: scales,
             plugins: {
               tooltip: {
@@ -1048,6 +1068,9 @@
           y1: {
             beginAtZero: true,
             position: 'right',
+            afterFit: function (scale) {
+              reserveScaleWidth(scale, RESERVED_RIGHT_GUTTER_PX);
+            },
             grid: {
               drawOnChartArea: false,
             },
@@ -1071,7 +1094,7 @@
           createLineDataset({
             label: 'Profit Before Ads (ads)',
             data: series.ads_profit_before_ads_usd,
-            borderColor: '#1565c0',
+            borderColor: '#ef6c00',
             formatType: 'currency',
           }),
           createLineDataset({
@@ -1201,7 +1224,7 @@
             createLineDataset({
               label: 'Profit Before Ads (ads)',
               data: series.ads_profit_before_ads_usd,
-              borderColor: '#1565c0',
+              borderColor: '#ef6c00',
               formatType: 'currency',
             }),
             createLineDataset({
@@ -1400,6 +1423,7 @@
       toNumber: toNumber,
       dayOfWeekIndexForDate: dayOfWeekIndexForDate,
       average: average,
+      reserveScaleWidth: reserveScaleWidth,
       getDailyStatsForCampaign: getDailyStatsForCampaign,
       calculateTotals: calculateTotals,
       buildTimelineSeries: buildTimelineSeries,

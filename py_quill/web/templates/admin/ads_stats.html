@@ -8,31 +8,20 @@
     <h2>Ads Stats</h2>
     <p class="muted ads-stats-title-subtitle">Manage filters, imports, and event markers in one place.</p>
   </div>
+  <div class="ads-stats-top-data">
+    <button class="button-secondary text-button chart-data-button" id="adsStatsTopDataButton" type="button" data-popup-id="adsStatsTopDataPopup">Data</button>
+    <div class="chart-data-popup ads-stats-top-data-popup" id="adsStatsTopDataPopup" role="status" aria-live="polite" aria-hidden="true"></div>
+  </div>
 </div>
 
 <section class="ads-stats-control-panel" aria-label="Ads stats controls">
-  <div class="ads-stats-filters-row">
-    <div class="ads-stats-field">
-      <label for="campaignSelector">Campaign</label>
-      <select id="campaignSelector">
-        <option value="All">All</option>
-      </select>
-    </div>
-    <div class="ads-stats-field ads-stats-field--narrow">
-      <label for="modeSelector">Mode</label>
-      <select id="modeSelector">
-        <option value="Timeline">Timeline</option>
-        <option value="Days of Week">Days of Week</option>
-      </select>
-    </div>
-  </div>
-
   <div class="ads-stats-actions-row">
-    <div class="ads-stats-top-data">
-      <button class="chart-data-button ads-stats-top-data-button button-secondary text-button" id="adsStatsTopDataButton" type="button" data-popup-id="adsStatsTopDataPopup">Data</button>
-      <div class="chart-data-popup ads-stats-top-data-popup" id="adsStatsTopDataPopup" role="status" aria-live="polite" aria-hidden="true"></div>
-    </div>
     <button id="adsStatsCreateEventToggleButton" class="button-secondary text-button" type="button">Create Event</button>
+    <form id="kdpUploadForm" class="ads-stats-upload-form">
+      <label class="sr-only" for="kdpFileInput">Upload KDP xlsx</label>
+      <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
+      <span id="kdpUploadStatus" class="muted"></span>
+    </form>
   </div>
 
   <form id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden>
@@ -48,18 +37,32 @@
     <span id="adsStatsCreateEventStatus" class="muted"></span>
   </form>
 
-  <form id="kdpUploadForm" class="ads-stats-upload-form">
-    <div class="ads-stats-field ads-stats-upload-field">
-      <label for="kdpFileInput">Upload KDP xlsx</label>
-      <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
+  <div class="ads-stats-filters-row">
+    <div class="ads-stats-field">
+      <label for="campaignSelector">Campaign</label>
+      <select id="campaignSelector">
+        <option value="All">All</option>
+      </select>
     </div>
-    <button id="kdpUploadButton" class="button-secondary text-button" type="submit">Upload</button>
-    <span id="kdpUploadStatus" class="muted"></span>
-  </form>
+    <div class="ads-stats-field ads-stats-field--narrow">
+      <label for="modeSelector">Mode</label>
+      <select id="modeSelector">
+        <option value="Timeline">Timeline</option>
+        <option value="Days of Week">Days of Week</option>
+      </select>
+    </div>
+  </div>
 </section>
 
 <style>
+  .main-container {
+    gap: 0;
+  }
   .ads-stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 14px;
   }
   .ads-stats-title-block h2 {
@@ -119,27 +122,12 @@
   .ads-stats-actions-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     flex-wrap: wrap;
-  }
-  .ads-stats-actions-row .button-primary,
-  .ads-stats-actions-row .button-secondary,
-  .ads-stats-create-event-form .button-primary,
-  .ads-stats-upload-form .button-secondary {
-    padding: 8px 14px;
-    border-radius: 999px;
-  }
-  .ads-stats-actions-row .button-secondary,
-  .ads-stats-upload-form .button-secondary {
-    border-color: var(--color-form-border-strong);
-    box-shadow: none;
   }
   .ads-stats-top-data {
     position: relative;
-  }
-  .ads-stats-top-data .ads-stats-top-data-button {
-    min-height: 38px;
-    font-size: 0.95rem;
+    flex-shrink: 0;
   }
   .ads-stats-top-data-popup {
     top: 42px;
@@ -162,23 +150,26 @@
   }
   .ads-stats-upload-form {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    flex: 1 1 340px;
+    min-width: min(340px, 100%);
+  }
+  .ads-stats-filters-row {
     padding-top: 10px;
     border-top: 1px dashed var(--color-border);
   }
-  .ads-stats-upload-field {
-    min-width: min(320px, 100%);
-    flex: 1 1 320px;
-  }
   .ads-stats-upload-form input[type="file"] {
+    flex: 1 1 260px;
+    min-width: min(260px, 100%);
     padding: 6px 8px;
     background: var(--color-surface);
   }
   .ads-stats-upload-form #kdpUploadStatus {
     font-size: 0.9rem;
     min-height: 1.1rem;
+    min-width: 96px;
   }
   .stats-grid {
     display: grid;
@@ -214,6 +205,9 @@
     width: 100%;
     margin-bottom: 56px;
   }
+  .chart-container--tall {
+    height: 700px;
+  }
   .chart-header {
     display: flex;
     justify-content: space-between;
@@ -222,18 +216,6 @@
   }
   .chart-container h3 {
     margin: 0;
-  }
-  .chart-data-button {
-    padding: 4px 12px;
-    font-size: 0.85rem;
-    border-radius: 6px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
-    color: var(--color-text);
-    cursor: pointer;
-  }
-  .chart-data-button:hover {
-    background: var(--color-border);
   }
   .chart-data-popup {
     position: absolute;
@@ -273,6 +255,10 @@
     margin-bottom: 0;
   }
   @media (max-width: 900px) {
+    .ads-stats-header {
+      align-items: stretch;
+      flex-direction: column;
+    }
     .ads-stats-filters-row {
       grid-template-columns: 1fr;
     }
@@ -288,7 +274,8 @@
     .ads-stats-actions-row .button-primary,
     .ads-stats-actions-row .button-secondary,
     .ads-stats-create-event-form .button-primary,
-    .ads-stats-upload-form .button-secondary {
+    .chart-header .button-secondary,
+    .ads-stats-top-data .button-secondary {
       width: 100%;
       justify-content: center;
     }
@@ -296,8 +283,14 @@
       align-items: stretch;
     }
     .ads-stats-event-field,
-    .ads-stats-event-field--title,
-    .ads-stats-upload-field {
+    .ads-stats-event-field--title {
+      width: 100%;
+    }
+    .ads-stats-upload-form {
+      min-width: 100%;
+      width: 100%;
+    }
+    .ads-stats-upload-form input[type="file"] {
       width: 100%;
     }
     .ads-stats-top-data-popup {
@@ -352,10 +345,10 @@
 </p>
 
 <section class="stats-charts">
-  <div class="chart-container">
+  <div class="chart-container chart-container--tall">
     <div class="chart-header">
       <h3>Profit (Reconciled)</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="reconciledProfitTimelineChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="reconciledProfitTimelineChart">Data</button>
     </div>
     <div class="chart-data-popup" id="reconciledProfitTimelineChart-data-popup" data-canvas-id="reconciledProfitTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="reconciledProfitTimelineChart"></canvas>
@@ -363,7 +356,7 @@
   <div class="chart-container">
     <div class="chart-header">
       <h3>POAS (Reconciled)</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="reconciledPoasTimelineChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="reconciledPoasTimelineChart">Data</button>
     </div>
     <div class="chart-data-popup" id="reconciledPoasTimelineChart-data-popup" data-canvas-id="reconciledPoasTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="reconciledPoasTimelineChart"></canvas>
@@ -371,7 +364,7 @@
   <div class="chart-container">
     <div class="chart-header">
       <h3>CPC / Conversion Rate</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="cpcAndConversionRateChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="cpcAndConversionRateChart">Data</button>
     </div>
     <div class="chart-data-popup" id="cpcAndConversionRateChart-data-popup" data-canvas-id="cpcAndConversionRateChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="cpcAndConversionRateChart"></canvas>
@@ -379,7 +372,7 @@
   <div class="chart-container">
     <div class="chart-header">
       <h3>CTR</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="ctrChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="ctrChart">Data</button>
     </div>
     <div class="chart-data-popup" id="ctrChart-data-popup" data-canvas-id="ctrChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="ctrChart"></canvas>
@@ -387,7 +380,7 @@
   <div class="chart-container">
     <div class="chart-header">
       <h3>Impressions / Clicks</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="impressionsAndClicksChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="impressionsAndClicksChart">Data</button>
     </div>
     <div class="chart-data-popup" id="impressionsAndClicksChart-data-popup" data-canvas-id="impressionsAndClicksChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="impressionsAndClicksChart"></canvas>
@@ -395,7 +388,7 @@
   <div class="chart-container">
     <div class="chart-header">
       <h3>Ads Profit Breakdown</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="adsProfitBreakdownChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="adsProfitBreakdownChart">Data</button>
     </div>
     <div class="chart-data-popup" id="adsProfitBreakdownChart-data-popup" data-canvas-id="adsProfitBreakdownChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="adsProfitBreakdownChart"></canvas>
@@ -478,34 +471,51 @@
   }
 
   const kdpUploadForm = document.getElementById('kdpUploadForm');
-  if (kdpUploadForm) {
+  const kdpFileInput = document.getElementById('kdpFileInput');
+  const kdpUploadStatus = document.getElementById('kdpUploadStatus');
+  let kdpUploadInFlight = false;
+
+  async function uploadSelectedKdpFile() {
+    if (!kdpUploadForm
+      || !kdpFileInput
+      || !kdpUploadStatus
+      || !kdpFileInput.files
+      || kdpFileInput.files.length === 0
+      || kdpUploadInFlight) {
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', kdpFileInput.files[0]);
+    kdpUploadInFlight = true;
+    kdpFileInput.disabled = true;
+    kdpUploadStatus.textContent = 'Uploading...';
+    try {
+      const response = await fetch('/admin/ads-stats/upload-kdp', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+      kdpUploadStatus.textContent = `Saved ${data.days_saved} days`;
+    } catch (error) {
+      kdpUploadStatus.textContent = error?.message || 'Upload failed';
+    } finally {
+      kdpUploadInFlight = false;
+      kdpFileInput.disabled = false;
+      kdpFileInput.value = '';
+    }
+  }
+
+  if (kdpUploadForm && kdpFileInput) {
     kdpUploadForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const statusEl = document.getElementById('kdpUploadStatus');
-      const fileInput = document.getElementById('kdpFileInput');
-      const uploadButton = document.getElementById('kdpUploadButton');
-      if (!statusEl || !fileInput || !uploadButton || !fileInput.files || fileInput.files.length === 0) {
-        return;
-      }
-      const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      uploadButton.disabled = true;
-      statusEl.textContent = 'Uploading...';
-      try {
-        const response = await fetch('/admin/ads-stats/upload-kdp', {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Upload failed');
-        }
-        statusEl.textContent = `Saved ${data.days_saved} days`;
-      } catch (error) {
-        statusEl.textContent = error?.message || 'Upload failed';
-      } finally {
-        uploadButton.disabled = false;
-      }
+      await uploadSelectedKdpFile();
+    });
+
+    kdpFileInput.addEventListener('change', async () => {
+      await uploadSelectedKdpFile();
     });
   }
 </script>

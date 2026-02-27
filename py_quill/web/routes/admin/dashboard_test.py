@@ -825,16 +825,22 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="adsStatsCreateEventForm"' in html
   assert 'id="adsStatsEventDateInput"' in html
   assert 'id="adsStatsEventTitleInput"' in html
+  assert 'id="kdpUploadForm"' in html
+  assert 'id="kdpFileInput"' in html
+  assert 'id="kdpUploadButton"' not in html
   assert 'id="adsStatsTopDataButton"' in html
   assert 'id="adsStatsTopDataPopup"' in html
+  assert 'class="button-secondary text-button chart-data-button"' in html
   assert 'id="stat-ctr"' in html
   assert 'id="stat-profit-before-ads-ads"' in html
   assert 'id="stat-profit-before-ads-reconciled"' in html
   assert 'id="stat-gross-profit"' in html
+  assert 'id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden' in html
   assert '<canvas id="ctrChart"></canvas>' in html
   assert '<option value="Timeline">Timeline</option>' in html
   assert '<option value="Days of Week">Days of Week</option>' in html
   assert 'class="ads-stats-filters-row"' in html
+  assert "gap: 0;" in html
   assert "flex-wrap: wrap;" in html
 
   reconciled_profit_pos = html.find("<h3>Profit (Reconciled)</h3>")

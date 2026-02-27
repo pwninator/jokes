@@ -14,6 +14,7 @@ const {
   groupAdsEventsByDate,
   getAdsEventTooltipLines,
   getDailyStatsForCampaign,
+  reserveScaleWidth,
   showCopyFeedback,
 } = require('./ads_stats.js');
 
@@ -119,6 +120,16 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
   assertClose(series.cpc[3], 0);
   assertClose(series.ctr[3], 0);
   assertClose(series.conversion_rate[3], 0);
+});
+
+test('reserveScaleWidth preserves larger widths and raises smaller widths', () => {
+  const narrowScale = { width: 18 };
+  reserveScaleWidth(narrowScale, 56);
+  assert.equal(narrowScale.width, 56);
+
+  const wideScale = { width: 72 };
+  reserveScaleWidth(wideScale, 56);
+  assert.equal(wideScale.width, 72);
 });
 
 test('getDailyStatsForCampaign prefers campaign sums for All when campaign rows exist', () => {

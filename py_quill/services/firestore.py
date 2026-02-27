@@ -254,6 +254,31 @@ def get_amazon_sales_reconciled_daily_stat(
   )
 
 
+def list_amazon_sales_reconciled_daily_stats(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> list[models.AmazonSalesReconciledDailyStats]:
+  """List reconciled daily stats with Firestore-side date range filtering."""
+  if end_date < start_date:
+    raise ValueError("end_date must be on or after start_date")
+
+  query = db().collection(
+    AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION).where(filter=FieldFilter(
+      "date", ">=", start_date.isoformat()), ).where(filter=FieldFilter(
+        "date", "<=", end_date.isoformat()), ).order_by(
+          "date",
+          direction=Query.ASCENDING,
+        )
+  docs = query.stream()
+  return [
+    models.AmazonSalesReconciledDailyStats.from_firestore_dict(
+      doc.to_dict(),
+      key=doc.id,
+    ) for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
 def upsert_amazon_sales_reconciled_daily_stats(
   stats: list[models.AmazonSalesReconciledDailyStats],
 ) -> list[models.AmazonSalesReconciledDailyStats]:

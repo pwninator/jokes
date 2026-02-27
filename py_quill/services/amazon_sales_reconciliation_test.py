@@ -15,16 +15,19 @@ def _build_ads_daily_stat(
   *,
   asin: str,
   units: int,
+  kenp_pages_read: int = 0,
 ) -> models.AmazonAdsDailyStats:
   campaign = models.AmazonAdsDailyCampaignStats(
     campaign_id="campaign-1",
     campaign_name="Campaign 1",
     date=date_value,
     total_units_sold=units,
+    kenp_pages_read=kenp_pages_read,
     sale_items=[
       models.AmazonProductStats(
         asin=asin,
         units_sold=units,
+        kenp_pages_read=kenp_pages_read,
         total_sales_usd=0.0,
         total_profit_usd=0.0,
       )
@@ -44,6 +47,7 @@ def _build_kdp_daily_stat(
   *,
   asin: str,
   units: int,
+  kenp_pages_read: int = 0,
   sales_usd: float,
   royalty_usd: float,
   print_cost_usd: float,
@@ -57,6 +61,7 @@ def _build_kdp_daily_stat(
       models.AmazonProductStats(
         asin=asin,
         units_sold=units,
+        kenp_pages_read=kenp_pages_read,
         total_sales_usd=sales_usd,
         total_profit_usd=royalty_usd,
         total_print_cost_usd=print_cost_usd,
@@ -151,15 +156,17 @@ def test_reconcile_daily_sales_uses_seed_and_matches_earliest_unmatched_lot(
 
   day_10_by_asin = day_10.by_asin[asin]
   assert day_10_by_asin.kdp_units == 1
-  assert day_10_by_asin.ads_matched_units == 1
+  assert day_10_by_asin.ads_ship_date_units == 1
   assert day_10_by_asin.organic_units == 0
 
   day_20_by_asin = day_20.by_asin[asin]
   assert day_20_by_asin.kdp_units == 1
-  assert day_20_by_asin.ads_matched_units == 0
+  assert day_20_by_asin.ads_ship_date_units == 0
   assert day_20_by_asin.organic_units == 1
   assert day_10.zzz_ending_unmatched_ads_lots_by_asin[asin][
     0].units_remaining == 1
+  assert day_20.unmatched_ads_click_date_units_total == 0
+  assert day_10.ads_click_date_units_total == 0
 
 
 def test_reconcile_daily_sales_falls_back_to_full_recompute_when_seed_missing(
@@ -227,7 +234,7 @@ def test_reconcile_daily_sales_falls_back_to_full_recompute_when_seed_missing(
 
   by_date = {doc.date.isoformat(): doc for doc in captured_docs}
   day_10_by_asin = by_date["2026-01-10"].by_asin[asin]
-  assert day_10_by_asin.ads_matched_units == 1
+  assert day_10_by_asin.ads_ship_date_units == 1
   assert day_10_by_asin.organic_units == 0
 
 
@@ -291,5 +298,84 @@ def test_reconcile_daily_sales_normalizes_kdp_isbn_to_variant_asin(
   day_23 = by_date["2026-02-23"]
   assert paperback_isbn not in day_23.by_asin
   assert ads_asin in day_23.by_asin
-  assert day_23.by_asin[ads_asin].ads_matched_units == 1
+  assert day_23.by_asin[ads_asin].ads_ship_date_units == 1
   assert day_23.by_asin[ads_asin].organic_units == 0
+
+
+def test_reconcile_daily_sales_records_click_date_and_unmatched_stats(
+    monkeypatch):
+  asin = "B0G9765J19"
+  changed_date = datetime.date(2026, 1, 15)
+
+  def _bounds(collection_name: str):
+    if collection_name == firestore.AMAZON_ADS_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 1, 1), datetime.date(2026, 1, 15))
+    if collection_name == firestore.AMAZON_KDP_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 1, 1), datetime.date(2026, 1, 15))
+    return None
+
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_get_collection_date_bounds",
+    _bounds,
+  )
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_load_seed_lots",
+    lambda seed_date: None,
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_ads_daily_stat(
+        datetime.date(2026, 1, 1),
+        asin=asin,
+        units=2,
+        kenp_pages_read=7,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_kdp_daily_stat(
+        datetime.date(2026, 1, 5),
+        asin=asin,
+        units=1,
+        kenp_pages_read=5,
+        sales_usd=10.0,
+        royalty_usd=4.0,
+        print_cost_usd=2.0,
+      ),
+    ],
+  )
+
+  captured_docs: list[models.AmazonSalesReconciledDailyStats] = []
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_upsert_reconciled_docs",
+    lambda docs: captured_docs.extend(docs),
+  )
+
+  _ = amazon_sales_reconciliation.reconcile_daily_sales(
+    earliest_changed_date=changed_date)
+
+  by_date = {doc.date.isoformat(): doc for doc in captured_docs}
+  click_day = by_date["2026-01-01"]
+  ship_day = by_date["2026-01-05"]
+
+  assert ship_day.ads_ship_date_units_total == 1
+  assert ship_day.organic_units_total == 0
+  assert ship_day.ads_ship_date_kenp_pages_read_total == 5
+  assert ship_day.organic_kenp_pages_read_total == 0
+
+  assert click_day.ads_click_date_units_total == 1
+  assert click_day.unmatched_ads_click_date_units_total == 1
+  assert click_day.ads_click_date_kenp_pages_read_total == 5
+  assert click_day.unmatched_ads_click_date_kenp_pages_read_total == 2
+  assert click_day.by_asin[asin].ads_click_date_units == 1
+  assert click_day.by_asin[asin].unmatched_ads_click_date_units == 1
+  assert click_day.by_asin[asin].ads_click_date_kenp_pages_read == 5
+  assert click_day.by_asin[asin].unmatched_ads_click_date_kenp_pages_read == 2

@@ -9,7 +9,7 @@ import flask
 from common import amazon_redirect, models
 from firebase_functions import logger
 from functions import auth_helpers
-from services import amazon_kdp, amazon_sales_reconciliation, firestore
+from services import amazon, amazon_kdp, amazon_sales_reconciliation, firestore
 from web.routes import web_bp
 from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
@@ -158,8 +158,18 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  reconciled_stats_list = firestore.list_amazon_sales_reconciled_daily_stats(
+    start_date=start_date,
+    end_date=end_date,
+  )
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
+    start_date=start_date,
+    end_date=end_date,
+  )
+  reconciled_click_date_chart_data = _build_reconciled_click_date_chart_data(
+    stats_list=stats_list,
+    reconciled_stats_list=reconciled_stats_list,
     start_date=start_date,
     end_date=end_date,
   )
@@ -167,9 +177,51 @@ def admin_ads_stats():
     'admin/ads_stats.html',
     site_name='Snickerdoodle',
     chart_data=chart_data,
+    reconciled_click_date_chart_data=reconciled_click_date_chart_data,
     start_date=start_date.isoformat(),
     end_date=end_date.isoformat(),
   )
+
+
+@web_bp.route('/admin/ads-stats/refresh', methods=['POST'])
+@auth_helpers.require_admin
+def admin_ads_stats_refresh():
+  """Request or fetch ads stats reports based on current Firestore status."""
+  try:
+    run_time_utc = datetime.datetime.now(datetime.timezone.utc)
+    ctx = amazon.get_ads_stats_context(run_time_utc)
+    if ctx.reports_by_expected_key:
+      report_metadata, daily_campaign_stats_rows = amazon.fetch_ads_stats_reports(
+        run_time_utc)
+      return flask.jsonify({
+        'called':
+        'fetch',
+        'reports_fetched':
+        len(report_metadata),
+        'daily_campaign_stats_count':
+        len(daily_campaign_stats_rows),
+        'done':
+        len(daily_campaign_stats_rows) > 0,
+        'button_text':
+        'Fetch',
+      })
+
+    request_result = amazon.request_ads_stats_reports(run_time_utc)
+    return flask.jsonify({
+      'called':
+      'request',
+      'reports_requested':
+      len(request_result.report_requests),
+      'done':
+      False,
+      'button_text':
+      'Fetch',
+    })
+  except amazon.AmazonAdsError as exc:
+    return flask.jsonify({'error': str(exc)}), 400
+  except Exception as exc:
+    logger.error('Failed to refresh ads stats reports', exc_info=exc)
+    return flask.jsonify({'error': 'Failed to refresh ads stats reports'}), 500
 
 
 @web_bp.route('/admin/ads-stats/upload-kdp', methods=['POST'])
@@ -294,4 +346,76 @@ def _build_ads_stats_chart_data(
     round(sum(gross_profit_before_ads_usd), 2),
     "total_gross_profit_usd":
     round(sum(gross_profit_usd), 2),
+  }
+
+
+def _build_reconciled_click_date_chart_data(
+  *,
+  stats_list: list[models.AmazonAdsDailyStats],
+  reconciled_stats_list: list[models.AmazonSalesReconciledDailyStats],
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, object]:
+  """Build timeline-only chart data using reconciled ads click-date stats."""
+  ads_by_date = {stat.date.isoformat(): stat for stat in stats_list}
+  reconciled_by_date = {
+    stat.date.isoformat(): stat
+    for stat in reconciled_stats_list
+  }
+
+  labels: list[str] = []
+  cost: list[float] = []
+  gross_profit_before_ads_usd: list[float] = []
+  gross_profit_usd: list[float] = []
+  organic_sales_usd: list[float] = []
+  poas: list[float] = []
+  tpoas: list[float] = []
+
+  current_date = start_date
+  while current_date <= end_date:
+    date_key = current_date.isoformat()
+    labels.append(date_key)
+
+    ads_stat = ads_by_date.get(date_key)
+    reconciled_stat = reconciled_by_date.get(date_key)
+
+    ads_cost = float(ads_stat.spend) if ads_stat is not None else 0.0
+    ads_kenp_royalties = (float(ads_stat.kenp_royalties_usd)
+                          if ads_stat is not None else 0.0)
+    raw_gross_profit_before_ads = (float(ads_stat.gross_profit_before_ads_usd)
+                                   if ads_stat is not None else 0.0)
+    ads_click_date_product_profit = (float(
+      reconciled_stat.ads_click_date_royalty_usd_est)
+                                     if reconciled_stat is not None else 0.0)
+    organic_product_profit = (float(reconciled_stat.organic_royalty_usd_est)
+                              if reconciled_stat is not None else 0.0)
+    organic_sales = (float(reconciled_stat.organic_sales_usd_est)
+                     if reconciled_stat is not None else 0.0)
+
+    reconciled_gross_profit_before_ads = (ads_click_date_product_profit +
+                                          ads_kenp_royalties)
+    total_gross_profit = (reconciled_gross_profit_before_ads +
+                          organic_product_profit - ads_cost)
+    total_poas = ((raw_gross_profit_before_ads + organic_product_profit) /
+                  ads_cost if ads_cost > 0 else 0.0)
+    current_poas = (raw_gross_profit_before_ads /
+                    ads_cost if ads_cost > 0 else 0.0)
+
+    cost.append(round(ads_cost, 2))
+    gross_profit_before_ads_usd.append(
+      round(reconciled_gross_profit_before_ads, 2))
+    gross_profit_usd.append(round(total_gross_profit, 2))
+    organic_sales_usd.append(round(organic_sales, 2))
+    poas.append(round(current_poas, 4))
+    tpoas.append(round(total_poas, 4))
+    current_date += datetime.timedelta(days=1)
+
+  return {
+    "labels": labels,
+    "cost": cost,
+    "gross_profit_before_ads_usd": gross_profit_before_ads_usd,
+    "gross_profit_usd": gross_profit_usd,
+    "organic_sales_usd": organic_sales_usd,
+    "poas": poas,
+    "tpoas": tpoas,
   }

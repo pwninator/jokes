@@ -155,13 +155,19 @@ def test_parse_kdp_xlsx_aggregates_rows_and_converts_currency():
   assert [item.asin for item in day_0225.sale_items] == [
     "B0G9765J19",
     "B0GNHFKQ8W",
+    "B0GNMFVYC5",
   ]
   ebook_item = next(i for i in day_0225.sale_items if i.asin == "B0G9765J19")
+  assert ebook_item.kenp_pages_read == 55
   assert ebook_item.total_print_cost_usd == 0.0
   assert ebook_item.total_royalty_usd == pytest.approx(1.05, abs=0.01)
   pb_item = next(i for i in day_0225.sale_items if i.asin == "B0GNHFKQ8W")
   assert pb_item.total_print_cost_usd == pytest.approx(2.91, abs=0.01)
   assert pb_item.total_royalty_usd == pytest.approx(4.28, abs=0.01)
+  valentines_item = next(i for i in day_0225.sale_items
+                         if i.asin == "B0GNMFVYC5")
+  assert valentines_item.units_sold == 0
+  assert valentines_item.kenp_pages_read == 40
 
 
 def test_parse_kdp_xlsx_normalizes_paperback_isbn_to_variant_asin():

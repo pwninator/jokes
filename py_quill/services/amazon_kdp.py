@@ -170,9 +170,6 @@ def _apply_combined_sales_rows(
       canonical_asin,
       models.AmazonProductStats(
         asin=canonical_asin,
-        units_sold=0,
-        total_sales_usd=0.0,
-        total_profit_usd=0.0,
         total_print_cost_usd=0.0,
         total_royalty_usd=0.0,
       ))
@@ -192,9 +189,24 @@ def _apply_kenp_rows(
   """Merge KENP Read rows into daily aggregates."""
   for row in rows:
     date_value = _parse_iso_date(row.get("Date"), "Date")
+    asin = _required_str(row.get("ASIN"), "ASIN")
+    book_variant = book_defs.find_book_variant(asin)
+    if book_variant is None:
+      raise AmazonKdpError(f"Unknown ASIN in KENP Read sheet: {asin}")
     kenp_pages_read = _as_int(
       row.get("Kindle Edition Normalized Page (KENP) Read"))
-    aggregates_by_date[date_value].kenp_pages_read += kenp_pages_read
+    aggregate = aggregates_by_date[date_value]
+    aggregate.kenp_pages_read += kenp_pages_read
+
+    canonical_asin = book_variant.asin
+    existing = aggregate.sale_items_by_asin.setdefault(
+      canonical_asin,
+      models.AmazonProductStats(
+        asin=canonical_asin,
+        total_print_cost_usd=0.0,
+        total_royalty_usd=0.0,
+      ))
+    existing.kenp_pages_read += kenp_pages_read
 
 
 def _format_from_transaction_type(value: Any) -> str:

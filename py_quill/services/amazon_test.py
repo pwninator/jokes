@@ -390,6 +390,7 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   assert daily.spend == 5.0
   assert daily.impressions == 100
   assert daily.clicks == 10
+  assert daily.kenp_pages_read == 0
   assert daily.kenp_royalties_usd == 1.0
   assert daily.total_attributed_sales_usd == 99.0
   assert daily.total_units_sold == 9
@@ -402,6 +403,7 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
                         if item.asin == "B0GNHFKQ8W")
   assert paperback_item.units_sold == 3
   assert paperback_item.total_sales_usd == 25.0
+  assert paperback_item.kenp_pages_read == 0
 
 
 def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
@@ -474,10 +476,84 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
   daily = output[0]
   assert daily.spend == pytest.approx(7.32, rel=1e-6)
   assert daily.total_attributed_sales_usd == pytest.approx(14.64, rel=1e-6)
+  assert daily.kenp_pages_read == 0
   assert daily.kenp_royalties_usd == pytest.approx(0.732, rel=1e-6)
   assert daily.gross_profit_before_ads_usd == pytest.approx(3.294, rel=1e-6)
   assert daily.gross_profit_usd == pytest.approx(-4.026, rel=1e-6)
   assert daily.sale_items[0].total_sales_usd == pytest.approx(7.32, rel=1e-6)
+
+
+def test_get_daily_campaign_stats_from_reports_persists_ads_kenp_pages_by_asin(
+    monkeypatch):
+  campaign_rows = [{
+    "campaignId": "123",
+    "campaignName": "Campaign A",
+    "date": "2026-02-14",
+    "cost": 5.0,
+    "impressions": 100,
+    "clicks": 10,
+    "sales14d": 10.0,
+    "unitsSoldClicks14d": 1,
+    "kindleEditionNormalizedPagesRead14d": 12,
+    "kindleEditionNormalizedPagesRoyalties14d": 1.5,
+  }]
+  advertised_product_rows = []
+  purchased_product_rows = [{
+    "campaignId": "123",
+    "date": "2026-02-14",
+    "purchasedAsin": "B0G9765J19",
+    "kindleEditionNormalizedPagesRead14d": 12,
+    "kindleEditionNormalizedPagesRoyalties14d": 1.5,
+  }]
+
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  campaigns_report = _report_status(
+    report_id="campaigns-id",
+    status="COMPLETED",
+    url="https://example.com/campaigns.gz",
+    profile_id="profile-1",
+  )
+  advertised_products_report = _report_status(
+    report_id="advertised-id",
+    status="COMPLETED",
+    url="https://example.com/advertised.gz",
+    profile_id="profile-1",
+  )
+  purchased_products_report = _report_status(
+    report_id="products-id",
+    status="COMPLETED",
+    url="https://example.com/products.gz",
+    profile_id="profile-1",
+  )
+
+  def _fake_download(status: models.AmazonAdsReport):
+    if status.report_id == "campaigns-id":
+      return campaign_rows
+    if status.report_id == "advertised-id":
+      return advertised_product_rows
+    if status.report_id == "products-id":
+      return purchased_product_rows
+    raise AssertionError(f"Unexpected status: {status}")
+
+  monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
+
+  output = amazon.get_daily_campaign_stats_from_reports(
+    profile=profile,
+    campaigns_report=campaigns_report,
+    advertised_products_report=advertised_products_report,
+    purchased_products_report=purchased_products_report,
+  )
+
+  assert len(output) == 1
+  daily = output[0]
+  assert daily.kenp_pages_read == 12
+  assert daily.sale_items[0].kenp_pages_read == 12
+  assert daily.sale_items[0].kenp_royalties_usd == pytest.approx(1.5, rel=1e-6)
 
 
 def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
@@ -549,6 +625,7 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
   daily = output[0]
   assert daily.spend == pytest.approx(2.7138, rel=1e-6)
   assert daily.total_attributed_sales_usd == pytest.approx(5.4276, rel=1e-6)
+  assert daily.kenp_pages_read == 0
   assert daily.gross_profit_before_ads_usd == pytest.approx(0.94983, rel=1e-6)
   assert daily.gross_profit_usd == pytest.approx(-1.76397, rel=1e-6)
   assert daily.sale_items[0].total_sales_usd == pytest.approx(2.7138, rel=1e-6)
@@ -706,8 +783,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
   monkeypatch.setattr(amazon.time, "sleep", lambda _seconds: None)
   monkeypatch.setattr(
     amazon,
-    "_get_ads_stats_context",
-    lambda _run_time: amazon._AdsStatsContext(  # pylint: disable=protected-access
+    "get_ads_stats_context",
+    lambda _run_time: amazon.AdsStatsContext(
       selected_profiles=[profile],
       reports_by_expected_key={},
       report_start_date=datetime.date(2026, 1, 1),

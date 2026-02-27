@@ -334,7 +334,7 @@ def get_daily_campaign_stats_from_reports(
 
 
 @dataclasses.dataclass
-class _AdsStatsContext:
+class AdsStatsContext:
   """Shared context for ads stats request and fetch phases."""
 
   selected_profiles: list[AmazonAdsProfile]
@@ -344,8 +344,7 @@ class _AdsStatsContext:
   profiles_considered: int
 
 
-def _get_ads_stats_context(
-    run_time_utc: datetime.datetime) -> _AdsStatsContext:
+def get_ads_stats_context(run_time_utc: datetime.datetime) -> AdsStatsContext:
   """Build shared context: profiles, report window, and existing reports."""
   report_end_date = run_time_utc.date()
   report_start_date = report_end_date - datetime.timedelta(
@@ -371,7 +370,7 @@ def _get_ads_stats_context(
     report_end_date=report_end_date,
   )
 
-  return _AdsStatsContext(
+  return AdsStatsContext(
     selected_profiles=selected_profiles,
     reports_by_expected_key=reports_by_expected_key,
     report_end_date=report_end_date,
@@ -395,7 +394,7 @@ class AdsStatsRequestResult:
 def request_ads_stats_reports(
     run_time_utc: datetime.datetime) -> AdsStatsRequestResult:
   """Request ads reports for target profiles if there are no pending ones."""
-  ctx = _get_ads_stats_context(run_time_utc)
+  ctx = get_ads_stats_context(run_time_utc)
 
   report_requests: list[dict[str, str]] = []
   for profile in ctx.selected_profiles:
@@ -451,7 +450,7 @@ def fetch_ads_stats_reports(
   run_time_utc: datetime.datetime
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
   """Get report status and, if ready and unprocessed, fetch and process them."""
-  ctx = _get_ads_stats_context(run_time_utc)
+  ctx = get_ads_stats_context(run_time_utc)
   time.sleep(ADS_STATS_REPORT_METADATA_WAIT_SEC)
   report_metadata: list[dict[str, Any]] = []
   daily_campaign_stats_rows: list[dict[str, Any]] = []
@@ -514,6 +513,7 @@ def fetch_ads_stats_reports(
           daily_stat.spend += campaign_stat.spend
           daily_stat.impressions += campaign_stat.impressions
           daily_stat.clicks += campaign_stat.clicks
+          daily_stat.kenp_pages_read += campaign_stat.kenp_pages_read
           daily_stat.kenp_royalties_usd += campaign_stat.kenp_royalties_usd
           daily_stat.total_attributed_sales_usd += campaign_stat.total_attributed_sales_usd
           daily_stat.total_units_sold += campaign_stat.total_units_sold
@@ -1010,6 +1010,11 @@ def _merge_report_rows(
       currency_code=currency_code,
     )
     total_units_sold = _as_int(campaign_row.get("unitsSoldClicks14d"))
+    kenp_pages_read = _as_int(
+      campaign_row.get("kindleEditionNormalizedPagesRead14d"))
+    if kenp_pages_read == 0:
+      kenp_pages_read = _as_int(
+        campaign_row.get("attributedKindleEditionNormalizedPagesRead14d"))
     kenp_royalties_usd = _as_float(
       campaign_row.get("kindleEditionNormalizedPagesRoyalties14d"))
     if kenp_royalties_usd == 0.0:
@@ -1039,6 +1044,7 @@ def _merge_report_rows(
         spend=spend,
         impressions=impressions,
         clicks=clicks,
+        kenp_pages_read=kenp_pages_read,
         kenp_royalties_usd=kenp_royalties_usd,
         total_attributed_sales_usd=total_attributed_sales_usd,
         total_units_sold=total_units_sold,
@@ -1076,42 +1082,57 @@ def _build_merged_sale_items_for_campaign_day(
   currency_code: str,
 ) -> list[models.AmazonProductStats]:
   """Build merged ASIN sale items by combining direct and halo sources."""
-  merged_totals_by_asin: dict[str, tuple[int, float]] = {}
+  merged_totals_by_asin: dict[str, models.AmazonProductStats] = {}
   key = (campaign_id, date_value)
 
   for row in advertised_by_campaign_date.get(key, []):
     asin = _required_str(row.get("advertisedAsin"))
     if not asin:
       continue
+    canonical_asin = _canonical_book_variant_asin(asin)
+    if not canonical_asin:
+      continue
     direct_units = _extract_direct_units_sold(row)
     direct_sales = _convert_amount_to_usd(
       _extract_direct_sales_amount(row),
       currency_code=currency_code,
     )
-    _accumulate_asin_totals(merged_totals_by_asin, asin, direct_units,
-                            direct_sales)
+    _accumulate_asin_totals(
+      merged_totals_by_asin,
+      canonical_asin,
+      units_sold=direct_units,
+      sales_amount=direct_sales,
+    )
 
   for row in purchased_by_campaign_date.get(key, []):
     asin = _required_str(row.get("purchasedAsin"))
     if not asin:
+      continue
+    canonical_asin = _canonical_book_variant_asin(asin)
+    if not canonical_asin:
       continue
     halo_units = _as_int(row.get("unitsSoldOtherSku14d"))
     halo_sales = _convert_amount_to_usd(
       _as_float(row.get("salesOtherSku14d")),
       currency_code=currency_code,
     )
-    _accumulate_asin_totals(merged_totals_by_asin, asin, halo_units,
-                            halo_sales)
+    kenp_pages_read = _as_int(row.get("kindleEditionNormalizedPagesRead14d"))
+    kenp_royalties_usd = _convert_amount_to_usd(
+      _as_float(row.get("kindleEditionNormalizedPagesRoyalties14d")),
+      currency_code=currency_code,
+    )
+    _accumulate_asin_totals(
+      merged_totals_by_asin,
+      canonical_asin,
+      units_sold=halo_units,
+      sales_amount=halo_sales,
+      kenp_pages_read=kenp_pages_read,
+      kenp_royalties_usd=kenp_royalties_usd,
+    )
 
   sale_items: list[models.AmazonProductStats] = []
-  for asin, (units_sold,
-             sales_amount) in sorted(merged_totals_by_asin.items()):
-    sale_items.append(
-      _build_product_stats(
-        asin=asin,
-        units_sold=units_sold,
-        total_sales_usd=sales_amount,
-      ))
+  for asin in sorted(merged_totals_by_asin.keys()):
+    sale_items.append(_build_product_stats(merged_totals_by_asin[asin]))
   return sale_items
 
 
@@ -1138,39 +1159,56 @@ def _extract_direct_units_sold(advertised_row: dict[str, Any]) -> int:
 
 
 def _accumulate_asin_totals(
-  merged_totals_by_asin: dict[str, tuple[int, float]],
+  merged_totals_by_asin: dict[str, models.AmazonProductStats],
   asin: str,
-  units_sold: int,
-  sales_amount: float,
+  *,
+  units_sold: int = 0,
+  sales_amount: float = 0.0,
+  kenp_pages_read: int = 0,
+  kenp_royalties_usd: float = 0.0,
 ) -> None:
   """Add sales totals into an ASIN accumulator, merging repeated rows."""
-  existing_units, existing_sales = merged_totals_by_asin.get(asin, (0, 0.0))
-  merged_totals_by_asin[asin] = (
-    existing_units + units_sold,
-    existing_sales + sales_amount,
+  existing = merged_totals_by_asin.setdefault(
+    asin,
+    models.AmazonProductStats(asin=asin),
   )
+  existing.units_sold += units_sold
+  existing.total_sales_usd += sales_amount
+  existing.kenp_pages_read += kenp_pages_read
+  existing.kenp_royalties_usd += kenp_royalties_usd
 
 
 def _build_product_stats(
-  *,
-  asin: str,
-  units_sold: int,
-  total_sales_usd: float,
-) -> models.AmazonProductStats:
+  product_totals: models.AmazonProductStats, ) -> models.AmazonProductStats:
   """Build a normalized `ProductStats` object from merged ASIN totals."""
+  asin = product_totals.asin
   book_variant = book_defs.BOOK_VARIANTS_BY_ASIN.get(asin)
   if not book_variant:
     raise AmazonAdsError(f"Unknown ASIN: {asin}")
 
-  total_profit_usd = (total_sales_usd * book_variant.royalty_rate) - (
-    units_sold * book_variant.print_cost)
+  total_profit_usd = (product_totals.total_sales_usd *
+                      book_variant.royalty_rate) - (product_totals.units_sold *
+                                                    book_variant.print_cost)
 
   return models.AmazonProductStats(
     asin=asin,
-    units_sold=units_sold,
-    total_sales_usd=total_sales_usd,
+    units_sold=product_totals.units_sold,
+    kenp_pages_read=product_totals.kenp_pages_read,
+    total_sales_usd=product_totals.total_sales_usd,
     total_profit_usd=total_profit_usd,
+    kenp_royalties_usd=product_totals.kenp_royalties_usd,
   )
+
+
+def _canonical_book_variant_asin(identifier: str) -> str | None:
+  """Normalize an ASIN or ISBN identifier to the canonical book-variant ASIN."""
+  raw_identifier = (identifier or "").strip()
+  if not raw_identifier:
+    return None
+  book_variant = book_defs.find_book_variant(raw_identifier)
+  if book_variant is None:
+    raise AmazonAdsError(f"Unknown ASIN: {raw_identifier}")
+  return book_variant.asin
 
 
 def _extract_report_type_id(payload: dict[str, Any]) -> str:

@@ -1,9 +1,12 @@
-"""Reconcile KDP ship-date sales against ads purchase-date attribution."""
+"""Reconcile KDP-date sales and KENP reads against ads click-date attribution."""
+
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
 import datetime
-from collections import defaultdict, deque
+from collections import deque
+from dataclasses import dataclass
 
 from common import book_defs, models
 from firebase_functions import logger
@@ -12,12 +15,20 @@ from services import firestore
 _MATCH_LOOKBACK_DAYS = 14
 
 
+@dataclass(frozen=True, kw_only=True)
+class _MatchAllocation:
+  """One matched quantity allocated back to its original ads click date."""
+
+  purchase_date: datetime.date
+  quantity: int
+
+
 def reconcile_daily_sales(
   *,
   earliest_changed_date: datetime.date,
   run_time_utc: datetime.datetime | None = None,
 ) -> dict[str, object]:
-  """Recompute reconciled daily sales from a rolling 14-day lookback start."""
+  """Recompute reconciled daily stats from a rolling 14-day lookback start."""
   if run_time_utc is None:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
   elif run_time_utc.tzinfo is None:
@@ -32,32 +43,27 @@ def reconcile_daily_sales(
   if ads_bounds is None or kdp_bounds is None:
     logger.info(
       "Skipping sales reconciliation: missing ads or KDP source data.")
-    skipped_stats: dict[str, object] = {
+    return {
       "reconciled_days": 0,
       "skipped": True,
       "reason": "missing_source_data",
     }
-    return skipped_stats
 
   ads_min_date, ads_max_date = ads_bounds
   kdp_min_date, kdp_max_date = kdp_bounds
   earliest_raw_date = min(ads_min_date, kdp_min_date)
   latest_common_source_date = min(ads_max_date, kdp_max_date)
 
-  recompute_start = earliest_changed_date - datetime.timedelta(
-    days=_MATCH_LOOKBACK_DAYS)
-  recompute_start = max(recompute_start, earliest_raw_date)
-
-  seed_date = recompute_start - datetime.timedelta(days=1)
-  seeded_lots = _load_seed_lots(seed_date)
-  seeded_from_previous_day = seeded_lots is not None
-
-  if seeded_lots is None:
+  start_date = max(
+    earliest_changed_date - datetime.timedelta(days=_MATCH_LOOKBACK_DAYS),
+    earliest_raw_date,
+  )
+  seed_date = start_date - datetime.timedelta(days=1)
+  lots_by_asin = _load_seed_lots(seed_date)
+  seeded_from_previous_day = lots_by_asin is not None
+  if lots_by_asin is None:
     start_date = earliest_raw_date
-    lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]] = {}
-  else:
-    start_date = recompute_start
-    lots_by_asin = seeded_lots
+    lots_by_asin = {}
 
   end_date = max(ads_max_date, kdp_max_date)
   ads_rows = firestore.list_amazon_ads_daily_stats(
@@ -68,33 +74,50 @@ def reconcile_daily_sales(
     start_date=start_date,
     end_date=end_date,
   )
-
   ads_by_date = {row.date: row for row in ads_rows}
   kdp_by_date = {row.date: row for row in kdp_rows}
 
-  reconciled_docs: list[models.AmazonSalesReconciledDailyStats] = []
+  settled_through_date = latest_common_source_date - datetime.timedelta(
+    days=_MATCH_LOOKBACK_DAYS)
+  docs_by_date = _initialize_docs_by_date(
+    start_date=start_date,
+    end_date=end_date,
+    settled_through_date=settled_through_date,
+    run_time_utc=run_time_utc,
+  )
+
   current_date = start_date
   while current_date <= end_date:
-    _prune_expired_lots(lots_by_asin, current_date)
+    expired_lots = _prune_expired_lots(lots_by_asin, current_date)
+    _record_unmatched_click_date_lots(
+      expired_lots,
+      docs_by_date=docs_by_date,
+    )
     _append_ads_lots_for_day(
       current_date=current_date,
       ads_stat=ads_by_date.get(current_date),
       lots_by_asin=lots_by_asin,
     )
-    reconciled_docs.append(
-      _build_daily_reconciled_doc(
-        current_date=current_date,
-        kdp_stat=kdp_by_date.get(current_date),
-        lots_by_asin=lots_by_asin,
-        latest_common_source_date=latest_common_source_date,
-        run_time_utc=run_time_utc,
-      ))
+    _apply_kdp_reconciliation_for_day(
+      current_date=current_date,
+      kdp_stat=kdp_by_date.get(current_date),
+      lots_by_asin=lots_by_asin,
+      docs_by_date=docs_by_date,
+    )
+    docs_by_date[current_date].zzz_ending_unmatched_ads_lots_by_asin = (
+      _snapshot_lots(lots_by_asin))
     current_date += datetime.timedelta(days=1)
 
+  _record_unmatched_click_date_lots(
+    _flatten_lots(lots_by_asin),
+    docs_by_date=docs_by_date,
+  )
+  _round_docs(docs_by_date)
+  reconciled_docs = [
+    docs_by_date[date_value] for date_value in sorted(docs_by_date.keys())
+  ]
   _upsert_reconciled_docs(reconciled_docs)
 
-  settled_through_date = latest_common_source_date - datetime.timedelta(
-    days=_MATCH_LOOKBACK_DAYS)
   stats: dict[str, object] = {
     "reconciled_days": len(reconciled_docs),
     "reconciled_start_date": start_date.isoformat(),
@@ -113,6 +136,26 @@ def _get_collection_date_bounds(
   return firestore.get_amazon_daily_stats_date_bounds(collection_name)
 
 
+def _initialize_docs_by_date(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+  settled_through_date: datetime.date,
+  run_time_utc: datetime.datetime,
+) -> dict[datetime.date, models.AmazonSalesReconciledDailyStats]:
+  """Create empty reconciled docs for every date in the recompute range."""
+  docs: dict[datetime.date, models.AmazonSalesReconciledDailyStats] = {}
+  current_date = start_date
+  while current_date <= end_date:
+    docs[current_date] = models.AmazonSalesReconciledDailyStats(
+      date=current_date,
+      is_settled=current_date <= settled_through_date,
+      reconciled_at=run_time_utc,
+    )
+    current_date += datetime.timedelta(days=1)
+  return docs
+
+
 def _load_seed_lots(
   seed_date: datetime.date,
 ) -> dict[str, deque[models.AmazonSalesReconciledAdsLot]] | None:
@@ -126,7 +169,9 @@ def _load_seed_lots(
       models.AmazonSalesReconciledAdsLot(
         purchase_date=lot.purchase_date,
         units_remaining=lot.units_remaining,
-      ) for lot in lots if lot.units_remaining > 0
+        kenp_pages_remaining=lot.kenp_pages_remaining,
+      ) for lot in lots
+      if lot.units_remaining > 0 or lot.kenp_pages_remaining > 0
     ])
     if queue:
       output[asin] = queue
@@ -136,20 +181,32 @@ def _load_seed_lots(
 def _prune_expired_lots(
   lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
   current_date: datetime.date,
-) -> None:
-  """Drop ads lots that are older than the 14-day matching window."""
+) -> list[tuple[str, models.AmazonSalesReconciledAdsLot]]:
+  """Drop lots older than the matching window and return their residuals."""
   earliest_allowed_date = current_date - datetime.timedelta(
     days=_MATCH_LOOKBACK_DAYS)
+  expired: list[tuple[str, models.AmazonSalesReconciledAdsLot]] = []
   empty_asins: list[str] = []
   for asin, queue in lots_by_asin.items():
     while queue and queue[0].purchase_date < earliest_allowed_date:
-      _ = queue.popleft()
-    while queue and queue[0].units_remaining <= 0:
+      lot = queue.popleft()
+      if lot.units_remaining > 0 or lot.kenp_pages_remaining > 0:
+        expired.append((
+          asin,
+          models.AmazonSalesReconciledAdsLot(
+            purchase_date=lot.purchase_date,
+            units_remaining=lot.units_remaining,
+            kenp_pages_remaining=lot.kenp_pages_remaining,
+          ),
+        ))
+    while queue and queue[0].units_remaining <= 0 and queue[
+        0].kenp_pages_remaining <= 0:
       _ = queue.popleft()
     if not queue:
       empty_asins.append(asin)
   for asin in empty_asins:
     del lots_by_asin[asin]
+  return expired
 
 
 def _append_ads_lots_for_day(
@@ -158,142 +215,287 @@ def _append_ads_lots_for_day(
   ads_stat: models.AmazonAdsDailyStats | None,
   lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
 ) -> None:
-  """Append today's ads-attributed units as unmatched lots by ASIN."""
+  """Append today's ads-attributed units and KENP pages as unmatched lots."""
   if ads_stat is None:
     return
 
-  units_by_asin: dict[str, int] = defaultdict(int)
+  lots_to_append: dict[str, models.AmazonSalesReconciledAdsLot] = {}
   for campaign_stat in ads_stat.campaigns_by_id.values():
     for sale_item in campaign_stat.sale_items:
       canonical_asin = _canonical_book_variant_asin(sale_item.asin)
       if not canonical_asin:
         continue
-      units = max(0, int(sale_item.units_sold))
-      if units <= 0:
-        continue
-      units_by_asin[canonical_asin] += units
+      lot = lots_to_append.setdefault(
+        canonical_asin,
+        models.AmazonSalesReconciledAdsLot(
+          purchase_date=current_date,
+          units_remaining=0,
+          kenp_pages_remaining=0,
+        ),
+      )
+      lot.units_remaining += max(0, int(sale_item.units_sold))
+      lot.kenp_pages_remaining += max(0, int(sale_item.kenp_pages_read))
 
-  for canonical_asin, units in units_by_asin.items():
-    lots_by_asin.setdefault(canonical_asin, deque()).append(
-      models.AmazonSalesReconciledAdsLot(
-        purchase_date=current_date,
-        units_remaining=units,
-      ))
+  for canonical_asin, lot in lots_to_append.items():
+    if lot.units_remaining <= 0 and lot.kenp_pages_remaining <= 0:
+      continue
+    lots_by_asin.setdefault(canonical_asin, deque()).append(lot)
 
 
-def _build_daily_reconciled_doc(
+def _apply_kdp_reconciliation_for_day(
   *,
   current_date: datetime.date,
   kdp_stat: models.AmazonKdpDailyStats | None,
   lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
-  latest_common_source_date: datetime.date,
-  run_time_utc: datetime.datetime,
-) -> models.AmazonSalesReconciledDailyStats:
-  """Build one reconciled daily document and advance unmatched lot state."""
-  by_asin: dict[str, models.AmazonSalesReconciledAsinStats] = {}
+  docs_by_date: dict[datetime.date, models.AmazonSalesReconciledDailyStats],
+) -> None:
+  """Apply one KDP day's sales and KENP into ship-date and click-date docs."""
+  if kdp_stat is None:
+    return
 
-  kdp_units_total = 0
-  ads_matched_units_total = 0
-  organic_units_total = 0
+  ship_doc = docs_by_date[current_date]
+  for sale_item in kdp_stat.sale_items:
+    canonical_asin = _canonical_book_variant_asin(sale_item.asin)
+    if not canonical_asin:
+      continue
 
-  kdp_sales_usd_total = 0.0
-  ads_matched_sales_usd_est = 0.0
-  organic_sales_usd_est = 0.0
+    asin_stats = _get_or_create_asin_stats(ship_doc, canonical_asin)
 
-  kdp_royalty_usd_total = 0.0
-  ads_matched_royalty_usd_est = 0.0
-  organic_royalty_usd_est = 0.0
+    kdp_units = max(0, int(sale_item.units_sold))
+    ship_doc.kdp_units_total += kdp_units
+    asin_stats.kdp_units += kdp_units
 
-  kdp_print_cost_usd_total = 0.0
-  ads_matched_print_cost_usd_est = 0.0
-  organic_print_cost_usd_est = 0.0
+    sales_usd = float(sale_item.total_sales_usd)
+    royalty_usd = _resolve_kdp_royalty_usd(sale_item)
+    print_cost_usd = float(sale_item.total_print_cost_usd or 0.0)
 
-  if kdp_stat is not None:
-    for sale_item in kdp_stat.sale_items:
-      canonical_asin = _canonical_book_variant_asin(sale_item.asin)
-      if not canonical_asin:
-        continue
+    ship_doc.kdp_sales_usd_total += sales_usd
+    ship_doc.kdp_royalty_usd_total += royalty_usd
+    ship_doc.kdp_print_cost_usd_total += print_cost_usd
+    asin_stats.kdp_sales_usd += sales_usd
+    asin_stats.kdp_royalty_usd += royalty_usd
+    asin_stats.kdp_print_cost_usd += print_cost_usd
 
-      kdp_units = int(sale_item.units_sold)
-      matched_units = _match_units(
-        asin=canonical_asin,
+    unit_allocations = _match_quantity(
+      asin=canonical_asin,
+      quantity=kdp_units,
+      lots_by_asin=lots_by_asin,
+      quantity_field="units_remaining",
+    )
+    matched_units = sum(allocation.quantity for allocation in unit_allocations)
+    organic_units = kdp_units - matched_units
+    matched_unit_ratio = (matched_units / kdp_units) if kdp_units > 0 else 0.0
+
+    ads_ship_sales_usd = sales_usd * matched_unit_ratio
+    ads_ship_royalty_usd = royalty_usd * matched_unit_ratio
+    ads_ship_print_cost_usd = print_cost_usd * matched_unit_ratio
+    organic_sales_usd = sales_usd - ads_ship_sales_usd
+    organic_royalty_usd = royalty_usd - ads_ship_royalty_usd
+    organic_print_cost_usd = print_cost_usd - ads_ship_print_cost_usd
+
+    ship_doc.ads_ship_date_units_total += matched_units
+    ship_doc.organic_units_total += organic_units
+    ship_doc.ads_ship_date_sales_usd_est += ads_ship_sales_usd
+    ship_doc.organic_sales_usd_est += organic_sales_usd
+    ship_doc.ads_ship_date_royalty_usd_est += ads_ship_royalty_usd
+    ship_doc.organic_royalty_usd_est += organic_royalty_usd
+    ship_doc.ads_ship_date_print_cost_usd_est += ads_ship_print_cost_usd
+    ship_doc.organic_print_cost_usd_est += organic_print_cost_usd
+    asin_stats.ads_ship_date_units += matched_units
+    asin_stats.organic_units += organic_units
+    asin_stats.ads_ship_date_sales_usd_est += ads_ship_sales_usd
+    asin_stats.organic_sales_usd_est += organic_sales_usd
+    asin_stats.ads_ship_date_royalty_usd_est += ads_ship_royalty_usd
+    asin_stats.organic_royalty_usd_est += organic_royalty_usd
+    asin_stats.ads_ship_date_print_cost_usd_est += ads_ship_print_cost_usd
+    asin_stats.organic_print_cost_usd_est += organic_print_cost_usd
+
+    for allocation in unit_allocations:
+      _apply_click_date_unit_allocation(
+        allocation=allocation,
         kdp_units=kdp_units,
-        lots_by_asin=lots_by_asin,
+        sales_usd=sales_usd,
+        royalty_usd=royalty_usd,
+        print_cost_usd=print_cost_usd,
+        asin=canonical_asin,
+        docs_by_date=docs_by_date,
       )
-      organic_units = kdp_units - matched_units
 
-      sales_usd = float(sale_item.total_sales_usd)
-      royalty_usd = _resolve_kdp_royalty_usd(sale_item)
-      print_cost_usd = float(sale_item.total_print_cost_usd or 0.0)
+    kdp_kenp_pages = max(0, int(sale_item.kenp_pages_read))
+    ship_doc.kdp_kenp_pages_read_total += kdp_kenp_pages
+    asin_stats.kdp_kenp_pages_read += kdp_kenp_pages
 
-      if kdp_units > 0:
-        matched_ratio = matched_units / kdp_units
+    kenp_allocations = _match_quantity(
+      asin=canonical_asin,
+      quantity=kdp_kenp_pages,
+      lots_by_asin=lots_by_asin,
+      quantity_field="kenp_pages_remaining",
+    )
+    matched_kenp_pages = sum(allocation.quantity
+                             for allocation in kenp_allocations)
+    organic_kenp_pages = kdp_kenp_pages - matched_kenp_pages
+
+    ship_doc.ads_ship_date_kenp_pages_read_total += matched_kenp_pages
+    ship_doc.organic_kenp_pages_read_total += organic_kenp_pages
+    asin_stats.ads_ship_date_kenp_pages_read += matched_kenp_pages
+    asin_stats.organic_kenp_pages_read += organic_kenp_pages
+
+    for allocation in kenp_allocations:
+      click_doc = docs_by_date.get(allocation.purchase_date)
+      if click_doc is None:
+        continue
+      click_doc.ads_click_date_kenp_pages_read_total += allocation.quantity
+      click_asin = _get_or_create_asin_stats(click_doc, canonical_asin)
+      click_asin.ads_click_date_kenp_pages_read += allocation.quantity
+
+
+def _apply_click_date_unit_allocation(
+  *,
+  allocation: _MatchAllocation,
+  kdp_units: int,
+  sales_usd: float,
+  royalty_usd: float,
+  print_cost_usd: float,
+  asin: str,
+  docs_by_date: dict[datetime.date, models.AmazonSalesReconciledDailyStats],
+) -> None:
+  """Write one matched unit allocation onto its click-date reconciled doc."""
+  click_doc = docs_by_date.get(allocation.purchase_date)
+  if click_doc is None:
+    return
+
+  allocation_ratio = (allocation.quantity /
+                      kdp_units) if kdp_units > 0 else 0.0
+  click_doc.ads_click_date_units_total += allocation.quantity
+  click_doc.ads_click_date_sales_usd_est += sales_usd * allocation_ratio
+  click_doc.ads_click_date_royalty_usd_est += royalty_usd * allocation_ratio
+  click_doc.ads_click_date_print_cost_usd_est += (print_cost_usd *
+                                                  allocation_ratio)
+
+  click_asin = _get_or_create_asin_stats(click_doc, asin)
+  click_asin.ads_click_date_units += allocation.quantity
+  click_asin.ads_click_date_sales_usd_est += sales_usd * allocation_ratio
+  click_asin.ads_click_date_royalty_usd_est += royalty_usd * allocation_ratio
+  click_asin.ads_click_date_print_cost_usd_est += (print_cost_usd *
+                                                   allocation_ratio)
+
+
+def _match_quantity(
+  *,
+  asin: str,
+  quantity: int,
+  lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
+  quantity_field: str,
+) -> list[_MatchAllocation]:
+  """Consume earliest unmatched ads lots for one ASIN and quantity type."""
+  if quantity <= 0:
+    return []
+  queue = lots_by_asin.get(asin)
+  if not queue:
+    return []
+
+  allocations: list[_MatchAllocation] = []
+  remaining = quantity
+  while remaining > 0 and queue:
+    lot = queue[0]
+    lot_quantity = int(getattr(lot, quantity_field))
+    if lot_quantity <= 0:
+      if lot.units_remaining <= 0 and lot.kenp_pages_remaining <= 0:
+        _ = queue.popleft()
       else:
-        matched_ratio = 0.0
+        break
+      continue
 
-      ads_sales_usd = sales_usd * matched_ratio
-      ads_royalty_usd = royalty_usd * matched_ratio
-      ads_print_cost_usd = print_cost_usd * matched_ratio
+    taken = min(remaining, lot_quantity)
+    setattr(lot, quantity_field, lot_quantity - taken)
+    remaining -= taken
+    allocations.append(
+      _MatchAllocation(
+        purchase_date=lot.purchase_date,
+        quantity=taken,
+      ))
+    if lot.units_remaining <= 0 and lot.kenp_pages_remaining <= 0:
+      _ = queue.popleft()
 
-      organic_sales_usd = sales_usd - ads_sales_usd
-      organic_royalty_usd = royalty_usd - ads_royalty_usd
-      organic_print_cost_usd = print_cost_usd - ads_print_cost_usd
+  if not queue:
+    del lots_by_asin[asin]
+  return allocations
 
-      by_asin_entry = by_asin.setdefault(
-        canonical_asin,
-        models.AmazonSalesReconciledAsinStats(asin=canonical_asin),
-      )
-      by_asin_entry.kdp_units += kdp_units
-      by_asin_entry.ads_matched_units += matched_units
-      by_asin_entry.organic_units += organic_units
-      by_asin_entry.kdp_sales_usd += sales_usd
-      by_asin_entry.ads_matched_sales_usd_est += ads_sales_usd
-      by_asin_entry.organic_sales_usd_est += organic_sales_usd
-      by_asin_entry.kdp_royalty_usd += royalty_usd
-      by_asin_entry.ads_matched_royalty_usd_est += ads_royalty_usd
-      by_asin_entry.organic_royalty_usd_est += organic_royalty_usd
-      by_asin_entry.kdp_print_cost_usd += print_cost_usd
-      by_asin_entry.ads_matched_print_cost_usd_est += ads_print_cost_usd
-      by_asin_entry.organic_print_cost_usd_est += organic_print_cost_usd
 
-      kdp_units_total += kdp_units
-      ads_matched_units_total += matched_units
-      organic_units_total += organic_units
-      kdp_sales_usd_total += sales_usd
-      ads_matched_sales_usd_est += ads_sales_usd
-      organic_sales_usd_est += organic_sales_usd
-      kdp_royalty_usd_total += royalty_usd
-      ads_matched_royalty_usd_est += ads_royalty_usd
-      organic_royalty_usd_est += organic_royalty_usd
-      kdp_print_cost_usd_total += print_cost_usd
-      ads_matched_print_cost_usd_est += ads_print_cost_usd
-      organic_print_cost_usd_est += organic_print_cost_usd
+def _record_unmatched_click_date_lots(
+  lots: list[tuple[str, models.AmazonSalesReconciledAdsLot]],
+  *,
+  docs_by_date: dict[datetime.date, models.AmazonSalesReconciledDailyStats],
+) -> None:
+  """Record unmatched residual ads lots back onto their original click date."""
+  for asin, lot in lots:
+    click_doc = docs_by_date.get(lot.purchase_date)
+    if click_doc is None:
+      continue
+    click_doc.unmatched_ads_click_date_units_total += max(
+      0, lot.units_remaining)
+    click_doc.unmatched_ads_click_date_kenp_pages_read_total += max(
+      0, lot.kenp_pages_remaining)
+    click_asin = _get_or_create_asin_stats(click_doc, asin)
+    click_asin.unmatched_ads_click_date_units += max(0, lot.units_remaining)
+    click_asin.unmatched_ads_click_date_kenp_pages_read += max(
+      0, lot.kenp_pages_remaining)
 
-  _round_by_asin_fields(by_asin)
 
-  settled_through_date = latest_common_source_date - datetime.timedelta(
-    days=_MATCH_LOOKBACK_DAYS)
-  is_settled = current_date <= settled_through_date
+def _flatten_lots(
+  lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
+) -> list[tuple[str, models.AmazonSalesReconciledAdsLot]]:
+  """Flatten remaining unmatched lots for end-of-run click-date reporting."""
+  flattened: list[tuple[str, models.AmazonSalesReconciledAdsLot]] = []
+  for asin, lots in lots_by_asin.items():
+    for lot in lots:
+      if lot.units_remaining <= 0 and lot.kenp_pages_remaining <= 0:
+        continue
+      flattened.append((
+        asin,
+        models.AmazonSalesReconciledAdsLot(
+          purchase_date=lot.purchase_date,
+          units_remaining=lot.units_remaining,
+          kenp_pages_remaining=lot.kenp_pages_remaining,
+        ),
+      ))
+  return flattened
 
-  return models.AmazonSalesReconciledDailyStats(
-    date=current_date,
-    is_settled=is_settled,
-    reconciled_at=run_time_utc,
-    kdp_units_total=kdp_units_total,
-    ads_matched_units_total=ads_matched_units_total,
-    organic_units_total=organic_units_total,
-    kdp_sales_usd_total=round(kdp_sales_usd_total, 6),
-    ads_matched_sales_usd_est=round(ads_matched_sales_usd_est, 6),
-    organic_sales_usd_est=round(organic_sales_usd_est, 6),
-    kdp_royalty_usd_total=round(kdp_royalty_usd_total, 6),
-    ads_matched_royalty_usd_est=round(ads_matched_royalty_usd_est, 6),
-    organic_royalty_usd_est=round(organic_royalty_usd_est, 6),
-    kdp_print_cost_usd_total=round(kdp_print_cost_usd_total, 6),
-    ads_matched_print_cost_usd_est=round(ads_matched_print_cost_usd_est, 6),
-    organic_print_cost_usd_est=round(organic_print_cost_usd_est, 6),
-    by_asin=by_asin,
-    zzz_ending_unmatched_ads_lots_by_asin=_snapshot_lots(lots_by_asin),
+
+def _get_or_create_asin_stats(
+  doc: models.AmazonSalesReconciledDailyStats,
+  asin: str,
+) -> models.AmazonSalesReconciledAsinStats:
+  """Return the per-ASIN reconciled stats entry for one daily doc."""
+  return doc.by_asin.setdefault(
+    asin,
+    models.AmazonSalesReconciledAsinStats(asin=asin),
   )
+
+
+def _round_docs(
+  docs_by_date: dict[datetime.date, models.AmazonSalesReconciledDailyStats],
+) -> None:
+  """Round money fields in-place for deterministic Firestore payloads."""
+  for doc in docs_by_date.values():
+    doc.kdp_sales_usd_total = round(doc.kdp_sales_usd_total, 6)
+    doc.ads_click_date_sales_usd_est = round(doc.ads_click_date_sales_usd_est,
+                                             6)
+    doc.ads_ship_date_sales_usd_est = round(doc.ads_ship_date_sales_usd_est, 6)
+    doc.organic_sales_usd_est = round(doc.organic_sales_usd_est, 6)
+    doc.kdp_royalty_usd_total = round(doc.kdp_royalty_usd_total, 6)
+    doc.ads_click_date_royalty_usd_est = round(
+      doc.ads_click_date_royalty_usd_est, 6)
+    doc.ads_ship_date_royalty_usd_est = round(
+      doc.ads_ship_date_royalty_usd_est, 6)
+    doc.organic_royalty_usd_est = round(doc.organic_royalty_usd_est, 6)
+    doc.kdp_print_cost_usd_total = round(doc.kdp_print_cost_usd_total, 6)
+    doc.ads_click_date_print_cost_usd_est = round(
+      doc.ads_click_date_print_cost_usd_est, 6)
+    doc.ads_ship_date_print_cost_usd_est = round(
+      doc.ads_ship_date_print_cost_usd_est, 6)
+    doc.organic_print_cost_usd_est = round(doc.organic_print_cost_usd_est, 6)
+    _round_by_asin_fields(doc.by_asin)
 
 
 def _round_by_asin_fields(
@@ -301,17 +503,23 @@ def _round_by_asin_fields(
   """Round money fields in-place for deterministic Firestore payloads."""
   for asin_data in by_asin.values():
     asin_data.kdp_sales_usd = round(asin_data.kdp_sales_usd, 6)
-    asin_data.ads_matched_sales_usd_est = round(
-      asin_data.ads_matched_sales_usd_est, 6)
+    asin_data.ads_click_date_sales_usd_est = round(
+      asin_data.ads_click_date_sales_usd_est, 6)
+    asin_data.ads_ship_date_sales_usd_est = round(
+      asin_data.ads_ship_date_sales_usd_est, 6)
     asin_data.organic_sales_usd_est = round(asin_data.organic_sales_usd_est, 6)
     asin_data.kdp_royalty_usd = round(asin_data.kdp_royalty_usd, 6)
-    asin_data.ads_matched_royalty_usd_est = round(
-      asin_data.ads_matched_royalty_usd_est, 6)
+    asin_data.ads_click_date_royalty_usd_est = round(
+      asin_data.ads_click_date_royalty_usd_est, 6)
+    asin_data.ads_ship_date_royalty_usd_est = round(
+      asin_data.ads_ship_date_royalty_usd_est, 6)
     asin_data.organic_royalty_usd_est = round(
       asin_data.organic_royalty_usd_est, 6)
     asin_data.kdp_print_cost_usd = round(asin_data.kdp_print_cost_usd, 6)
-    asin_data.ads_matched_print_cost_usd_est = round(
-      asin_data.ads_matched_print_cost_usd_est, 6)
+    asin_data.ads_click_date_print_cost_usd_est = round(
+      asin_data.ads_click_date_print_cost_usd_est, 6)
+    asin_data.ads_ship_date_print_cost_usd_est = round(
+      asin_data.ads_ship_date_print_cost_usd_est, 6)
     asin_data.organic_print_cost_usd_est = round(
       asin_data.organic_print_cost_usd_est, 6)
 
@@ -335,53 +543,21 @@ def _canonical_book_variant_asin(identifier: str) -> str | None:
   return book_variant.asin
 
 
-def _match_units(
-  *,
-  asin: str,
-  kdp_units: int,
-  lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
-) -> int:
-  """Consume earliest unmatched ads lots for one ASIN and return matched units."""
-  if kdp_units <= 0:
-    return 0
-  queue = lots_by_asin.get(asin)
-  if not queue:
-    return 0
-
-  matched_units = 0
-  remaining = kdp_units
-  while remaining > 0 and queue:
-    lot = queue[0]
-    if lot.units_remaining <= 0:
-      _ = queue.popleft()
-      continue
-    taken = min(remaining, lot.units_remaining)
-    lot.units_remaining -= taken
-    remaining -= taken
-    matched_units += taken
-    if lot.units_remaining <= 0:
-      _ = queue.popleft()
-
-  if not queue:
-    del lots_by_asin[asin]
-  return matched_units
-
-
 def _snapshot_lots(
   lots_by_asin: dict[str, deque[models.AmazonSalesReconciledAdsLot]],
 ) -> dict[str, list[models.AmazonSalesReconciledAdsLot]]:
   """Copy unmatched lots into a Firestore-ready model structure."""
   output: dict[str, list[models.AmazonSalesReconciledAdsLot]] = {}
   for asin in sorted(lots_by_asin.keys()):
-    lots = lots_by_asin[asin]
     copied_lots: list[models.AmazonSalesReconciledAdsLot] = []
-    for lot in lots:
-      if lot.units_remaining <= 0:
+    for lot in lots_by_asin[asin]:
+      if lot.units_remaining <= 0 and lot.kenp_pages_remaining <= 0:
         continue
       copied_lots.append(
         models.AmazonSalesReconciledAdsLot(
           purchase_date=lot.purchase_date,
           units_remaining=int(lot.units_remaining),
+          kenp_pages_remaining=int(lot.kenp_pages_remaining),
         ))
     if copied_lots:
       output[asin] = copied_lots

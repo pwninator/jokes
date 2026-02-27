@@ -330,6 +330,24 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     "list_amazon_ads_daily_stats",
     _fake_list_stats,
   )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonSalesReconciledDailyStats(
+        date=datetime.date(2026, 2, 19),
+        ads_click_date_royalty_usd_est=31.0,
+        organic_royalty_usd_est=7.0,
+        organic_sales_usd_est=12.5,
+      ),
+      models.AmazonSalesReconciledDailyStats(
+        date=datetime.date(2026, 2, 17),
+        ads_click_date_royalty_usd_est=4.0,
+        organic_royalty_usd_est=2.0,
+        organic_sales_usd_est=3.5,
+      ),
+    ],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -359,6 +377,20 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert chart_data["gross_profit_before_ads_usd"][idx_0219] == 60.0
   assert chart_data["gross_profit_usd"][idx_0217] == 4.5
   assert chart_data["gross_profit_usd"][idx_0219] == 35.0
+
+  reconciled_chart_data = captured["reconciled_click_date_chart_data"]
+  assert reconciled_chart_data["labels"][idx_0217] == "2026-02-17"
+  assert reconciled_chart_data["cost"][idx_0217] == 4.5
+  assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0217] == 4.0
+  assert reconciled_chart_data["gross_profit_usd"][idx_0217] == 1.5
+  assert reconciled_chart_data["organic_sales_usd"][idx_0217] == 3.5
+  assert reconciled_chart_data["poas"][idx_0217] == 2.0
+  assert reconciled_chart_data["tpoas"][idx_0217] == 2.4444
+  assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0219] == 31.0
+  assert reconciled_chart_data["gross_profit_usd"][idx_0219] == 13.0
+  assert reconciled_chart_data["organic_sales_usd"][idx_0219] == 12.5
+  assert reconciled_chart_data["poas"][idx_0219] == 2.4
+  assert reconciled_chart_data["tpoas"][idx_0219] == 2.68
 
   # Verify totals
   assert chart_data["total_impressions"] == 205
@@ -390,6 +422,11 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
     "list_amazon_ads_daily_stats",
     lambda *, start_date, end_date: [],
   )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -401,11 +438,16 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
 
 
 def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
-  """Ads stats page includes refresh link to the Cloud Function URL."""
+  """Ads stats page renders a refresh button instead of a hyperlink."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(
     firestore_service,
     "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
   )
 
@@ -414,10 +456,9 @@ def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert ('href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/"'
-          in html)
-  assert 'target="_blank"' in html
-  assert 'rel="noopener noreferrer"' in html
+  assert 'id="adsStatsRefreshButton"' in html
+  assert '>Refresh</button>' in html
+  assert 'href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/"' not in html
   assert 'Back to Dashboard' not in html
 
 
@@ -427,6 +468,11 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   monkeypatch.setattr(
     firestore_service,
     "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
   )
 
@@ -440,11 +486,14 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
 
   assert "<h3>Profit</h3>" in html
   assert "<h3>POAS</h3>" in html
+  assert "<h3>Profit Timeline (Reconciled Click Date)</h3>" in html
+  assert "<h3>POAS Timeline (Reconciled Click Date)</h3>" in html
   assert "<h3>Gross Profit</h3>" not in html
   assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
   assert '/static/js/ads_stats.js' in html
   assert 'window.initAdsStatsPage' in html
   assert 'chartData:' in html
+  assert 'reconciledClickDateChartData:' in html
   assert 'id="modeSelector"' in html
   assert 'id="stat-ctr"' in html
   assert '<canvas id="ctrChart"></canvas>' in html
@@ -455,20 +504,30 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
 
   profit_pos = html.find("<h3>Profit</h3>")
   poas_pos = html.find("<h3>POAS</h3>")
+  reconciled_profit_pos = html.find(
+    "<h3>Profit Timeline (Reconciled Click Date)</h3>")
+  reconciled_poas_pos = html.find(
+    "<h3>POAS Timeline (Reconciled Click Date)</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
   ctr_pos = html.find("<h3>CTR</h3>")
   impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")
 
   assert profit_pos != -1
   assert poas_pos != -1
+  assert reconciled_profit_pos != -1
+  assert reconciled_poas_pos != -1
   assert cpc_and_cr_pos != -1
   assert ctr_pos != -1
   assert impressions_and_clicks_pos != -1
   assert "<h3>Impressions</h3>" not in html
   assert "<h3>Clicks</h3>" not in html
   assert '<canvas id="impressionsAndClicksChart"></canvas>' in html
+  assert '<canvas id="reconciledProfitTimelineChart"></canvas>' in html
+  assert '<canvas id="reconciledPoasTimelineChart"></canvas>' in html
   assert profit_pos < poas_pos
-  assert poas_pos < cpc_and_cr_pos
+  assert poas_pos < reconciled_profit_pos
+  assert reconciled_profit_pos < reconciled_poas_pos
+  assert reconciled_poas_pos < cpc_and_cr_pos
   assert cpc_and_cr_pos < ctr_pos
   assert ctr_pos < impressions_and_clicks_pos
 
@@ -529,6 +588,11 @@ def test_admin_ads_stats_filtering(monkeypatch):
     firestore_service,
     "list_amazon_ads_daily_stats",
     lambda *, start_date, end_date: [stats],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
   )
 
   with app.test_client() as client:
@@ -597,6 +661,92 @@ def test_admin_ads_stats_upload_kdp_success(monkeypatch):
   upsert_mock.assert_called_once_with(parsed_stats)
   reconcile_mock.assert_called_once_with(
     earliest_changed_date=datetime.date(2026, 2, 24))
+
+
+def test_admin_ads_stats_refresh_requests_reports_when_none_available(
+    monkeypatch):
+  """Refresh route should request reports when context has none."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  monkeypatch.setattr(
+    dashboard_routes.amazon,
+    "get_ads_stats_context",
+    lambda _run_time: dashboard_routes.amazon.AdsStatsContext(
+      selected_profiles=[],
+      reports_by_expected_key={},
+      report_end_date=datetime.date(2026, 2, 27),
+      report_start_date=datetime.date(2026, 1, 28),
+      profiles_considered=0,
+    ),
+  )
+  request_mock = Mock(
+    return_value=dashboard_routes.amazon.AdsStatsRequestResult(
+      selected_profiles=[],
+      reports_by_expected_key={},
+      report_requests=[{
+        "profile_id": "p1"
+      }],
+      report_end_date=datetime.date(2026, 2, 27),
+      report_start_date=datetime.date(2026, 1, 28),
+      profiles_considered=1,
+    ))
+  fetch_mock = Mock()
+  monkeypatch.setattr(dashboard_routes.amazon, "request_ads_stats_reports",
+                      request_mock)
+  monkeypatch.setattr(dashboard_routes.amazon, "fetch_ads_stats_reports",
+                      fetch_mock)
+
+  with app.test_client() as client:
+    resp = client.post('/admin/ads-stats/refresh')
+
+  assert resp.status_code == 200
+  assert resp.get_json() == {
+    "called": "request",
+    "reports_requested": 1,
+    "done": False,
+    "button_text": "Fetch",
+  }
+  request_mock.assert_called_once()
+  fetch_mock.assert_not_called()
+
+
+def test_admin_ads_stats_refresh_fetches_reports_when_available(monkeypatch):
+  """Refresh route should fetch reports when context already has them."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  monkeypatch.setattr(
+    dashboard_routes.amazon,
+    "get_ads_stats_context",
+    lambda _run_time: dashboard_routes.amazon.AdsStatsContext(
+      selected_profiles=[],
+      reports_by_expected_key={("p1", "spCampaigns"): Mock()},
+      report_end_date=datetime.date(2026, 2, 27),
+      report_start_date=datetime.date(2026, 1, 28),
+      profiles_considered=1,
+    ),
+  )
+  request_mock = Mock()
+  fetch_mock = Mock(return_value=([{"report_id": "r1"}], [{"row": 1}]))
+  monkeypatch.setattr(dashboard_routes.amazon, "request_ads_stats_reports",
+                      request_mock)
+  monkeypatch.setattr(dashboard_routes.amazon, "fetch_ads_stats_reports",
+                      fetch_mock)
+
+  with app.test_client() as client:
+    resp = client.post('/admin/ads-stats/refresh')
+
+  assert resp.status_code == 200
+  assert resp.get_json() == {
+    "called": "fetch",
+    "reports_fetched": 1,
+    "daily_campaign_stats_count": 1,
+    "done": True,
+    "button_text": "Fetch",
+  }
+  fetch_mock.assert_called_once()
+  request_mock.assert_not_called()
 
 
 def test_admin_ads_stats_upload_kdp_missing_file_returns_400(monkeypatch):

@@ -3146,6 +3146,68 @@ def test_get_amazon_sales_reconciled_daily_stat_returns_model(monkeypatch):
     0].units_remaining == 2
 
 
+def test_list_amazon_sales_reconciled_daily_stats_returns_models(monkeypatch):
+  """Reconciled list helper should parse filtered docs into models."""
+  from services import firestore as fs
+
+  captured_filters: list[object] = []
+
+  class DummyFieldFilter:
+
+    def __init__(self, field_path, op_string, value):
+      self.field_path = field_path
+      self.op_string = op_string
+      self.value = value
+
+  class DummyDoc:
+    exists = True
+    id = "2026-02-18"
+
+    def to_dict(self):
+      return {
+        "date": "2026-02-18",
+        "ads_click_date_sales_usd_est": 5.5,
+        "organic_sales_usd_est": 2.0,
+      }
+
+  class DummyQuery:
+
+    def where(self, *, filter):
+      captured_filters.append(filter)
+      return self
+
+    def order_by(self, _field_path, direction=None):
+      del direction
+      return self
+
+    def stream(self):
+      return [DummyDoc()]
+
+  class DummyCollection:
+
+    def where(self, *, filter):
+      return DummyQuery().where(filter=filter)
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "FieldFilter", DummyFieldFilter)
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  rows = fs.list_amazon_sales_reconciled_daily_stats(
+    start_date=datetime.date(2026, 2, 1),
+    end_date=datetime.date(2026, 2, 28),
+  )
+
+  assert len(rows) == 1
+  assert rows[0].key == "2026-02-18"
+  assert rows[0].ads_click_date_sales_usd_est == 5.5
+  assert rows[0].organic_sales_usd_est == 2.0
+  assert len(captured_filters) == 2
+
+
 def test_upsert_amazon_sales_reconciled_daily_stats_uses_date_as_key(
     monkeypatch):
   """Reconciled daily stats should be upserted using date string as key."""
@@ -3184,7 +3246,7 @@ def test_upsert_amazon_sales_reconciled_daily_stats_uses_date_as_key(
     models.AmazonSalesReconciledDailyStats(
       date=datetime.date(2026, 2, 18),
       organic_units_total=3,
-      ads_matched_units_total=2,
+      ads_ship_date_units_total=2,
       zzz_ending_unmatched_ads_lots_by_asin={
         "ASIN1": [
           models.AmazonSalesReconciledAdsLot(

@@ -1446,8 +1446,10 @@ class AmazonProductStats:
 
   asin: str
   units_sold: int = 0
+  kenp_pages_read: int = 0
   total_sales_usd: float = 0.0
   total_profit_usd: float = 0.0
+  kenp_royalties_usd: float = 0.0
   total_print_cost_usd: float | None = None
   total_royalty_usd: float | None = None
 
@@ -1467,6 +1469,8 @@ class AmazonProductStats:
       data["total_sales_usd"] = data.get("sales_amount")
     if "total_profit_usd" not in data and "total_profit" in data:
       data["total_profit_usd"] = data.get("total_profit")
+    if "kenp_royalties_usd" not in data and "kenp_royalties" in data:
+      data["kenp_royalties_usd"] = data.get("kenp_royalties")
     if "total_print_cost_usd" not in data and "total_print_cost" in data:
       data["total_print_cost_usd"] = data.get("total_print_cost")
     if "total_royalty_usd" not in data and "total_royalty" in data:
@@ -1474,16 +1478,20 @@ class AmazonProductStats:
 
     asin = str(data.get("asin", "")).strip()
     _parse_int_field(data, "units_sold", 0)
+    _parse_int_field(data, "kenp_pages_read", 0)
     _parse_float_field(data, "total_sales_usd", 0.0)
     _parse_float_field(data, "total_profit_usd", 0.0)
+    _parse_float_field(data, "kenp_royalties_usd", 0.0)
     total_print_cost_usd = _parse_optional_float(data, "total_print_cost_usd")
     total_royalty_usd = _parse_optional_float(data, "total_royalty_usd")
 
     return cls(
       asin=asin,
       units_sold=data.get("units_sold", 0),
+      kenp_pages_read=data.get("kenp_pages_read", 0),
       total_sales_usd=data.get("total_sales_usd", 0.0),
       total_profit_usd=data.get("total_profit_usd", 0.0),
+      kenp_royalties_usd=data.get("kenp_royalties_usd", 0.0),
       total_print_cost_usd=total_print_cost_usd,
       total_royalty_usd=total_royalty_usd,
     )
@@ -1500,6 +1508,7 @@ class AmazonAdsDailyCampaignStats:
   spend: float = 0.0
   impressions: int = 0
   clicks: int = 0
+  kenp_pages_read: int = 0
   kenp_royalties_usd: float = 0.0
   total_attributed_sales_usd: float = 0.0
   total_units_sold: int = 0
@@ -1516,6 +1525,7 @@ class AmazonAdsDailyCampaignStats:
       "spend": self.spend,
       "impressions": self.impressions,
       "clicks": self.clicks,
+      "kenp_pages_read": self.kenp_pages_read,
       "kenp_royalties_usd": self.kenp_royalties_usd,
       "total_attributed_sales_usd": self.total_attributed_sales_usd,
       "total_units_sold": self.total_units_sold,
@@ -1557,6 +1567,7 @@ class AmazonAdsDailyCampaignStats:
     _parse_float_field(data, "spend", 0.0)
     _parse_int_field(data, "impressions", 0)
     _parse_int_field(data, "clicks", 0)
+    _parse_int_field(data, "kenp_pages_read", 0)
     _parse_float_field(data, "kenp_royalties_usd", 0.0)
     _parse_float_field(data, "total_attributed_sales_usd", 0.0)
     _parse_int_field(data, "total_units_sold", 0)
@@ -1580,6 +1591,7 @@ class AmazonAdsDailyCampaignStats:
       spend=data.get("spend", 0.0),
       impressions=data.get("impressions", 0),
       clicks=data.get("clicks", 0),
+      kenp_pages_read=data.get("kenp_pages_read", 0),
       kenp_royalties_usd=data.get("kenp_royalties_usd", 0.0),
       total_attributed_sales_usd=data.get("total_attributed_sales_usd", 0.0),
       total_units_sold=data.get("total_units_sold", 0),
@@ -1607,6 +1619,7 @@ class AmazonAdsDailyStats:
   spend: float = 0.0
   impressions: int = 0
   clicks: int = 0
+  kenp_pages_read: int = 0
   kenp_royalties_usd: float = 0.0
   total_attributed_sales_usd: float = 0.0
   total_units_sold: int = 0
@@ -1622,6 +1635,7 @@ class AmazonAdsDailyStats:
       "spend": self.spend,
       "impressions": self.impressions,
       "clicks": self.clicks,
+      "kenp_pages_read": self.kenp_pages_read,
       "kenp_royalties_usd": self.kenp_royalties_usd,
       "total_attributed_sales_usd": self.total_attributed_sales_usd,
       "total_units_sold": self.total_units_sold,
@@ -1666,6 +1680,7 @@ class AmazonAdsDailyStats:
     _parse_float_field(data, "spend", 0.0)
     _parse_int_field(data, "impressions", 0)
     _parse_int_field(data, "clicks", 0)
+    _parse_int_field(data, "kenp_pages_read", 0)
     _parse_float_field(data, "kenp_royalties_usd", 0.0)
     _parse_float_field(data, "total_attributed_sales_usd", 0.0)
     _parse_int_field(data, "total_units_sold", 0)
@@ -1686,6 +1701,7 @@ class AmazonAdsDailyStats:
       spend=data.get("spend", 0.0),
       impressions=data.get("impressions", 0),
       clicks=data.get("clicks", 0),
+      kenp_pages_read=data.get("kenp_pages_read", 0),
       kenp_royalties_usd=data.get("kenp_royalties_usd", 0.0),
       total_attributed_sales_usd=data.get("total_attributed_sales_usd", 0.0),
       total_units_sold=data.get("total_units_sold", 0),
@@ -1804,12 +1820,14 @@ class AmazonSalesReconciledAdsLot:
 
   purchase_date: datetime.date
   units_remaining: int = 0
+  kenp_pages_remaining: int = 0
 
   def to_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     return {
       "purchase_date": self.purchase_date.isoformat(),
       "units_remaining": self.units_remaining,
+      "kenp_pages_remaining": self.kenp_pages_remaining,
     }
 
   @classmethod
@@ -1825,10 +1843,12 @@ class AmazonSalesReconciledAdsLot:
       field_name="AmazonSalesReconciledAdsLot.purchase_date",
     )
     _parse_int_field(data, "units_remaining", 0)
+    _parse_int_field(data, "kenp_pages_remaining", 0)
 
     return cls(
       purchase_date=parsed_date,
       units_remaining=data.get("units_remaining", 0),
+      kenp_pages_remaining=data.get("kenp_pages_remaining", 0),
     )
 
 
@@ -1838,16 +1858,26 @@ class AmazonSalesReconciledAsinStats:
 
   asin: str
   kdp_units: int = 0
-  ads_matched_units: int = 0
+  ads_click_date_units: int = 0
+  ads_ship_date_units: int = 0
+  unmatched_ads_click_date_units: int = 0
   organic_units: int = 0
+  kdp_kenp_pages_read: int = 0
+  ads_click_date_kenp_pages_read: int = 0
+  ads_ship_date_kenp_pages_read: int = 0
+  unmatched_ads_click_date_kenp_pages_read: int = 0
+  organic_kenp_pages_read: int = 0
   kdp_sales_usd: float = 0.0
-  ads_matched_sales_usd_est: float = 0.0
+  ads_click_date_sales_usd_est: float = 0.0
+  ads_ship_date_sales_usd_est: float = 0.0
   organic_sales_usd_est: float = 0.0
   kdp_royalty_usd: float = 0.0
-  ads_matched_royalty_usd_est: float = 0.0
+  ads_click_date_royalty_usd_est: float = 0.0
+  ads_ship_date_royalty_usd_est: float = 0.0
   organic_royalty_usd_est: float = 0.0
   kdp_print_cost_usd: float = 0.0
-  ads_matched_print_cost_usd_est: float = 0.0
+  ads_click_date_print_cost_usd_est: float = 0.0
+  ads_ship_date_print_cost_usd_est: float = 0.0
   organic_print_cost_usd_est: float = 0.0
 
   def to_dict(self) -> dict[str, object]:
@@ -1855,16 +1885,29 @@ class AmazonSalesReconciledAsinStats:
     return {
       "asin": self.asin,
       "kdp_units": self.kdp_units,
-      "ads_matched_units": self.ads_matched_units,
+      "ads_click_date_units": self.ads_click_date_units,
+      "ads_ship_date_units": self.ads_ship_date_units,
+      "unmatched_ads_click_date_units": self.unmatched_ads_click_date_units,
       "organic_units": self.organic_units,
+      "kdp_kenp_pages_read": self.kdp_kenp_pages_read,
+      "ads_click_date_kenp_pages_read": self.ads_click_date_kenp_pages_read,
+      "ads_ship_date_kenp_pages_read": self.ads_ship_date_kenp_pages_read,
+      "unmatched_ads_click_date_kenp_pages_read":
+      self.unmatched_ads_click_date_kenp_pages_read,
+      "organic_kenp_pages_read": self.organic_kenp_pages_read,
       "kdp_sales_usd": self.kdp_sales_usd,
-      "ads_matched_sales_usd_est": self.ads_matched_sales_usd_est,
+      "ads_click_date_sales_usd_est": self.ads_click_date_sales_usd_est,
+      "ads_ship_date_sales_usd_est": self.ads_ship_date_sales_usd_est,
       "organic_sales_usd_est": self.organic_sales_usd_est,
       "kdp_royalty_usd": self.kdp_royalty_usd,
-      "ads_matched_royalty_usd_est": self.ads_matched_royalty_usd_est,
+      "ads_click_date_royalty_usd_est": self.ads_click_date_royalty_usd_est,
+      "ads_ship_date_royalty_usd_est": self.ads_ship_date_royalty_usd_est,
       "organic_royalty_usd_est": self.organic_royalty_usd_est,
       "kdp_print_cost_usd": self.kdp_print_cost_usd,
-      "ads_matched_print_cost_usd_est": self.ads_matched_print_cost_usd_est,
+      "ads_click_date_print_cost_usd_est":
+      self.ads_click_date_print_cost_usd_est,
+      "ads_ship_date_print_cost_usd_est":
+      self.ads_ship_date_print_cost_usd_est,
       "organic_print_cost_usd_est": self.organic_print_cost_usd_est,
     }
 
@@ -1887,19 +1930,29 @@ class AmazonSalesReconciledAsinStats:
 
     for field_name in (
         "kdp_units",
-        "ads_matched_units",
+        "ads_click_date_units",
+        "ads_ship_date_units",
+        "unmatched_ads_click_date_units",
         "organic_units",
+        "kdp_kenp_pages_read",
+        "ads_click_date_kenp_pages_read",
+        "ads_ship_date_kenp_pages_read",
+        "unmatched_ads_click_date_kenp_pages_read",
+        "organic_kenp_pages_read",
     ):
       _parse_int_field(data, field_name, 0)
     for field_name in (
         "kdp_sales_usd",
-        "ads_matched_sales_usd_est",
+        "ads_click_date_sales_usd_est",
+        "ads_ship_date_sales_usd_est",
         "organic_sales_usd_est",
         "kdp_royalty_usd",
-        "ads_matched_royalty_usd_est",
+        "ads_click_date_royalty_usd_est",
+        "ads_ship_date_royalty_usd_est",
         "organic_royalty_usd_est",
         "kdp_print_cost_usd",
-        "ads_matched_print_cost_usd_est",
+        "ads_click_date_print_cost_usd_est",
+        "ads_ship_date_print_cost_usd_est",
         "organic_print_cost_usd_est",
     ):
       _parse_float_field(data, field_name, 0.0)
@@ -1907,17 +1960,35 @@ class AmazonSalesReconciledAsinStats:
     return cls(
       asin=resolved_asin,
       kdp_units=data.get("kdp_units", 0),
-      ads_matched_units=data.get("ads_matched_units", 0),
+      ads_click_date_units=data.get("ads_click_date_units", 0),
+      ads_ship_date_units=data.get("ads_ship_date_units", 0),
+      unmatched_ads_click_date_units=data.get("unmatched_ads_click_date_units",
+                                              0),
       organic_units=data.get("organic_units", 0),
+      kdp_kenp_pages_read=data.get("kdp_kenp_pages_read", 0),
+      ads_click_date_kenp_pages_read=data.get("ads_click_date_kenp_pages_read",
+                                              0),
+      ads_ship_date_kenp_pages_read=data.get("ads_ship_date_kenp_pages_read",
+                                             0),
+      unmatched_ads_click_date_kenp_pages_read=data.get(
+        "unmatched_ads_click_date_kenp_pages_read", 0),
+      organic_kenp_pages_read=data.get("organic_kenp_pages_read", 0),
       kdp_sales_usd=data.get("kdp_sales_usd", 0.0),
-      ads_matched_sales_usd_est=data.get("ads_matched_sales_usd_est", 0.0),
+      ads_click_date_sales_usd_est=data.get("ads_click_date_sales_usd_est",
+                                            0.0),
+      ads_ship_date_sales_usd_est=data.get("ads_ship_date_sales_usd_est", 0.0),
       organic_sales_usd_est=data.get("organic_sales_usd_est", 0.0),
       kdp_royalty_usd=data.get("kdp_royalty_usd", 0.0),
-      ads_matched_royalty_usd_est=data.get("ads_matched_royalty_usd_est", 0.0),
+      ads_click_date_royalty_usd_est=data.get("ads_click_date_royalty_usd_est",
+                                              0.0),
+      ads_ship_date_royalty_usd_est=data.get("ads_ship_date_royalty_usd_est",
+                                             0.0),
       organic_royalty_usd_est=data.get("organic_royalty_usd_est", 0.0),
       kdp_print_cost_usd=data.get("kdp_print_cost_usd", 0.0),
-      ads_matched_print_cost_usd_est=data.get("ads_matched_print_cost_usd_est",
-                                              0.0),
+      ads_click_date_print_cost_usd_est=data.get(
+        "ads_click_date_print_cost_usd_est", 0.0),
+      ads_ship_date_print_cost_usd_est=data.get(
+        "ads_ship_date_print_cost_usd_est", 0.0),
       organic_print_cost_usd_est=data.get("organic_print_cost_usd_est", 0.0),
     )
 
@@ -1931,16 +2002,26 @@ class AmazonSalesReconciledDailyStats:
   is_settled: bool = False
   reconciled_at: datetime.datetime | None = None
   kdp_units_total: int = 0
-  ads_matched_units_total: int = 0
+  ads_click_date_units_total: int = 0
+  ads_ship_date_units_total: int = 0
+  unmatched_ads_click_date_units_total: int = 0
   organic_units_total: int = 0
+  kdp_kenp_pages_read_total: int = 0
+  ads_click_date_kenp_pages_read_total: int = 0
+  ads_ship_date_kenp_pages_read_total: int = 0
+  unmatched_ads_click_date_kenp_pages_read_total: int = 0
+  organic_kenp_pages_read_total: int = 0
   kdp_sales_usd_total: float = 0.0
-  ads_matched_sales_usd_est: float = 0.0
+  ads_click_date_sales_usd_est: float = 0.0
+  ads_ship_date_sales_usd_est: float = 0.0
   organic_sales_usd_est: float = 0.0
   kdp_royalty_usd_total: float = 0.0
-  ads_matched_royalty_usd_est: float = 0.0
+  ads_click_date_royalty_usd_est: float = 0.0
+  ads_ship_date_royalty_usd_est: float = 0.0
   organic_royalty_usd_est: float = 0.0
   kdp_print_cost_usd_total: float = 0.0
-  ads_matched_print_cost_usd_est: float = 0.0
+  ads_click_date_print_cost_usd_est: float = 0.0
+  ads_ship_date_print_cost_usd_est: float = 0.0
   organic_print_cost_usd_est: float = 0.0
   by_asin: dict[str,
                 AmazonSalesReconciledAsinStats] = field(default_factory=dict)
@@ -1954,16 +2035,32 @@ class AmazonSalesReconciledDailyStats:
       "is_settled": self.is_settled,
       "reconciled_at": self.reconciled_at,
       "kdp_units_total": self.kdp_units_total,
-      "ads_matched_units_total": self.ads_matched_units_total,
+      "ads_click_date_units_total": self.ads_click_date_units_total,
+      "ads_ship_date_units_total": self.ads_ship_date_units_total,
+      "unmatched_ads_click_date_units_total":
+      self.unmatched_ads_click_date_units_total,
       "organic_units_total": self.organic_units_total,
+      "kdp_kenp_pages_read_total": self.kdp_kenp_pages_read_total,
+      "ads_click_date_kenp_pages_read_total":
+      self.ads_click_date_kenp_pages_read_total,
+      "ads_ship_date_kenp_pages_read_total":
+      self.ads_ship_date_kenp_pages_read_total,
+      "unmatched_ads_click_date_kenp_pages_read_total":
+      self.unmatched_ads_click_date_kenp_pages_read_total,
+      "organic_kenp_pages_read_total": self.organic_kenp_pages_read_total,
       "kdp_sales_usd_total": self.kdp_sales_usd_total,
-      "ads_matched_sales_usd_est": self.ads_matched_sales_usd_est,
+      "ads_click_date_sales_usd_est": self.ads_click_date_sales_usd_est,
+      "ads_ship_date_sales_usd_est": self.ads_ship_date_sales_usd_est,
       "organic_sales_usd_est": self.organic_sales_usd_est,
       "kdp_royalty_usd_total": self.kdp_royalty_usd_total,
-      "ads_matched_royalty_usd_est": self.ads_matched_royalty_usd_est,
+      "ads_click_date_royalty_usd_est": self.ads_click_date_royalty_usd_est,
+      "ads_ship_date_royalty_usd_est": self.ads_ship_date_royalty_usd_est,
       "organic_royalty_usd_est": self.organic_royalty_usd_est,
       "kdp_print_cost_usd_total": self.kdp_print_cost_usd_total,
-      "ads_matched_print_cost_usd_est": self.ads_matched_print_cost_usd_est,
+      "ads_click_date_print_cost_usd_est":
+      self.ads_click_date_print_cost_usd_est,
+      "ads_ship_date_print_cost_usd_est":
+      self.ads_ship_date_print_cost_usd_est,
       "organic_print_cost_usd_est": self.organic_print_cost_usd_est,
       "by_asin": {
         asin: stats.to_dict()
@@ -1997,19 +2094,29 @@ class AmazonSalesReconciledDailyStats:
 
     for field_name in (
         "kdp_units_total",
-        "ads_matched_units_total",
+        "ads_click_date_units_total",
+        "ads_ship_date_units_total",
+        "unmatched_ads_click_date_units_total",
         "organic_units_total",
+        "kdp_kenp_pages_read_total",
+        "ads_click_date_kenp_pages_read_total",
+        "ads_ship_date_kenp_pages_read_total",
+        "unmatched_ads_click_date_kenp_pages_read_total",
+        "organic_kenp_pages_read_total",
     ):
       _parse_int_field(data, field_name, 0)
     for field_name in (
         "kdp_sales_usd_total",
-        "ads_matched_sales_usd_est",
+        "ads_click_date_sales_usd_est",
+        "ads_ship_date_sales_usd_est",
         "organic_sales_usd_est",
         "kdp_royalty_usd_total",
-        "ads_matched_royalty_usd_est",
+        "ads_click_date_royalty_usd_est",
+        "ads_ship_date_royalty_usd_est",
         "organic_royalty_usd_est",
         "kdp_print_cost_usd_total",
-        "ads_matched_print_cost_usd_est",
+        "ads_click_date_print_cost_usd_est",
+        "ads_ship_date_print_cost_usd_est",
         "organic_print_cost_usd_est",
     ):
       _parse_float_field(data, field_name, 0.0)
@@ -2025,17 +2132,36 @@ class AmazonSalesReconciledDailyStats:
       is_settled=bool(data.get("is_settled", False)),
       reconciled_at=_parse_optional_datetime(data.get("reconciled_at")),
       kdp_units_total=data.get("kdp_units_total", 0),
-      ads_matched_units_total=data.get("ads_matched_units_total", 0),
+      ads_click_date_units_total=data.get("ads_click_date_units_total", 0),
+      ads_ship_date_units_total=data.get("ads_ship_date_units_total", 0),
+      unmatched_ads_click_date_units_total=data.get(
+        "unmatched_ads_click_date_units_total", 0),
       organic_units_total=data.get("organic_units_total", 0),
+      kdp_kenp_pages_read_total=data.get("kdp_kenp_pages_read_total", 0),
+      ads_click_date_kenp_pages_read_total=data.get(
+        "ads_click_date_kenp_pages_read_total", 0),
+      ads_ship_date_kenp_pages_read_total=data.get(
+        "ads_ship_date_kenp_pages_read_total", 0),
+      unmatched_ads_click_date_kenp_pages_read_total=data.get(
+        "unmatched_ads_click_date_kenp_pages_read_total", 0),
+      organic_kenp_pages_read_total=data.get("organic_kenp_pages_read_total",
+                                             0),
       kdp_sales_usd_total=data.get("kdp_sales_usd_total", 0.0),
-      ads_matched_sales_usd_est=data.get("ads_matched_sales_usd_est", 0.0),
+      ads_click_date_sales_usd_est=data.get("ads_click_date_sales_usd_est",
+                                            0.0),
+      ads_ship_date_sales_usd_est=data.get("ads_ship_date_sales_usd_est", 0.0),
       organic_sales_usd_est=data.get("organic_sales_usd_est", 0.0),
       kdp_royalty_usd_total=data.get("kdp_royalty_usd_total", 0.0),
-      ads_matched_royalty_usd_est=data.get("ads_matched_royalty_usd_est", 0.0),
+      ads_click_date_royalty_usd_est=data.get("ads_click_date_royalty_usd_est",
+                                              0.0),
+      ads_ship_date_royalty_usd_est=data.get("ads_ship_date_royalty_usd_est",
+                                             0.0),
       organic_royalty_usd_est=data.get("organic_royalty_usd_est", 0.0),
       kdp_print_cost_usd_total=data.get("kdp_print_cost_usd_total", 0.0),
-      ads_matched_print_cost_usd_est=data.get("ads_matched_print_cost_usd_est",
-                                              0.0),
+      ads_click_date_print_cost_usd_est=data.get(
+        "ads_click_date_print_cost_usd_est", 0.0),
+      ads_ship_date_print_cost_usd_est=data.get(
+        "ads_ship_date_print_cost_usd_est", 0.0),
       organic_print_cost_usd_est=data.get("organic_print_cost_usd_est", 0.0),
       by_asin=by_asin,
       zzz_ending_unmatched_ads_lots_by_asin=zzz_lots,

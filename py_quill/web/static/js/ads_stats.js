@@ -261,9 +261,29 @@
     };
   }
 
+  function buildReconciledTimelineStats(reconciledChartData) {
+    const data = reconciledChartData || {};
+    return {
+      labels: Array.isArray(data.labels) ? data.labels : [],
+      cost: Array.isArray(data.cost) ? data.cost.map(toNumber) : [],
+      gross_profit_before_ads_usd: Array.isArray(data.gross_profit_before_ads_usd)
+        ? data.gross_profit_before_ads_usd.map(toNumber)
+        : [],
+      gross_profit_usd: Array.isArray(data.gross_profit_usd)
+        ? data.gross_profit_usd.map(toNumber)
+        : [],
+      organic_sales_usd: Array.isArray(data.organic_sales_usd)
+        ? data.organic_sales_usd.map(toNumber)
+        : [],
+      poas: Array.isArray(data.poas) ? data.poas.map(toNumber) : [],
+      tpoas: Array.isArray(data.tpoas) ? data.tpoas.map(toNumber) : [],
+    };
+  }
+
   function initAdsStatsPage(options) {
     const config = options || {};
     const adsStatsData = config.chartData || {};
+    const reconciledClickDateChartData = config.reconciledClickDateChartData || {};
 
     function formatCurrency(value) {
       return `$${Number(value).toLocaleString('en-US', {
@@ -367,6 +387,7 @@
 
       function calculateAndRender(campaignName, mode) {
         const stats = buildChartStats(adsStatsData, campaignName, mode);
+        const reconciledStats = buildReconciledTimelineStats(reconciledClickDateChartData);
 
         createMultiLineChart(
           'profitChart',
@@ -451,6 +472,125 @@
             y: {
               beginAtZero: true,
               suggestedMax: poasSuggestedMax,
+              ticks: {
+                callback: function (value) {
+                  return formatTickByType('ratio', value);
+                },
+              },
+            },
+          },
+        );
+
+        createMultiLineChart(
+          'reconciledProfitTimelineChart',
+          reconciledStats.labels,
+          [
+            {
+              label: 'Cost',
+              data: reconciledStats.cost,
+              borderColor: '#c62828',
+              backgroundColor: '#c6282822',
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'currency',
+            },
+            {
+              label: 'Gross Profit Before Ads',
+              data: reconciledStats.gross_profit_before_ads_usd,
+              borderColor: '#2e7d32',
+              backgroundColor: '#2e7d3222',
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'currency',
+            },
+            {
+              label: 'Gross Profit',
+              data: reconciledStats.gross_profit_usd,
+              borderColor: '#6a1b9a',
+              backgroundColor: '#6a1b9a22',
+              fill: 'origin',
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'currency',
+            },
+            {
+              label: 'Organic Sales',
+              data: reconciledStats.organic_sales_usd,
+              borderColor: '#1565c0',
+              backgroundColor: '#1565c022',
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'currency',
+            },
+          ],
+          {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return formatTickByType('currency', value);
+                },
+              },
+            },
+          },
+        );
+
+        const reconciledPoasSuggestedMax = Math.max(
+          1.1,
+          ...reconciledStats.poas,
+          ...reconciledStats.tpoas,
+          1.0,
+        );
+        createMultiLineChart(
+          'reconciledPoasTimelineChart',
+          reconciledStats.labels,
+          [
+            {
+              label: 'POAS',
+              data: reconciledStats.poas,
+              borderColor: '#1565c0',
+              backgroundColor: '#1565c022',
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'ratio',
+            },
+            {
+              label: 'TPOAS',
+              data: reconciledStats.tpoas,
+              borderColor: '#6a1b9a',
+              backgroundColor: '#6a1b9a22',
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+              yAxisID: 'y',
+              formatType: 'ratio',
+            },
+            {
+              label: 'POAS Threshold (1.0)',
+              data: reconciledStats.labels.map(() => 1.0),
+              borderColor: '#c62828',
+              backgroundColor: '#c6282822',
+              fill: false,
+              tension: 0,
+              pointRadius: 0,
+              borderWidth: 1,
+              yAxisID: 'y',
+              formatType: 'ratio',
+            },
+          ],
+          {
+            y: {
+              beginAtZero: true,
+              suggestedMax: reconciledPoasSuggestedMax,
               ticks: {
                 callback: function (value) {
                   return formatTickByType('ratio', value);

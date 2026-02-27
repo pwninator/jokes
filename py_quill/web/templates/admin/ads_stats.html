@@ -10,6 +10,10 @@
   <div class="ads-stats-header-controls">
     <div class="ads-stats-filters-row">
       <div class="ads-stats-filter">
+        <button id="adsStatsRefreshButton" type="button">Refresh</button>
+        <span id="adsStatsRefreshStatus" class="muted"></span>
+      </div>
+      <div class="ads-stats-filter">
         <label for="campaignSelector">Campaign:</label>
         <select id="campaignSelector">
           <option value="All">All</option>
@@ -23,7 +27,6 @@
         </select>
       </div>
     </div>
-    <a href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/" target="_blank" rel="noopener noreferrer">Refresh</a>
   </div>
 </div>
 
@@ -193,6 +196,14 @@
     <canvas id="poasChart"></canvas>
   </div>
   <div class="chart-container">
+    <h3>Profit Timeline (Reconciled Click Date)</h3>
+    <canvas id="reconciledProfitTimelineChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <h3>POAS Timeline (Reconciled Click Date)</h3>
+    <canvas id="reconciledPoasTimelineChart"></canvas>
+  </div>
+  <div class="chart-container">
     <h3>CPC / Conversion Rate</h3>
     <canvas id="cpcAndConversionRateChart"></canvas>
   </div>
@@ -212,10 +223,49 @@
   if (window.initAdsStatsPage) {
     window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
+      reconciledClickDateChartData: {{ reconciled_click_date_chart_data | tojson }},
     });
   }
 
   const kdpUploadForm = document.getElementById('kdpUploadForm');
+  const adsStatsRefreshButton = document.getElementById('adsStatsRefreshButton');
+  const adsStatsRefreshStatus = document.getElementById('adsStatsRefreshStatus');
+  if (adsStatsRefreshButton && adsStatsRefreshStatus) {
+    adsStatsRefreshButton.addEventListener('click', async () => {
+      adsStatsRefreshButton.disabled = true;
+      adsStatsRefreshStatus.textContent = 'Working...';
+      try {
+        const response = await fetch('/admin/ads-stats/refresh', {
+          method: 'POST',
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Refresh failed');
+        }
+        if (data.called === 'request') {
+          adsStatsRefreshButton.textContent = 'Fetch';
+          adsStatsRefreshStatus.textContent = 'Reports requested.';
+        } else if (data.called === 'fetch' && data.done) {
+          const doneEl = document.createElement('span');
+          doneEl.id = 'adsStatsRefreshDone';
+          doneEl.className = 'muted';
+          doneEl.textContent = 'Done!';
+          adsStatsRefreshButton.replaceWith(doneEl);
+          adsStatsRefreshStatus.textContent = '';
+        } else {
+          adsStatsRefreshButton.textContent = data.button_text || 'Fetch';
+          adsStatsRefreshStatus.textContent = 'Reports not ready yet.';
+          adsStatsRefreshButton.disabled = false;
+        }
+        if (data.called === 'request') {
+          adsStatsRefreshButton.disabled = false;
+        }
+      } catch (error) {
+        adsStatsRefreshStatus.textContent = error?.message || 'Refresh failed';
+        adsStatsRefreshButton.disabled = false;
+      }
+    });
+  }
   if (kdpUploadForm) {
     kdpUploadForm.addEventListener('submit', async (event) => {
       event.preventDefault();

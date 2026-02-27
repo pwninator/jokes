@@ -70,7 +70,8 @@ class BookKey(enum.Enum):
   """Identifiers for supported books."""
   ANIMAL_JOKES = "animal-jokes"
   VALENTINE_JOKES = "valentine-jokes"
-  ARCHIVED_BOOKS = "archived-books"
+  ANIMAL_JOKES_ARCHIVED = "animal-jokes-archived"
+  VALENTINE_JOKES_ARCHIVED = "valentine-jokes-archived"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -215,9 +216,9 @@ BOOKS: dict[BookKey, Book] = {
       ),
     },
   ),
-  BookKey.ARCHIVED_BOOKS:
+  BookKey.ANIMAL_JOKES_ARCHIVED:
   Book(
-    title="Archived Books",
+    title="Cute & Silly Animal Jokes (Archived)",
     variants={
       BookFormat.PAPERBACK:
       BookVariant(
@@ -230,7 +231,12 @@ BOOKS: dict[BookKey, Book] = {
         min_price_usd=PAPERBACK_MIN_PRICE_USD,
         max_price_usd=PAPERBACK_MAX_PRICE_USD,
       ),
-      BookFormat.EBOOK:
+    }),
+  BookKey.VALENTINE_JOKES_ARCHIVED:
+  Book(
+    title="Cute & Silly Valentine's Day Jokes (Archived)",
+    variants={
+      BookFormat.PAPERBACK:
       BookVariant(
         # Valentine's Day premium color ebook
         asin='B0GKYSMX7P',
@@ -238,8 +244,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.PAPERBACK,
         print_cost=5.88,
         royalty_rate=0.6,
-        min_price_usd=EBOOK_MIN_PRICE_USD,
-        max_price_usd=EBOOK_MAX_PRICE_USD,
+        min_price_usd=PAPERBACK_MIN_PRICE_USD,
+        max_price_usd=PAPERBACK_MAX_PRICE_USD,
       ),
     },
   ),

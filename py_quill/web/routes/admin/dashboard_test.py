@@ -812,9 +812,7 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="stat-sales"' not in html
   assert "<h3>Sales</h3>" not in html
 
-  assert "<h3>Profit</h3>" in html
   assert "<h3>Profit (Reconciled)</h3>" in html
-  assert "<h3>POAS</h3>" in html
   assert "<h3>POAS (Reconciled)</h3>" in html
   assert "<h3>Gross Profit</h3>" not in html
   assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
@@ -830,40 +828,41 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="adsStatsTopDataButton"' in html
   assert 'id="adsStatsTopDataPopup"' in html
   assert 'id="stat-ctr"' in html
-  assert 'id="stat-gp-pre-ad-reconciled"' in html
-  assert 'id="stat-gp-reconciled"' in html
+  assert 'id="stat-profit-before-ads-ads"' in html
+  assert 'id="stat-profit-before-ads-reconciled"' in html
+  assert 'id="stat-gross-profit"' in html
   assert '<canvas id="ctrChart"></canvas>' in html
   assert '<option value="Timeline">Timeline</option>' in html
   assert '<option value="Days of Week">Days of Week</option>' in html
   assert 'class="ads-stats-filters-row"' in html
   assert "flex-wrap: wrap;" in html
 
-  profit_pos = html.find("<h3>Profit</h3>")
   reconciled_profit_pos = html.find("<h3>Profit (Reconciled)</h3>")
-  poas_pos = html.find("<h3>POAS</h3>")
   reconciled_poas_pos = html.find("<h3>POAS (Reconciled)</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
   ctr_pos = html.find("<h3>CTR</h3>")
   impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")
+  ads_profit_breakdown_pos = html.find("<h3>Ads Profit Breakdown</h3>")
 
-  assert profit_pos != -1
-  assert poas_pos != -1
   assert reconciled_profit_pos != -1
   assert reconciled_poas_pos != -1
   assert cpc_and_cr_pos != -1
   assert ctr_pos != -1
   assert impressions_and_clicks_pos != -1
+  assert ads_profit_breakdown_pos != -1
   assert "<h3>Impressions</h3>" not in html
   assert "<h3>Clicks</h3>" not in html
   assert '<canvas id="impressionsAndClicksChart"></canvas>' in html
   assert '<canvas id="reconciledProfitTimelineChart"></canvas>' in html
   assert '<canvas id="reconciledPoasTimelineChart"></canvas>' in html
-  assert profit_pos < reconciled_profit_pos
-  assert reconciled_profit_pos < poas_pos
-  assert poas_pos < reconciled_poas_pos
+  assert '<canvas id="adsProfitBreakdownChart"></canvas>' in html
+  assert '<canvas id="profitChart"></canvas>' not in html
+  assert '<canvas id="poasChart"></canvas>' not in html
   assert reconciled_poas_pos < cpc_and_cr_pos
+  assert reconciled_profit_pos < reconciled_poas_pos
   assert cpc_and_cr_pos < ctr_pos
   assert ctr_pos < impressions_and_clicks_pos
+  assert impressions_and_clicks_pos < ads_profit_breakdown_pos
 
 
 def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
@@ -893,13 +892,12 @@ def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
   html = resp.get_data(as_text=True)
 
   chart_canvas_ids = [
-    'profitChart',
     'reconciledProfitTimelineChart',
-    'poasChart',
     'reconciledPoasTimelineChart',
     'cpcAndConversionRateChart',
     'ctrChart',
     'impressionsAndClicksChart',
+    'adsProfitBreakdownChart',
   ]
   for canvas_id in chart_canvas_ids:
     assert f'data-canvas-id="{canvas_id}"' in html, f"Missing data-canvas-id for {canvas_id}"

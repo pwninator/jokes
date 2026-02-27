@@ -334,20 +334,16 @@
     <div class="stat-card__value" id="stat-conversion-rate">0.0%</div>
   </div>
   <div class="stat-card">
-    <div class="stat-card__label">Gross Profit (Pre-Ad)</div>
-    <div class="stat-card__value" id="stat-gp-pre-ad">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd) }}</div>
+    <div class="stat-card__label">Profit Before Ads (ads)</div>
+    <div class="stat-card__value" id="stat-profit-before-ads-ads">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__label">Profit Before Ads (reconciled)</div>
+    <div class="stat-card__value" id="stat-profit-before-ads-reconciled">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd + reconciled_click_date_chart_data.total_organic_profit_usd) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Gross Profit</div>
-    <div class="stat-card__value" id="stat-gp">{{ "${:,.2f}".format(chart_data.total_gross_profit_usd) }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card__label">Gross Profit (Pre-Ad, Reconciled)</div>
-    <div class="stat-card__value" id="stat-gp-pre-ad-reconciled">{{ "${:,.2f}".format(reconciled_click_date_chart_data.total_gross_profit_before_ads_usd) }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card__label">Gross Profit (Reconciled)</div>
-    <div class="stat-card__value" id="stat-gp-reconciled">{{ "${:,.2f}".format(reconciled_click_date_chart_data.total_gross_profit_usd) }}</div>
+    <div class="stat-card__value" id="stat-gross-profit">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd + reconciled_click_date_chart_data.total_organic_profit_usd - chart_data.total_cost) }}</div>
   </div>
 </div>
 
@@ -358,27 +354,11 @@
 <section class="stats-charts">
   <div class="chart-container">
     <div class="chart-header">
-      <h3>Profit</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="profitChart">Data</button>
-    </div>
-    <div class="chart-data-popup" id="profitChart-data-popup" data-canvas-id="profitChart" role="status" aria-live="polite" aria-hidden="true"></div>
-    <canvas id="profitChart"></canvas>
-  </div>
-  <div class="chart-container">
-    <div class="chart-header">
       <h3>Profit (Reconciled)</h3>
       <button class="chart-data-button" type="button" data-canvas-id="reconciledProfitTimelineChart">Data</button>
     </div>
     <div class="chart-data-popup" id="reconciledProfitTimelineChart-data-popup" data-canvas-id="reconciledProfitTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="reconciledProfitTimelineChart"></canvas>
-  </div>
-  <div class="chart-container">
-    <div class="chart-header">
-      <h3>POAS</h3>
-      <button class="chart-data-button" type="button" data-canvas-id="poasChart">Data</button>
-    </div>
-    <div class="chart-data-popup" id="poasChart-data-popup" data-canvas-id="poasChart" role="status" aria-live="polite" aria-hidden="true"></div>
-    <canvas id="poasChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
@@ -411,6 +391,14 @@
     </div>
     <div class="chart-data-popup" id="impressionsAndClicksChart-data-popup" data-canvas-id="impressionsAndClicksChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="impressionsAndClicksChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <div class="chart-header">
+      <h3>Ads Profit Breakdown</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="adsProfitBreakdownChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="adsProfitBreakdownChart-data-popup" data-canvas-id="adsProfitBreakdownChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <canvas id="adsProfitBreakdownChart"></canvas>
   </div>
 </section>
 

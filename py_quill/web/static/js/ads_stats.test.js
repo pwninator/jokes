@@ -204,7 +204,7 @@ test('buildChartStats keeps totals stable while Days of Week series skips zero-i
   assertClose(daysOfWeek.poas[1], 0);
 });
 
-test('buildReconciledChartStats matches main chart cost and poas for campaign All', () => {
+test('buildReconciledChartStats exposes ads and reconciled profit series for campaign All', () => {
   const chartData = {
     labels: ['2026-02-22', '2026-02-23'],
     impressions: [10, 20],
@@ -240,25 +240,38 @@ test('buildReconciledChartStats matches main chart cost and poas for campaign Al
 
   assert.deepEqual(timeline.labels, ['2026-02-22', '2026-02-23']);
   assert.deepEqual(timeline.cost, [4, 10]);
+  assert.deepEqual(timeline.ads_profit_before_ads_usd, [6, 15]);
+  assert.deepEqual(timeline.matched_ads_profit_before_ads_usd, [5, 11]);
+  assert.deepEqual(timeline.gross_profit_before_ads_usd, [5, 11]);
+  assert.deepEqual(timeline.reconciled_profit_before_ads_usd, [7, 18]);
   assertClose(timeline.poas[0], 6 / 4);
   assertClose(timeline.poas[1], 15 / 10);
   assertClose(timeline.tpoas[0], (6 + 1) / 4);
   assertClose(timeline.tpoas[1], (15 + 3) / 10);
-  assert.deepEqual(timeline.gross_profit_before_ads_usd, [5, 11]);
   assert.deepEqual(timeline.organic_profit_usd, [1, 3]);
   assert.deepEqual(timeline.unmatched_pre_ad_profit_usd, [1, 4]);
-  assert.deepEqual(timeline.gross_profit_usd, [2, 4]);
+  assert.deepEqual(timeline.gross_profit_usd, [3, 8]);
+  assertClose(timeline.totals.ads_profit_before_ads_usd, 21);
+  assertClose(timeline.totals.matched_ads_profit_before_ads_usd, 16);
+  assertClose(timeline.totals.reconciled_profit_before_ads_usd, 25);
   assertClose(timeline.totals.unmatched_pre_ad_profit_usd, 5);
+  assertClose(timeline.totals.gross_profit_usd, 11);
 
   assert.deepEqual(daysOfWeek.labels, DAYS_OF_WEEK_LABELS);
   assertClose(daysOfWeek.cost[0], 4); // Sunday
   assertClose(daysOfWeek.cost[1], 10); // Monday
+  assertClose(daysOfWeek.ads_profit_before_ads_usd[0], 6);
+  assertClose(daysOfWeek.ads_profit_before_ads_usd[1], 15);
+  assertClose(daysOfWeek.reconciled_profit_before_ads_usd[0], 7);
+  assertClose(daysOfWeek.reconciled_profit_before_ads_usd[1], 18);
   assertClose(daysOfWeek.poas[0], 6 / 4);
   assertClose(daysOfWeek.poas[1], 15 / 10);
   assertClose(daysOfWeek.tpoas[0], (6 + 1) / 4);
   assertClose(daysOfWeek.tpoas[1], (15 + 3) / 10);
   assertClose(daysOfWeek.unmatched_pre_ad_profit_usd[0], 1);
   assertClose(daysOfWeek.unmatched_pre_ad_profit_usd[1], 4);
+  assertClose(daysOfWeek.gross_profit_usd[0], 3);
+  assertClose(daysOfWeek.gross_profit_usd[1], 8);
 });
 
 test('buildReconciledChartStats returns empty series for specific campaigns', () => {
@@ -289,6 +302,8 @@ test('buildReconciledChartStats returns empty series for specific campaigns', ()
 
   assert.deepEqual(reconciled.labels, []);
   assert.deepEqual(reconciled.cost, []);
+  assert.deepEqual(reconciled.ads_profit_before_ads_usd, []);
+  assert.deepEqual(reconciled.reconciled_profit_before_ads_usd, []);
   assert.deepEqual(reconciled.unmatched_pre_ad_profit_usd, []);
   assert.deepEqual(reconciled.poas, []);
   assert.deepEqual(reconciled.tpoas, []);

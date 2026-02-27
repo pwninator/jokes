@@ -237,7 +237,10 @@
   function calculateReconciledTotals(reconciledDailyStats) {
     const totals = {
       cost: 0,
+      ads_profit_before_ads_usd: 0,
+      matched_ads_profit_before_ads_usd: 0,
       gross_profit_before_ads_usd: 0,
+      reconciled_profit_before_ads_usd: 0,
       organic_profit_usd: 0,
       unmatched_pre_ad_profit_usd: 0,
       gross_profit_usd: 0,
@@ -245,7 +248,10 @@
 
     (reconciledDailyStats || []).forEach((day) => {
       totals.cost += toNumber(day.cost);
+      totals.ads_profit_before_ads_usd += toNumber(day.ads_profit_before_ads_usd);
+      totals.matched_ads_profit_before_ads_usd += toNumber(day.matched_ads_profit_before_ads_usd);
       totals.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
+      totals.reconciled_profit_before_ads_usd += toNumber(day.reconciled_profit_before_ads_usd);
       totals.organic_profit_usd += toNumber(day.organic_profit_usd);
       totals.unmatched_pre_ad_profit_usd += toNumber(day.unmatched_pre_ad_profit_usd);
       totals.gross_profit_usd += toNumber(day.gross_profit_usd);
@@ -415,19 +421,30 @@
     return (baseDailyStats || []).map((day) => {
       const reconciledDay = rowsByDate[day.dateKey] || {};
       const dayCost = toNumber(day.cost);
-      const dayReconciledGpPreAd = toNumber(reconciledDay.gross_profit_before_ads_usd);
+      const dayMatchedAdsProfitBeforeAds = toNumber(reconciledDay.gross_profit_before_ads_usd);
       const dayOrganicProfit = toNumber(reconciledDay.organic_profit_usd);
-      const dayRawGrossProfitBeforeAds = toNumber(day.gross_profit_before_ads_usd);
+      const dayAdsProfitBeforeAds = toNumber(day.gross_profit_before_ads_usd);
+      const dayUnmatchedAdsProfitBeforeAds = (
+        dayAdsProfitBeforeAds - dayMatchedAdsProfitBeforeAds
+      );
+      const dayReconciledProfitBeforeAds = (
+        dayMatchedAdsProfitBeforeAds
+        + dayUnmatchedAdsProfitBeforeAds
+        + dayOrganicProfit
+      );
       return {
         dateKey: day.dateKey,
         cost: dayCost,
-        raw_gross_profit_before_ads_usd: dayRawGrossProfitBeforeAds,
-        gross_profit_before_ads_usd: dayReconciledGpPreAd,
+        raw_gross_profit_before_ads_usd: dayAdsProfitBeforeAds,
+        ads_profit_before_ads_usd: dayAdsProfitBeforeAds,
+        matched_ads_profit_before_ads_usd: dayMatchedAdsProfitBeforeAds,
+        gross_profit_before_ads_usd: dayMatchedAdsProfitBeforeAds,
+        reconciled_profit_before_ads_usd: dayReconciledProfitBeforeAds,
         organic_profit_usd: dayOrganicProfit,
-        unmatched_pre_ad_profit_usd: dayRawGrossProfitBeforeAds - dayReconciledGpPreAd,
-        gross_profit_usd: dayReconciledGpPreAd + dayOrganicProfit - dayCost,
-        poas: dayCost > 0 ? dayRawGrossProfitBeforeAds / dayCost : 0,
-        tpoas: calculateTpoas(dayRawGrossProfitBeforeAds, dayOrganicProfit, dayCost),
+        unmatched_pre_ad_profit_usd: dayUnmatchedAdsProfitBeforeAds,
+        gross_profit_usd: dayReconciledProfitBeforeAds - dayCost,
+        poas: dayCost > 0 ? dayAdsProfitBeforeAds / dayCost : 0,
+        tpoas: dayCost > 0 ? dayReconciledProfitBeforeAds / dayCost : 0,
       };
     });
   }
@@ -437,7 +454,10 @@
       count: 0,
       cost: 0,
       raw_gross_profit_before_ads_usd: 0,
+      ads_profit_before_ads_usd: 0,
+      matched_ads_profit_before_ads_usd: 0,
       gross_profit_before_ads_usd: 0,
+      reconciled_profit_before_ads_usd: 0,
       organic_profit_usd: 0,
       unmatched_pre_ad_profit_usd: 0,
       gross_profit_usd: 0,
@@ -452,15 +472,24 @@
       bucket.count += 1;
       bucket.cost += toNumber(day.cost);
       bucket.raw_gross_profit_before_ads_usd += toNumber(day.raw_gross_profit_before_ads_usd);
+      bucket.ads_profit_before_ads_usd += toNumber(day.ads_profit_before_ads_usd);
+      bucket.matched_ads_profit_before_ads_usd += toNumber(day.matched_ads_profit_before_ads_usd);
       bucket.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
+      bucket.reconciled_profit_before_ads_usd += toNumber(day.reconciled_profit_before_ads_usd);
       bucket.organic_profit_usd += toNumber(day.organic_profit_usd);
       bucket.unmatched_pre_ad_profit_usd += toNumber(day.unmatched_pre_ad_profit_usd);
       bucket.gross_profit_usd += toNumber(day.gross_profit_usd);
     });
 
     const cost = weekdayBuckets.map((bucket) => average(bucket.cost, bucket.count));
+    const adsProfitBeforeAds = weekdayBuckets.map((bucket) =>
+      average(bucket.ads_profit_before_ads_usd, bucket.count));
+    const matchedAdsProfitBeforeAds = weekdayBuckets.map((bucket) =>
+      average(bucket.matched_ads_profit_before_ads_usd, bucket.count));
     const grossProfitBeforeAds = weekdayBuckets.map((bucket) =>
       average(bucket.gross_profit_before_ads_usd, bucket.count));
+    const reconciledProfitBeforeAds = weekdayBuckets.map((bucket) =>
+      average(bucket.reconciled_profit_before_ads_usd, bucket.count));
     const organicProfit = weekdayBuckets.map((bucket) =>
       average(bucket.organic_profit_usd, bucket.count));
     const unmatchedPreAdProfit = weekdayBuckets.map((bucket) =>
@@ -471,7 +500,10 @@
     return {
       labels: DAYS_OF_WEEK_LABELS.slice(),
       cost: cost,
+      ads_profit_before_ads_usd: adsProfitBeforeAds,
+      matched_ads_profit_before_ads_usd: matchedAdsProfitBeforeAds,
       gross_profit_before_ads_usd: grossProfitBeforeAds,
+      reconciled_profit_before_ads_usd: reconciledProfitBeforeAds,
       organic_profit_usd: organicProfit,
       unmatched_pre_ad_profit_usd: unmatchedPreAdProfit,
       gross_profit_usd: grossProfit,
@@ -500,7 +532,10 @@
       return {
         labels: [],
         cost: [],
+        ads_profit_before_ads_usd: [],
+        matched_ads_profit_before_ads_usd: [],
         gross_profit_before_ads_usd: [],
+        reconciled_profit_before_ads_usd: [],
         gross_profit_usd: [],
         organic_profit_usd: [],
         unmatched_pre_ad_profit_usd: [],
@@ -508,7 +543,10 @@
         tpoas: [],
         totals: {
           cost: 0,
+          ads_profit_before_ads_usd: 0,
+          matched_ads_profit_before_ads_usd: 0,
           gross_profit_before_ads_usd: 0,
+          reconciled_profit_before_ads_usd: 0,
           organic_profit_usd: 0,
           unmatched_pre_ad_profit_usd: 0,
           gross_profit_usd: 0,
@@ -523,7 +561,10 @@
         impressions: toNumber(baseDailyStats[index] && baseDailyStats[index].impressions),
         cost: day.cost,
         raw_gross_profit_before_ads_usd: day.raw_gross_profit_before_ads_usd,
+        ads_profit_before_ads_usd: day.ads_profit_before_ads_usd,
+        matched_ads_profit_before_ads_usd: day.matched_ads_profit_before_ads_usd,
         gross_profit_before_ads_usd: day.gross_profit_before_ads_usd,
+        reconciled_profit_before_ads_usd: day.reconciled_profit_before_ads_usd,
         organic_profit_usd: day.organic_profit_usd,
         unmatched_pre_ad_profit_usd: day.unmatched_pre_ad_profit_usd,
         gross_profit_usd: day.gross_profit_usd,
@@ -541,8 +582,14 @@
     return {
       labels: baseDailyStats.map((day) => day.dateKey),
       cost: reconciledDailyStats.map((day) => day.cost),
+      ads_profit_before_ads_usd: reconciledDailyStats.map(
+        (day) => day.ads_profit_before_ads_usd),
+      matched_ads_profit_before_ads_usd: reconciledDailyStats.map(
+        (day) => day.matched_ads_profit_before_ads_usd),
       gross_profit_before_ads_usd: reconciledDailyStats.map(
         (day) => day.gross_profit_before_ads_usd),
+      reconciled_profit_before_ads_usd: reconciledDailyStats.map(
+        (day) => day.reconciled_profit_before_ads_usd),
       gross_profit_usd: reconciledDailyStats.map((day) => day.gross_profit_usd),
       organic_profit_usd: reconciledDailyStats.map((day) => day.organic_profit_usd),
       unmatched_pre_ad_profit_usd: reconciledDailyStats.map(
@@ -1013,13 +1060,7 @@
         };
       }
 
-      function renderProfitChart(
-        canvasId,
-        series,
-        includeOrganicProfit,
-        includeUnmatchedPreAdProfit,
-        mode,
-      ) {
+      function renderReconciledProfitChart(series, mode) {
         const datasets = [
           createLineDataset({
             label: 'Cost',
@@ -1028,8 +1069,14 @@
             formatType: 'currency',
           }),
           createLineDataset({
-            label: 'Gross Profit Before Ads',
-            data: series.gross_profit_before_ads_usd,
+            label: 'Profit Before Ads (ads)',
+            data: series.ads_profit_before_ads_usd,
+            borderColor: '#1565c0',
+            formatType: 'currency',
+          }),
+          createLineDataset({
+            label: 'Profit Before Ads (reconciled)',
+            data: series.reconciled_profit_before_ads_usd,
             borderColor: '#2e7d32',
             formatType: 'currency',
           }),
@@ -1041,24 +1088,8 @@
             formatType: 'currency',
           }),
         ];
-        if (includeOrganicProfit) {
-          datasets.push(createLineDataset({
-            label: 'Organic Profit',
-            data: series.organic_profit_usd,
-            borderColor: '#1565c0',
-            formatType: 'currency',
-          }));
-        }
-        if (includeUnmatchedPreAdProfit) {
-          datasets.push(createLineDataset({
-            label: 'Unmatched Ad Profit',
-            data: series.unmatched_pre_ad_profit_usd,
-            borderColor: '#ef6c00',
-            formatType: 'currency',
-          }));
-        }
         createMultiLineChart(
-          canvasId,
+          'reconciledProfitTimelineChart',
           series.labels,
           datasets,
           buildSingleAxis('currency'),
@@ -1066,22 +1097,22 @@
         );
       }
 
-      function renderPoasChart(canvasId, series, includeTpoas, mode) {
-        const ratioSeries = includeTpoas ? [...series.poas, ...series.tpoas] : [...series.poas];
+      function renderPoasChart(canvasId, series, poasLabel, poasColor, tpoasLabel, tpoasColor, mode) {
+        const ratioSeries = tpoasLabel ? [...series.poas, ...series.tpoas] : [...series.poas];
         const suggestedMax = Math.max(1.1, ...ratioSeries, 1.0);
         const datasets = [
           createLineDataset({
-            label: 'POAS',
+            label: poasLabel,
             data: series.poas,
-            borderColor: '#1565c0',
+            borderColor: poasColor,
             formatType: 'ratio',
           }),
         ];
-        if (includeTpoas) {
+        if (tpoasLabel) {
           datasets.push(createLineDataset({
-            label: 'TPOAS',
+            label: tpoasLabel,
             data: series.tpoas,
-            borderColor: '#6a1b9a',
+            borderColor: tpoasColor,
             formatType: 'ratio',
           }));
         }
@@ -1162,6 +1193,35 @@
         );
       }
 
+      function renderAdsProfitBreakdownChart(series, mode) {
+        createMultiLineChart(
+          'adsProfitBreakdownChart',
+          series.labels,
+          [
+            createLineDataset({
+              label: 'Profit Before Ads (ads)',
+              data: series.ads_profit_before_ads_usd,
+              borderColor: '#1565c0',
+              formatType: 'currency',
+            }),
+            createLineDataset({
+              label: 'Matched Ads Profit',
+              data: series.matched_ads_profit_before_ads_usd,
+              borderColor: '#2e7d32',
+              formatType: 'currency',
+            }),
+            createLineDataset({
+              label: 'Unmatched Ad Profit',
+              data: series.unmatched_pre_ad_profit_usd,
+              borderColor: '#c62828',
+              formatType: 'currency',
+            }),
+          ],
+          buildSingleAxis('currency'),
+          mode,
+        );
+      }
+
       function calculateAndRender(campaignName, mode) {
         const stats = buildChartStats(adsStatsData, campaignName, mode);
         const reconciledStats = buildReconciledChartStats(
@@ -1171,27 +1231,29 @@
           reconciledClickDateChartData,
         );
 
-        renderProfitChart('profitChart', stats, false, false, mode);
-        renderProfitChart(
-          'reconciledProfitTimelineChart',
+        renderReconciledProfitChart(reconciledStats, mode);
+        renderPoasChart(
+          'reconciledPoasTimelineChart',
           reconciledStats,
-          true,
-          true,
+          'POAS',
+          '#ef6c00',
+          'TPOAS',
+          '#2e7d32',
           mode,
         );
-        renderPoasChart('poasChart', stats, false, mode);
-        renderPoasChart('reconciledPoasTimelineChart', reconciledStats, true, mode);
         renderCpcAndConversionRateChart(stats, mode);
         renderCtrChart(stats, mode);
         renderImpressionsAndClicksChart(stats, mode);
+        renderAdsProfitBreakdownChart(reconciledStats, mode);
 
         const statImpressions = document.getElementById('stat-impressions');
         const statClicks = document.getElementById('stat-clicks');
         const statCost = document.getElementById('stat-cost');
-        const statGpPreAd = document.getElementById('stat-gp-pre-ad');
-        const statGp = document.getElementById('stat-gp');
-        const statGpPreAdReconciled = document.getElementById('stat-gp-pre-ad-reconciled');
-        const statGpReconciled = document.getElementById('stat-gp-reconciled');
+        const statProfitBeforeAdsAds = document.getElementById('stat-profit-before-ads-ads');
+        const statProfitBeforeAdsReconciled = document.getElementById(
+          'stat-profit-before-ads-reconciled',
+        );
+        const statGrossProfit = document.getElementById('stat-gross-profit');
         const statCtr = document.getElementById('stat-ctr');
         const statCpc = document.getElementById('stat-cpc');
         const statConversionRate = document.getElementById('stat-conversion-rate');
@@ -1205,19 +1267,19 @@
         if (statCost) {
           statCost.textContent = formatCurrency(stats.totals.cost);
         }
-        if (statGpPreAd) {
-          statGpPreAd.textContent = formatCurrency(stats.totals.gross_profit_before_ads_usd);
-        }
-        if (statGp) {
-          statGp.textContent = formatCurrency(stats.totals.gross_profit_usd);
-        }
-        if (statGpPreAdReconciled) {
-          statGpPreAdReconciled.textContent = formatCurrency(
-            toNumber(reconciledStats.totals && reconciledStats.totals.gross_profit_before_ads_usd),
+        if (statProfitBeforeAdsAds) {
+          statProfitBeforeAdsAds.textContent = formatCurrency(
+            toNumber(reconciledStats.totals && reconciledStats.totals.ads_profit_before_ads_usd),
           );
         }
-        if (statGpReconciled) {
-          statGpReconciled.textContent = formatCurrency(
+        if (statProfitBeforeAdsReconciled) {
+          statProfitBeforeAdsReconciled.textContent = formatCurrency(
+            toNumber(reconciledStats.totals
+              && reconciledStats.totals.reconciled_profit_before_ads_usd),
+          );
+        }
+        if (statGrossProfit) {
+          statGrossProfit.textContent = formatCurrency(
             toNumber(reconciledStats.totals && reconciledStats.totals.gross_profit_usd),
           );
         }

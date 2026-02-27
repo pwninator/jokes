@@ -1226,21 +1226,6 @@ def _load_kdp_price_candidates_by_market_currency_asin(
     for market_stats in daily_stat.market_currency_stats_by_key.values():
       _add_kdp_candidates_from_market_stats(candidates, market_stats)
 
-    # Backward compatibility for historical docs without market/currency buckets.
-    for sale_item in daily_stat.sale_items:
-      units = _as_int(sale_item.units_sold)
-      if units <= 0:
-        continue
-      canonical_asin = _safe_canonical_book_variant_asin(sale_item.asin)
-      if not canonical_asin:
-        continue
-      key = ("ANY", _USD_CURRENCY_CODE, canonical_asin)
-      _add_price_candidate(
-        candidates,
-        key,
-        _as_float(sale_item.total_sales_usd) / units,
-      )
-
   return {
     key: tuple(sorted(prices))
     for key, prices in candidates.items() if prices
@@ -1266,7 +1251,7 @@ def _add_kdp_candidates_from_market_stats(
     for price in prices:
       _add_price_candidate(candidates, key, price)
 
-  for sale_item in market_stats.sale_items:
+  for sale_item in market_stats.sale_items_by_asin.values():
     units = _as_int(sale_item.units_sold)
     if units <= 0:
       continue
@@ -1457,10 +1442,6 @@ def _resolve_candidate_prices_for_variant(
        ), prices in kdp_price_candidates_by_market_currency_asin.items():
     if candidate_market == market_code and candidate_asin == variant.asin:
       candidate_prices.update(prices)
-
-  candidate_prices.update(
-    kdp_price_candidates_by_market_currency_asin.get(
-      ("ANY", _USD_CURRENCY_CODE, variant.asin), ()))
 
   if variant.min_price_usd is not None:
     candidate_prices = {

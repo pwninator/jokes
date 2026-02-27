@@ -254,7 +254,7 @@ def _apply_kdp_reconciliation_for_day(
     return
 
   ship_doc = docs_by_date[current_date]
-  for sale_item in kdp_stat.sale_items:
+  for sale_item in kdp_stat.sale_items_by_asin.values():
     canonical_asin = _canonical_book_variant_asin(sale_item.asin)
     if not canonical_asin:
       continue

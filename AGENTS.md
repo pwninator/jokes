@@ -2,6 +2,12 @@
 
 This document contains everything AI agents need to work effectively on this codebase. It combines project overview, architecture, testing patterns, and operational guidelines.
 
+## Priority Instructions
+
+- Follow existing code conventions and patterns. Before writing code, always read nearby existing code to understand existing patterns.
+- Besides correctness and performance, your code must be simple, elegant, well designed, DRY, readable, and intuitive. Before creating new code, always read existing nearby code to check if similar functionality already exists. If you encounter any hacks, code smells, etc., immediately stop your work and flag them to the user.
+- Other users are modifying the code in parallel. If you encounter test failures due to mismatched names, update the test to match the code, not the other way around.
+
 ## 1. Project Overview
 
 **Snickerdoodle** is a mobile jokes app that delivers AI-generated illustrated jokes to users.

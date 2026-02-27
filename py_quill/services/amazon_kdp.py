@@ -1,13 +1,9 @@
 """KDP xlsx parsing helpers for daily sales and KENP stats."""
 
-# pylint: disable=duplicate-code
-
 from __future__ import annotations
 
 import datetime
 import io
-from collections import defaultdict
-from dataclasses import dataclass, field
 from typing import Any
 
 import openpyxl
@@ -47,41 +43,6 @@ class AmazonKdpError(Exception):
   """Raised when KDP report parsing or validation fails."""
 
 
-@dataclass(kw_only=True)
-class _DailyAggregate:
-  """Mutable aggregate for one date while parsing report rows."""
-
-  kenp_pages_read: int = 0
-  ebook_units_sold: int = 0
-  paperback_units_sold: int = 0
-  hardcover_units_sold: int = 0
-  total_royalties_usd: float = 0.0
-  ebook_royalties_usd: float = 0.0
-  paperback_royalties_usd: float = 0.0
-  hardcover_royalties_usd: float = 0.0
-  total_print_cost_usd: float = 0.0
-  sale_items_by_asin: dict[str, models.AmazonProductStats] = field(
-    default_factory=dict)
-  market_currency_aggregates: dict[str, _MarketCurrencyAggregate] = field(
-    default_factory=dict)
-
-
-@dataclass(kw_only=True)
-class _MarketCurrencyAggregate:
-  """Mutable aggregate for one date+market+currency bucket."""
-
-  market: str
-  currency_code: str
-  kenp_pages_read: int = 0
-  total_units_sold: int = 0
-  total_royalties_usd: float = 0.0
-  total_print_cost_usd: float = 0.0
-  sale_items_by_asin: dict[str, models.AmazonProductStats] = field(
-    default_factory=dict)
-  avg_offer_price_usd_candidates_by_asin: dict[str, set[float]] = field(
-    default_factory=dict)
-
-
 def parse_kdp_xlsx(file_bytes: bytes) -> list[models.AmazonKdpDailyStats]:
   """Parse a KDP dashboard xlsx into daily stats models."""
   if not file_bytes:
@@ -91,62 +52,11 @@ def parse_kdp_xlsx(file_bytes: bytes) -> list[models.AmazonKdpDailyStats]:
   combined_sales = _read_sheet_rows(workbook, "Combined Sales")
   kenp_rows = _read_sheet_rows(workbook, "KENP Read")
 
-  aggregates_by_date: dict[datetime.date,
-                           _DailyAggregate] = defaultdict(_DailyAggregate)
-  _apply_combined_sales_rows(combined_sales, aggregates_by_date)
-  _apply_kenp_rows(kenp_rows, aggregates_by_date)
-
-  output: list[models.AmazonKdpDailyStats] = []
-  for date_value in sorted(aggregates_by_date.keys()):
-    aggregate = aggregates_by_date[date_value]
-    sale_items = sorted(
-      aggregate.sale_items_by_asin.values(),
-      key=lambda item: item.asin,
-    )
-    market_currency_stats_by_key: dict[
-      str, models.AmazonKdpMarketCurrencyStats] = {}
-    for key in sorted(aggregate.market_currency_aggregates.keys()):
-      market_currency_aggregate = aggregate.market_currency_aggregates[key]
-      market_sale_items = sorted(
-        market_currency_aggregate.sale_items_by_asin.values(),
-        key=lambda item: item.asin,
-      )
-      market_currency_stats_by_key[key] = models.AmazonKdpMarketCurrencyStats(
-        market=market_currency_aggregate.market,
-        currency_code=market_currency_aggregate.currency_code,
-        total_units_sold=market_currency_aggregate.total_units_sold,
-        kenp_pages_read=market_currency_aggregate.kenp_pages_read,
-        total_royalties_usd=round(
-          market_currency_aggregate.total_royalties_usd, 2),
-        total_print_cost_usd=round(
-          market_currency_aggregate.total_print_cost_usd, 2),
-        sale_items=market_sale_items,
-        avg_offer_price_usd_candidates_by_asin={
-          asin: sorted(prices)
-          for asin, prices in
-          sorted(market_currency_aggregate.
-                 avg_offer_price_usd_candidates_by_asin.items()) if prices
-        },
-      )
-    output.append(
-      models.AmazonKdpDailyStats(
-        date=date_value,
-        total_units_sold=(aggregate.ebook_units_sold +
-                          aggregate.paperback_units_sold +
-                          aggregate.hardcover_units_sold),
-        kenp_pages_read=aggregate.kenp_pages_read,
-        ebook_units_sold=aggregate.ebook_units_sold,
-        paperback_units_sold=aggregate.paperback_units_sold,
-        hardcover_units_sold=aggregate.hardcover_units_sold,
-        total_royalties_usd=round(aggregate.total_royalties_usd, 2),
-        ebook_royalties_usd=round(aggregate.ebook_royalties_usd, 2),
-        paperback_royalties_usd=round(aggregate.paperback_royalties_usd, 2),
-        hardcover_royalties_usd=round(aggregate.hardcover_royalties_usd, 2),
-        total_print_cost_usd=round(aggregate.total_print_cost_usd, 2),
-        sale_items=sale_items,
-        market_currency_stats_by_key=market_currency_stats_by_key,
-      ))
-  return output
+  stats_by_date: dict[datetime.date, models.AmazonKdpDailyStats] = {}
+  _apply_combined_sales_rows(combined_sales, stats_by_date)
+  _apply_kenp_rows(kenp_rows, stats_by_date)
+  _finalize_stats(stats_by_date)
+  return [stats_by_date[date_value] for date_value in sorted(stats_by_date)]
 
 
 def _load_workbook(file_bytes: bytes) -> openpyxl.Workbook:
@@ -184,7 +94,7 @@ def _read_sheet_rows(workbook: openpyxl.Workbook,
 
 def _apply_combined_sales_rows(
   rows: list[dict[str, Any]],
-  aggregates_by_date: dict[datetime.date, _DailyAggregate],
+  stats_by_date: dict[datetime.date, models.AmazonKdpDailyStats],
 ) -> None:
   """Merge Combined Sales rows into daily aggregates with validations."""
   for row in rows:
@@ -221,23 +131,23 @@ def _apply_combined_sales_rows(
     sales_amount_usd = avg_offer_price_usd * net_units_sold
     print_cost_usd = print_cost_per_unit_usd * net_units_sold
 
-    aggregate = aggregates_by_date[date_value]
+    daily_stat = _get_or_create_daily_stat(stats_by_date, date_value)
     if format_name == "ebook":
-      aggregate.ebook_units_sold += net_units_sold
-      aggregate.ebook_royalties_usd += royalty_usd
+      daily_stat.ebook_units_sold += net_units_sold
+      daily_stat.ebook_royalties_usd += royalty_usd
     elif format_name == "paperback":
-      aggregate.paperback_units_sold += net_units_sold
-      aggregate.paperback_royalties_usd += royalty_usd
+      daily_stat.paperback_units_sold += net_units_sold
+      daily_stat.paperback_royalties_usd += royalty_usd
     else:
-      aggregate.hardcover_units_sold += net_units_sold
-      aggregate.hardcover_royalties_usd += royalty_usd
+      daily_stat.hardcover_units_sold += net_units_sold
+      daily_stat.hardcover_royalties_usd += royalty_usd
 
-    aggregate.total_royalties_usd += royalty_usd
-    aggregate.total_print_cost_usd += print_cost_usd
+    daily_stat.total_royalties_usd += royalty_usd
+    daily_stat.total_print_cost_usd += print_cost_usd
 
     canonical_asin = book_variant.asin
     _accumulate_sale_item(
-      aggregate.sale_items_by_asin,
+      daily_stat.sale_items_by_asin,
       canonical_asin=canonical_asin,
       units_sold=net_units_sold,
       sales_amount_usd=sales_amount_usd,
@@ -249,17 +159,17 @@ def _apply_combined_sales_rows(
       market=market,
       currency_code=currency_code,
     )
-    market_currency_aggregate = aggregate.market_currency_aggregates.setdefault(
-      market_currency_key,
-      _MarketCurrencyAggregate(
-        market=market,
-        currency_code=currency_code,
-      ))
-    market_currency_aggregate.total_units_sold += net_units_sold
-    market_currency_aggregate.total_royalties_usd += royalty_usd
-    market_currency_aggregate.total_print_cost_usd += print_cost_usd
+    market_currency_stats = _get_or_create_market_currency_stats(
+      daily_stat=daily_stat,
+      market_currency_key=market_currency_key,
+      market=market,
+      currency_code=currency_code,
+    )
+    market_currency_stats.total_units_sold += net_units_sold
+    market_currency_stats.total_royalties_usd += royalty_usd
+    market_currency_stats.total_print_cost_usd += print_cost_usd
     _accumulate_sale_item(
-      market_currency_aggregate.sale_items_by_asin,
+      market_currency_stats.sale_items_by_asin,
       canonical_asin=canonical_asin,
       units_sold=net_units_sold,
       sales_amount_usd=sales_amount_usd,
@@ -267,13 +177,16 @@ def _apply_combined_sales_rows(
       print_cost_usd=print_cost_usd,
     )
     if net_units_sold > 0 and avg_offer_price_usd > 0:
-      market_currency_aggregate.avg_offer_price_usd_candidates_by_asin.setdefault(
-        canonical_asin, set()).add(round(avg_offer_price_usd, 6))
+      _append_price_candidate(
+        market_currency_stats.avg_offer_price_usd_candidates_by_asin,
+        canonical_asin=canonical_asin,
+        price_usd=avg_offer_price_usd,
+      )
 
 
 def _apply_kenp_rows(
   rows: list[dict[str, Any]],
-  aggregates_by_date: dict[datetime.date, _DailyAggregate],
+  stats_by_date: dict[datetime.date, models.AmazonKdpDailyStats],
 ) -> None:
   """Merge KENP Read rows into daily aggregates."""
   for row in rows:
@@ -285,12 +198,12 @@ def _apply_kenp_rows(
       raise AmazonKdpError(f"Unknown ASIN in KENP Read sheet: {asin}")
     kenp_pages_read = _as_int(
       row.get("Kindle Edition Normalized Page (KENP) Read"))
-    aggregate = aggregates_by_date[date_value]
-    aggregate.kenp_pages_read += kenp_pages_read
+    daily_stat = _get_or_create_daily_stat(stats_by_date, date_value)
+    daily_stat.kenp_pages_read += kenp_pages_read
 
     canonical_asin = book_variant.asin
     _accumulate_sale_item(
-      aggregate.sale_items_by_asin,
+      daily_stat.sale_items_by_asin,
       canonical_asin=canonical_asin,
       kenp_pages_read=kenp_pages_read,
     )
@@ -300,18 +213,106 @@ def _apply_kenp_rows(
       market=market,
       currency_code=currency_code,
     )
-    market_currency_aggregate = aggregate.market_currency_aggregates.setdefault(
-      market_currency_key,
-      _MarketCurrencyAggregate(
-        market=market,
-        currency_code=currency_code,
-      ))
-    market_currency_aggregate.kenp_pages_read += kenp_pages_read
+    market_currency_stats = _get_or_create_market_currency_stats(
+      daily_stat=daily_stat,
+      market_currency_key=market_currency_key,
+      market=market,
+      currency_code=currency_code,
+    )
+    market_currency_stats.kenp_pages_read += kenp_pages_read
     _accumulate_sale_item(
-      market_currency_aggregate.sale_items_by_asin,
+      market_currency_stats.sale_items_by_asin,
       canonical_asin=canonical_asin,
       kenp_pages_read=kenp_pages_read,
     )
+
+
+def _get_or_create_daily_stat(
+  stats_by_date: dict[datetime.date, models.AmazonKdpDailyStats],
+  date_value: datetime.date,
+) -> models.AmazonKdpDailyStats:
+  """Return the mutable daily stats bucket for one report date."""
+  existing = stats_by_date.get(date_value)
+  if existing is not None:
+    return existing
+  created = models.AmazonKdpDailyStats(date=date_value)
+  stats_by_date[date_value] = created
+  return created
+
+
+def _get_or_create_market_currency_stats(
+  *,
+  daily_stat: models.AmazonKdpDailyStats,
+  market_currency_key: str,
+  market: str,
+  currency_code: str,
+) -> models.AmazonKdpMarketCurrencyStats:
+  """Return one mutable market/currency bucket under a daily stats object."""
+  existing = daily_stat.market_currency_stats_by_key.get(market_currency_key)
+  if existing is not None:
+    return existing
+  created = models.AmazonKdpMarketCurrencyStats(
+    market=market,
+    currency_code=currency_code,
+  )
+  daily_stat.market_currency_stats_by_key[market_currency_key] = created
+  return created
+
+
+def _append_price_candidate(
+  candidates_by_asin: dict[str, list[float]],
+  *,
+  canonical_asin: str,
+  price_usd: float,
+) -> None:
+  """Append one unique per-unit price candidate for an ASIN."""
+  rounded_price = round(price_usd, 6)
+  if rounded_price <= 0:
+    return
+  prices = candidates_by_asin.setdefault(canonical_asin, [])
+  if rounded_price in prices:
+    return
+  prices.append(rounded_price)
+
+
+def _finalize_stats(
+  stats_by_date: dict[datetime.date, models.AmazonKdpDailyStats], ) -> None:
+  """Finalize mutable parse accumulators into deterministic persisted values."""
+  for daily_stat in stats_by_date.values():
+    daily_stat.total_units_sold = (daily_stat.ebook_units_sold +
+                                   daily_stat.paperback_units_sold +
+                                   daily_stat.hardcover_units_sold)
+    daily_stat.total_royalties_usd = round(daily_stat.total_royalties_usd, 2)
+    daily_stat.ebook_royalties_usd = round(daily_stat.ebook_royalties_usd, 2)
+    daily_stat.paperback_royalties_usd = round(
+      daily_stat.paperback_royalties_usd, 2)
+    daily_stat.hardcover_royalties_usd = round(
+      daily_stat.hardcover_royalties_usd, 2)
+    daily_stat.total_print_cost_usd = round(daily_stat.total_print_cost_usd, 2)
+    daily_stat.sale_items_by_asin = {
+      asin: daily_stat.sale_items_by_asin[asin]
+      for asin in sorted(daily_stat.sale_items_by_asin.keys())
+    }
+
+    daily_stat.market_currency_stats_by_key = {
+      key: daily_stat.market_currency_stats_by_key[key]
+      for key in sorted(daily_stat.market_currency_stats_by_key.keys())
+    }
+    for market_stats in daily_stat.market_currency_stats_by_key.values():
+      market_stats.total_royalties_usd = round(
+        market_stats.total_royalties_usd, 2)
+      market_stats.total_print_cost_usd = round(
+        market_stats.total_print_cost_usd, 2)
+      market_stats.sale_items_by_asin = {
+        asin: market_stats.sale_items_by_asin[asin]
+        for asin in sorted(market_stats.sale_items_by_asin.keys())
+      }
+      market_stats.avg_offer_price_usd_candidates_by_asin = {
+        asin: sorted(set(prices))
+        for asin, prices in sorted(
+          market_stats.avg_offer_price_usd_candidates_by_asin.items())
+        if prices
+      }
 
 
 def _format_from_transaction_type(value: Any) -> str:

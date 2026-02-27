@@ -851,7 +851,7 @@ def _build_reconciliation_debug_csv(
     kdp_stat = kdp_by_date.get(date_key)
     if kdp_stat is None:
       continue
-    for sale_item in kdp_stat.sale_items:
+    for sale_item in kdp_stat.sale_items_by_asin.values():
       writer.writerow([
         date_key,
         sale_item.asin,

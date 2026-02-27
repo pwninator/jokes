@@ -152,20 +152,19 @@ def test_parse_kdp_xlsx_aggregates_rows_and_converts_currency():
   assert day_0225.total_units_sold == 2
   assert day_0225.total_royalties_usd == pytest.approx(5.33, abs=0.01)
   assert day_0225.total_print_cost_usd == pytest.approx(2.91, abs=0.01)
-  assert [item.asin for item in day_0225.sale_items] == [
+  assert list(day_0225.sale_items_by_asin.keys()) == [
     "B0G9765J19",
     "B0GNHFKQ8W",
     "B0GNMFVYC5",
   ]
-  ebook_item = next(i for i in day_0225.sale_items if i.asin == "B0G9765J19")
+  ebook_item = day_0225.sale_items_by_asin["B0G9765J19"]
   assert ebook_item.kenp_pages_read == 55
   assert ebook_item.total_print_cost_usd == 0.0
   assert ebook_item.total_royalty_usd == pytest.approx(1.05, abs=0.01)
-  pb_item = next(i for i in day_0225.sale_items if i.asin == "B0GNHFKQ8W")
+  pb_item = day_0225.sale_items_by_asin["B0GNHFKQ8W"]
   assert pb_item.total_print_cost_usd == pytest.approx(2.91, abs=0.01)
   assert pb_item.total_royalty_usd == pytest.approx(4.28, abs=0.01)
-  valentines_item = next(i for i in day_0225.sale_items
-                         if i.asin == "B0GNMFVYC5")
+  valentines_item = day_0225.sale_items_by_asin["B0GNMFVYC5"]
   assert valentines_item.units_sold == 0
   assert valentines_item.kenp_pages_read == 40
 
@@ -195,7 +194,7 @@ def test_parse_kdp_xlsx_normalizes_paperback_isbn_to_variant_asin():
   stats = amazon_kdp.parse_kdp_xlsx(workbook_bytes)
 
   assert len(stats) == 1
-  assert [item.asin for item in stats[0].sale_items] == ["B0GNHFKQ8W"]
+  assert list(stats[0].sale_items_by_asin.keys()) == ["B0GNHFKQ8W"]
 
 
 def test_parse_kdp_xlsx_persists_market_currency_buckets_and_price_candidates(

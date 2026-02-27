@@ -57,7 +57,8 @@ def _build_kdp_daily_stat(
     total_units_sold=units,
     total_royalties_usd=royalty_usd,
     total_print_cost_usd=print_cost_usd,
-    sale_items=[
+    sale_items_by_asin={
+      asin:
       models.AmazonProductStats(
         asin=asin,
         units_sold=units,
@@ -67,7 +68,7 @@ def _build_kdp_daily_stat(
         total_print_cost_usd=print_cost_usd,
         total_royalty_usd=royalty_usd,
       )
-    ],
+    },
   )
 
 

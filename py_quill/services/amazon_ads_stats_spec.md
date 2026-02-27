@@ -141,8 +141,8 @@ Candidate per-unit USD prices for each `(market, currency, asin)` come from
 historical KDP daily docs (lookback 180 days):
 
 1. `market_currency_stats_by_key[*].avg_offer_price_usd_candidates_by_asin`
-2. fallback derived from `sale_items` average (`total_sales_usd / units`)
-3. legacy fallback from old KDP docs without market buckets (`ANY/USD`)
+2. fallback derived from per-bucket `sale_items_by_asin` average
+   (`total_sales_usd / units`)
 
 Candidates are then filtered by `BookVariant.min_price_usd/max_price_usd`.
 
@@ -205,7 +205,7 @@ Persisted per date:
 - units totals by format
 - KENP pages read total
 - royalties/print cost in USD
-- aggregated `sale_items` per ASIN
+- aggregated `sale_items_by_asin` per ASIN
 
 ### 6.4 New per market/currency persistence
 
@@ -215,7 +215,7 @@ Persisted per date:
 - `market`, `currency_code`
 - `total_units_sold`, `kenp_pages_read`
 - `total_royalties_usd`, `total_print_cost_usd`
-- `sale_items` (ASIN-level aggregates within that bucket)
+- `sale_items_by_asin` (ASIN-level aggregates within that bucket)
 - `avg_offer_price_usd_candidates_by_asin` (unique average offer prices)
 
 These candidate prices are used later by ads decomposition.
@@ -287,6 +287,6 @@ For every reconciled daily doc:
 
 ## 10. Compatibility and Evolution
 
-1. KDP price-candidate loading supports legacy daily docs without
-   `market_currency_stats_by_key` via `sale_items` fallback.
+1. This implementation is forward-only; no backward schema compatibility is
+   maintained for previous KDP `sale_items` list shape.
 2. Future changes must keep this document and model schemas synchronized.

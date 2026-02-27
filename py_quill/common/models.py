@@ -1730,7 +1730,8 @@ class AmazonKdpMarketCurrencyStats:
   kenp_pages_read: int = 0
   total_royalties_usd: float = 0.0
   total_print_cost_usd: float = 0.0
-  sale_items: list[AmazonProductStats] = field(default_factory=list)
+  sale_items_by_asin: dict[str,
+                           AmazonProductStats] = field(default_factory=dict)
   avg_offer_price_usd_candidates_by_asin: dict[str, list[float]] = field(
     default_factory=dict)
 
@@ -1749,7 +1750,10 @@ class AmazonKdpMarketCurrencyStats:
       self.total_royalties_usd,
       "total_print_cost_usd":
       self.total_print_cost_usd,
-      "sale_items": [item.to_dict() for item in self.sale_items],
+      "sale_items_by_asin": {
+        asin: item.to_dict()
+        for asin, item in self.sale_items_by_asin.items()
+      },
       "avg_offer_price_usd_candidates_by_asin":
       dict(self.avg_offer_price_usd_candidates_by_asin),
     }
@@ -1774,7 +1778,8 @@ class AmazonKdpMarketCurrencyStats:
     _parse_int_field(data, "kenp_pages_read", 0)
     _parse_float_field(data, "total_royalties_usd", 0.0)
     _parse_float_field(data, "total_print_cost_usd", 0.0)
-    sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
+    sale_items_by_asin = _parse_amazon_product_stats_map(
+      data.get("sale_items_by_asin"))
 
     raw_candidates = data.get("avg_offer_price_usd_candidates_by_asin")
     avg_offer_price_usd_candidates_by_asin: dict[str, list[float]] = {}
@@ -1806,7 +1811,7 @@ class AmazonKdpMarketCurrencyStats:
       kenp_pages_read=data.get("kenp_pages_read", 0),
       total_royalties_usd=data.get("total_royalties_usd", 0.0),
       total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
-      sale_items=sale_items,
+      sale_items_by_asin=sale_items_by_asin,
       avg_offer_price_usd_candidates_by_asin=
       avg_offer_price_usd_candidates_by_asin,
     )
@@ -1828,7 +1833,8 @@ class AmazonKdpDailyStats:
   paperback_royalties_usd: float = 0.0
   hardcover_royalties_usd: float = 0.0
   total_print_cost_usd: float = 0.0
-  sale_items: list[AmazonProductStats] = field(default_factory=list)
+  sale_items_by_asin: dict[str,
+                           AmazonProductStats] = field(default_factory=dict)
   market_currency_stats_by_key: dict[str,
                                      AmazonKdpMarketCurrencyStats] = field(
                                        default_factory=dict)
@@ -1847,7 +1853,10 @@ class AmazonKdpDailyStats:
       "paperback_royalties_usd": self.paperback_royalties_usd,
       "hardcover_royalties_usd": self.hardcover_royalties_usd,
       "total_print_cost_usd": self.total_print_cost_usd,
-      "sale_items": [item.to_dict() for item in self.sale_items],
+      "sale_items_by_asin": {
+        asin: item.to_dict()
+        for asin, item in self.sale_items_by_asin.items()
+      },
       "market_currency_stats_by_key": {
         key: stats.to_dict()
         for key, stats in self.market_currency_stats_by_key.items()
@@ -1885,7 +1894,8 @@ class AmazonKdpDailyStats:
     _parse_float_field(data, "hardcover_royalties_usd", 0.0)
     _parse_float_field(data, "total_print_cost_usd", 0.0)
 
-    sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
+    sale_items_by_asin = _parse_amazon_product_stats_map(
+      data.get("sale_items_by_asin"))
     market_currency_stats_by_key = _parse_amazon_kdp_market_currency_stats_map(
       data.get("market_currency_stats_by_key"))
 
@@ -1902,7 +1912,7 @@ class AmazonKdpDailyStats:
       paperback_royalties_usd=data.get("paperback_royalties_usd", 0.0),
       hardcover_royalties_usd=data.get("hardcover_royalties_usd", 0.0),
       total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
-      sale_items=sale_items,
+      sale_items_by_asin=sale_items_by_asin,
       market_currency_stats_by_key=market_currency_stats_by_key,
     )
 
@@ -2610,6 +2620,21 @@ def _parse_amazon_product_stats_list(value: Any, ) -> list[AmazonProductStats]:
   parsed: list[AmazonProductStats] = []
   for item in value_dicts:
     parsed.append(AmazonProductStats.from_dict(item))
+  return parsed
+
+
+def _parse_amazon_product_stats_map(
+  value: Any, ) -> dict[str, AmazonProductStats]:
+  """Parse a mapping of ASIN -> `AmazonProductStats`."""
+  if not isinstance(value, dict):
+    return {}
+
+  parsed: dict[str, AmazonProductStats] = {}
+  for asin, item in cast(dict[str, Any], value).items():
+    asin_key = str(asin).strip()
+    if not asin_key or not isinstance(item, dict):
+      continue
+    parsed[asin_key] = AmazonProductStats.from_dict(cast(dict[str, Any], item))
   return parsed
 
 

@@ -200,7 +200,6 @@ class TestAdsStatsFetcher:
         for report_type_id, report_id_prefix in [
           ("spCampaigns", "campaigns"),
           ("spAdvertisedProduct", "advertised"),
-          ("spPurchasedProduct", "products"),
         ]:
           reports.append(
             models.AmazonAdsReport(
@@ -267,30 +266,6 @@ class TestAdsStatsFetcher:
           status="PENDING",
           report_name="Advertised report request",
           report_type_id="spAdvertisedProduct",
-          start_date=report_start_date,
-          end_date=report_end_date,
-          created_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            tzinfo=datetime.timezone.utc,
-          ),
-          updated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            tzinfo=datetime.timezone.utc,
-          ),
-        ),
-        purchased_products_report=models.AmazonAdsReport(
-          report_id=f"products-{profile.profile_id}",
-          status="PENDING",
-          report_name="Product report request",
-          report_type_id="spPurchasedProduct",
           start_date=report_start_date,
           end_date=report_end_date,
           created_at=datetime.datetime(
@@ -386,50 +361,13 @@ class TestAdsStatsFetcher:
           ),
           url="https://example.com/advertised.gz",
         ),
-        models.AmazonAdsReport(
-          report_id=f"products-{profile_id}",
-          status="COMPLETED",
-          report_name="Product report",
-          report_type_id="spPurchasedProduct",
-          start_date=report_start_date,
-          end_date=report_end_date,
-          created_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            1,
-            tzinfo=datetime.timezone.utc,
-          ),
-          updated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            3,
-            tzinfo=datetime.timezone.utc,
-          ),
-          generated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            3,
-            tzinfo=datetime.timezone.utc,
-          ),
-          url="https://example.com/products.gz",
-        ),
       ]
 
     monkeypatch.setattr('functions.joke_auto_fns.amazon.get_reports',
                         _mock_get_reports)
     monkeypatch.setattr(
       'functions.joke_auto_fns.amazon.get_daily_campaign_stats_from_reports',
-      lambda profile, campaigns_report, advertised_products_report,
-      purchased_products_report: [],
+      lambda profile, campaigns_report, advertised_products_report: [],
     )
 
     stats = joke_auto_fns._auto_ads_stats_internal(now_utc)
@@ -462,7 +400,6 @@ class TestAdsStatsFetcher:
                       call["report_ids"])) == expected_report_count_per_profile
       assert cast(list[str], call["report_ids"])[0].startswith("campaigns-")
       assert cast(list[str], call["report_ids"])[1].startswith("advertised-")
-      assert cast(list[str], call["report_ids"])[2].startswith("products-")
     assert (stats["reports_fetched"] == len(expected_selected_profiles) *
             expected_report_count_per_profile)
     assert stats["daily_campaign_stats_count"] == 0
@@ -524,20 +461,6 @@ class TestAdsStatsFetcher:
         api_base="https://advertising-api.amazon.com",
       ),
       models.AmazonAdsReport(
-        report_id="products-us-profile",
-        report_name="products-us",
-        status="PENDING",
-        report_type_id="spPurchasedProduct",
-        start_date=report_start_date,
-        end_date=report_end_date,
-        created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="us-profile",
-        profile_country="US",
-        region="na",
-        api_base="https://advertising-api.amazon.com",
-      ),
-      models.AmazonAdsReport(
         report_id="campaigns-uk-profile",
         report_name="campaigns-uk",
         status="PENDING",
@@ -556,20 +479,6 @@ class TestAdsStatsFetcher:
         report_name="advertised-uk",
         status="PENDING",
         report_type_id="spAdvertisedProduct",
-        start_date=report_start_date,
-        end_date=report_end_date,
-        created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="uk-profile",
-        profile_country="UK",
-        region="eu",
-        api_base="https://advertising-api-eu.amazon.com",
-      ),
-      models.AmazonAdsReport(
-        report_id="products-uk-profile",
-        report_name="products-uk",
-        status="PENDING",
-        report_type_id="spPurchasedProduct",
         start_date=report_start_date,
         end_date=report_end_date,
         created_at=now_utc,
@@ -608,8 +517,7 @@ class TestAdsStatsFetcher:
           report_name=f"{report_id}-name",
           status="COMPLETED",
           report_type_id=("spCampaigns" if "campaigns" in report_id else
-                          ("spAdvertisedProduct" if "advertised" in report_id
-                           else "spPurchasedProduct")),
+                          "spAdvertisedProduct"),
           start_date=report_start_date,
           end_date=report_end_date,
           created_at=now_utc,
@@ -623,8 +531,7 @@ class TestAdsStatsFetcher:
                         _mock_get_reports)
     monkeypatch.setattr(
       'functions.joke_auto_fns.amazon.get_daily_campaign_stats_from_reports',
-      lambda profile, campaigns_report, advertised_products_report,
-      purchased_products_report: [
+      lambda profile, campaigns_report, advertised_products_report: [
         models.AmazonAdsDailyCampaignStats(
           campaign_id=f"campaign-{profile.profile_id}",
           campaign_name=f"Campaign {profile.profile_id}",
@@ -764,7 +671,7 @@ class TestAdsStatsFetcher:
         "total_units_sold": 2,
         "gross_profit_before_ads_usd": 12.0,
         "gross_profit_usd": 8.0,
-        "sale_items": [],
+        "sale_items_by_asin_country": {},
       }]
     }
     monkeypatch.setattr(
@@ -831,8 +738,7 @@ class TestAdsStatsFetcher:
         region="na",
         api_base="https://advertising-api.amazon.com",
         processed=True,  # Crucial: Marked as processed
-      ) for type_id in
-      ["spCampaigns", "spAdvertisedProduct", "spPurchasedProduct"]
+      ) for type_id in ["spCampaigns", "spAdvertisedProduct"]
     ]
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
@@ -861,17 +767,6 @@ class TestAdsStatsFetcher:
           status="PENDING",
           report_name="New Advertised report",
           report_type_id="spAdvertisedProduct",
-          start_date=start_date,
-          end_date=end_date,
-          created_at=now_utc,
-          updated_at=now_utc,
-          processed=False,
-        ),
-        purchased_products_report=models.AmazonAdsReport(
-          report_id=f"new-products-{profile.profile_id}",
-          status="PENDING",
-          report_name="New Product report",
-          report_type_id="spPurchasedProduct",
           start_date=start_date,
           end_date=end_date,
           created_at=now_utc,

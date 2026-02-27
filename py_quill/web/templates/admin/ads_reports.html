@@ -31,6 +31,7 @@
   .ads-reports-status {
     margin: 0;
     font-size: 0.9rem;
+    min-height: 1.25rem;
   }
   .ads-reports-status--success {
     color: #2d5d37;
@@ -38,8 +39,18 @@
   .ads-reports-status--info {
     color: var(--color-text-muted);
   }
+  .ads-reports-status--pending {
+    color: var(--color-text);
+  }
   .ads-reports-action-button {
     white-space: nowrap;
+  }
+  .ads-reports-action-button[disabled],
+  .ads-reports-action-button[aria-busy="true"] {
+    cursor: wait;
+    opacity: 0.68;
+    transform: none;
+    box-shadow: none;
   }
   .ads-reports-card {
     background: var(--color-surface);

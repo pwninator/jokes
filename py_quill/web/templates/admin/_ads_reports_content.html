@@ -14,13 +14,18 @@
         <button
           id="adsReportsActionButton"
           class="button-primary text-button ads-reports-action-button"
+          data-label="{{ primary_action.label }}"
+          data-pending-label="{% if primary_action.action == 'process' %}Processing...{% else %}Requesting...{% endif %}"
           type="submit">
           {{ primary_action.label }}
         </button>
       </form>
-      {% if action_status_message %}
-        <p class="ads-reports-status ads-reports-status--{{ action_status_kind }}">{{ action_status_message }}</p>
-      {% endif %}
+      <p
+        id="adsReportsActionStatus"
+        class="ads-reports-status ads-reports-status--{{ action_status_kind }}"
+        aria-live="polite">
+        {{ action_status_message }}
+      </p>
     </div>
   </div>
 

@@ -1,6 +1,53 @@
 (function () {
   'use strict';
 
+  function getPendingButtonLabel(button) {
+    if (!button || typeof button !== 'object') {
+      return 'Working...';
+    }
+    const pendingLabel = button.dataset && typeof button.dataset.pendingLabel === 'string'
+      ? button.dataset.pendingLabel.trim()
+      : '';
+    return pendingLabel || 'Working...';
+  }
+
+  function getDefaultButtonLabel(button) {
+    if (!button || typeof button !== 'object') {
+      return '';
+    }
+    const defaultLabel = button.dataset && typeof button.dataset.label === 'string'
+      ? button.dataset.label.trim()
+      : '';
+    if (defaultLabel) {
+      return defaultLabel;
+    }
+    return typeof button.textContent === 'string' ? button.textContent.trim() : '';
+  }
+
+  function setPendingState(button, statusEl) {
+    if (button) {
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = getPendingButtonLabel(button);
+    }
+    if (statusEl) {
+      statusEl.className = 'ads-reports-status ads-reports-status--pending';
+      statusEl.textContent = 'Working...';
+    }
+  }
+
+  function clearPendingState(button, statusEl, errorMessage) {
+    if (button) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      button.textContent = getDefaultButtonLabel(button);
+    }
+    if (statusEl) {
+      statusEl.className = 'ads-reports-status ads-reports-status--info';
+      statusEl.textContent = errorMessage || '';
+    }
+  }
+
   function initAdsReportsPage(options) {
     const rootId = options && options.rootId ? String(options.rootId) : 'adsReportsContent';
     const root = document.getElementById(rootId);
@@ -14,12 +61,7 @@
       const selectedInput = form.querySelector('input[name="selected_report_name"]');
       const selectedReportName = selectedInput ? String(selectedInput.value || '') : '';
 
-      if (actionButton) {
-        actionButton.disabled = true;
-      }
-      if (statusEl) {
-        statusEl.textContent = 'Working...';
-      }
+      setPendingState(actionButton, statusEl);
 
       try {
         const response = await fetch(form.action, {
@@ -40,12 +82,11 @@
         }
         root.innerHTML = data.content_html;
       } catch (error) {
-        if (statusEl) {
-          statusEl.textContent = error && error.message ? error.message : 'Request failed';
-        }
-        if (actionButton) {
-          actionButton.disabled = false;
-        }
+        clearPendingState(
+          actionButton,
+          statusEl,
+          error && error.message ? error.message : 'Request failed',
+        );
       }
     }
 
@@ -90,9 +131,15 @@
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
+      clearPendingState,
+      getDefaultButtonLabel,
+      getPendingButtonLabel,
       initAdsReportsPage,
+      setPendingState,
     };
   }
 
-  window.initAdsReportsPage = initAdsReportsPage;
+  if (typeof window !== 'undefined') {
+    window.initAdsReportsPage = initAdsReportsPage;
+  }
 })();

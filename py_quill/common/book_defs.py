@@ -291,6 +291,31 @@ def canonical_variant_asin(asin_or_isbn13: str) -> str | None:
   return book_variant.asin
 
 
+def ads_kenp_variant_asin(asin_or_isbn13: str) -> str | None:
+  """Return the ASIN that ads KENP should be attributed to for a variant.
+
+  Sponsored Products advertised-product rows can report KENP on the advertised
+  paperback ASIN even when the read actually belongs to the ebook variant of the
+  same book. When a book has both paperback and ebook variants, attribute ads
+  KENP to the ebook ASIN. Otherwise keep the canonical input ASIN.
+  """
+  canonical_asin = canonical_variant_asin(asin_or_isbn13)
+  if canonical_asin is None:
+    return None
+  book = find_book(asin_or_isbn13)
+  if book is None:
+    return canonical_asin
+
+  book_variant = find_book_variant(asin_or_isbn13)
+  if book_variant is None or book_variant.format != BookFormat.PAPERBACK:
+    return canonical_asin
+
+  ebook_variant = book.variants.get(BookFormat.EBOOK)
+  if ebook_variant is None:
+    return canonical_asin
+  return ebook_variant.asin
+
+
 def find_book(asin_or_isbn13: str) -> Book | None:
   """Find a book by any of its variant ASIN/ISBN identifiers."""
   book_key = (BOOK_KEY_BY_VARIANT_ASIN.get(asin_or_isbn13)

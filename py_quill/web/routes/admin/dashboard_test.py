@@ -628,7 +628,7 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
         report_id="r-no-cache",
         report_name="pending_report",
         status="PROCESSING",
-        report_type_id="spPurchasedProduct",
+        report_type_id="spAdvertisedProduct",
         created_at=datetime.datetime(2026,
                                      2,
                                      27,
@@ -673,6 +673,9 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
   assert "Created At (Los Angeles)" in html
   assert "2026-02-27 03:30:00 PST" in html
   assert 'id="adsReportsActionButton"' in html
+  assert 'data-pending-label="Processing..."' in html
+  assert 'id="adsReportsActionStatus"' in html
+  assert 'aria-live="polite"' in html
   assert "Process Reports" in html
   assert ('data-report-url='
           '"/admin/ads-reports?selected_report_name=latest_campaign_report"'
@@ -750,6 +753,7 @@ def test_admin_ads_reports_page_shows_request_button_when_all_processed(
   html = resp.get_data(as_text=True)
   assert "Request Reports" in html
   assert 'action="/admin/ads-reports/request"' in html
+  assert 'data-pending-label="Requesting..."' in html
   assert "/static/js/ads_reports.js" in html
 
 

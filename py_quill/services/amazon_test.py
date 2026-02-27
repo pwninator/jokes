@@ -196,7 +196,7 @@ def test_build_report_name_uses_los_angeles_local_time(monkeypatch):
   assert report_name == "20260226_233012_spCampaigns_US"
 
 
-def test_request_daily_campaign_stats_reports_requests_three_reports(
+def test_request_daily_campaign_stats_reports_requests_two_reports(
     monkeypatch):
   calls: list[dict] = []
   upserted_report_ids: list[str] = []
@@ -228,12 +228,6 @@ def test_request_daily_campaign_stats_reports_requests_three_reports(
         status="PENDING",
         report_type_id="spAdvertisedProduct",
       )
-    if report_type == "spPurchasedProduct":
-      return _report_status(
-        report_id="products-report-id",
-        status="PENDING",
-        report_type_id="spPurchasedProduct",
-      )
     raise AssertionError(f"Unexpected report type: {report_type}")
 
   monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
@@ -257,14 +251,10 @@ def test_request_daily_campaign_stats_reports_requests_three_reports(
   assert result.advertised_products_report.key == "advertised-report-id-key"
   assert (
     result.advertised_products_report.report_type_id == "spAdvertisedProduct")
-  assert result.purchased_products_report.report_id == "products-report-id"
-  assert result.purchased_products_report.key == "products-report-id-key"
-  assert result.purchased_products_report.report_type_id == "spPurchasedProduct"
-  assert len(calls) == 3
+  assert len(calls) == 2
   assert upserted_report_ids == [
     "campaigns-report-id",
     "advertised-report-id",
-    "products-report-id",
   ]
   assert calls[0]["api_base"] == "https://advertising-api.amazon.com"
   assert calls[0]["profile_id"] == "profile-1"
@@ -273,8 +263,6 @@ def test_request_daily_campaign_stats_reports_requests_three_reports(
   assert calls[0]["payload"]["configuration"]["reportTypeId"] == "spCampaigns"
   assert calls[1]["payload"]["configuration"][
     "reportTypeId"] == "spAdvertisedProduct"
-  assert calls[2]["payload"]["configuration"][
-    "reportTypeId"] == "spPurchasedProduct"
 
 
 def test_get_reports_returns_report_for_each_report_id(monkeypatch):
@@ -371,40 +359,24 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
     "cost": 5.0,
     "impressions": 100,
     "clicks": 10,
-    "sales14d": 99.0,
-    "unitsSoldClicks14d": 9,
+    "sales14d": 14.98,
+    "unitsSoldClicks14d": 2,
     "kindleEditionNormalizedPagesRoyalties14d": 1.0,
   }]
   advertised_product_rows = [
     {
       "campaignId": "123",
       "date": "2026-02-14",
-      "advertisedAsin": "B0GNHFKQ8W",
-      "attributedSalesSameSku14d": 20.0,
-      "unitsSoldSameSku14d": 2,
-    },
-    {
-      "campaignId": "123",
-      "date": "2026-02-14",
       "advertisedAsin": "B0G9765J19",
-      "attributedSalesSameSku14d": 10.0,
+      "attributedSalesSameSku14d": 2.99,
       "unitsSoldSameSku14d": 1,
     },
-  ]
-  purchased_product_rows = [
     {
       "campaignId": "123",
       "date": "2026-02-14",
-      "purchasedAsin": "B0GNHFKQ8W",
-      "salesOtherSku14d": 5.0,
-      "unitsSoldOtherSku14d": 1,
-    },
-    {
-      "campaignId": "123",
-      "date": "2026-02-14",
-      "purchasedAsin": "B0G9765J19",
-      "salesOtherSku14d": 7.0,
-      "unitsSoldOtherSku14d": 2,
+      "advertisedAsin": "B0GNHFKQ8W",
+      "attributedSalesSameSku14d": 11.99,
+      "unitsSoldSameSku14d": 1,
     },
   ]
 
@@ -426,29 +398,28 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
+  monkeypatch.setattr(
+    amazon,
+    "_load_kdp_price_candidates_by_country_asin",
+    lambda *, start_date, end_date: {
+      ("US", "B0G9765J19"): (2.99, ),
+      ("US", "B0GNHFKQ8W"): (11.99, ),
+    },
+  )
 
   output = amazon.get_daily_campaign_stats_from_reports(
     profile=profile,
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
-    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
@@ -461,27 +432,16 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   assert daily.clicks == 10
   assert daily.kenp_pages_read == 0
   assert daily.kenp_royalties_usd == 1.0
-  assert daily.total_attributed_sales_usd == 99.0
-  assert daily.total_units_sold == 9
-  # Decomposition remaps high-priced "ebook" attributed rows into paperback.
-  assert daily.gross_profit_before_ads_usd == pytest.approx(
-    14.667368421052629,
-    rel=1e-6,
-  )
-  assert daily.gross_profit_usd == pytest.approx(9.667368421052629, rel=1e-6)
-  assert [item.asin
-          for item in daily.sale_items] == ["B0G9765J19", "B0GNHFKQ8W"]
-  ebook_item = next(item for item in daily.sale_items
-                    if item.asin == "B0G9765J19")
-  paperback_item = next(item for item in daily.sale_items
-                        if item.asin == "B0GNHFKQ8W")
-  assert ebook_item.units_sold == 3
-  assert ebook_item.total_sales_usd == pytest.approx(11.210526315789473,
-                                                     rel=1e-6)
-  assert paperback_item.units_sold == 3
-  assert paperback_item.total_sales_usd == pytest.approx(30.789473684210527,
-                                                         rel=1e-6)
-  assert paperback_item.kenp_pages_read == 0
+  assert daily.total_attributed_sales_usd == 14.98
+  assert daily.total_units_sold == 2
+  assert daily.gross_profit_before_ads_usd == pytest.approx(6.3305, rel=1e-6)
+  assert daily.gross_profit_usd == pytest.approx(1.3305, rel=1e-6)
+  by_asin = {item.asin: item for item in daily.sale_items}
+  assert set(by_asin.keys()) == {"B0G9765J19", "B0GNHFKQ8W"}
+  assert by_asin["B0G9765J19"].units_sold == 1
+  assert by_asin["B0G9765J19"].total_sales_usd == pytest.approx(2.99, rel=1e-6)
+  assert by_asin["B0GNHFKQ8W"].units_sold == 1
+  assert by_asin["B0GNHFKQ8W"].total_sales_usd == pytest.approx(11.99, rel=1e-6)
 
 
 def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
@@ -505,7 +465,6 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
     "attributedSalesSameSku14d": 10.0,
     "unitsSoldSameSku14d": 1,
   }]
-  purchased_product_rows = []
 
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
@@ -525,20 +484,12 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
@@ -547,7 +498,6 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
     profile=profile,
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
-    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
@@ -582,7 +532,6 @@ def test_get_daily_campaign_stats_from_reports_decomposes_asin_using_kdp_prices(
     "attributedSalesSameSku14d": 14.98,
     "unitsSoldSameSku14d": 2,
   }]
-  purchased_product_rows = []
 
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
@@ -602,20 +551,12 @@ def test_get_daily_campaign_stats_from_reports_decomposes_asin_using_kdp_prices(
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
@@ -632,7 +573,6 @@ def test_get_daily_campaign_stats_from_reports_decomposes_asin_using_kdp_prices(
     profile=profile,
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
-    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
@@ -645,7 +585,7 @@ def test_get_daily_campaign_stats_from_reports_decomposes_asin_using_kdp_prices(
                                                                 rel=1e-6)
 
 
-def test_get_daily_campaign_stats_from_reports_persists_ads_kenp_pages_by_asin(
+def test_get_daily_campaign_stats_from_reports_remaps_paperback_ads_kenp_to_ebook_asin(
     monkeypatch):
   campaign_rows = [{
     "campaignId": "123",
@@ -659,11 +599,12 @@ def test_get_daily_campaign_stats_from_reports_persists_ads_kenp_pages_by_asin(
     "kindleEditionNormalizedPagesRead14d": 12,
     "kindleEditionNormalizedPagesRoyalties14d": 1.5,
   }]
-  advertised_product_rows = []
-  purchased_product_rows = [{
+  advertised_product_rows = [{
     "campaignId": "123",
     "date": "2026-02-14",
-    "purchasedAsin": "B0G9765J19",
+    "advertisedAsin": "B0GNHFKQ8W",
+    "attributedSalesSameSku14d": 0.0,
+    "unitsSoldSameSku14d": 0,
     "kindleEditionNormalizedPagesRead14d": 12,
     "kindleEditionNormalizedPagesRoyalties14d": 1.5,
   }]
@@ -686,20 +627,12 @@ def test_get_daily_campaign_stats_from_reports_persists_ads_kenp_pages_by_asin(
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
@@ -708,14 +641,16 @@ def test_get_daily_campaign_stats_from_reports_persists_ads_kenp_pages_by_asin(
     profile=profile,
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
-    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
   daily = output[0]
   assert daily.kenp_pages_read == 12
-  assert daily.sale_items[0].kenp_pages_read == 12
-  assert daily.sale_items[0].kenp_royalties_usd == pytest.approx(1.5, rel=1e-6)
+  by_asin = {item.asin: item for item in daily.sale_items}
+  assert by_asin["B0G9765J19"].kenp_pages_read == 12
+  assert by_asin["B0G9765J19"].kenp_royalties_usd == pytest.approx(1.5,
+                                                                   rel=1e-6)
+  assert by_asin["B0GNHFKQ8W"].kenp_pages_read == 0
 
 
 def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
@@ -738,7 +673,6 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
     "attributedSalesSameSku14d": 2.0,
     "unitsSoldSameSku14d": 1,
   }]
-  purchased_product_rows = []
 
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
@@ -758,20 +692,12 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
@@ -780,7 +706,6 @@ def test_get_daily_campaign_stats_from_reports_uses_profile_currency_fallback(
     profile=profile,
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
-    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
@@ -816,7 +741,6 @@ def test_get_daily_campaign_stats_from_reports_ignores_total_advertised_fallback
     "sales14d": 11.99,
     "unitsSoldClicks14d": 1,
   }]
-  purchased_product_rows = []
 
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
@@ -836,20 +760,12 @@ def test_get_daily_campaign_stats_from_reports_ignores_total_advertised_fallback
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
@@ -858,7 +774,6 @@ def test_get_daily_campaign_stats_from_reports_ignores_total_advertised_fallback
     profile=profile,
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
-    purchased_products_report=purchased_products_report,
   )
 
   assert len(output) == 1
@@ -876,6 +791,10 @@ def test_get_daily_campaign_stats_from_reports_ignores_total_advertised_fallback
 
 def test_sp_advertised_product_columns_include_campaign_budget_currency_code():
   assert "campaignBudgetCurrencyCode" in amazon._SP_ADVERTISED_PRODUCT_COLUMNS
+  assert "kindleEditionNormalizedPagesRead14d" in (
+    amazon._SP_ADVERTISED_PRODUCT_COLUMNS)
+  assert "kindleEditionNormalizedPagesRoyalties14d" in (
+    amazon._SP_ADVERTISED_PRODUCT_COLUMNS)
 
 
 def test_get_daily_campaign_stats_from_reports_raises_on_unknown_asin(
@@ -898,7 +817,6 @@ def test_get_daily_campaign_stats_from_reports_raises_on_unknown_asin(
     "attributedSalesSameSku14d": 10.0,
     "unitsSoldSameSku14d": 1,
   }]
-  purchased_product_rows = []
 
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
@@ -918,20 +836,12 @@ def test_get_daily_campaign_stats_from_reports_raises_on_unknown_asin(
     url="https://example.com/advertised.gz",
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
 
   def _fake_download(status: models.AmazonAdsReport):
     if status.report_id == "campaigns-id":
       return campaign_rows
     if status.report_id == "advertised-id":
       return advertised_product_rows
-    if status.report_id == "products-id":
-      return purchased_product_rows
     raise AssertionError(f"Unexpected status: {status}")
 
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
@@ -941,7 +851,6 @@ def test_get_daily_campaign_stats_from_reports_raises_on_unknown_asin(
       profile=profile,
       campaigns_report=campaigns_report,
       advertised_products_report=advertised_products_report,
-      purchased_products_report=purchased_products_report,
     )
 
 
@@ -958,12 +867,6 @@ def test_get_daily_campaign_stats_from_reports_raises_when_not_completed():
     url=None,
     profile_id="profile-1",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
   advertised_products_report = _report_status(
     report_id="advertised-id",
     status="COMPLETED",
@@ -976,7 +879,6 @@ def test_get_daily_campaign_stats_from_reports_raises_when_not_completed():
       profile=profile,
       campaigns_report=campaigns_report,
       advertised_products_report=advertised_products_report,
-      purchased_products_report=purchased_products_report,
     )
 
 
@@ -993,12 +895,6 @@ def test_get_daily_campaign_stats_from_reports_raises_on_profile_mismatch():
     url="https://example.com/campaigns.gz",
     profile_id="different-profile",
   )
-  purchased_products_report = _report_status(
-    report_id="products-id",
-    status="COMPLETED",
-    url="https://example.com/products.gz",
-    profile_id="profile-1",
-  )
   advertised_products_report = _report_status(
     report_id="advertised-id",
     status="COMPLETED",
@@ -1011,7 +907,6 @@ def test_get_daily_campaign_stats_from_reports_raises_on_profile_mismatch():
       profile=profile,
       campaigns_report=campaigns_report,
       advertised_products_report=advertised_products_report,
-      purchased_products_report=purchased_products_report,
     )
 
 
@@ -1038,7 +933,7 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
   monkeypatch.setattr(
     amazon,
     "_collect_expected_report_ids_for_profile",
-    lambda *, profile_id, reports_by_expected_key: ["r1", "r2", "r3"],
+    lambda *, profile_id, reports_by_expected_key: ["r1", "r2"],
   )
   monkeypatch.setattr(
     amazon,
@@ -1056,19 +951,12 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
         report_type_id="spAdvertisedProduct",
         profile_id=profile_id,
       ),
-      _report_status(
-        report_id="r3",
-        status="COMPLETED",
-        report_type_id="spPurchasedProduct",
-        profile_id=profile_id,
-      ),
     ],
   )
   monkeypatch.setattr(
     amazon,
     "_are_reports_complete",
-    lambda campaigns_report, advertised_products_report,
-    purchased_products_report: True,
+    lambda campaigns_report, advertised_products_report: True,
   )
   monkeypatch.setattr(
     amazon,

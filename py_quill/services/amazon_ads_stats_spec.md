@@ -14,11 +14,10 @@ Changes to this file must be reflected immediately in the corresponding code.
 
 ### 1.1 Ads source reports (Amazon Ads API v3)
 
-Three Sponsored Products daily reports are requested per profile:
+Two Sponsored Products daily reports are requested per profile:
 
 1. `spCampaigns` (campaign-level spend/click/sales rollups)
-2. `spAdvertisedProduct` (advertised-product attributed units/sales)
-3. `spPurchasedProduct` (other-SKU halo + KENP fields; often sparse/zero)
+2. `spAdvertisedProduct` (advertised-product attributed units/sales + KENP)
 
 Reports are requested as `GZIP_JSON`, time unit `DAILY`, date range 30 days.
 
@@ -71,9 +70,9 @@ Model classes live in `py_quill/common/models.py` and are the storage contract.
 3. Load recent report metadata from Firestore and keep latest report-per
    `(profile_id, report_type_id)` created today for the target window.
 4. For each selected profile:
-   - If all three required report types already exist and are not all processed,
+   - If both required report types already exist and are not all processed,
      skip requesting.
-   - Else create all three reports and upsert metadata docs.
+   - Else create both reports and upsert metadata docs.
    - Report names and Firestore doc ids use the canonical format
      `YYYYMMDD_HHMMSS_[reportTypeId]_[country]` in Los Angeles local time.
 
@@ -85,12 +84,12 @@ Model classes live in `py_quill/common/models.py` and are the storage contract.
 2. Wait a short fixed delay (`ADS_STATS_REPORT_METADATA_WAIT_SEC`).
 3. For each selected profile:
    - Fetch latest report statuses by report id.
-   - If all three reports are complete and at least one is unprocessed:
+   - If both reports are complete and at least one is unprocessed:
      1. Download + parse rows from each report.
      2. Merge into `AmazonAdsDailyCampaignStats`.
      3. Aggregate by date into `AmazonAdsDailyStats`.
      4. Upsert daily stats.
-     5. Mark all three reports `processed=true` and upsert.
+     5. Mark both reports `processed=true` and upsert.
 4. If any daily stats were upserted, run reconciliation with:
    - `earliest_changed_date = min(processed_ads_stat.date)`.
 
@@ -186,12 +185,16 @@ Output becomes multiple ASIN allocations with corrected units/sales.
 
 ### 5.7 Merge output
 
-Per-campaign/day ASIN totals are aggregated from:
+Per-campaign/day ASIN totals are built entirely from advertised-product rows:
 
-1. Decomposed advertised-product allocations (direct)
-2. Purchased-product `otherSku` metrics (halo + KENP where present)
+1. Units/sales come from decomposed advertised-product allocations.
+2. Advertised-product KENP pages/royalties are accumulated directly onto
+   `sale_items_by_asin_country`.
+3. If the advertised ASIN is a paperback variant, advertised-product KENP is
+   reassigned at import time to the ebook variant for the same book before
+   persistence.
 
-Then each ASIN total is converted to `AmazonProductStats`:
+Then each ASIN+country total is converted to `AmazonProductStats`:
 
 - `total_profit_usd = total_sales_usd * royalty_rate - units * print_cost`
 

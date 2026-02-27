@@ -211,18 +211,27 @@ def admin_ads_stats():
 @web_bp.route('/admin/ads-reports')
 @auth_helpers.require_admin
 def admin_ads_reports():
-  """Render recent ads report metadata and cached raw report rows."""
+  """Render recent ads report metadata and selected cached raw report rows."""
   end_date = _today_in_los_angeles()
   start_date = end_date - datetime.timedelta(days=_ADS_REPORTS_LOOKBACK_DAYS -
                                              1)
   reports = firestore.list_amazon_ads_reports(created_on_or_after=start_date)
+  selected_report_name = str(flask.request.args.get('selected_report_name',
+                                                    '')).strip()
+  selected_report = _select_amazon_ads_report(
+    reports=reports,
+    selected_report_name=selected_report_name,
+  )
   return flask.render_template(
     'admin/ads_reports.html',
     site_name='Snickerdoodle',
     start_date=start_date.isoformat(),
     end_date=end_date.isoformat(),
     reports=[_serialize_amazon_ads_report(report) for report in reports],
-    cached_report_tables=_build_cached_ads_report_tables(reports),
+    selected_report_name=selected_report.report_name
+    if selected_report else "",
+    selected_cached_report_table=_build_cached_ads_report_table(
+      selected_report),
   )
 
 
@@ -358,57 +367,65 @@ def _serialize_amazon_ads_report(
   }
 
 
-def _build_cached_ads_report_tables(
-  reports: list[models.AmazonAdsReport], ) -> list[dict[str, object]]:
-  """Build a small set of parsed report tables for the freshest cached rows."""
-  newest_cached_by_type: dict[str, models.AmazonAdsReport] = {}
-  for report in reports:
-    raw_report_text = (report.raw_report_text or "").strip()
-    if not raw_report_text:
-      continue
-    existing = newest_cached_by_type.get(report.report_type_id)
-    if existing is None or report.created_at > existing.created_at:
-      newest_cached_by_type[report.report_type_id] = report
+def _select_amazon_ads_report(
+  *,
+  reports: list[models.AmazonAdsReport],
+  selected_report_name: str,
+) -> models.AmazonAdsReport | None:
+  """Return the selected report, defaulting to newest when not provided."""
+  if not reports:
+    return None
+  if selected_report_name:
+    for report in reports:
+      if report.report_name == selected_report_name:
+        return report
+  return reports[0]
 
-  tables: list[dict[str, object]] = []
-  for report in newest_cached_by_type.values():
-    rows = amazon.parse_report_rows_text(
-      report.report_name,
-      report.raw_report_text or "",
-      enable_logging=False,
-    )
-    row_count = len(rows)
-    display_rows = rows[:_ADS_REPORT_TABLE_MAX_ROWS]
-    columns = _collect_table_columns(display_rows)
-    tables.append({
-      'report_name':
-      report.report_name,
-      'report_type_id':
-      report.report_type_id,
-      'profile_id':
-      report.profile_id or "",
-      'profile_country':
-      report.profile_country or "",
-      'start_date':
-      report.start_date.isoformat(),
-      'end_date':
-      report.end_date.isoformat(),
-      'created_at':
-      report.created_at.isoformat(),
-      'columns':
-      columns,
-      'rows': [{
-        column: _format_ads_report_table_cell(row.get(column))
-        for column in columns
-      } for row in display_rows],
-      'row_count':
-      row_count,
-      'truncated':
-      row_count > len(display_rows),
-    })
-  return sorted(tables,
-                key=lambda item: str(item.get('created_at', "")),
-                reverse=True)
+
+def _build_cached_ads_report_table(
+  report: models.AmazonAdsReport | None, ) -> dict[str, object] | None:
+  """Build a parsed report table for one selected report."""
+  if report is None:
+    return None
+
+  raw_report_text = (report.raw_report_text or "").strip()
+  if not raw_report_text:
+    return None
+
+  rows = amazon.parse_report_rows_text(
+    report.report_name,
+    raw_report_text,
+    enable_logging=False,
+  )
+  row_count = len(rows)
+  display_rows = rows[:_ADS_REPORT_TABLE_MAX_ROWS]
+  columns = _collect_table_columns(display_rows)
+  return {
+    'report_name':
+    report.report_name,
+    'report_type_id':
+    report.report_type_id,
+    'profile_id':
+    report.profile_id or "",
+    'profile_country':
+    report.profile_country or "",
+    'start_date':
+    report.start_date.isoformat(),
+    'end_date':
+    report.end_date.isoformat(),
+    'created_at':
+    report.created_at.isoformat(),
+    'columns':
+    columns,
+    'rows': [{
+      column: _format_ads_report_table_cell(row.get(column))
+      for column in columns
+    } for row in display_rows],
+    'row_count':
+    row_count,
+    'truncated':
+    row_count > len(display_rows),
+  }
 
 
 def _collect_table_columns(rows: list[dict[str, object]]) -> list[str]:

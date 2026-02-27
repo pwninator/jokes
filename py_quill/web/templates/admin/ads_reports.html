@@ -1,6 +1,6 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}Ads Reports · {{ site_name }} Admin{% endblock %}
+{% block title %}Ads Reports - {{ site_name }} Admin{% endblock %}
 
 {% block content %}
 <style>
@@ -53,6 +53,16 @@
   }
   .ads-reports-table tr:last-child td {
     border-bottom: none;
+  }
+  .ads-reports-report-row {
+    cursor: pointer;
+  }
+  .ads-reports-report-row:hover td,
+  .ads-reports-report-row:focus td {
+    background: color-mix(in srgb, var(--color-border) 24%, transparent);
+  }
+  .ads-reports-report-row--selected td {
+    background: color-mix(in srgb, #2f6fdf 18%, transparent);
   }
   .ads-reports-chip {
     display: inline-flex;
@@ -107,7 +117,13 @@
           </thead>
           <tbody>
             {% for report in reports %}
-              <tr>
+              <tr
+                class="ads-reports-report-row{% if report.report_name == selected_report_name %} ads-reports-report-row--selected{% endif %}"
+                data-selected="{% if report.report_name == selected_report_name %}true{% else %}false{% endif %}"
+                data-report-url="{{ url_for('web.admin_ads_reports', selected_report_name=report.report_name) }}"
+                tabindex="0"
+                role="button"
+                aria-pressed="{% if report.report_name == selected_report_name %}true{% else %}false{% endif %}">
                 <td>{{ report.created_at }}</td>
                 <td>{{ report.report_name }}</td>
                 <td>{{ report.report_type_id }}</td>
@@ -137,44 +153,64 @@
   </section>
 
   <section class="ads-reports-card" aria-label="Cached report data">
-    <h3>Most Recent Cached Report Rows (Per Report Type)</h3>
-    {% if cached_report_tables %}
-      {% for table in cached_report_tables %}
-        <div class="ads-reports-card" style="margin-top: 12px; padding: 12px;">
-          <p class="muted ads-reports-meta">
-            <strong>{{ table.report_type_id }}</strong> · {{ table.report_name }} · profile {{ table.profile_id }} {{ table.profile_country }}
-            · range {{ table.start_date }} to {{ table.end_date }} · created {{ table.created_at }}
-            · rows {{ table.row_count }}{% if table.truncated %} (showing first {{ table.rows|length }}){% endif %}
-          </p>
-          {% if table.columns %}
-            <div class="ads-reports-table-wrap">
-              <table class="ads-reports-table">
-                <thead>
+    <h3>Cached Data for Selected Report</h3>
+    {% if reports %}
+      {% if selected_cached_report_table %}
+        <p class="muted ads-reports-meta">
+          <strong>{{ selected_cached_report_table.report_type_id }}</strong> - {{ selected_cached_report_table.report_name }}
+          - profile {{ selected_cached_report_table.profile_id }} {{ selected_cached_report_table.profile_country }}
+          - range {{ selected_cached_report_table.start_date }} to {{ selected_cached_report_table.end_date }}
+          - created {{ selected_cached_report_table.created_at }}
+          - rows {{ selected_cached_report_table.row_count }}{% if selected_cached_report_table.truncated %} (showing first {{ selected_cached_report_table.rows|length }}){% endif %}
+        </p>
+        {% if selected_cached_report_table.columns %}
+          <div class="ads-reports-table-wrap">
+            <table class="ads-reports-table">
+              <thead>
+                <tr>
+                  {% for column in selected_cached_report_table.columns %}
+                    <th>{{ column }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in selected_cached_report_table.rows %}
                   <tr>
-                    {% for column in table.columns %}
-                      <th>{{ column }}</th>
+                    {% for column in selected_cached_report_table.columns %}
+                      <td>{{ row[column] }}</td>
                     {% endfor %}
                   </tr>
-                </thead>
-                <tbody>
-                  {% for row in table.rows %}
-                    <tr>
-                      {% for column in table.columns %}
-                        <td>{{ row[column] }}</td>
-                      {% endfor %}
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <p class="muted ads-reports-empty">No rows parsed from cached JSON.</p>
-          {% endif %}
-        </div>
-      {% endfor %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted ads-reports-empty">No rows parsed from cached JSON.</p>
+        {% endif %}
+      {% else %}
+        <p class="muted ads-reports-empty">No cached data for this report</p>
+      {% endif %}
     {% else %}
-      <p class="muted ads-reports-empty">No cached JSON report bodies found in this window.</p>
+      <p class="muted ads-reports-empty">No reports found in the selected window.</p>
     {% endif %}
   </section>
 </div>
+<script>
+  const reportRows = document.querySelectorAll('.ads-reports-report-row[data-report-url]');
+  for (const row of reportRows) {
+    const destination = row.dataset.reportUrl;
+    if (!destination) {
+      continue;
+    }
+    row.addEventListener('click', () => {
+      window.location.assign(destination);
+    });
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        window.location.assign(destination);
+      }
+    });
+  }
+</script>
 {% endblock %}

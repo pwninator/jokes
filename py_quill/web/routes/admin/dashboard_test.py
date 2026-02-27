@@ -506,8 +506,9 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   assert 'Ads Stats' in html
 
 
-def test_admin_ads_reports_page_lists_recent_and_cached_rows(monkeypatch):
-  """Ads reports page renders recent reports and parsed cached JSON tables."""
+def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
+    monkeypatch):
+  """Ads reports page selects one report at a time for cached-row rendering."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
   monkeypatch.setattr(dashboard_routes, "_today_in_los_angeles",
@@ -628,23 +629,45 @@ def test_admin_ads_reports_page_lists_recent_and_cached_rows(monkeypatch):
   )
 
   with app.test_client() as client:
-    resp = client.get('/admin/ads-reports')
+    default_resp = client.get('/admin/ads-reports')
+    older_resp = client.get(
+      '/admin/ads-reports?selected_report_name=older_campaign_report')
+    no_cache_resp = client.get(
+      '/admin/ads-reports?selected_report_name=pending_report')
 
-  assert resp.status_code == 200
-  html = resp.get_data(as_text=True)
+  assert default_resp.status_code == 200
+  html = default_resp.get_data(as_text=True)
   assert call_args["created_on_or_after"] == datetime.date(2026, 2, 25)
   assert 'Showing reports created between 2026-02-25 and 2026-02-27' in html
   assert "latest_campaign_report" in html
   assert "older_campaign_report" in html
   assert "advertised_product_report" in html
   assert "pending_report" in html
-  assert "Most Recent Cached Report Rows (Per Report Type)" in html
-  # Cached table should use latest report per report_type_id.
+  assert "Cached Data for Selected Report" in html
+  assert ('data-report-url='
+          '"/admin/ads-reports?selected_report_name=latest_campaign_report"'
+          in html)
+  assert ('data-report-url='
+          '"/admin/ads-reports?selected_report_name=older_campaign_report"'
+          in html)
+  assert "ads-reports-report-row--selected" in html
+  # Default selection is the newest report row.
   assert "campaignId" in html
-  assert "123" in html
+  assert "<td>3.21</td>" in html
+  assert "<td>1.11</td>" not in html
   assert "<td>999</td>" not in html
-  assert "B0GNHFKQ8W" in html
-  assert "B0G9765J19" in html
+  assert "B0GNHFKQ8W" not in html
+  assert "B0G9765J19" not in html
+
+  assert older_resp.status_code == 200
+  older_html = older_resp.get_data(as_text=True)
+  assert "<td>1.11</td>" in older_html
+  assert "<td>3.21</td>" not in older_html
+
+  assert no_cache_resp.status_code == 200
+  no_cache_html = no_cache_resp.get_data(as_text=True)
+  assert "No cached data for this report" in no_cache_html
+  assert "campaignId" not in no_cache_html
 
 
 def test_admin_ads_reports_page_includes_nav_link(monkeypatch):

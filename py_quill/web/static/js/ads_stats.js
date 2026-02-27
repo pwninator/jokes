@@ -29,6 +29,18 @@
     return count > 0 ? sum / count : 0;
   }
 
+  function calculatePoas(grossProfitBeforeAds, cost) {
+    const dayCost = toNumber(cost);
+    return dayCost > 0 ? toNumber(grossProfitBeforeAds) / dayCost : 0;
+  }
+
+  function calculateTpoas(grossProfitBeforeAds, organicProfit, cost) {
+    const dayCost = toNumber(cost);
+    return dayCost > 0
+      ? (toNumber(grossProfitBeforeAds) + toNumber(organicProfit)) / dayCost
+      : 0;
+  }
+
   function getDailyStatsForCampaign(adsStatsData, campaignName) {
     const data = adsStatsData || {};
     const labels = Array.isArray(data.labels) ? data.labels : [];
@@ -146,8 +158,7 @@
       gross_profit_before_ads_usd: grossProfitBeforeAds,
       gross_profit_usd: grossProfit,
       poas: rows.map((day) => {
-        const dayCost = toNumber(day.cost);
-        return dayCost > 0 ? toNumber(day.gross_profit_before_ads_usd) / dayCost : 0;
+        return calculatePoas(day.gross_profit_before_ads_usd, day.cost);
       }),
       cpc: rows.map((day) => {
         const dayClicks = toNumber(day.clicks);
@@ -203,7 +214,7 @@
     const poas = weekdayBuckets.map((bucket) => {
       const avgCost = average(bucket.cost, bucket.count);
       const avgGrossProfitBeforeAds = average(bucket.gross_profit_before_ads_usd, bucket.count);
-      return avgCost > 0 ? avgGrossProfitBeforeAds / avgCost : 0;
+      return calculatePoas(avgGrossProfitBeforeAds, avgCost);
     });
     const cpc = weekdayBuckets.map((bucket) => {
       const avgCost = average(bucket.cost, bucket.count);
@@ -237,8 +248,7 @@
     };
   }
 
-  function buildChartStats(adsStatsData, campaignName, mode) {
-    const dailyStats = getDailyStatsForCampaign(adsStatsData, campaignName);
+  function buildStatsFromDaily(adsStatsData, dailyStats, mode) {
     const totals = calculateTotals(dailyStats);
     const series = mode === DAYS_OF_WEEK_MODE
       ? buildDaysOfWeekSeries(dailyStats)
@@ -261,22 +271,148 @@
     };
   }
 
-  function buildReconciledTimelineStats(reconciledChartData) {
+  function buildChartStats(adsStatsData, campaignName, mode) {
+    const dailyStats = getDailyStatsForCampaign(adsStatsData, campaignName);
+    return buildStatsFromDaily(adsStatsData, dailyStats, mode);
+  }
+
+  function getReconciledDailyStats(baseDailyStats, reconciledChartData) {
     const data = reconciledChartData || {};
+    const labels = Array.isArray(data.labels) ? data.labels : [];
+    const gpPreAd = Array.isArray(data.gross_profit_before_ads_usd)
+      ? data.gross_profit_before_ads_usd
+      : [];
+    const organicProfit = Array.isArray(data.organic_profit_usd)
+      ? data.organic_profit_usd
+      : [];
+    const rowsByDate = {};
+
+    labels.forEach((dateKey, index) => {
+      rowsByDate[dateKey] = {
+        gross_profit_before_ads_usd: toNumber(gpPreAd[index]),
+        organic_profit_usd: toNumber(organicProfit[index]),
+      };
+    });
+
+    return (baseDailyStats || []).map((day) => {
+      const reconciledDay = rowsByDate[day.dateKey] || {};
+      const dayCost = toNumber(day.cost);
+      const dayReconciledGpPreAd = toNumber(reconciledDay.gross_profit_before_ads_usd);
+      const dayOrganicProfit = toNumber(reconciledDay.organic_profit_usd);
+      return {
+        dateKey: day.dateKey,
+        cost: dayCost,
+        raw_gross_profit_before_ads_usd: toNumber(day.gross_profit_before_ads_usd),
+        gross_profit_before_ads_usd: dayReconciledGpPreAd,
+        organic_profit_usd: dayOrganicProfit,
+        gross_profit_usd: dayReconciledGpPreAd + dayOrganicProfit - dayCost,
+        poas: dayCost > 0 ? toNumber(day.gross_profit_before_ads_usd) / dayCost : 0,
+        tpoas: calculateTpoas(day.gross_profit_before_ads_usd, dayOrganicProfit, dayCost),
+      };
+    });
+  }
+
+  function buildReconciledDaysOfWeekSeries(dailyStats) {
+    const weekdayBuckets = DAYS_OF_WEEK_LABELS.map(() => ({
+      count: 0,
+      cost: 0,
+      raw_gross_profit_before_ads_usd: 0,
+      gross_profit_before_ads_usd: 0,
+      organic_profit_usd: 0,
+      gross_profit_usd: 0,
+    }));
+
+    (dailyStats || []).forEach((day) => {
+      if (toNumber(day.impressions) <= 0) {
+        return;
+      }
+      const weekdayIndex = dayOfWeekIndexForDate(day.dateKey);
+      const bucket = weekdayBuckets[weekdayIndex];
+      bucket.count += 1;
+      bucket.cost += toNumber(day.cost);
+      bucket.raw_gross_profit_before_ads_usd += toNumber(day.raw_gross_profit_before_ads_usd);
+      bucket.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
+      bucket.organic_profit_usd += toNumber(day.organic_profit_usd);
+      bucket.gross_profit_usd += toNumber(day.gross_profit_usd);
+    });
+
+    const cost = weekdayBuckets.map((bucket) => average(bucket.cost, bucket.count));
+    const grossProfitBeforeAds = weekdayBuckets.map((bucket) =>
+      average(bucket.gross_profit_before_ads_usd, bucket.count));
+    const organicProfit = weekdayBuckets.map((bucket) =>
+      average(bucket.organic_profit_usd, bucket.count));
+    const grossProfit = weekdayBuckets.map((bucket) =>
+      average(bucket.gross_profit_usd, bucket.count));
+
     return {
-      labels: Array.isArray(data.labels) ? data.labels : [],
-      cost: Array.isArray(data.cost) ? data.cost.map(toNumber) : [],
-      gross_profit_before_ads_usd: Array.isArray(data.gross_profit_before_ads_usd)
-        ? data.gross_profit_before_ads_usd.map(toNumber)
-        : [],
-      gross_profit_usd: Array.isArray(data.gross_profit_usd)
-        ? data.gross_profit_usd.map(toNumber)
-        : [],
-      organic_profit_usd: Array.isArray(data.organic_profit_usd)
-        ? data.organic_profit_usd.map(toNumber)
-        : [],
-      poas: Array.isArray(data.poas) ? data.poas.map(toNumber) : [],
-      tpoas: Array.isArray(data.tpoas) ? data.tpoas.map(toNumber) : [],
+      labels: DAYS_OF_WEEK_LABELS.slice(),
+      cost: cost,
+      gross_profit_before_ads_usd: grossProfitBeforeAds,
+      organic_profit_usd: organicProfit,
+      gross_profit_usd: grossProfit,
+      poas: weekdayBuckets.map((bucket) => {
+        const avgCost = average(bucket.cost, bucket.count);
+        const avgRawGrossProfitBeforeAds = average(
+          bucket.raw_gross_profit_before_ads_usd,
+          bucket.count,
+        );
+        return calculatePoas(avgRawGrossProfitBeforeAds, avgCost);
+      }),
+      tpoas: weekdayBuckets.map((bucket) => {
+        const avgCost = average(bucket.cost, bucket.count);
+        const avgRawGrossProfitBeforeAds = average(
+          bucket.raw_gross_profit_before_ads_usd,
+          bucket.count,
+        );
+        const avgOrganicProfit = average(bucket.organic_profit_usd, bucket.count);
+        return calculateTpoas(avgRawGrossProfitBeforeAds, avgOrganicProfit, avgCost);
+      }),
+    };
+  }
+
+  function buildReconciledChartStats(adsStatsData, campaignName, mode, reconciledChartData) {
+    if (campaignName !== 'All') {
+      return {
+        labels: [],
+        cost: [],
+        gross_profit_before_ads_usd: [],
+        gross_profit_usd: [],
+        organic_profit_usd: [],
+        poas: [],
+        tpoas: [],
+      };
+    }
+
+    const baseDailyStats = getDailyStatsForCampaign(adsStatsData, 'All');
+    const reconciledDailyStats = getReconciledDailyStats(baseDailyStats, reconciledChartData).map(
+      (day, index) => ({
+        dateKey: day.dateKey,
+        impressions: toNumber(baseDailyStats[index] && baseDailyStats[index].impressions),
+        cost: day.cost,
+        raw_gross_profit_before_ads_usd: day.raw_gross_profit_before_ads_usd,
+        gross_profit_before_ads_usd: day.gross_profit_before_ads_usd,
+        organic_profit_usd: day.organic_profit_usd,
+        gross_profit_usd: day.gross_profit_usd,
+      }),
+    );
+
+    if (mode === DAYS_OF_WEEK_MODE) {
+      return buildReconciledDaysOfWeekSeries(reconciledDailyStats);
+    }
+
+    return {
+      labels: baseDailyStats.map((day) => day.dateKey),
+      cost: reconciledDailyStats.map((day) => day.cost),
+      gross_profit_before_ads_usd: reconciledDailyStats.map(
+        (day) => day.gross_profit_before_ads_usd),
+      gross_profit_usd: reconciledDailyStats.map((day) => day.gross_profit_usd),
+      organic_profit_usd: reconciledDailyStats.map((day) => day.organic_profit_usd),
+      poas: reconciledDailyStats.map((day) => {
+        return calculatePoas(day.raw_gross_profit_before_ads_usd, day.cost);
+      }),
+      tpoas: reconciledDailyStats.map((day) => {
+        return calculateTpoas(day.raw_gross_profit_before_ads_usd, day.organic_profit_usd, day.cost);
+      }),
     };
   }
 
@@ -385,353 +521,225 @@
         });
       }
 
-      function calculateAndRender(campaignName, mode) {
-        const stats = buildChartStats(adsStatsData, campaignName, mode);
-        const reconciledStats = buildReconciledTimelineStats(reconciledClickDateChartData);
+      function createLineDataset(config) {
+        const dataset = {
+          label: config.label,
+          data: config.data,
+          borderColor: config.borderColor,
+          backgroundColor: config.backgroundColor || `${config.borderColor}22`,
+          fill: config.fill || false,
+          tension: config.tension == null ? 0.2 : config.tension,
+          pointRadius: config.pointRadius == null ? 3 : config.pointRadius,
+          yAxisID: config.yAxisID || 'y',
+          formatType: config.formatType || 'number',
+        };
+        if (config.borderWidth != null) {
+          dataset.borderWidth = config.borderWidth;
+        }
+        return dataset;
+      }
 
-        createMultiLineChart(
-          'profitChart',
-          stats.labels,
-          [
-            {
-              label: 'Cost',
-              data: stats.cost,
-              borderColor: '#c62828',
-              backgroundColor: '#c6282822',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
+      function createThresholdDataset(labels) {
+        return createLineDataset({
+          label: 'POAS Threshold (1.0)',
+          data: labels.map(() => 1.0),
+          borderColor: '#c62828',
+          fill: false,
+          tension: 0,
+          pointRadius: 0,
+          borderWidth: 1,
+          yAxisID: 'y',
+          formatType: 'ratio',
+        });
+      }
+
+      function buildSingleAxis(formatType, suggestedMax) {
+        const axis = {
+          beginAtZero: true,
+          ticks: {
+            callback: function (value) {
+              return formatTickByType(formatType, value);
             },
-            {
-              label: 'Gross Profit Before Ads',
-              data: stats.gross_profit_before_ads_usd,
-              borderColor: '#2e7d32',
-              backgroundColor: '#2e7d3222',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
-            },
-            {
-              label: 'Gross Profit',
-              data: stats.gross_profit_usd,
-              borderColor: '#6a1b9a',
-              backgroundColor: '#6a1b9a22',
-              fill: 'origin',
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
-            },
-          ],
-          {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('currency', value);
-                },
+          },
+        };
+        if (suggestedMax != null) {
+          axis.suggestedMax = suggestedMax;
+        }
+        return { y: axis };
+      }
+
+      function buildDualAxis(leftFormatType, rightFormatType) {
+        return {
+          y: {
+            beginAtZero: true,
+            position: 'left',
+            ticks: {
+              callback: function (value) {
+                return formatTickByType(leftFormatType, value);
               },
             },
           },
-        );
-
-        const poasSuggestedMax = Math.max(1.1, ...stats.poas, 1.0);
-        createMultiLineChart(
-          'poasChart',
-          stats.labels,
-          [
-            {
-              label: 'POAS',
-              data: stats.poas,
-              borderColor: '#1565c0',
-              backgroundColor: '#1565c022',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'ratio',
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: {
+              drawOnChartArea: false,
             },
-            {
-              label: 'POAS Threshold (1.0)',
-              data: stats.labels.map(() => 1.0),
-              borderColor: '#c62828',
-              backgroundColor: '#c6282822',
-              fill: false,
-              tension: 0,
-              pointRadius: 0,
-              borderWidth: 1,
-              yAxisID: 'y',
-              formatType: 'ratio',
-            },
-          ],
-          {
-            y: {
-              beginAtZero: true,
-              suggestedMax: poasSuggestedMax,
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('ratio', value);
-                },
+            ticks: {
+              callback: function (value) {
+                return formatTickByType(rightFormatType, value);
               },
             },
           },
-        );
+        };
+      }
 
+      function renderProfitChart(canvasId, series, includeOrganicProfit) {
+        const datasets = [
+          createLineDataset({
+            label: 'Cost',
+            data: series.cost,
+            borderColor: '#c62828',
+            formatType: 'currency',
+          }),
+          createLineDataset({
+            label: 'Gross Profit Before Ads',
+            data: series.gross_profit_before_ads_usd,
+            borderColor: '#2e7d32',
+            formatType: 'currency',
+          }),
+          createLineDataset({
+            label: 'Gross Profit',
+            data: series.gross_profit_usd,
+            borderColor: '#6a1b9a',
+            fill: 'origin',
+            formatType: 'currency',
+          }),
+        ];
+        if (includeOrganicProfit) {
+          datasets.push(createLineDataset({
+            label: 'Organic Profit',
+            data: series.organic_profit_usd,
+            borderColor: '#1565c0',
+            formatType: 'currency',
+          }));
+        }
         createMultiLineChart(
-          'reconciledProfitTimelineChart',
-          reconciledStats.labels,
-          [
-            {
-              label: 'Cost',
-              data: reconciledStats.cost,
-              borderColor: '#c62828',
-              backgroundColor: '#c6282822',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
-            },
-            {
-              label: 'Gross Profit Before Ads',
-              data: reconciledStats.gross_profit_before_ads_usd,
-              borderColor: '#2e7d32',
-              backgroundColor: '#2e7d3222',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
-            },
-            {
-              label: 'Gross Profit',
-              data: reconciledStats.gross_profit_usd,
-              borderColor: '#6a1b9a',
-              backgroundColor: '#6a1b9a22',
-              fill: 'origin',
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
-            },
-            {
-              label: 'Organic Profit',
-              data: reconciledStats.organic_profit_usd,
-              borderColor: '#1565c0',
-              backgroundColor: '#1565c022',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'currency',
-            },
-          ],
-          {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('currency', value);
-                },
-              },
-            },
-          },
+          canvasId,
+          series.labels,
+          datasets,
+          buildSingleAxis('currency'),
         );
+      }
 
-        const reconciledPoasSuggestedMax = Math.max(
-          1.1,
-          ...reconciledStats.poas,
-          ...reconciledStats.tpoas,
-          1.0,
-        );
+      function renderPoasChart(canvasId, series, includeTpoas) {
+        const ratioSeries = includeTpoas ? [...series.poas, ...series.tpoas] : [...series.poas];
+        const suggestedMax = Math.max(1.1, ...ratioSeries, 1.0);
+        const datasets = [
+          createLineDataset({
+            label: 'POAS',
+            data: series.poas,
+            borderColor: '#1565c0',
+            formatType: 'ratio',
+          }),
+        ];
+        if (includeTpoas) {
+          datasets.push(createLineDataset({
+            label: 'TPOAS',
+            data: series.tpoas,
+            borderColor: '#6a1b9a',
+            formatType: 'ratio',
+          }));
+        }
+        datasets.push(createThresholdDataset(series.labels));
         createMultiLineChart(
-          'reconciledPoasTimelineChart',
-          reconciledStats.labels,
-          [
-            {
-              label: 'POAS',
-              data: reconciledStats.poas,
-              borderColor: '#1565c0',
-              backgroundColor: '#1565c022',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'ratio',
-            },
-            {
-              label: 'TPOAS',
-              data: reconciledStats.tpoas,
-              borderColor: '#6a1b9a',
-              backgroundColor: '#6a1b9a22',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
-              formatType: 'ratio',
-            },
-            {
-              label: 'POAS Threshold (1.0)',
-              data: reconciledStats.labels.map(() => 1.0),
-              borderColor: '#c62828',
-              backgroundColor: '#c6282822',
-              fill: false,
-              tension: 0,
-              pointRadius: 0,
-              borderWidth: 1,
-              yAxisID: 'y',
-              formatType: 'ratio',
-            },
-          ],
-          {
-            y: {
-              beginAtZero: true,
-              suggestedMax: reconciledPoasSuggestedMax,
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('ratio', value);
-                },
-              },
-            },
-          },
+          canvasId,
+          series.labels,
+          datasets,
+          buildSingleAxis('ratio', suggestedMax),
         );
+      }
 
+      function renderCpcAndConversionRateChart(series) {
         createMultiLineChart(
           'cpcAndConversionRateChart',
-          stats.labels,
+          series.labels,
           [
-            {
+            createLineDataset({
               label: 'CPC',
-              data: stats.cpc,
+              data: series.cpc,
               borderColor: '#d81b60',
-              backgroundColor: '#d81b6022',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
               yAxisID: 'y',
               formatType: 'currency',
-            },
-            {
+            }),
+            createLineDataset({
               label: 'Conversion Rate',
-              data: stats.conversion_rate,
+              data: series.conversion_rate,
               borderColor: '#00838f',
-              backgroundColor: '#00838f22',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
               yAxisID: 'y1',
               formatType: 'percent',
-            },
+            }),
           ],
-          {
-            y: {
-              beginAtZero: true,
-              position: 'left',
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('currency', value);
-                },
-              },
-            },
-            y1: {
-              beginAtZero: true,
-              position: 'right',
-              grid: {
-                drawOnChartArea: false,
-              },
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('percent', value);
-                },
-              },
-            },
-          },
+          buildDualAxis('currency', 'percent'),
         );
+      }
 
+      function renderCtrChart(series) {
         createMultiLineChart(
           'ctrChart',
-          stats.labels,
+          series.labels,
           [
-            {
+            createLineDataset({
               label: 'CTR',
-              data: stats.ctr,
+              data: series.ctr,
               borderColor: '#ef6c00',
-              backgroundColor: '#ef6c0022',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
-              yAxisID: 'y',
               formatType: 'percent',
-            },
+            }),
           ],
-          {
-            y: {
-              beginAtZero: true,
-              position: 'left',
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('percent', value);
-                },
-              },
-            },
-          },
+          buildSingleAxis('percent'),
         );
+      }
 
+      function renderImpressionsAndClicksChart(series) {
         createMultiLineChart(
           'impressionsAndClicksChart',
-          stats.labels,
+          series.labels,
           [
-            {
+            createLineDataset({
               label: 'Impressions',
-              data: stats.impressions,
+              data: series.impressions,
               borderColor: '#2e7d32',
-              backgroundColor: '#2e7d3222',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
               yAxisID: 'y',
               formatType: 'number',
-            },
-            {
+            }),
+            createLineDataset({
               label: 'Clicks',
-              data: stats.clicks,
+              data: series.clicks,
               borderColor: '#1565c0',
-              backgroundColor: '#1565c022',
-              fill: false,
-              tension: 0.2,
-              pointRadius: 3,
               yAxisID: 'y1',
               formatType: 'number',
-            },
+            }),
           ],
-          {
-            y: {
-              beginAtZero: true,
-              position: 'left',
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('number', value);
-                },
-              },
-            },
-            y1: {
-              beginAtZero: true,
-              position: 'right',
-              grid: {
-                drawOnChartArea: false,
-              },
-              ticks: {
-                callback: function (value) {
-                  return formatTickByType('number', value);
-                },
-              },
-            },
-          },
+          buildDualAxis('number', 'number'),
         );
+      }
+
+      function calculateAndRender(campaignName, mode) {
+        const stats = buildChartStats(adsStatsData, campaignName, mode);
+        const reconciledStats = buildReconciledChartStats(
+          adsStatsData,
+          campaignName,
+          mode,
+          reconciledClickDateChartData,
+        );
+
+        renderProfitChart('profitChart', stats, false);
+        renderProfitChart('reconciledProfitTimelineChart', reconciledStats, true);
+        renderPoasChart('poasChart', stats, false);
+        renderPoasChart('reconciledPoasTimelineChart', reconciledStats, true);
+        renderCpcAndConversionRateChart(stats);
+        renderCtrChart(stats);
+        renderImpressionsAndClicksChart(stats);
 
         const statImpressions = document.getElementById('stat-impressions');
         const statClicks = document.getElementById('stat-clicks');
@@ -826,6 +834,7 @@
       calculateTotals: calculateTotals,
       buildTimelineSeries: buildTimelineSeries,
       buildDaysOfWeekSeries: buildDaysOfWeekSeries,
+      buildReconciledChartStats: buildReconciledChartStats,
       buildChartStats: buildChartStats,
       initAdsStatsPage: initAdsStatsPage,
     };

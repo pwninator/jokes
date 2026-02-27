@@ -5,6 +5,7 @@ const {
   DAYS_OF_WEEK_MODE,
   DAYS_OF_WEEK_LABELS,
   buildDaysOfWeekSeries,
+  buildReconciledChartStats,
   buildChartStats,
   getDailyStatsForCampaign,
 } = require('./ads_stats.js');
@@ -179,4 +180,89 @@ test('buildChartStats keeps totals stable while Days of Week series skips zero-i
   assertClose(daysOfWeek.cpc[1], 0);
   assertClose(daysOfWeek.ctr[1], 0);
   assertClose(daysOfWeek.poas[1], 0);
+});
+
+test('buildReconciledChartStats matches main chart cost and poas for campaign All', () => {
+  const chartData = {
+    labels: ['2026-02-22', '2026-02-23'],
+    impressions: [10, 20],
+    clicks: [2, 4],
+    cost: [4, 10],
+    sales_usd: [8, 12],
+    units_sold: [1, 2],
+    gross_profit_before_ads_usd: [6, 15],
+    gross_profit_usd: [2, 5],
+    daily_campaigns: {
+      '2026-02-22': [],
+      '2026-02-23': [],
+    },
+  };
+  const reconciledChartData = {
+    labels: ['2026-02-22', '2026-02-23'],
+    gross_profit_before_ads_usd: [5, 11],
+    organic_profit_usd: [1, 3],
+  };
+
+  const timeline = buildReconciledChartStats(
+    chartData,
+    'All',
+    'Timeline',
+    reconciledChartData,
+  );
+  const daysOfWeek = buildReconciledChartStats(
+    chartData,
+    'All',
+    DAYS_OF_WEEK_MODE,
+    reconciledChartData,
+  );
+
+  assert.deepEqual(timeline.labels, ['2026-02-22', '2026-02-23']);
+  assert.deepEqual(timeline.cost, [4, 10]);
+  assertClose(timeline.poas[0], 6 / 4);
+  assertClose(timeline.poas[1], 15 / 10);
+  assertClose(timeline.tpoas[0], (6 + 1) / 4);
+  assertClose(timeline.tpoas[1], (15 + 3) / 10);
+  assert.deepEqual(timeline.gross_profit_before_ads_usd, [5, 11]);
+  assert.deepEqual(timeline.organic_profit_usd, [1, 3]);
+  assert.deepEqual(timeline.gross_profit_usd, [2, 4]);
+
+  assert.deepEqual(daysOfWeek.labels, DAYS_OF_WEEK_LABELS);
+  assertClose(daysOfWeek.cost[0], 4); // Sunday
+  assertClose(daysOfWeek.cost[1], 10); // Monday
+  assertClose(daysOfWeek.poas[0], 6 / 4);
+  assertClose(daysOfWeek.poas[1], 15 / 10);
+  assertClose(daysOfWeek.tpoas[0], (6 + 1) / 4);
+  assertClose(daysOfWeek.tpoas[1], (15 + 3) / 10);
+});
+
+test('buildReconciledChartStats returns empty series for specific campaigns', () => {
+  const chartData = {
+    labels: ['2026-02-22'],
+    daily_campaigns: {
+      '2026-02-22': [
+        {
+          campaign_name: 'Campaign A',
+          impressions: 10,
+          clicks: 2,
+          spend: 4,
+          total_attributed_sales_usd: 8,
+          total_units_sold: 1,
+          gross_profit_before_ads_usd: 6,
+          gross_profit_usd: 2,
+        },
+      ],
+    },
+  };
+
+  const reconciled = buildReconciledChartStats(
+    chartData,
+    'Campaign A',
+    'Timeline',
+    { labels: ['2026-02-22'] },
+  );
+
+  assert.deepEqual(reconciled.labels, []);
+  assert.deepEqual(reconciled.cost, []);
+  assert.deepEqual(reconciled.poas, []);
+  assert.deepEqual(reconciled.tpoas, []);
 });

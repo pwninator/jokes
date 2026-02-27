@@ -165,10 +165,11 @@ def _apply_combined_sales_rows(
     aggregate.total_royalties_usd += royalty_usd
     aggregate.total_print_cost_usd += print_cost_usd
 
+    canonical_asin = book_variant.asin
     existing = aggregate.sale_items_by_asin.setdefault(
-      asin_or_isbn,
+      canonical_asin,
       models.AmazonProductStats(
-        asin=asin_or_isbn,
+        asin=canonical_asin,
         units_sold=0,
         total_sales_usd=0.0,
         total_profit_usd=0.0,
@@ -178,7 +179,8 @@ def _apply_combined_sales_rows(
     existing.units_sold += net_units_sold
     existing.total_sales_usd += sales_amount_usd
     existing.total_profit_usd += royalty_usd
-    existing.total_royalty_usd = (existing.total_royalty_usd or 0.0) + royalty_usd
+    existing.total_royalty_usd = (existing.total_royalty_usd
+                                  or 0.0) + royalty_usd
     existing.total_print_cost_usd = (existing.total_print_cost_usd
                                      or 0.0) + print_cost_usd
 

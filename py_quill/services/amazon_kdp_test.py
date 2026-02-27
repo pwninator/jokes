@@ -164,6 +164,34 @@ def test_parse_kdp_xlsx_aggregates_rows_and_converts_currency():
   assert pb_item.total_royalty_usd == pytest.approx(4.28, abs=0.01)
 
 
+def test_parse_kdp_xlsx_normalizes_paperback_isbn_to_variant_asin():
+  workbook_bytes = _build_kdp_workbook_bytes(
+    combined_sales_rows=[[
+      "2026-02-25",
+      "Cute & Silly Animal Jokes",
+      "Amelia Blanc",
+      "9798247846802",
+      "Amazon.com",
+      "60%",
+      "Standard - Paperback",
+      1,
+      0,
+      1,
+      11.99,
+      11.99,
+      2.91,
+      4.28,
+      "USD",
+    ]],
+    kenp_rows=[],
+  )
+
+  stats = amazon_kdp.parse_kdp_xlsx(workbook_bytes)
+
+  assert len(stats) == 1
+  assert [item.asin for item in stats[0].sale_items] == ["B0GNHFKQ8W"]
+
+
 def test_parse_kdp_xlsx_raises_on_format_mismatch():
   workbook_bytes = _build_kdp_workbook_bytes(
     combined_sales_rows=[[

@@ -229,3 +229,67 @@ def test_reconcile_daily_sales_falls_back_to_full_recompute_when_seed_missing(
   day_10_by_asin = by_date["2026-01-10"].by_asin[asin]
   assert day_10_by_asin.ads_matched_units == 1
   assert day_10_by_asin.organic_units == 0
+
+
+def test_reconcile_daily_sales_normalizes_kdp_isbn_to_variant_asin(
+    monkeypatch):
+  ads_asin = "B0GNHFKQ8W"
+  paperback_isbn = "9798247846802"
+  changed_date = datetime.date(2026, 2, 23)
+
+  def _bounds(collection_name: str):
+    if collection_name == firestore.AMAZON_ADS_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 2, 20), datetime.date(2026, 2, 23))
+    if collection_name == firestore.AMAZON_KDP_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 2, 20), datetime.date(2026, 2, 23))
+    return None
+
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_get_collection_date_bounds",
+    _bounds,
+  )
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_load_seed_lots",
+    lambda seed_date: None,
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_ads_daily_stat(datetime.date(2026, 2, 20), asin=ads_asin, units=1
+                            ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_kdp_daily_stat(
+        datetime.date(2026, 2, 23),
+        asin=paperback_isbn,
+        units=1,
+        sales_usd=11.99,
+        royalty_usd=4.28,
+        print_cost_usd=2.91,
+      ),
+    ],
+  )
+
+  captured_docs: list[models.AmazonSalesReconciledDailyStats] = []
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_upsert_reconciled_docs",
+    lambda docs: captured_docs.extend(docs),
+  )
+
+  _ = amazon_sales_reconciliation.reconcile_daily_sales(
+    earliest_changed_date=changed_date)
+
+  by_date = {doc.date.isoformat(): doc for doc in captured_docs}
+  day_23 = by_date["2026-02-23"]
+  assert paperback_isbn not in day_23.by_asin
+  assert ads_asin in day_23.by_asin
+  assert day_23.by_asin[ads_asin].ads_matched_units == 1
+  assert day_23.by_asin[ads_asin].organic_units == 0

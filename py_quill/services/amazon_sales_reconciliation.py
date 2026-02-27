@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from collections import defaultdict, deque
 
-from common import models
+from common import book_defs, models
 from firebase_functions import logger
 from services import firestore
 
@@ -165,16 +165,16 @@ def _append_ads_lots_for_day(
   units_by_asin: dict[str, int] = defaultdict(int)
   for campaign_stat in ads_stat.campaigns_by_id.values():
     for sale_item in campaign_stat.sale_items:
-      asin = sale_item.asin.strip()
-      if not asin:
+      canonical_asin = _canonical_book_variant_asin(sale_item.asin)
+      if not canonical_asin:
         continue
       units = max(0, int(sale_item.units_sold))
       if units <= 0:
         continue
-      units_by_asin[asin] += units
+      units_by_asin[canonical_asin] += units
 
-  for asin, units in units_by_asin.items():
-    lots_by_asin.setdefault(asin, deque()).append(
+  for canonical_asin, units in units_by_asin.items():
+    lots_by_asin.setdefault(canonical_asin, deque()).append(
       models.AmazonSalesReconciledAdsLot(
         purchase_date=current_date,
         units_remaining=units,
@@ -210,13 +210,13 @@ def _build_daily_reconciled_doc(
 
   if kdp_stat is not None:
     for sale_item in kdp_stat.sale_items:
-      asin = sale_item.asin.strip()
-      if not asin:
+      canonical_asin = _canonical_book_variant_asin(sale_item.asin)
+      if not canonical_asin:
         continue
 
       kdp_units = int(sale_item.units_sold)
       matched_units = _match_units(
-        asin=asin,
+        asin=canonical_asin,
         kdp_units=kdp_units,
         lots_by_asin=lots_by_asin,
       )
@@ -240,8 +240,8 @@ def _build_daily_reconciled_doc(
       organic_print_cost_usd = print_cost_usd - ads_print_cost_usd
 
       by_asin_entry = by_asin.setdefault(
-        asin,
-        models.AmazonSalesReconciledAsinStats(asin=asin),
+        canonical_asin,
+        models.AmazonSalesReconciledAsinStats(asin=canonical_asin),
       )
       by_asin_entry.kdp_units += kdp_units
       by_asin_entry.ads_matched_units += matched_units
@@ -321,6 +321,18 @@ def _resolve_kdp_royalty_usd(sale_item: models.AmazonProductStats) -> float:
   if sale_item.total_royalty_usd is not None:
     return float(sale_item.total_royalty_usd)
   return float(sale_item.total_profit_usd)
+
+
+def _canonical_book_variant_asin(identifier: str) -> str | None:
+  """Normalize an ASIN or ISBN identifier to the canonical book-variant ASIN."""
+  raw_identifier = (identifier or "").strip()
+  if not raw_identifier:
+    return None
+  book_variant = book_defs.find_book_variant(raw_identifier)
+  if book_variant is None:
+    logger.warn(f"Skipping unknown book variant identifier: {raw_identifier}")
+    return None
+  return book_variant.asin
 
 
 def _match_units(

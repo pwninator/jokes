@@ -383,12 +383,12 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["cost"][idx_0217] == 4.5
   assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0217] == 4.0
   assert reconciled_chart_data["gross_profit_usd"][idx_0217] == 1.5
-  assert reconciled_chart_data["organic_sales_usd"][idx_0217] == 3.5
+  assert reconciled_chart_data["organic_profit_usd"][idx_0217] == 2.0
   assert reconciled_chart_data["poas"][idx_0217] == 2.0
   assert reconciled_chart_data["tpoas"][idx_0217] == 2.4444
   assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0219] == 31.0
   assert reconciled_chart_data["gross_profit_usd"][idx_0219] == 13.0
-  assert reconciled_chart_data["organic_sales_usd"][idx_0219] == 12.5
+  assert reconciled_chart_data["organic_profit_usd"][idx_0219] == 7.0
   assert reconciled_chart_data["poas"][idx_0219] == 2.4
   assert reconciled_chart_data["tpoas"][idx_0219] == 2.68
 
@@ -485,9 +485,9 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert "<h3>Sales</h3>" not in html
 
   assert "<h3>Profit</h3>" in html
+  assert "<h3>Profit (Reconciled)</h3>" in html
   assert "<h3>POAS</h3>" in html
-  assert "<h3>Profit Timeline (Reconciled Click Date)</h3>" in html
-  assert "<h3>POAS Timeline (Reconciled Click Date)</h3>" in html
+  assert "<h3>POAS (Reconciled)</h3>" in html
   assert "<h3>Gross Profit</h3>" not in html
   assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
   assert '/static/js/ads_stats.js' in html
@@ -503,11 +503,9 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert "flex-wrap: wrap;" in html
 
   profit_pos = html.find("<h3>Profit</h3>")
+  reconciled_profit_pos = html.find("<h3>Profit (Reconciled)</h3>")
   poas_pos = html.find("<h3>POAS</h3>")
-  reconciled_profit_pos = html.find(
-    "<h3>Profit Timeline (Reconciled Click Date)</h3>")
-  reconciled_poas_pos = html.find(
-    "<h3>POAS Timeline (Reconciled Click Date)</h3>")
+  reconciled_poas_pos = html.find("<h3>POAS (Reconciled)</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
   ctr_pos = html.find("<h3>CTR</h3>")
   impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")
@@ -524,9 +522,9 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert '<canvas id="impressionsAndClicksChart"></canvas>' in html
   assert '<canvas id="reconciledProfitTimelineChart"></canvas>' in html
   assert '<canvas id="reconciledPoasTimelineChart"></canvas>' in html
-  assert profit_pos < poas_pos
-  assert poas_pos < reconciled_profit_pos
-  assert reconciled_profit_pos < reconciled_poas_pos
+  assert profit_pos < reconciled_profit_pos
+  assert reconciled_profit_pos < poas_pos
+  assert poas_pos < reconciled_poas_pos
   assert reconciled_poas_pos < cpc_and_cr_pos
   assert cpc_and_cr_pos < ctr_pos
   assert ctr_pos < impressions_and_clicks_pos

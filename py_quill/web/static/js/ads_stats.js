@@ -272,8 +272,8 @@
       gross_profit_usd: Array.isArray(data.gross_profit_usd)
         ? data.gross_profit_usd.map(toNumber)
         : [],
-      organic_sales_usd: Array.isArray(data.organic_sales_usd)
-        ? data.organic_sales_usd.map(toNumber)
+      organic_profit_usd: Array.isArray(data.organic_profit_usd)
+        ? data.organic_profit_usd.map(toNumber)
         : [],
       poas: Array.isArray(data.poas) ? data.poas.map(toNumber) : [],
       tpoas: Array.isArray(data.tpoas) ? data.tpoas.map(toNumber) : [],
@@ -519,8 +519,8 @@
               formatType: 'currency',
             },
             {
-              label: 'Organic Sales',
-              data: reconciledStats.organic_sales_usd,
+              label: 'Organic Profit',
+              data: reconciledStats.organic_profit_usd,
               borderColor: '#1565c0',
               backgroundColor: '#1565c022',
               fill: false,

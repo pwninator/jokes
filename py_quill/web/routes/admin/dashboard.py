@@ -367,7 +367,7 @@ def _build_reconciled_click_date_chart_data(
   cost: list[float] = []
   gross_profit_before_ads_usd: list[float] = []
   gross_profit_usd: list[float] = []
-  organic_sales_usd: list[float] = []
+  organic_profit_usd: list[float] = []
   poas: list[float] = []
   tpoas: list[float] = []
 
@@ -389,8 +389,8 @@ def _build_reconciled_click_date_chart_data(
                                      if reconciled_stat is not None else 0.0)
     organic_product_profit = (float(reconciled_stat.organic_royalty_usd_est)
                               if reconciled_stat is not None else 0.0)
-    organic_sales = (float(reconciled_stat.organic_sales_usd_est)
-                     if reconciled_stat is not None else 0.0)
+    organic_profit = (float(reconciled_stat.organic_royalty_usd_est)
+                      if reconciled_stat is not None else 0.0)
 
     reconciled_gross_profit_before_ads = (ads_click_date_product_profit +
                                           ads_kenp_royalties)
@@ -405,7 +405,7 @@ def _build_reconciled_click_date_chart_data(
     gross_profit_before_ads_usd.append(
       round(reconciled_gross_profit_before_ads, 2))
     gross_profit_usd.append(round(total_gross_profit, 2))
-    organic_sales_usd.append(round(organic_sales, 2))
+    organic_profit_usd.append(round(organic_profit, 2))
     poas.append(round(current_poas, 4))
     tpoas.append(round(total_poas, 4))
     current_date += datetime.timedelta(days=1)
@@ -415,7 +415,7 @@ def _build_reconciled_click_date_chart_data(
     "cost": cost,
     "gross_profit_before_ads_usd": gross_profit_before_ads_usd,
     "gross_profit_usd": gross_profit_usd,
-    "organic_sales_usd": organic_sales_usd,
+    "organic_profit_usd": organic_profit_usd,
     "poas": poas,
     "tpoas": tpoas,
   }

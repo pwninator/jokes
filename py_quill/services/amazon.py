@@ -14,7 +14,7 @@ from typing import Any, cast
 import requests
 from common import book_defs, config, models
 from firebase_functions import logger
-from services import firestore
+from services import amazon_sales_reconciliation, firestore
 
 _AMAZON_TOKEN_URL = "https://api.amazon.com/auth/o2/token"
 _AMAZON_ADS_API_BY_REGION = {
@@ -414,8 +414,8 @@ def request_ads_stats_reports(
       end_date=ctx.report_end_date,
     )
     ctx.reports_by_expected_key[(profile.profile_id,
-                                report_pair.campaigns_report.report_type_id
-                                )] = report_pair.campaigns_report
+                                 report_pair.campaigns_report.report_type_id
+                                 )] = report_pair.campaigns_report
     ctx.reports_by_expected_key[(
       profile.profile_id, report_pair.advertised_products_report.report_type_id
     )] = report_pair.advertised_products_report
@@ -448,13 +448,14 @@ def request_ads_stats_reports(
 
 
 def fetch_ads_stats_reports(
-    run_time_utc: datetime.datetime
+  run_time_utc: datetime.datetime
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
   """Get report status and, if ready and unprocessed, fetch and process them."""
   ctx = _get_ads_stats_context(run_time_utc)
   time.sleep(ADS_STATS_REPORT_METADATA_WAIT_SEC)
   report_metadata: list[dict[str, Any]] = []
   daily_campaign_stats_rows: list[dict[str, Any]] = []
+  earliest_reconciled_date: datetime.date | None = None
 
   for profile in ctx.selected_profiles:
     report_ids = _collect_expected_report_ids_for_profile(
@@ -522,6 +523,11 @@ def fetch_ads_stats_reports(
         # Upsert aggregated stats
         daily_stats_list = list(stats_by_date.values())
         _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+        if daily_stats_list:
+          current_min_date = min(stat.date for stat in daily_stats_list)
+          if (earliest_reconciled_date is None
+              or current_min_date < earliest_reconciled_date):
+            earliest_reconciled_date = current_min_date
 
         # Mark reports as processed
         campaigns_report.processed = True
@@ -544,6 +550,12 @@ def fetch_ads_stats_reports(
           f"Reports already processed for profile {profile.profile_id}")
     else:
       logger.info(f"Reports not complete for profile {profile.profile_id}")
+
+  if earliest_reconciled_date is not None:
+    _ = amazon_sales_reconciliation.reconcile_daily_sales(
+      earliest_changed_date=earliest_reconciled_date,
+      run_time_utc=run_time_utc,
+    )
 
   return report_metadata, daily_campaign_stats_rows
 

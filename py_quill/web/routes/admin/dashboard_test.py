@@ -570,11 +570,18 @@ def test_admin_ads_stats_upload_kdp_success(monkeypatch):
 
   parse_mock = Mock(return_value=parsed_stats)
   upsert_mock = Mock(return_value=parsed_stats)
-  monkeypatch.setattr(dashboard_routes.amazon_kdp, "parse_kdp_xlsx", parse_mock)
+  reconcile_mock = Mock(return_value={"reconciled_days": 14})
+  monkeypatch.setattr(dashboard_routes.amazon_kdp, "parse_kdp_xlsx",
+                      parse_mock)
   monkeypatch.setattr(
     firestore_service,
     "upsert_amazon_kdp_daily_stats",
     upsert_mock,
+  )
+  monkeypatch.setattr(
+    dashboard_routes.amazon_sales_reconciliation,
+    "reconcile_daily_sales",
+    reconcile_mock,
   )
 
   with app.test_client() as client:
@@ -588,6 +595,8 @@ def test_admin_ads_stats_upload_kdp_success(monkeypatch):
   assert resp.get_json() == {"days_saved": 2}
   parse_mock.assert_called_once()
   upsert_mock.assert_called_once_with(parsed_stats)
+  reconcile_mock.assert_called_once_with(
+    earliest_changed_date=datetime.date(2026, 2, 24))
 
 
 def test_admin_ads_stats_upload_kdp_missing_file_returns_400(monkeypatch):

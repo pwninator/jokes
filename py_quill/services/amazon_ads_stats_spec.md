@@ -8,6 +8,8 @@ This document is the canonical behavioral spec for:
 - KDP-vs-ads FIFO reconciliation in
   `py_quill/services/amazon_sales_reconciliation.py`
 
+Changes to this file must be reflected immediately in the corresponding code.
+
 ## 1. Scope and Data Sources
 
 ### 1.1 Ads source reports (Amazon Ads API v3)
@@ -126,7 +128,7 @@ For each `(campaign_id, date, advertisedAsin)` row:
 
 - `units_sold = unitsSoldSameSku14d`
 - `sales_usd = attributedSalesSameSku14d` (converted to USD)
-- market code from profile country
+- country code from profile country
 - row currency
 
 ### 5.3 Variant universe
@@ -137,10 +139,10 @@ Then all variants of that same book become decomposition candidates
 
 ### 5.4 Price candidates
 
-Candidate per-unit USD prices for each `(market, currency, asin)` come from
+Candidate per-unit USD prices for each `(country_code, asin)` come from
 historical KDP daily docs (lookback 180 days):
 
-1. `market_currency_stats_by_key[*].avg_offer_price_usd_candidates_by_asin`
+1. `country_stats_by_code[*].avg_offer_price_usd_candidates_by_asin`
 2. fallback derived from per-bucket `sale_items_by_asin` average
    (`total_sales_usd / units`)
 
@@ -207,12 +209,12 @@ Persisted per date:
 - royalties/print cost in USD
 - aggregated `sale_items_by_asin` per ASIN
 
-### 6.4 New per market/currency persistence
+### 6.4 New per-country persistence
 
-`AmazonKdpDailyStats.market_currency_stats_by_key` now stores buckets keyed by
-`{MARKET}_{CURRENCY}` with:
+`AmazonKdpDailyStats.country_stats_by_code` now stores buckets keyed by
+`{COUNTRY_CODE}` with:
 
-- `market`, `currency_code`
+- `country_code`
 - `total_units_sold`, `kenp_pages_read`
 - `total_royalties_usd`, `total_print_cost_usd`
 - `sale_items_by_asin` (ASIN-level aggregates within that bucket)

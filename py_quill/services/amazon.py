@@ -1,4 +1,7 @@
-"""Amazon Ads API helpers for daily campaign profitability statistics."""
+"""Amazon Ads API helpers for daily campaign profitability statistics.
+
+This file must be sychronized with the spec in `amazon_ads_stats_spec.md`.
+"""
 
 from __future__ import annotations
 
@@ -55,12 +58,7 @@ _COUNTRY_CODE_TO_CURRENCY_CODE: dict[str, str] = {
   "GB": "GBP",
   "UK": "GBP",
 }
-_COUNTRY_CODE_TO_MARKET_CODE: dict[str, str] = {
-  "US": "US",
-  "CA": "CA",
-  "GB": "GB",
-  "UK": "GB",
-}
+_COUNTRY_CODE_ALIASES: dict[str, str] = {"UK": "GB"}
 
 # Valid columns for Sponsored Products campaigns report
 # https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/campaign
@@ -337,8 +335,8 @@ def get_daily_campaign_stats_from_reports(
   _raise_if_report_not_completed(advertised_products_report)
   _raise_if_report_not_completed(purchased_products_report)
 
-  kdp_price_candidates_by_market_currency_asin = (
-    _load_kdp_price_candidates_by_market_currency_asin(
+  kdp_price_candidates_by_country_asin = (
+    _load_kdp_price_candidates_by_country_asin(
       start_date=campaigns_report.start_date -
       datetime.timedelta(days=_KDP_PRICE_CANDIDATE_LOOKBACK_DAYS),
       end_date=campaigns_report.end_date,
@@ -352,8 +350,8 @@ def get_daily_campaign_stats_from_reports(
     advertised_product_rows=advertised_product_rows,
     purchased_product_rows=purchased_product_rows,
     profile_country_code=profile.country_code,
-    kdp_price_candidates_by_market_currency_asin=(
-      kdp_price_candidates_by_market_currency_asin),
+    kdp_price_candidates_by_country_asin=(
+      kdp_price_candidates_by_country_asin),
   )
   return merged_stats
 
@@ -1010,8 +1008,8 @@ def _merge_report_rows(
   advertised_product_rows: list[dict[str, Any]],
   purchased_product_rows: list[dict[str, Any]],
   profile_country_code: str,
-  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
-                                                     tuple[float, ...]],
+  kdp_price_candidates_by_country_asin: dict[tuple[str, str], tuple[float,
+                                                                    ...]],
 ) -> list[models.AmazonAdsDailyCampaignStats]:
   """Merge report rows by day and normalize all monetary fields to USD."""
   advertised_by_campaign_date = _index_rows_by_campaign_and_date(
@@ -1034,7 +1032,7 @@ def _merge_report_rows(
       campaign_row=campaign_row,
       profile_country_code=profile_country_code,
     )
-    market_code = _normalize_market_code(profile_country_code)
+    country_code = _normalize_country_code(profile_country_code)
     spend = _convert_amount_to_usd(
       _as_float(campaign_row.get("cost")),
       currency_code=currency_code,
@@ -1066,10 +1064,10 @@ def _merge_report_rows(
       date_value=date_value,
       advertised_by_campaign_date=advertised_by_campaign_date,
       purchased_by_campaign_date=purchased_by_campaign_date,
-      market_code=market_code,
+      country_code=country_code,
       currency_code=currency_code,
-      kdp_price_candidates_by_market_currency_asin=(
-        kdp_price_candidates_by_market_currency_asin),
+      kdp_price_candidates_by_country_asin=(
+        kdp_price_candidates_by_country_asin),
     )
     product_profit_total = sum(item.total_profit_usd for item in sale_items)
 
@@ -1118,10 +1116,10 @@ def _build_merged_sale_items_for_campaign_day(
                                     list[dict[str, Any]]],
   purchased_by_campaign_date: dict[tuple[str, datetime.date], list[dict[str,
                                                                         Any]]],
-  market_code: str,
+  country_code: str,
   currency_code: str,
-  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
-                                                     tuple[float, ...]],
+  kdp_price_candidates_by_country_asin: dict[tuple[str, str], tuple[float,
+                                                                    ...]],
 ) -> list[models.AmazonProductStats]:
   """Build merged ASIN sale items by combining direct and halo sources."""
   merged_totals_by_asin: dict[str, models.AmazonProductStats] = {}
@@ -1138,12 +1136,11 @@ def _build_merged_sale_items_for_campaign_day(
     )
     allocations = _decompose_advertised_row_allocations(
       advertised_asin=asin,
-      market_code=market_code,
-      currency_code=currency_code,
+      country_code=country_code,
       units_sold=direct_units,
       total_sales_usd=direct_sales,
-      kdp_price_candidates_by_market_currency_asin=(
-        kdp_price_candidates_by_market_currency_asin),
+      kdp_price_candidates_by_country_asin=(
+        kdp_price_candidates_by_country_asin),
     )
     for allocation in allocations:
       _accumulate_asin_totals(
@@ -1203,12 +1200,12 @@ def _extract_direct_units_sold(advertised_row: dict[str, Any]) -> int:
   return _as_int(advertised_row.get("unitsSoldSameSku14d"))
 
 
-def _load_kdp_price_candidates_by_market_currency_asin(
+def _load_kdp_price_candidates_by_country_asin(
   *,
   start_date: datetime.date,
   end_date: datetime.date,
-) -> dict[tuple[str, str, str], tuple[float, ...]]:
-  """Build `(market, currency, asin) -> candidate per-unit USD prices`."""
+) -> dict[tuple[str, str], tuple[float, ...]]:
+  """Build `(country_code, asin) -> candidate per-unit USD prices`."""
   if end_date < start_date:
     return {}
 
@@ -1221,10 +1218,10 @@ def _load_kdp_price_candidates_by_market_currency_asin(
     logger.warn(f"Failed to load KDP price candidates: {exc}")
     return {}
 
-  candidates: dict[tuple[str, str, str], set[float]] = {}
+  candidates: dict[tuple[str, str], set[float]] = {}
   for daily_stat in kdp_rows:
-    for market_stats in daily_stat.market_currency_stats_by_key.values():
-      _add_kdp_candidates_from_market_stats(candidates, market_stats)
+    for country_stats in daily_stat.country_stats_by_code.values():
+      _add_kdp_candidates_from_country_stats(candidates, country_stats)
 
   return {
     key: tuple(sorted(prices))
@@ -1232,33 +1229,30 @@ def _load_kdp_price_candidates_by_market_currency_asin(
   }
 
 
-def _add_kdp_candidates_from_market_stats(
-  candidates: dict[tuple[str, str, str], set[float]],
-  market_stats: models.AmazonKdpMarketCurrencyStats,
+def _add_kdp_candidates_from_country_stats(
+  candidates: dict[tuple[str, str], set[float]],
+  country_stats: models.AmazonKdpCountryStats,
 ) -> None:
-  """Merge one KDP market/currency bucket into the price candidate map."""
-  market_code = _normalize_market_code(market_stats.market)
-  currency_code = _required_str(market_stats.currency_code).upper()
-  if not currency_code:
-    currency_code = _USD_CURRENCY_CODE
+  """Merge one KDP country bucket into the price candidate map."""
+  country_code = _normalize_country_code(country_stats.country_code)
 
-  for asin, prices in market_stats.avg_offer_price_usd_candidates_by_asin.items(
+  for asin, prices in country_stats.avg_offer_price_usd_candidates_by_asin.items(
   ):
     canonical_asin = _safe_canonical_book_variant_asin(asin)
     if not canonical_asin:
       continue
-    key = (market_code, currency_code, canonical_asin)
+    key = (country_code, canonical_asin)
     for price in prices:
       _add_price_candidate(candidates, key, price)
 
-  for sale_item in market_stats.sale_items_by_asin.values():
+  for sale_item in country_stats.sale_items_by_asin.values():
     units = _as_int(sale_item.units_sold)
     if units <= 0:
       continue
     canonical_asin = _safe_canonical_book_variant_asin(sale_item.asin)
     if not canonical_asin:
       continue
-    key = (market_code, currency_code, canonical_asin)
+    key = (country_code, canonical_asin)
     _add_price_candidate(
       candidates,
       key,
@@ -1267,8 +1261,8 @@ def _add_kdp_candidates_from_market_stats(
 
 
 def _add_price_candidate(
-  candidates: dict[tuple[str, str, str], set[float]],
-  key: tuple[str, str, str],
+  candidates: dict[tuple[str, str], set[float]],
+  key: tuple[str, str],
   price: float,
 ) -> None:
   """Add one positive per-unit price to the candidate map."""
@@ -1280,12 +1274,11 @@ def _add_price_candidate(
 def _decompose_advertised_row_allocations(
   *,
   advertised_asin: str,
-  market_code: str,
-  currency_code: str,
+  country_code: str,
   units_sold: int,
   total_sales_usd: float,
-  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
-                                                     tuple[float, ...]],
+  kdp_price_candidates_by_country_asin: dict[tuple[str, str], tuple[float,
+                                                                    ...]],
 ) -> list[_DecomposedSaleAllocation]:
   """Infer per-ASIN unit/sales allocations from one advertised-product row."""
   canonical_advertised_asin = _canonical_book_variant_asin(advertised_asin)
@@ -1318,10 +1311,9 @@ def _decompose_advertised_row_allocations(
     candidate_prices_by_asin[
       variant.asin] = _resolve_candidate_prices_for_variant(
         variant=variant,
-        market_code=market_code,
-        currency_code=currency_code,
-        kdp_price_candidates_by_market_currency_asin=(
-          kdp_price_candidates_by_market_currency_asin),
+        country_code=country_code,
+        kdp_price_candidates_by_country_asin=(
+          kdp_price_candidates_by_country_asin),
       )
 
   best_score: tuple[float, int, int, tuple[int, ...]] | None = None
@@ -1427,21 +1419,15 @@ def _decompose_advertised_row_allocations(
 def _resolve_candidate_prices_for_variant(
   *,
   variant: book_defs.BookVariant,
-  market_code: str,
-  currency_code: str,
-  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
-                                                     tuple[float, ...]],
+  country_code: str,
+  kdp_price_candidates_by_country_asin: dict[tuple[str, str], tuple[float,
+                                                                    ...]],
 ) -> tuple[float, ...]:
   """Return sorted candidate per-unit USD prices for one ASIN."""
   candidate_prices: set[float] = set()
-  exact_key = (market_code, currency_code, variant.asin)
+  exact_key = (country_code, variant.asin)
   candidate_prices.update(
-    kdp_price_candidates_by_market_currency_asin.get(exact_key, ()))
-
-  for (candidate_market, _candidate_currency, candidate_asin
-       ), prices in kdp_price_candidates_by_market_currency_asin.items():
-    if candidate_market == market_code and candidate_asin == variant.asin:
-      candidate_prices.update(prices)
+    kdp_price_candidates_by_country_asin.get(exact_key, ()))
 
   if variant.min_price_usd is not None:
     candidate_prices = {
@@ -1583,10 +1569,10 @@ def _canonical_book_variant_asin(identifier: str) -> str | None:
   return book_variant.asin
 
 
-def _normalize_market_code(country_code: str) -> str:
-  """Normalize profile/report country codes to market keys used by KDP stats."""
+def _normalize_country_code(country_code: str) -> str:
+  """Normalize country codes for consistent country-keyed lookups."""
   normalized = country_code.strip().upper()
-  return _COUNTRY_CODE_TO_MARKET_CODE.get(normalized, normalized)
+  return _COUNTRY_CODE_ALIASES.get(normalized, normalized)
 
 
 def _extract_report_type_id(payload: dict[str, Any]) -> str:

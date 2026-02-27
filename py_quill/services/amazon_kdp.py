@@ -1,4 +1,7 @@
-"""KDP xlsx parsing helpers for daily sales and KENP stats."""
+"""KDP xlsx parsing helpers for daily sales and KENP stats.
+
+This file must be sychronized with the spec in `amazon_ads_stats_spec.md`.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ _CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
   "CAD": 0.7320,
   "GBP": 1.3569,
 }
-_MARKETPLACE_TO_MARKET_CODE: dict[str, str] = {
+_MARKETPLACE_TO_COUNTRY_CODE: dict[str, str] = {
   "amazon.com": "US",
   "amazon.ca": "CA",
   "amazon.co.uk": "GB",
@@ -30,12 +33,6 @@ _MARKETPLACE_TO_MARKET_CODE: dict[str, str] = {
   "amazon.pl": "PL",
   "amazon.in": "IN",
   "amazon.com.br": "BR",
-}
-_MARKET_CODE_TO_CURRENCY_CODE: dict[str, str] = {
-  "US": "USD",
-  "CA": "CAD",
-  "GB": "GBP",
-  "UK": "GBP",
 }
 
 
@@ -100,7 +97,7 @@ def _apply_combined_sales_rows(
   for row in rows:
     date_value = _parse_iso_date(row.get("Royalty Date"), "Royalty Date")
     asin_or_isbn = _required_str(row.get("ASIN/ISBN"), "ASIN/ISBN")
-    market = _parse_market(row.get("Marketplace"))
+    country_code = _parse_country_code(row.get("Marketplace"))
     currency_code = _required_str(row.get("Currency"), "Currency").upper()
 
     book_variant = book_defs.find_book_variant(asin_or_isbn)
@@ -155,21 +152,15 @@ def _apply_combined_sales_rows(
       print_cost_usd=print_cost_usd,
     )
 
-    market_currency_key = _market_currency_key(
-      market=market,
-      currency_code=currency_code,
-    )
-    market_currency_stats = _get_or_create_market_currency_stats(
+    country_stats = _get_or_create_country_stats(
       daily_stat=daily_stat,
-      market_currency_key=market_currency_key,
-      market=market,
-      currency_code=currency_code,
+      country_code=country_code,
     )
-    market_currency_stats.total_units_sold += net_units_sold
-    market_currency_stats.total_royalties_usd += royalty_usd
-    market_currency_stats.total_print_cost_usd += print_cost_usd
+    country_stats.total_units_sold += net_units_sold
+    country_stats.total_royalties_usd += royalty_usd
+    country_stats.total_print_cost_usd += print_cost_usd
     _accumulate_sale_item(
-      market_currency_stats.sale_items_by_asin,
+      country_stats.sale_items_by_asin,
       canonical_asin=canonical_asin,
       units_sold=net_units_sold,
       sales_amount_usd=sales_amount_usd,
@@ -178,7 +169,7 @@ def _apply_combined_sales_rows(
     )
     if net_units_sold > 0 and avg_offer_price_usd > 0:
       _append_price_candidate(
-        market_currency_stats.avg_offer_price_usd_candidates_by_asin,
+        country_stats.avg_offer_price_usd_candidates_by_asin,
         canonical_asin=canonical_asin,
         price_usd=avg_offer_price_usd,
       )
@@ -192,7 +183,7 @@ def _apply_kenp_rows(
   for row in rows:
     date_value = _parse_iso_date(row.get("Date"), "Date")
     asin = _required_str(row.get("ASIN"), "ASIN")
-    market = _parse_market(row.get("Marketplace"))
+    country_code = _parse_country_code(row.get("Marketplace"))
     book_variant = book_defs.find_book_variant(asin)
     if book_variant is None:
       raise AmazonKdpError(f"Unknown ASIN in KENP Read sheet: {asin}")
@@ -208,20 +199,13 @@ def _apply_kenp_rows(
       kenp_pages_read=kenp_pages_read,
     )
 
-    currency_code = _MARKET_CODE_TO_CURRENCY_CODE.get(market, "USD")
-    market_currency_key = _market_currency_key(
-      market=market,
-      currency_code=currency_code,
-    )
-    market_currency_stats = _get_or_create_market_currency_stats(
+    country_stats = _get_or_create_country_stats(
       daily_stat=daily_stat,
-      market_currency_key=market_currency_key,
-      market=market,
-      currency_code=currency_code,
+      country_code=country_code,
     )
-    market_currency_stats.kenp_pages_read += kenp_pages_read
+    country_stats.kenp_pages_read += kenp_pages_read
     _accumulate_sale_item(
-      market_currency_stats.sale_items_by_asin,
+      country_stats.sale_items_by_asin,
       canonical_asin=canonical_asin,
       kenp_pages_read=kenp_pages_read,
     )
@@ -240,22 +224,17 @@ def _get_or_create_daily_stat(
   return created
 
 
-def _get_or_create_market_currency_stats(
+def _get_or_create_country_stats(
   *,
   daily_stat: models.AmazonKdpDailyStats,
-  market_currency_key: str,
-  market: str,
-  currency_code: str,
-) -> models.AmazonKdpMarketCurrencyStats:
-  """Return one mutable market/currency bucket under a daily stats object."""
-  existing = daily_stat.market_currency_stats_by_key.get(market_currency_key)
+  country_code: str,
+) -> models.AmazonKdpCountryStats:
+  """Return one mutable country bucket under a daily stats object."""
+  existing = daily_stat.country_stats_by_code.get(country_code)
   if existing is not None:
     return existing
-  created = models.AmazonKdpMarketCurrencyStats(
-    market=market,
-    currency_code=currency_code,
-  )
-  daily_stat.market_currency_stats_by_key[market_currency_key] = created
+  created = models.AmazonKdpCountryStats(country_code=country_code)
+  daily_stat.country_stats_by_code[country_code] = created
   return created
 
 
@@ -294,23 +273,23 @@ def _finalize_stats(
       for asin in sorted(daily_stat.sale_items_by_asin.keys())
     }
 
-    daily_stat.market_currency_stats_by_key = {
-      key: daily_stat.market_currency_stats_by_key[key]
-      for key in sorted(daily_stat.market_currency_stats_by_key.keys())
+    daily_stat.country_stats_by_code = {
+      key: daily_stat.country_stats_by_code[key]
+      for key in sorted(daily_stat.country_stats_by_code.keys())
     }
-    for market_stats in daily_stat.market_currency_stats_by_key.values():
-      market_stats.total_royalties_usd = round(
-        market_stats.total_royalties_usd, 2)
-      market_stats.total_print_cost_usd = round(
-        market_stats.total_print_cost_usd, 2)
-      market_stats.sale_items_by_asin = {
-        asin: market_stats.sale_items_by_asin[asin]
-        for asin in sorted(market_stats.sale_items_by_asin.keys())
+    for country_stats in daily_stat.country_stats_by_code.values():
+      country_stats.total_royalties_usd = round(
+        country_stats.total_royalties_usd, 2)
+      country_stats.total_print_cost_usd = round(
+        country_stats.total_print_cost_usd, 2)
+      country_stats.sale_items_by_asin = {
+        asin: country_stats.sale_items_by_asin[asin]
+        for asin in sorted(country_stats.sale_items_by_asin.keys())
       }
-      market_stats.avg_offer_price_usd_candidates_by_asin = {
+      country_stats.avg_offer_price_usd_candidates_by_asin = {
         asin: sorted(set(prices))
         for asin, prices in sorted(
-          market_stats.avg_offer_price_usd_candidates_by_asin.items())
+          country_stats.avg_offer_price_usd_candidates_by_asin.items())
         if prices
       }
 
@@ -325,18 +304,13 @@ def _format_from_transaction_type(value: Any) -> str:
   return "ebook"
 
 
-def _parse_market(value: Any) -> str:
-  """Normalize Marketplace text to a compact market code (for example `US`)."""
+def _parse_country_code(value: Any) -> str:
+  """Normalize Marketplace text to a country code (for example `US`)."""
   marketplace = _required_str(value, "Marketplace").lower()
-  market = _MARKETPLACE_TO_MARKET_CODE.get(marketplace)
-  if market:
-    return market
+  country_code = _MARKETPLACE_TO_COUNTRY_CODE.get(marketplace)
+  if country_code:
+    return country_code
   raise AmazonKdpError(f"Unsupported Marketplace in KDP report: {value}")
-
-
-def _market_currency_key(*, market: str, currency_code: str) -> str:
-  """Build deterministic key for one market/currency bucket."""
-  return f"{market.upper()}_{currency_code.upper()}"
 
 
 def _accumulate_sale_item(

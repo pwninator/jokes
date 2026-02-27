@@ -15,7 +15,7 @@ from services import amazon
 def _stub_kdp_price_candidates(monkeypatch):
   monkeypatch.setattr(
     amazon,
-    "_load_kdp_price_candidates_by_market_currency_asin",
+    "_load_kdp_price_candidates_by_country_asin",
     lambda *, start_date, end_date: {},
   )
 
@@ -455,10 +455,10 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
                         if item.asin == "B0GNHFKQ8W")
   assert ebook_item.units_sold == 3
   assert ebook_item.total_sales_usd == pytest.approx(11.210526315789473,
-                                                      rel=1e-6)
+                                                     rel=1e-6)
   assert paperback_item.units_sold == 3
   assert paperback_item.total_sales_usd == pytest.approx(30.789473684210527,
-                                                          rel=1e-6)
+                                                         rel=1e-6)
   assert paperback_item.kenp_pages_read == 0
 
 
@@ -599,10 +599,10 @@ def test_get_daily_campaign_stats_from_reports_decomposes_asin_using_kdp_prices(
   monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
   monkeypatch.setattr(
     amazon,
-    "_load_kdp_price_candidates_by_market_currency_asin",
+    "_load_kdp_price_candidates_by_country_asin",
     lambda *, start_date, end_date: {
-      ("US", "USD", "B0G9765J19"): (2.99, ),
-      ("US", "USD", "B0GNHFKQ8W"): (11.99, ),
+      ("US", "B0G9765J19"): (2.99, ),
+      ("US", "B0GNHFKQ8W"): (11.99, ),
     },
   )
 

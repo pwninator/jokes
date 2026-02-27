@@ -197,8 +197,7 @@ def test_parse_kdp_xlsx_normalizes_paperback_isbn_to_variant_asin():
   assert list(stats[0].sale_items_by_asin.keys()) == ["B0GNHFKQ8W"]
 
 
-def test_parse_kdp_xlsx_persists_market_currency_buckets_and_price_candidates(
-):
+def test_parse_kdp_xlsx_persists_country_buckets_and_price_candidates():
   workbook_bytes = _build_kdp_workbook_bytes(
     combined_sales_rows=[
       [
@@ -252,19 +251,17 @@ def test_parse_kdp_xlsx_persists_market_currency_buckets_and_price_candidates(
 
   assert len(stats) == 1
   day = stats[0]
-  assert set(day.market_currency_stats_by_key.keys()) == {"CA_CAD", "US_USD"}
+  assert set(day.country_stats_by_code.keys()) == {"CA", "US"}
 
-  us_bucket = day.market_currency_stats_by_key["US_USD"]
-  assert us_bucket.market == "US"
-  assert us_bucket.currency_code == "USD"
+  us_bucket = day.country_stats_by_code["US"]
+  assert us_bucket.country_code == "US"
   assert us_bucket.kenp_pages_read == 40
   assert us_bucket.avg_offer_price_usd_candidates_by_asin["B0G9765J19"] == [
     pytest.approx(2.99, rel=1e-6)
   ]
 
-  ca_bucket = day.market_currency_stats_by_key["CA_CAD"]
-  assert ca_bucket.market == "CA"
-  assert ca_bucket.currency_code == "CAD"
+  ca_bucket = day.country_stats_by_code["CA"]
+  assert ca_bucket.country_code == "CA"
   assert ca_bucket.total_units_sold == 1
   assert ca_bucket.avg_offer_price_usd_candidates_by_asin["B0GNHFKQ8W"] == [
     pytest.approx(11.95356, rel=1e-6)

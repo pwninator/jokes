@@ -1721,11 +1721,10 @@ class AmazonAdsDailyStats:
 
 
 @dataclass(kw_only=True)
-class AmazonKdpMarketCurrencyStats:
-  """KDP daily stats scoped to one market/currency bucket."""
+class AmazonKdpCountryStats:
+  """KDP daily stats scoped to one country bucket."""
 
-  market: str
-  currency_code: str
+  country_code: str
   total_units_sold: int = 0
   kenp_pages_read: int = 0
   total_royalties_usd: float = 0.0
@@ -1738,10 +1737,8 @@ class AmazonKdpMarketCurrencyStats:
   def to_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     return {
-      "market":
-      self.market,
-      "currency_code":
-      self.currency_code,
+      "country_code":
+      self.country_code,
       "total_units_sold":
       self.total_units_sold,
       "kenp_pages_read":
@@ -1759,20 +1756,16 @@ class AmazonKdpMarketCurrencyStats:
     }
 
   @classmethod
-  def from_dict(cls, data: dict[str, Any]) -> AmazonKdpMarketCurrencyStats:
-    """Create a market/currency KDP stats model from dictionary data."""
+  def from_dict(cls, data: dict[str, Any]) -> AmazonKdpCountryStats:
+    """Create a country-scoped KDP stats model from dictionary data."""
     if not data:
       data = {}
     else:
       data = dict(data)
 
-    market = str(data.get("market", "")).strip().upper()
-    currency_code = str(data.get("currency_code", "")).strip().upper()
-    if not market:
-      raise ValueError("AmazonKdpMarketCurrencyStats.market is required")
-    if not currency_code:
-      raise ValueError(
-        "AmazonKdpMarketCurrencyStats.currency_code is required")
+    country_code = str(data.get("country_code", "")).strip().upper()
+    if not country_code:
+      raise ValueError("AmazonKdpCountryStats.country_code is required")
 
     _parse_int_field(data, "total_units_sold", 0)
     _parse_int_field(data, "kenp_pages_read", 0)
@@ -1805,8 +1798,7 @@ class AmazonKdpMarketCurrencyStats:
             set(prices))
 
     return cls(
-      market=market,
-      currency_code=currency_code,
+      country_code=country_code,
       total_units_sold=data.get("total_units_sold", 0),
       kenp_pages_read=data.get("kenp_pages_read", 0),
       total_royalties_usd=data.get("total_royalties_usd", 0.0),
@@ -1835,9 +1827,8 @@ class AmazonKdpDailyStats:
   total_print_cost_usd: float = 0.0
   sale_items_by_asin: dict[str,
                            AmazonProductStats] = field(default_factory=dict)
-  market_currency_stats_by_key: dict[str,
-                                     AmazonKdpMarketCurrencyStats] = field(
-                                       default_factory=dict)
+  country_stats_by_code: dict[str, AmazonKdpCountryStats] = field(
+    default_factory=dict)
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
@@ -1857,9 +1848,9 @@ class AmazonKdpDailyStats:
         asin: item.to_dict()
         for asin, item in self.sale_items_by_asin.items()
       },
-      "market_currency_stats_by_key": {
+      "country_stats_by_code": {
         key: stats.to_dict()
-        for key, stats in self.market_currency_stats_by_key.items()
+        for key, stats in self.country_stats_by_code.items()
       },
     }
     if include_key:
@@ -1896,8 +1887,8 @@ class AmazonKdpDailyStats:
 
     sale_items_by_asin = _parse_amazon_product_stats_map(
       data.get("sale_items_by_asin"))
-    market_currency_stats_by_key = _parse_amazon_kdp_market_currency_stats_map(
-      data.get("market_currency_stats_by_key"))
+    country_stats_by_code = _parse_amazon_kdp_country_stats_map(
+      data.get("country_stats_by_code"))
 
     return cls(
       key=key,
@@ -1913,7 +1904,7 @@ class AmazonKdpDailyStats:
       hardcover_royalties_usd=data.get("hardcover_royalties_usd", 0.0),
       total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
       sale_items_by_asin=sale_items_by_asin,
-      market_currency_stats_by_key=market_currency_stats_by_key,
+      country_stats_by_code=country_stats_by_code,
     )
 
   @classmethod
@@ -2638,20 +2629,20 @@ def _parse_amazon_product_stats_map(
   return parsed
 
 
-def _parse_amazon_kdp_market_currency_stats_map(
-  value: Any, ) -> dict[str, AmazonKdpMarketCurrencyStats]:
-  """Parse a mapping of key -> `AmazonKdpMarketCurrencyStats`."""
+def _parse_amazon_kdp_country_stats_map(
+  value: Any, ) -> dict[str, AmazonKdpCountryStats]:
+  """Parse a mapping of country code -> `AmazonKdpCountryStats`."""
   if not isinstance(value, dict):
     return {}
 
-  parsed: dict[str, AmazonKdpMarketCurrencyStats] = {}
+  parsed: dict[str, AmazonKdpCountryStats] = {}
   for key, item in cast(dict[str, Any], value).items():
     if not isinstance(item, dict):
       continue
     key_str = str(key).strip()
     if not key_str:
       continue
-    parsed[key_str] = AmazonKdpMarketCurrencyStats.from_dict(
+    parsed[key_str] = AmazonKdpCountryStats.from_dict(
       cast(dict[str, Any], item))
   return parsed
 

@@ -1,6 +1,7 @@
-"""Reconcile KDP-date sales and KENP reads against ads click-date attribution."""
+"""Reconcile KDP-date sales and KENP reads against ads click-date attribution.
 
-# pylint: disable=duplicate-code
+This file must be sychronized with the spec in `amazon_ads_stats_spec.md`.
+"""
 
 from __future__ import annotations
 

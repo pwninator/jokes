@@ -1059,7 +1059,7 @@ def _merge_report_rows(
       currency_code=currency_code,
     )
 
-    sale_items = _build_merged_sale_items_for_campaign_day(
+    sale_items_by_asin_country = _build_merged_sale_items_for_campaign_day(
       campaign_id=campaign_id,
       date_value=date_value,
       advertised_by_campaign_date=advertised_by_campaign_date,
@@ -1069,7 +1069,10 @@ def _merge_report_rows(
       kdp_price_candidates_by_country_asin=(
         kdp_price_candidates_by_country_asin),
     )
-    product_profit_total = sum(item.total_profit_usd for item in sale_items)
+    product_profit_total = sum(
+      sale_item.total_profit_usd
+      for country_map in sale_items_by_asin_country.values()
+      for sale_item in country_map.values())
 
     gross_profit_before_ads_usd = product_profit_total + kenp_royalties_usd
     gross_profit_usd = gross_profit_before_ads_usd - spend
@@ -1087,7 +1090,7 @@ def _merge_report_rows(
         total_units_sold=total_units_sold,
         gross_profit_before_ads_usd=gross_profit_before_ads_usd,
         gross_profit_usd=gross_profit_usd,
-        sale_items=sale_items,
+        sale_items_by_asin_country=sale_items_by_asin_country,
       ))
 
   return sorted(output, key=lambda stat: (stat.date, stat.campaign_id))
@@ -1120,9 +1123,11 @@ def _build_merged_sale_items_for_campaign_day(
   currency_code: str,
   kdp_price_candidates_by_country_asin: dict[tuple[str, str], tuple[float,
                                                                     ...]],
-) -> list[models.AmazonProductStats]:
+) -> dict[str, dict[str, models.AmazonProductStats]]:
   """Build merged ASIN sale items by combining direct and halo sources."""
-  merged_totals_by_asin: dict[str, models.AmazonProductStats] = {}
+  merged_totals_by_asin_country: dict[str,
+                                      dict[str,
+                                           models.AmazonProductStats]] = {}
   key = (campaign_id, date_value)
 
   for row in advertised_by_campaign_date.get(key, []):
@@ -1143,11 +1148,14 @@ def _build_merged_sale_items_for_campaign_day(
         kdp_price_candidates_by_country_asin),
     )
     for allocation in allocations:
-      _accumulate_asin_totals(
-        merged_totals_by_asin,
+      _accumulate_asin_country_totals(
+        merged_totals_by_asin_country,
         allocation.asin,
+        country_code=country_code,
         units_sold=allocation.units_sold,
         sales_amount=allocation.total_sales_usd,
+        unit_price_usd=(allocation.total_sales_usd / allocation.units_sold)
+        if allocation.units_sold > 0 else None,
       )
 
   for row in purchased_by_campaign_date.get(key, []):
@@ -1167,19 +1175,18 @@ def _build_merged_sale_items_for_campaign_day(
       _as_float(row.get("kindleEditionNormalizedPagesRoyalties14d")),
       currency_code=currency_code,
     )
-    _accumulate_asin_totals(
-      merged_totals_by_asin,
+    _accumulate_asin_country_totals(
+      merged_totals_by_asin_country,
       canonical_asin,
+      country_code=country_code,
       units_sold=halo_units,
       sales_amount=halo_sales,
       kenp_pages_read=kenp_pages_read,
       kenp_royalties_usd=kenp_royalties_usd,
+      unit_price_usd=(halo_sales / halo_units) if halo_units > 0 else None,
     )
 
-  sale_items: list[models.AmazonProductStats] = []
-  for asin in sorted(merged_totals_by_asin.keys()):
-    sale_items.append(_build_product_stats(merged_totals_by_asin[asin]))
-  return sale_items
+  return _finalize_product_stats_by_asin_country(merged_totals_by_asin_country)
 
 
 def _extract_direct_sales_amount(advertised_row: dict[str, Any]) -> float:
@@ -1220,8 +1227,7 @@ def _load_kdp_price_candidates_by_country_asin(
 
   candidates: dict[tuple[str, str], set[float]] = {}
   for daily_stat in kdp_rows:
-    for country_stats in daily_stat.country_stats_by_code.values():
-      _add_kdp_candidates_from_country_stats(candidates, country_stats)
+    _add_kdp_candidates_from_daily_stat(candidates, daily_stat)
 
   return {
     key: tuple(sorted(prices))
@@ -1229,35 +1235,29 @@ def _load_kdp_price_candidates_by_country_asin(
   }
 
 
-def _add_kdp_candidates_from_country_stats(
+def _add_kdp_candidates_from_daily_stat(
   candidates: dict[tuple[str, str], set[float]],
-  country_stats: models.AmazonKdpCountryStats,
+  daily_stat: models.AmazonKdpDailyStats,
 ) -> None:
-  """Merge one KDP country bucket into the price candidate map."""
-  country_code = _normalize_country_code(country_stats.country_code)
-
-  for asin, prices in country_stats.avg_offer_price_usd_candidates_by_asin.items(
-  ):
+  """Merge one KDP daily doc into the price candidate map."""
+  for asin, country_map in daily_stat.sale_items_by_asin_country.items():
     canonical_asin = _safe_canonical_book_variant_asin(asin)
     if not canonical_asin:
       continue
-    key = (country_code, canonical_asin)
-    for price in prices:
-      _add_price_candidate(candidates, key, price)
+    for country_code, sale_item in country_map.items():
+      normalized_country_code = _normalize_country_code(country_code)
+      key = (normalized_country_code, canonical_asin)
+      for unit_price in sale_item.unit_prices:
+        _add_price_candidate(candidates, key, unit_price)
 
-  for sale_item in country_stats.sale_items_by_asin.values():
-    units = _as_int(sale_item.units_sold)
-    if units <= 0:
-      continue
-    canonical_asin = _safe_canonical_book_variant_asin(sale_item.asin)
-    if not canonical_asin:
-      continue
-    key = (country_code, canonical_asin)
-    _add_price_candidate(
-      candidates,
-      key,
-      _as_float(sale_item.total_sales_usd) / units,
-    )
+      units = _as_int(sale_item.units_sold)
+      if units <= 0:
+        continue
+      _add_price_candidate(
+        candidates,
+        key,
+        _as_float(sale_item.total_sales_usd) / units,
+      )
 
 
 def _add_price_candidate(
@@ -1505,46 +1505,58 @@ def _enumerate_price_combinations(
   return output
 
 
-def _accumulate_asin_totals(
-  merged_totals_by_asin: dict[str, models.AmazonProductStats],
+def _accumulate_asin_country_totals(
+  merged_totals_by_asin_country: dict[str, dict[str,
+                                                models.AmazonProductStats]],
   asin: str,
   *,
+  country_code: str,
   units_sold: int = 0,
   sales_amount: float = 0.0,
   kenp_pages_read: int = 0,
   kenp_royalties_usd: float = 0.0,
+  unit_price_usd: float | None = None,
 ) -> None:
-  """Add sales totals into an ASIN accumulator, merging repeated rows."""
-  existing = merged_totals_by_asin.setdefault(
-    asin,
-    models.AmazonProductStats(asin=asin),
-  )
+  """Add sales totals into an ASIN+country accumulator."""
+  country_map = merged_totals_by_asin_country.setdefault(asin, {})
+  existing = country_map.setdefault(country_code,
+                                    models.AmazonProductStats(asin=asin))
   existing.units_sold += units_sold
   existing.total_sales_usd += sales_amount
   existing.kenp_pages_read += kenp_pages_read
   existing.kenp_royalties_usd += kenp_royalties_usd
+  if unit_price_usd is not None and unit_price_usd > 0:
+    rounded = round(unit_price_usd, 6)
+    existing.unit_prices.add(rounded)
 
 
-def _build_product_stats(
-  product_totals: models.AmazonProductStats, ) -> models.AmazonProductStats:
-  """Build a normalized `ProductStats` object from merged ASIN totals."""
-  asin = product_totals.asin
-  book_variant = book_defs.BOOK_VARIANTS_BY_ASIN.get(asin)
-  if not book_variant:
-    raise AmazonAdsError(f"Unknown ASIN: {asin}")
-
-  total_profit_usd = (product_totals.total_sales_usd *
-                      book_variant.royalty_rate) - (product_totals.units_sold *
-                                                    book_variant.print_cost)
-
-  return models.AmazonProductStats(
-    asin=asin,
-    units_sold=product_totals.units_sold,
-    kenp_pages_read=product_totals.kenp_pages_read,
-    total_sales_usd=product_totals.total_sales_usd,
-    total_profit_usd=total_profit_usd,
-    kenp_royalties_usd=product_totals.kenp_royalties_usd,
-  )
+def _finalize_product_stats_by_asin_country(
+  merged_totals_by_asin_country: dict[str, dict[str,
+                                                models.AmazonProductStats]]
+) -> dict[str, dict[str, models.AmazonProductStats]]:
+  """Compute derived fields and normalize nested ASIN+country stats mapping."""
+  finalized: dict[str, dict[str, models.AmazonProductStats]] = {}
+  for asin in sorted(merged_totals_by_asin_country.keys()):
+    book_variant = book_defs.BOOK_VARIANTS_BY_ASIN.get(asin)
+    if not book_variant:
+      raise AmazonAdsError(f"Unknown ASIN: {asin}")
+    country_map = merged_totals_by_asin_country[asin]
+    finalized_country_map: dict[str, models.AmazonProductStats] = {}
+    for country_code in sorted(country_map.keys()):
+      stats = country_map[country_code]
+      total_profit_usd = ((stats.total_sales_usd * book_variant.royalty_rate) -
+                          (stats.units_sold * book_variant.print_cost))
+      finalized_country_map[country_code] = models.AmazonProductStats(
+        asin=asin,
+        units_sold=stats.units_sold,
+        kenp_pages_read=stats.kenp_pages_read,
+        total_sales_usd=stats.total_sales_usd,
+        unit_prices=set(stats.unit_prices),
+        total_profit_usd=total_profit_usd,
+        kenp_royalties_usd=stats.kenp_royalties_usd,
+      )
+    finalized[asin] = finalized_country_map
+  return finalized
 
 
 def _safe_canonical_book_variant_asin(identifier: str) -> str | None:

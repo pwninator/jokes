@@ -142,8 +142,8 @@ Then all variants of that same book become decomposition candidates
 Candidate per-unit USD prices for each `(country_code, asin)` come from
 historical KDP daily docs (lookback 180 days):
 
-1. `country_stats_by_code[*].avg_offer_price_usd_candidates_by_asin`
-2. fallback derived from per-bucket `sale_items_by_asin` average
+1. `sale_items_by_asin_country[asin][country].unit_prices`
+2. fallback derived from the same bucket average
    (`total_sales_usd / units`)
 
 Candidates are then filtered by `BookVariant.min_price_usd/max_price_usd`.
@@ -207,20 +207,16 @@ Persisted per date:
 - units totals by format
 - KENP pages read total
 - royalties/print cost in USD
-- aggregated `sale_items_by_asin` per ASIN
+- nested `sale_items_by_asin_country` keyed by ASIN then country
 
-### 6.4 New per-country persistence
+### 6.4 Per-ASIN+country persistence
 
-`AmazonKdpDailyStats.country_stats_by_code` now stores buckets keyed by
-`{COUNTRY_CODE}` with:
+`AmazonKdpDailyStats.sale_items_by_asin_country` stores buckets keyed by
+`{ASIN}->{COUNTRY_CODE}` with `AmazonProductStats` values.
 
-- `country_code`
-- `total_units_sold`, `kenp_pages_read`
-- `total_royalties_usd`, `total_print_cost_usd`
-- `sale_items_by_asin` (ASIN-level aggregates within that bucket)
-- `avg_offer_price_usd_candidates_by_asin` (unique average offer prices)
-
-These candidate prices are used later by ads decomposition.
+`AmazonProductStats.unit_prices` stores unique observed per-unit USD prices for
+that ASIN+country+day. These are the primary candidate prices used later by ads
+decomposition.
 
 ## 7. Reconciliation Algorithm (FIFO)
 
@@ -252,7 +248,8 @@ For each day in recompute range:
 
 1. Expire lots older than 14-day window and record their residuals as
    unmatched click-date stats.
-2. Append today’s ads lots from `amazon_ads_daily_stats.campaigns_by_id[*].sale_items`.
+2. Append today’s ads lots from
+   `amazon_ads_daily_stats.campaigns_by_id[*].sale_items_by_asin_country`.
 3. Apply KDP stats for today:
    - Match units FIFO by ASIN
    - Match KENP pages FIFO by ASIN

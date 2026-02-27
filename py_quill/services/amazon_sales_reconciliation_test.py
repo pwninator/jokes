@@ -23,15 +23,18 @@ def _build_ads_daily_stat(
     date=date_value,
     total_units_sold=units,
     kenp_pages_read=kenp_pages_read,
-    sale_items=[
-      models.AmazonProductStats(
-        asin=asin,
-        units_sold=units,
-        kenp_pages_read=kenp_pages_read,
-        total_sales_usd=0.0,
-        total_profit_usd=0.0,
-      )
-    ],
+    sale_items_by_asin_country={
+      asin: {
+        "US":
+        models.AmazonProductStats(
+          asin=asin,
+          units_sold=units,
+          kenp_pages_read=kenp_pages_read,
+          total_sales_usd=0.0,
+          total_profit_usd=0.0,
+        )
+      }
+    },
   )
   return models.AmazonAdsDailyStats(
     date=date_value,
@@ -57,17 +60,19 @@ def _build_kdp_daily_stat(
     total_units_sold=units,
     total_royalties_usd=royalty_usd,
     total_print_cost_usd=print_cost_usd,
-    sale_items_by_asin={
-      asin:
-      models.AmazonProductStats(
-        asin=asin,
-        units_sold=units,
-        kenp_pages_read=kenp_pages_read,
-        total_sales_usd=sales_usd,
-        total_profit_usd=royalty_usd,
-        total_print_cost_usd=print_cost_usd,
-        total_royalty_usd=royalty_usd,
-      )
+    sale_items_by_asin_country={
+      asin: {
+        "US":
+        models.AmazonProductStats(
+          asin=asin,
+          units_sold=units,
+          kenp_pages_read=kenp_pages_read,
+          total_sales_usd=sales_usd,
+          total_profit_usd=royalty_usd,
+          total_print_cost_usd=print_cost_usd,
+          total_royalty_usd=royalty_usd,
+        )
+      }
     },
   )
 

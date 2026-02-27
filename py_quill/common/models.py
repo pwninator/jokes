@@ -1448,6 +1448,7 @@ class AmazonProductStats:
   units_sold: int = 0
   kenp_pages_read: int = 0
   total_sales_usd: float = 0.0
+  unit_prices: set[float] = field(default_factory=set)
   total_profit_usd: float = 0.0
   kenp_royalties_usd: float = 0.0
   total_print_cost_usd: float | None = None
@@ -1456,6 +1457,7 @@ class AmazonProductStats:
   def to_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     data = dataclasses.asdict(self)
+    data["unit_prices"] = sorted(self.unit_prices)
     return data
 
   @classmethod
@@ -1482,6 +1484,20 @@ class AmazonProductStats:
     _parse_float_field(data, "total_sales_usd", 0.0)
     _parse_float_field(data, "total_profit_usd", 0.0)
     _parse_float_field(data, "kenp_royalties_usd", 0.0)
+    unit_prices: set[float] = set()
+    raw_unit_prices = data.get("unit_prices")
+    if isinstance(raw_unit_prices, list):
+      for raw_price in cast(list[Any], raw_unit_prices):
+        if isinstance(raw_price, (int, float)):
+          unit_prices.add(float(raw_price))
+        elif isinstance(raw_price, str):
+          stripped = raw_price.strip()
+          if not stripped:
+            continue
+          try:
+            unit_prices.add(float(stripped))
+          except ValueError:
+            continue
     total_print_cost_usd = _parse_optional_float(data, "total_print_cost_usd")
     total_royalty_usd = _parse_optional_float(data, "total_royalty_usd")
 
@@ -1490,6 +1506,7 @@ class AmazonProductStats:
       units_sold=data.get("units_sold", 0),
       kenp_pages_read=data.get("kenp_pages_read", 0),
       total_sales_usd=data.get("total_sales_usd", 0.0),
+      unit_prices=unit_prices,
       total_profit_usd=data.get("total_profit_usd", 0.0),
       kenp_royalties_usd=data.get("kenp_royalties_usd", 0.0),
       total_print_cost_usd=total_print_cost_usd,
@@ -1514,24 +1531,52 @@ class AmazonAdsDailyCampaignStats:
   total_units_sold: int = 0
   gross_profit_before_ads_usd: float = 0.0
   gross_profit_usd: float = 0.0
-  sale_items: list[AmazonProductStats] = field(default_factory=list)
+  sale_items_by_asin_country: dict[str, dict[str, AmazonProductStats]] = field(
+    default_factory=dict)
+
+  @property
+  def sale_items_by_asin(self) -> dict[str, AmazonProductStats]:
+    """Return ASIN-level aggregates collapsed across all countries."""
+    return _aggregate_product_stats_by_asin(self.sale_items_by_asin_country)
+
+  @property
+  def sale_items(self) -> list[AmazonProductStats]:
+    """Compatibility accessor returning ASIN-level sale items."""
+    return [
+      self.sale_items_by_asin[asin]
+      for asin in sorted(self.sale_items_by_asin.keys())
+    ]
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     data: dict[str, object] = {
-      "campaign_id": self.campaign_id,
-      "campaign_name": self.campaign_name,
-      "date": self.date.isoformat(),
-      "spend": self.spend,
-      "impressions": self.impressions,
-      "clicks": self.clicks,
-      "kenp_pages_read": self.kenp_pages_read,
-      "kenp_royalties_usd": self.kenp_royalties_usd,
-      "total_attributed_sales_usd": self.total_attributed_sales_usd,
-      "total_units_sold": self.total_units_sold,
-      "gross_profit_before_ads_usd": self.gross_profit_before_ads_usd,
-      "gross_profit_usd": self.gross_profit_usd,
-      "sale_items": [item.to_dict() for item in self.sale_items],
+      "campaign_id":
+      self.campaign_id,
+      "campaign_name":
+      self.campaign_name,
+      "date":
+      self.date.isoformat(),
+      "spend":
+      self.spend,
+      "impressions":
+      self.impressions,
+      "clicks":
+      self.clicks,
+      "kenp_pages_read":
+      self.kenp_pages_read,
+      "kenp_royalties_usd":
+      self.kenp_royalties_usd,
+      "total_attributed_sales_usd":
+      self.total_attributed_sales_usd,
+      "total_units_sold":
+      self.total_units_sold,
+      "gross_profit_before_ads_usd":
+      self.gross_profit_before_ads_usd,
+      "gross_profit_usd":
+      self.gross_profit_usd,
+      "sale_items_by_asin_country":
+      _serialize_product_stats_by_asin_country(
+        self.sale_items_by_asin_country),
     }
     if include_key:
       data["key"] = self.key
@@ -1574,7 +1619,8 @@ class AmazonAdsDailyCampaignStats:
     _parse_float_field(data, "gross_profit_before_ads_usd", 0.0)
     _parse_float_field(data, "gross_profit_usd", 0.0)
 
-    sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
+    sale_items_by_asin_country = _parse_product_stats_by_asin_country_map(
+      data.get("sale_items_by_asin_country"))
 
     campaign_id = str(data.get("campaign_id", "")).strip()
     campaign_name = str(data.get("campaign_name", "")).strip()
@@ -1597,7 +1643,7 @@ class AmazonAdsDailyCampaignStats:
       total_units_sold=data.get("total_units_sold", 0),
       gross_profit_before_ads_usd=data.get("gross_profit_before_ads_usd", 0.0),
       gross_profit_usd=data.get("gross_profit_usd", 0.0),
-      sale_items=sale_items,
+      sale_items_by_asin_country=sale_items_by_asin_country,
     )
 
   @classmethod
@@ -1721,95 +1767,6 @@ class AmazonAdsDailyStats:
 
 
 @dataclass(kw_only=True)
-class AmazonKdpCountryStats:
-  """KDP daily stats scoped to one country bucket."""
-
-  country_code: str
-  total_units_sold: int = 0
-  kenp_pages_read: int = 0
-  total_royalties_usd: float = 0.0
-  total_print_cost_usd: float = 0.0
-  sale_items_by_asin: dict[str,
-                           AmazonProductStats] = field(default_factory=dict)
-  avg_offer_price_usd_candidates_by_asin: dict[str, list[float]] = field(
-    default_factory=dict)
-
-  def to_dict(self) -> dict[str, object]:
-    """Convert to dictionary for Firestore storage."""
-    return {
-      "country_code":
-      self.country_code,
-      "total_units_sold":
-      self.total_units_sold,
-      "kenp_pages_read":
-      self.kenp_pages_read,
-      "total_royalties_usd":
-      self.total_royalties_usd,
-      "total_print_cost_usd":
-      self.total_print_cost_usd,
-      "sale_items_by_asin": {
-        asin: item.to_dict()
-        for asin, item in self.sale_items_by_asin.items()
-      },
-      "avg_offer_price_usd_candidates_by_asin":
-      dict(self.avg_offer_price_usd_candidates_by_asin),
-    }
-
-  @classmethod
-  def from_dict(cls, data: dict[str, Any]) -> AmazonKdpCountryStats:
-    """Create a country-scoped KDP stats model from dictionary data."""
-    if not data:
-      data = {}
-    else:
-      data = dict(data)
-
-    country_code = str(data.get("country_code", "")).strip().upper()
-    if not country_code:
-      raise ValueError("AmazonKdpCountryStats.country_code is required")
-
-    _parse_int_field(data, "total_units_sold", 0)
-    _parse_int_field(data, "kenp_pages_read", 0)
-    _parse_float_field(data, "total_royalties_usd", 0.0)
-    _parse_float_field(data, "total_print_cost_usd", 0.0)
-    sale_items_by_asin = _parse_amazon_product_stats_map(
-      data.get("sale_items_by_asin"))
-
-    raw_candidates = data.get("avg_offer_price_usd_candidates_by_asin")
-    avg_offer_price_usd_candidates_by_asin: dict[str, list[float]] = {}
-    if isinstance(raw_candidates, dict):
-      for asin, raw_prices in cast(dict[str, Any], raw_candidates).items():
-        asin_key = str(asin).strip()
-        if not asin_key or not isinstance(raw_prices, list):
-          continue
-        prices: list[float] = []
-        for raw_price in cast(list[Any], raw_prices):
-          if isinstance(raw_price, (int, float)):
-            prices.append(float(raw_price))
-          elif isinstance(raw_price, str):
-            stripped = raw_price.strip()
-            if not stripped:
-              continue
-            try:
-              prices.append(float(stripped))
-            except ValueError:
-              continue
-        if prices:
-          avg_offer_price_usd_candidates_by_asin[asin_key] = sorted(
-            set(prices))
-
-    return cls(
-      country_code=country_code,
-      total_units_sold=data.get("total_units_sold", 0),
-      kenp_pages_read=data.get("kenp_pages_read", 0),
-      total_royalties_usd=data.get("total_royalties_usd", 0.0),
-      total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
-      sale_items_by_asin=sale_items_by_asin,
-      avg_offer_price_usd_candidates_by_asin=
-      avg_offer_price_usd_candidates_by_asin,
-    )
-
-
-@dataclass(kw_only=True)
 class AmazonKdpDailyStats:
   """Aggregated daily metrics from uploaded KDP xlsx data."""
 
@@ -1825,33 +1782,42 @@ class AmazonKdpDailyStats:
   paperback_royalties_usd: float = 0.0
   hardcover_royalties_usd: float = 0.0
   total_print_cost_usd: float = 0.0
-  sale_items_by_asin: dict[str,
-                           AmazonProductStats] = field(default_factory=dict)
-  country_stats_by_code: dict[str, AmazonKdpCountryStats] = field(
+  sale_items_by_asin_country: dict[str, dict[str, AmazonProductStats]] = field(
     default_factory=dict)
+
+  @property
+  def sale_items_by_asin(self) -> dict[str, AmazonProductStats]:
+    """Return ASIN-level aggregates collapsed across all countries."""
+    return _aggregate_product_stats_by_asin(self.sale_items_by_asin_country)
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
     data: dict[str, object] = {
-      "date": self.date.isoformat(),
-      "total_units_sold": self.total_units_sold,
-      "kenp_pages_read": self.kenp_pages_read,
-      "ebook_units_sold": self.ebook_units_sold,
-      "paperback_units_sold": self.paperback_units_sold,
-      "hardcover_units_sold": self.hardcover_units_sold,
-      "total_royalties_usd": self.total_royalties_usd,
-      "ebook_royalties_usd": self.ebook_royalties_usd,
-      "paperback_royalties_usd": self.paperback_royalties_usd,
-      "hardcover_royalties_usd": self.hardcover_royalties_usd,
-      "total_print_cost_usd": self.total_print_cost_usd,
-      "sale_items_by_asin": {
-        asin: item.to_dict()
-        for asin, item in self.sale_items_by_asin.items()
-      },
-      "country_stats_by_code": {
-        key: stats.to_dict()
-        for key, stats in self.country_stats_by_code.items()
-      },
+      "date":
+      self.date.isoformat(),
+      "total_units_sold":
+      self.total_units_sold,
+      "kenp_pages_read":
+      self.kenp_pages_read,
+      "ebook_units_sold":
+      self.ebook_units_sold,
+      "paperback_units_sold":
+      self.paperback_units_sold,
+      "hardcover_units_sold":
+      self.hardcover_units_sold,
+      "total_royalties_usd":
+      self.total_royalties_usd,
+      "ebook_royalties_usd":
+      self.ebook_royalties_usd,
+      "paperback_royalties_usd":
+      self.paperback_royalties_usd,
+      "hardcover_royalties_usd":
+      self.hardcover_royalties_usd,
+      "total_print_cost_usd":
+      self.total_print_cost_usd,
+      "sale_items_by_asin_country":
+      _serialize_product_stats_by_asin_country(
+        self.sale_items_by_asin_country),
     }
     if include_key:
       data["key"] = self.key
@@ -1885,10 +1851,8 @@ class AmazonKdpDailyStats:
     _parse_float_field(data, "hardcover_royalties_usd", 0.0)
     _parse_float_field(data, "total_print_cost_usd", 0.0)
 
-    sale_items_by_asin = _parse_amazon_product_stats_map(
-      data.get("sale_items_by_asin"))
-    country_stats_by_code = _parse_amazon_kdp_country_stats_map(
-      data.get("country_stats_by_code"))
+    sale_items_by_asin_country = _parse_product_stats_by_asin_country_map(
+      data.get("sale_items_by_asin_country"))
 
     return cls(
       key=key,
@@ -1903,8 +1867,7 @@ class AmazonKdpDailyStats:
       paperback_royalties_usd=data.get("paperback_royalties_usd", 0.0),
       hardcover_royalties_usd=data.get("hardcover_royalties_usd", 0.0),
       total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
-      sale_items_by_asin=sale_items_by_asin,
-      country_stats_by_code=country_stats_by_code,
+      sale_items_by_asin_country=sale_items_by_asin_country,
     )
 
   @classmethod
@@ -2602,49 +2565,77 @@ def _parse_optional_datetime(value: Any) -> datetime.datetime | None:
   raise ValueError(f"Invalid datetime value: {value}")
 
 
-def _parse_amazon_product_stats_list(value: Any, ) -> list[AmazonProductStats]:
-  """Parse a list of dictionaries into `AmazonProductStats` items."""
-  if not isinstance(value, list):
-    return []
+def _serialize_product_stats_by_asin_country(
+  value: dict[str, dict[str, AmazonProductStats]],
+) -> dict[str, dict[str, dict[str, object]]]:
+  """Serialize nested `(asin -> country -> product stats)` mapping."""
+  serialized: dict[str, dict[str, dict[str, object]]] = {}
+  for asin in sorted(value.keys()):
+    country_map = value[asin]
+    serialized_country_map: dict[str, dict[str, object]] = {}
+    for country_code in sorted(country_map.keys()):
+      serialized_country_map[country_code] = country_map[country_code].to_dict(
+      )
+    serialized[asin] = serialized_country_map
+  return serialized
 
-  value_dicts = cast(list[dict[str, Any]], value)
-  parsed: list[AmazonProductStats] = []
-  for item in value_dicts:
-    parsed.append(AmazonProductStats.from_dict(item))
-  return parsed
 
-
-def _parse_amazon_product_stats_map(
-  value: Any, ) -> dict[str, AmazonProductStats]:
-  """Parse a mapping of ASIN -> `AmazonProductStats`."""
+def _parse_product_stats_by_asin_country_map(
+  value: Any, ) -> dict[str, dict[str, AmazonProductStats]]:
+  """Parse nested `(asin -> country -> product stats)` mapping."""
   if not isinstance(value, dict):
     return {}
 
-  parsed: dict[str, AmazonProductStats] = {}
-  for asin, item in cast(dict[str, Any], value).items():
+  parsed: dict[str, dict[str, AmazonProductStats]] = {}
+  for asin, raw_country_map in cast(dict[str, Any], value).items():
     asin_key = str(asin).strip()
-    if not asin_key or not isinstance(item, dict):
+    if not asin_key or not isinstance(raw_country_map, dict):
       continue
-    parsed[asin_key] = AmazonProductStats.from_dict(cast(dict[str, Any], item))
+    parsed_country_map: dict[str, AmazonProductStats] = {}
+    for country_code, raw_item in cast(dict[str, Any],
+                                       raw_country_map).items():
+      country_code_key = str(country_code).strip().upper()
+      if not country_code_key or not isinstance(raw_item, dict):
+        continue
+      item_dict = dict(cast(dict[str, Any], raw_item))
+      if not str(item_dict.get("asin", "")).strip():
+        item_dict["asin"] = asin_key
+      parsed_country_map[country_code_key] = AmazonProductStats.from_dict(
+        item_dict)
+    if parsed_country_map:
+      parsed[asin_key] = parsed_country_map
   return parsed
 
 
-def _parse_amazon_kdp_country_stats_map(
-  value: Any, ) -> dict[str, AmazonKdpCountryStats]:
-  """Parse a mapping of country code -> `AmazonKdpCountryStats`."""
-  if not isinstance(value, dict):
-    return {}
-
-  parsed: dict[str, AmazonKdpCountryStats] = {}
-  for key, item in cast(dict[str, Any], value).items():
-    if not isinstance(item, dict):
-      continue
-    key_str = str(key).strip()
-    if not key_str:
-      continue
-    parsed[key_str] = AmazonKdpCountryStats.from_dict(
-      cast(dict[str, Any], item))
-  return parsed
+def _aggregate_product_stats_by_asin(
+  value: dict[str, dict[str, AmazonProductStats]],
+) -> dict[str, AmazonProductStats]:
+  """Aggregate nested `(asin -> country -> stats)` into ASIN totals."""
+  aggregated: dict[str, AmazonProductStats] = {}
+  for asin in sorted(value.keys()):
+    country_map = value[asin]
+    merged = AmazonProductStats(asin=asin)
+    merged_total_print_cost_usd: float | None = None
+    merged_total_royalty_usd: float | None = None
+    unit_prices: set[float] = set()
+    for country_item in country_map.values():
+      merged.units_sold += country_item.units_sold
+      merged.kenp_pages_read += country_item.kenp_pages_read
+      merged.total_sales_usd += country_item.total_sales_usd
+      merged.total_profit_usd += country_item.total_profit_usd
+      merged.kenp_royalties_usd += country_item.kenp_royalties_usd
+      unit_prices.update(country_item.unit_prices)
+      if country_item.total_print_cost_usd is not None:
+        merged_total_print_cost_usd = ((merged_total_print_cost_usd or 0.0) +
+                                       country_item.total_print_cost_usd)
+      if country_item.total_royalty_usd is not None:
+        merged_total_royalty_usd = ((merged_total_royalty_usd or 0.0) +
+                                    country_item.total_royalty_usd)
+    merged.total_print_cost_usd = merged_total_print_cost_usd
+    merged.total_royalty_usd = merged_total_royalty_usd
+    merged.unit_prices = unit_prices
+    aggregated[asin] = merged
+  return aggregated
 
 
 def _parse_amazon_sales_reconciled_asin_stats_map(

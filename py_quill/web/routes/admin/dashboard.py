@@ -7,6 +7,7 @@ import datetime
 import io
 import json
 import re
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import flask
@@ -298,7 +299,9 @@ def admin_ads_stats_upload_kdp():
 @auth_helpers.require_admin
 def admin_ads_stats_create_event():
   """Create or update an ads event marker used on timeline charts."""
-  payload = flask.request.get_json(silent=True) or {}
+  payload_raw = flask.request.get_json(silent=True)
+  payload = cast(dict[str, Any], payload_raw) if isinstance(payload_raw,
+                                                            dict) else {}
   date_raw = str(payload.get('date', '')).strip()
   title = str(payload.get('title', '')).strip()
 
@@ -805,6 +808,7 @@ def _build_reconciliation_debug_csv(
   writer.writerow([
     "Date",
     "campaign_id",
+    "country_code",
     "asin",
     "units_sold",
     "kenp_pages_read",
@@ -813,6 +817,7 @@ def _build_reconciliation_debug_csv(
     "kenp_royalties_usd",
     "total_royalty_usd",
     "total_print_cost_usd",
+    "unit_prices",
   ])
   for date_key in date_keys:
     ads_stat = ads_by_date.get(date_key)
@@ -820,25 +825,31 @@ def _build_reconciliation_debug_csv(
       continue
     for campaign_id in sorted(ads_stat.campaigns_by_id.keys()):
       campaign = ads_stat.campaigns_by_id[campaign_id]
-      for sale_item in campaign.sale_items:
-        writer.writerow([
-          date_key,
-          campaign_id,
-          sale_item.asin,
-          sale_item.units_sold,
-          sale_item.kenp_pages_read,
-          sale_item.total_sales_usd,
-          sale_item.total_profit_usd,
-          sale_item.kenp_royalties_usd,
-          sale_item.total_royalty_usd if sale_item.total_royalty_usd else 0.0,
-          sale_item.total_print_cost_usd
-          if sale_item.total_print_cost_usd else 0.0,
-        ])
+      for asin in sorted(campaign.sale_items_by_asin_country.keys()):
+        for country_code, sale_item in sorted(
+            campaign.sale_items_by_asin_country[asin].items()):
+          writer.writerow([
+            date_key,
+            campaign_id,
+            country_code,
+            sale_item.asin,
+            sale_item.units_sold,
+            sale_item.kenp_pages_read,
+            sale_item.total_sales_usd,
+            sale_item.total_profit_usd,
+            sale_item.kenp_royalties_usd,
+            sale_item.total_royalty_usd
+            if sale_item.total_royalty_usd else 0.0,
+            sale_item.total_print_cost_usd
+            if sale_item.total_print_cost_usd else 0.0,
+            "|".join(str(price) for price in sorted(sale_item.unit_prices)),
+          ])
 
   writer.writerow([])
   writer.writerow(["Section", "kdp_sale_items"])
   writer.writerow([
     "Date",
+    "country_code",
     "asin",
     "units_sold",
     "kenp_pages_read",
@@ -846,23 +857,28 @@ def _build_reconciliation_debug_csv(
     "total_profit_usd",
     "total_royalty_usd",
     "total_print_cost_usd",
+    "unit_prices",
   ])
   for date_key in date_keys:
     kdp_stat = kdp_by_date.get(date_key)
     if kdp_stat is None:
       continue
-    for sale_item in kdp_stat.sale_items_by_asin.values():
-      writer.writerow([
-        date_key,
-        sale_item.asin,
-        sale_item.units_sold,
-        sale_item.kenp_pages_read,
-        sale_item.total_sales_usd,
-        sale_item.total_profit_usd,
-        sale_item.total_royalty_usd if sale_item.total_royalty_usd else 0.0,
-        sale_item.total_print_cost_usd
-        if sale_item.total_print_cost_usd else 0.0,
-      ])
+    for asin in sorted(kdp_stat.sale_items_by_asin_country.keys()):
+      for country_code, sale_item in sorted(
+          kdp_stat.sale_items_by_asin_country[asin].items()):
+        writer.writerow([
+          date_key,
+          country_code,
+          sale_item.asin,
+          sale_item.units_sold,
+          sale_item.kenp_pages_read,
+          sale_item.total_sales_usd,
+          sale_item.total_profit_usd,
+          sale_item.total_royalty_usd if sale_item.total_royalty_usd else 0.0,
+          sale_item.total_print_cost_usd
+          if sale_item.total_print_cost_usd else 0.0,
+          "|".join(str(price) for price in sorted(sale_item.unit_prices)),
+        ])
 
   writer.writerow([])
   writer.writerow(["Section", "reconciled_by_asin"])

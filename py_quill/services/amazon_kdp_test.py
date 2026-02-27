@@ -197,7 +197,7 @@ def test_parse_kdp_xlsx_normalizes_paperback_isbn_to_variant_asin():
   assert list(stats[0].sale_items_by_asin.keys()) == ["B0GNHFKQ8W"]
 
 
-def test_parse_kdp_xlsx_persists_country_buckets_and_price_candidates():
+def test_parse_kdp_xlsx_persists_asin_country_items_and_unit_prices():
   workbook_bytes = _build_kdp_workbook_bytes(
     combined_sales_rows=[
       [
@@ -251,21 +251,17 @@ def test_parse_kdp_xlsx_persists_country_buckets_and_price_candidates():
 
   assert len(stats) == 1
   day = stats[0]
-  assert set(day.country_stats_by_code.keys()) == {"CA", "US"}
+  us_ebook = day.sale_items_by_asin_country["B0G9765J19"]["US"]
+  assert us_ebook.units_sold == 1
+  assert us_ebook.kenp_pages_read == 40
+  assert len(us_ebook.unit_prices) == 1
+  assert next(iter(us_ebook.unit_prices)) == pytest.approx(2.99, rel=1e-6)
 
-  us_bucket = day.country_stats_by_code["US"]
-  assert us_bucket.country_code == "US"
-  assert us_bucket.kenp_pages_read == 40
-  assert us_bucket.avg_offer_price_usd_candidates_by_asin["B0G9765J19"] == [
-    pytest.approx(2.99, rel=1e-6)
-  ]
-
-  ca_bucket = day.country_stats_by_code["CA"]
-  assert ca_bucket.country_code == "CA"
-  assert ca_bucket.total_units_sold == 1
-  assert ca_bucket.avg_offer_price_usd_candidates_by_asin["B0GNHFKQ8W"] == [
-    pytest.approx(11.95356, rel=1e-6)
-  ]
+  ca_paperback = day.sale_items_by_asin_country["B0GNHFKQ8W"]["CA"]
+  assert ca_paperback.units_sold == 1
+  assert len(ca_paperback.unit_prices) == 1
+  assert next(iter(ca_paperback.unit_prices)) == pytest.approx(11.95356,
+                                                               rel=1e-6)
 
 
 def test_parse_kdp_xlsx_raises_on_format_mismatch():

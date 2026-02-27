@@ -520,14 +520,17 @@ def test_amazon_ads_daily_campaign_stats_to_and_from_dict():
     total_units_sold=9,
     gross_profit_before_ads_usd=44.75,
     gross_profit_usd=32.25,
-    sale_items=[
-      models.AmazonProductStats(
-        asin="B09XYZ",
-        units_sold=2,
-        total_sales_usd=20.0,
-        total_profit_usd=9.0,
-      )
-    ],
+    sale_items_by_asin_country={
+      "B09XYZ": {
+        "US":
+        models.AmazonProductStats(
+          asin="B09XYZ",
+          units_sold=2,
+          total_sales_usd=20.0,
+          total_profit_usd=9.0,
+        )
+      }
+    },
   )
 
   payload = source.to_dict()

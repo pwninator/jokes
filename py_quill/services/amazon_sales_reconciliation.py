@@ -14,6 +14,8 @@ from firebase_functions import logger
 from services import firestore
 
 _MATCH_LOOKBACK_DAYS = 14
+# TODO(amazon-reconciliation): Migrate FIFO matching key from ASIN-only to
+# (ASIN, country_code) once country-level reconciliation is enabled.
 
 
 @dataclass(frozen=True, kw_only=True)

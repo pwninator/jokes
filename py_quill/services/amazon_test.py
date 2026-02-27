@@ -1057,14 +1057,17 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
         campaign_name="Campaign 1",
         date=datetime.date(2026, 2, 20),
         total_units_sold=1,
-        sale_items=[
-          models.AmazonProductStats(
-            asin="B0G9765J19",
-            units_sold=1,
-            total_sales_usd=10.0,
-            total_profit_usd=4.0,
-          )
-        ],
+        sale_items_by_asin_country={
+          "B0G9765J19": {
+            "US":
+            models.AmazonProductStats(
+              asin="B0G9765J19",
+              units_sold=1,
+              total_sales_usd=10.0,
+              total_profit_usd=4.0,
+            )
+          }
+        },
       )
     ],
   )

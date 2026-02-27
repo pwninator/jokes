@@ -144,34 +144,20 @@ def _apply_combined_sales_rows(
 
     canonical_asin = book_variant.asin
     _accumulate_sale_item(
-      daily_stat.sale_items_by_asin,
+      daily_stat.sale_items_by_asin_country,
       canonical_asin=canonical_asin,
-      units_sold=net_units_sold,
-      sales_amount_usd=sales_amount_usd,
-      royalty_usd=royalty_usd,
-      print_cost_usd=print_cost_usd,
-    )
-
-    country_stats = _get_or_create_country_stats(
-      daily_stat=daily_stat,
       country_code=country_code,
-    )
-    country_stats.total_units_sold += net_units_sold
-    country_stats.total_royalties_usd += royalty_usd
-    country_stats.total_print_cost_usd += print_cost_usd
-    _accumulate_sale_item(
-      country_stats.sale_items_by_asin,
-      canonical_asin=canonical_asin,
       units_sold=net_units_sold,
       sales_amount_usd=sales_amount_usd,
       royalty_usd=royalty_usd,
       print_cost_usd=print_cost_usd,
     )
     if net_units_sold > 0 and avg_offer_price_usd > 0:
-      _append_price_candidate(
-        country_stats.avg_offer_price_usd_candidates_by_asin,
+      _append_unit_price(
+        daily_stat.sale_items_by_asin_country,
         canonical_asin=canonical_asin,
-        price_usd=avg_offer_price_usd,
+        country_code=country_code,
+        unit_price_usd=avg_offer_price_usd,
       )
 
 
@@ -194,19 +180,9 @@ def _apply_kenp_rows(
 
     canonical_asin = book_variant.asin
     _accumulate_sale_item(
-      daily_stat.sale_items_by_asin,
+      daily_stat.sale_items_by_asin_country,
       canonical_asin=canonical_asin,
-      kenp_pages_read=kenp_pages_read,
-    )
-
-    country_stats = _get_or_create_country_stats(
-      daily_stat=daily_stat,
       country_code=country_code,
-    )
-    country_stats.kenp_pages_read += kenp_pages_read
-    _accumulate_sale_item(
-      country_stats.sale_items_by_asin,
-      canonical_asin=canonical_asin,
       kenp_pages_read=kenp_pages_read,
     )
 
@@ -224,34 +200,25 @@ def _get_or_create_daily_stat(
   return created
 
 
-def _get_or_create_country_stats(
-  *,
-  daily_stat: models.AmazonKdpDailyStats,
-  country_code: str,
-) -> models.AmazonKdpCountryStats:
-  """Return one mutable country bucket under a daily stats object."""
-  existing = daily_stat.country_stats_by_code.get(country_code)
-  if existing is not None:
-    return existing
-  created = models.AmazonKdpCountryStats(country_code=country_code)
-  daily_stat.country_stats_by_code[country_code] = created
-  return created
-
-
-def _append_price_candidate(
-  candidates_by_asin: dict[str, list[float]],
+def _append_unit_price(
+  sale_items_by_asin_country: dict[str, dict[str, models.AmazonProductStats]],
   *,
   canonical_asin: str,
-  price_usd: float,
+  country_code: str,
+  unit_price_usd: float,
 ) -> None:
-  """Append one unique per-unit price candidate for an ASIN."""
-  rounded_price = round(price_usd, 6)
+  """Append one unique per-unit price to an ASIN+country stats bucket."""
+  rounded_price = round(unit_price_usd, 6)
   if rounded_price <= 0:
     return
-  prices = candidates_by_asin.setdefault(canonical_asin, [])
-  if rounded_price in prices:
+  existing = _get_or_create_asin_country_item(
+    sale_items_by_asin_country,
+    canonical_asin=canonical_asin,
+    country_code=country_code,
+  )
+  if rounded_price in existing.unit_prices:
     return
-  prices.append(rounded_price)
+  existing.unit_prices.add(rounded_price)
 
 
 def _finalize_stats(
@@ -268,30 +235,14 @@ def _finalize_stats(
     daily_stat.hardcover_royalties_usd = round(
       daily_stat.hardcover_royalties_usd, 2)
     daily_stat.total_print_cost_usd = round(daily_stat.total_print_cost_usd, 2)
-    daily_stat.sale_items_by_asin = {
-      asin: daily_stat.sale_items_by_asin[asin]
-      for asin in sorted(daily_stat.sale_items_by_asin.keys())
-    }
-
-    daily_stat.country_stats_by_code = {
-      key: daily_stat.country_stats_by_code[key]
-      for key in sorted(daily_stat.country_stats_by_code.keys())
-    }
-    for country_stats in daily_stat.country_stats_by_code.values():
-      country_stats.total_royalties_usd = round(
-        country_stats.total_royalties_usd, 2)
-      country_stats.total_print_cost_usd = round(
-        country_stats.total_print_cost_usd, 2)
-      country_stats.sale_items_by_asin = {
-        asin: country_stats.sale_items_by_asin[asin]
-        for asin in sorted(country_stats.sale_items_by_asin.keys())
+    daily_stat.sale_items_by_asin_country = {
+      asin: {
+        country_code: _finalize_product_item(country_item)
+        for country_code, country_item in sorted(country_map.items())
       }
-      country_stats.avg_offer_price_usd_candidates_by_asin = {
-        asin: sorted(set(prices))
-        for asin, prices in sorted(
-          country_stats.avg_offer_price_usd_candidates_by_asin.items())
-        if prices
-      }
+      for asin, country_map in sorted(
+        daily_stat.sale_items_by_asin_country.items())
+    }
 
 
 def _format_from_transaction_type(value: Any) -> str:
@@ -314,23 +265,22 @@ def _parse_country_code(value: Any) -> str:
 
 
 def _accumulate_sale_item(
-  sale_items_by_asin: dict[str, models.AmazonProductStats],
+  sale_items_by_asin_country: dict[str, dict[str, models.AmazonProductStats]],
   *,
   canonical_asin: str,
+  country_code: str,
   units_sold: int = 0,
   kenp_pages_read: int = 0,
   sales_amount_usd: float = 0.0,
   royalty_usd: float = 0.0,
   print_cost_usd: float = 0.0,
 ) -> None:
-  """Accumulate one row's metrics into the target ASIN bucket."""
-  existing = sale_items_by_asin.setdefault(
-    canonical_asin,
-    models.AmazonProductStats(
-      asin=canonical_asin,
-      total_print_cost_usd=0.0,
-      total_royalty_usd=0.0,
-    ))
+  """Accumulate one row's metrics into the target ASIN+country bucket."""
+  existing = _get_or_create_asin_country_item(
+    sale_items_by_asin_country,
+    canonical_asin=canonical_asin,
+    country_code=country_code,
+  )
   existing.units_sold += units_sold
   existing.kenp_pages_read += kenp_pages_read
   existing.total_sales_usd += sales_amount_usd
@@ -339,6 +289,34 @@ def _accumulate_sale_item(
                                 or 0.0) + royalty_usd
   existing.total_print_cost_usd = (existing.total_print_cost_usd
                                    or 0.0) + print_cost_usd
+
+
+def _get_or_create_asin_country_item(
+  sale_items_by_asin_country: dict[str, dict[str, models.AmazonProductStats]],
+  *,
+  canonical_asin: str,
+  country_code: str,
+) -> models.AmazonProductStats:
+  """Return one mutable ASIN+country product stats bucket."""
+  country_map = sale_items_by_asin_country.setdefault(canonical_asin, {})
+  existing = country_map.get(country_code)
+  if existing is not None:
+    return existing
+  created = models.AmazonProductStats(
+    asin=canonical_asin,
+    total_print_cost_usd=0.0,
+    total_royalty_usd=0.0,
+  )
+  country_map[country_code] = created
+  return created
+
+
+def _finalize_product_item(
+  sale_item: models.AmazonProductStats, ) -> models.AmazonProductStats:
+  """Normalize per-item fields for deterministic persistence."""
+  sale_item.unit_prices = set(
+    round(price, 6) for price in sale_item.unit_prices if price > 0)
+  return sale_item
 
 
 def _convert_amount_to_usd(amount: float, *, currency_code: str) -> float:

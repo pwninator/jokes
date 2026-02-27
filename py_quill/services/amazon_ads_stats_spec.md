@@ -74,6 +74,8 @@ Model classes live in `py_quill/common/models.py` and are the storage contract.
    - If all three required report types already exist and are not all processed,
      skip requesting.
    - Else create all three reports and upsert metadata docs.
+   - Report names and Firestore doc ids use the canonical format
+     `YYYYMMDD_HHMMSS_[reportTypeId]_[country]` in Los Angeles local time.
 
 ### 3.2 Fetch phase
 

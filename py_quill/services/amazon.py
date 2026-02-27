@@ -13,6 +13,7 @@ import pprint
 import time
 from dataclasses import dataclass
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import requests
 from common import book_defs, config, models
@@ -40,6 +41,7 @@ ADS_STATS_REQUIRED_REPORT_TYPES = (
   "spAdvertisedProduct",
   "spPurchasedProduct",
 )
+_LOS_ANGELES_TIMEZONE = ZoneInfo("America/Los_Angeles")
 _KDP_PRICE_CANDIDATE_LOOKBACK_DAYS = 180
 _REQUEST_TIMEOUT_SEC = 30
 _USD_CURRENCY_CODE = "USD"
@@ -1597,11 +1599,11 @@ def _build_report_name(
   report_type_id: str,
   profile_country: str,
 ) -> str:
-  """Build canonical report name `YYYYMMDD_HHMMSS_[reportTypeId]_[country]`."""
-  timestamp_utc = datetime.datetime.now(
-    datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+  """Build canonical report name in Los Angeles local time."""
+  timestamp_los_angeles = datetime.datetime.now(
+    _LOS_ANGELES_TIMEZONE).strftime("%Y%m%d_%H%M%S")
   country_code = _required_str(profile_country).upper() or "UNKNOWN"
-  return f"{timestamp_utc}_{report_type_id}_{country_code}"
+  return f"{timestamp_los_angeles}_{report_type_id}_{country_code}"
 
 
 def _region_from_api_base(api_base: str) -> str | None:

@@ -33,6 +33,38 @@ def _mock_kdp_daily_stats_default(monkeypatch):
   )
 
 
+def _make_ads_report(
+  *,
+  report_id: str,
+  report_name: str,
+  status: str,
+  report_type_id: str,
+  created_at: datetime.datetime,
+  updated_at: datetime.datetime,
+  profile_id: str,
+  profile_country: str,
+  processed: bool,
+  raw_report_text: str | None,
+  start_date: datetime.date | None = None,
+  end_date: datetime.date | None = None,
+) -> models.AmazonAdsReport:
+  """Build a report row for ads report route tests."""
+  return models.AmazonAdsReport(
+    report_id=report_id,
+    report_name=report_name,
+    status=status,
+    report_type_id=report_type_id,
+    start_date=start_date or datetime.date(2026, 1, 29),
+    end_date=end_date or datetime.date(2026, 2, 27),
+    created_at=created_at,
+    updated_at=updated_at,
+    profile_id=profile_id,
+    profile_country=profile_country,
+    processed=processed,
+    raw_report_text=raw_report_text,
+  )
+
+
 def test_admin_stats_page_loads(monkeypatch):
   """Test the stats page loads and renders charts with data."""
   _mock_admin_session(monkeypatch)
@@ -519,13 +551,11 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
   def _fake_list_reports(*, created_on_or_after):
     call_args["created_on_or_after"] = created_on_or_after
     return [
-      models.AmazonAdsReport(
+      _make_ads_report(
         report_id="r-latest-campaign",
         report_name="latest_campaign_report",
         status="COMPLETED",
         report_type_id="spCampaigns",
-        start_date=datetime.date(2026, 1, 29),
-        end_date=datetime.date(2026, 2, 27),
         created_at=datetime.datetime(2026,
                                      2,
                                      27,
@@ -544,7 +574,7 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
         raw_report_text=
         '[{"date":"2026-02-27","campaignId":"123","cost":3.21}]',
       ),
-      models.AmazonAdsReport(
+      _make_ads_report(
         report_id="r-older-campaign",
         report_name="older_campaign_report",
         status="COMPLETED",
@@ -569,13 +599,11 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
         raw_report_text=
         '[{"date":"2026-02-26","campaignId":"999","cost":1.11}]',
       ),
-      models.AmazonAdsReport(
+      _make_ads_report(
         report_id="r-advertised",
         report_name="advertised_product_report",
         status="COMPLETED",
         report_type_id="spAdvertisedProduct",
-        start_date=datetime.date(2026, 1, 29),
-        end_date=datetime.date(2026, 2, 27),
         created_at=datetime.datetime(2026,
                                      2,
                                      27,
@@ -596,13 +624,11 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
          '{"date":"2026-02-27","campaignId":"abc","advertisedAsin":"B0G9765J19"}'
          ),
       ),
-      models.AmazonAdsReport(
+      _make_ads_report(
         report_id="r-no-cache",
         report_name="pending_report",
         status="PROCESSING",
         report_type_id="spPurchasedProduct",
-        start_date=datetime.date(2026, 1, 29),
-        end_date=datetime.date(2026, 2, 27),
         created_at=datetime.datetime(2026,
                                      2,
                                      27,
@@ -644,6 +670,10 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
   assert "advertised_product_report" in html
   assert "pending_report" in html
   assert "Cached Data for Selected Report" in html
+  assert "Created At (Los Angeles)" in html
+  assert "2026-02-27 03:30:00 PST" in html
+  assert 'id="adsReportsActionButton"' in html
+  assert "Process Reports" in html
   assert ('data-report-url='
           '"/admin/ads-reports?selected_report_name=latest_campaign_report"'
           in html)
@@ -688,8 +718,43 @@ def test_admin_ads_reports_page_includes_nav_link(monkeypatch):
   assert 'Ads Reports' in html
 
 
-def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
-  """Ads stats page renders a refresh button instead of a hyperlink."""
+def test_admin_ads_reports_page_shows_request_button_when_all_processed(
+    monkeypatch):
+  """Ads reports page should request new reports once recent ones are processed."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_reports",
+    lambda *, created_on_or_after: [
+      _make_ads_report(
+        report_id="r1",
+        report_name="processed_report",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        created_at=datetime.datetime(
+          2026, 2, 27, 12, 0, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 2, 27, 12, 1, tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=True,
+        raw_report_text='[{"date":"2026-02-27","campaignId":"1"}]',
+      ),
+    ],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-reports')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Request Reports" in html
+  assert 'action="/admin/ads-reports/request"' in html
+  assert "/static/js/ads_reports.js" in html
+
+
+def test_admin_ads_stats_page_omits_refresh_button(monkeypatch):
+  """Ads stats page should no longer expose report refresh controls."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(
     firestore_service,
@@ -712,10 +777,8 @@ def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'id="adsStatsRefreshButton"' in html
-  assert '>Refresh</button>' in html
-  assert 'href="https://auto-ads-stats-http-uqdkqas7gq-uc.a.run.app/"' not in html
-  assert 'Back to Dashboard' not in html
+  assert 'id="adsStatsRefreshButton"' not in html
+  assert '>Refresh</button>' not in html
 
 
 def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
@@ -799,9 +862,9 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert ctr_pos < impressions_and_clicks_pos
 
 
-def test_admin_ads_stats_page_includes_data_button_and_popup_per_chart(
+def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
     monkeypatch):
-  """Ads stats page includes Data button and popup container for each chart."""
+  """Ads stats page includes Data buttons and copy-feedback bubbles."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(
     firestore_service,
@@ -841,6 +904,8 @@ def test_admin_ads_stats_page_includes_data_button_and_popup_per_chart(
   assert 'id="adsStatsTopDataPopup"' in html
   assert '>Data</button>' in html
   assert 'chart-data-popup' in html
+  assert 'aria-live="polite"' in html
+  assert 'aria-hidden="true"' in html
 
 
 def test_admin_ads_stats_filtering(monkeypatch):
@@ -1063,23 +1128,112 @@ def test_admin_ads_stats_upload_kdp_success(monkeypatch):
     earliest_changed_date=datetime.date(2026, 2, 24))
 
 
-def test_admin_ads_stats_refresh_requests_reports_when_none_available(
-    monkeypatch):
-  """Refresh route should request reports when context has none."""
+def test_admin_ads_reports_request_noops_when_reports_are_pending(monkeypatch):
+  """Request route should no-op when recent reports still need processing."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
 
+  request_mock = Mock()
   monkeypatch.setattr(
-    dashboard_routes.amazon,
-    "get_ads_stats_context",
-    lambda _run_time: dashboard_routes.amazon.AdsStatsContext(
-      selected_profiles=[],
-      reports_by_expected_key={},
-      report_end_date=datetime.date(2026, 2, 27),
-      report_start_date=datetime.date(2026, 1, 28),
-      profiles_considered=0,
-    ),
+    firestore_service,
+    "list_amazon_ads_reports",
+    lambda *, created_on_or_after: [
+      _make_ads_report(
+        report_id="r-pending",
+        report_name="pending_report",
+        status="PROCESSING",
+        report_type_id="spCampaigns",
+        created_at=datetime.datetime(
+          2026, 2, 27, 12, 0, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 2, 27, 12, 1, tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=False,
+        raw_report_text=None,
+      ),
+    ],
   )
+  monkeypatch.setattr(dashboard_routes.amazon, "request_ads_stats_reports",
+                      request_mock)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/ads-reports/request',
+      json={"selected_report_name": "pending_report"},
+    )
+
+  assert resp.status_code == 200
+  payload = resp.get_json()
+  assert payload["action"] == "request"
+  assert payload["performed"] is False
+  assert payload["has_unprocessed_reports"] is True
+  assert "Reports are already pending." in payload["content_html"]
+  assert "Process Reports" in payload["content_html"]
+  request_mock.assert_not_called()
+
+
+def test_admin_ads_reports_request_requests_when_all_processed(monkeypatch):
+  """Request route should request new reports when recent ones are processed."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  all_processed_reports = [
+    _make_ads_report(
+      report_id="r-processed",
+      report_name="processed_report",
+      status="COMPLETED",
+      report_type_id="spCampaigns",
+      created_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   12,
+                                   0,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   12,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="p-us",
+      profile_country="US",
+      processed=True,
+      raw_report_text='[{"date":"2026-02-27","campaignId":"1"}]',
+    ),
+  ]
+  pending_reports = [
+    _make_ads_report(
+      report_id="r-new",
+      report_name="new_pending_report",
+      status="PROCESSING",
+      report_type_id="spCampaigns",
+      created_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   13,
+                                   0,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   13,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="p-us",
+      profile_country="US",
+      processed=False,
+      raw_report_text=None,
+    ),
+  ]
+  call_count = {"count": 0}
+
+  def _fake_list_reports(*, created_on_or_after):
+    call_count["count"] += 1
+    if call_count["count"] == 1:
+      return all_processed_reports
+    return pending_reports
+
   request_mock = Mock(
     return_value=dashboard_routes.amazon.AdsStatsRequestResult(
       selected_profiles=[],
@@ -1091,62 +1245,154 @@ def test_admin_ads_stats_refresh_requests_reports_when_none_available(
       report_start_date=datetime.date(2026, 1, 28),
       profiles_considered=1,
     ))
-  fetch_mock = Mock()
+  monkeypatch.setattr(firestore_service, "list_amazon_ads_reports",
+                      _fake_list_reports)
   monkeypatch.setattr(dashboard_routes.amazon, "request_ads_stats_reports",
                       request_mock)
-  monkeypatch.setattr(dashboard_routes.amazon, "fetch_ads_stats_reports",
-                      fetch_mock)
 
   with app.test_client() as client:
-    resp = client.post('/admin/ads-stats/refresh')
+    resp = client.post(
+      '/admin/ads-reports/request',
+      json={"selected_report_name": "processed_report"},
+    )
 
   assert resp.status_code == 200
-  assert resp.get_json() == {
-    "called": "request",
-    "reports_requested": 1,
-    "done": False,
-    "button_text": "Fetch",
-  }
+  payload = resp.get_json()
+  assert payload["action"] == "request"
+  assert payload["performed"] is True
+  assert payload["has_unprocessed_reports"] is True
+  assert "Requested 1 report set." in payload["content_html"]
+  assert "Process Reports" in payload["content_html"]
   request_mock.assert_called_once()
-  fetch_mock.assert_not_called()
 
 
-def test_admin_ads_stats_refresh_fetches_reports_when_available(monkeypatch):
-  """Refresh route should fetch reports when context already has them."""
+def test_admin_ads_reports_process_noops_when_all_processed(monkeypatch):
+  """Process route should no-op when there is nothing left to process."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
 
   monkeypatch.setattr(
-    dashboard_routes.amazon,
-    "get_ads_stats_context",
-    lambda _run_time: dashboard_routes.amazon.AdsStatsContext(
-      selected_profiles=[],
-      reports_by_expected_key={("p1", "spCampaigns"): Mock()},
-      report_end_date=datetime.date(2026, 2, 27),
-      report_start_date=datetime.date(2026, 1, 28),
-      profiles_considered=1,
-    ),
+    firestore_service,
+    "list_amazon_ads_reports",
+    lambda *, created_on_or_after: [
+      _make_ads_report(
+        report_id="r-processed",
+        report_name="processed_report",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        created_at=datetime.datetime(
+          2026, 2, 27, 12, 0, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 2, 27, 12, 1, tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=True,
+        raw_report_text='[{"date":"2026-02-27","campaignId":"1"}]',
+      ),
+    ],
   )
-  request_mock = Mock()
-  fetch_mock = Mock(return_value=([{"report_id": "r1"}], [{"row": 1}]))
-  monkeypatch.setattr(dashboard_routes.amazon, "request_ads_stats_reports",
-                      request_mock)
+  fetch_mock = Mock()
   monkeypatch.setattr(dashboard_routes.amazon, "fetch_ads_stats_reports",
                       fetch_mock)
 
   with app.test_client() as client:
-    resp = client.post('/admin/ads-stats/refresh')
+    resp = client.post(
+      '/admin/ads-reports/process',
+      json={"selected_report_name": "processed_report"},
+    )
 
   assert resp.status_code == 200
-  assert resp.get_json() == {
-    "called": "fetch",
-    "reports_fetched": 1,
-    "daily_campaign_stats_count": 1,
-    "done": True,
-    "button_text": "Fetch",
-  }
+  payload = resp.get_json()
+  assert payload["action"] == "process"
+  assert payload["performed"] is False
+  assert payload["has_unprocessed_reports"] is False
+  assert "All reports are already processed." in payload["content_html"]
+  assert "Request Reports" in payload["content_html"]
+  fetch_mock.assert_not_called()
+
+
+def test_admin_ads_reports_process_fetches_and_updates_partial(monkeypatch):
+  """Process route should fetch pending reports and return refreshed content."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  pending_reports = [
+    _make_ads_report(
+      report_id="r-pending",
+      report_name="pending_report",
+      status="PROCESSING",
+      report_type_id="spCampaigns",
+      created_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   12,
+                                   0,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   12,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="p-us",
+      profile_country="US",
+      processed=False,
+      raw_report_text=None,
+    ),
+  ]
+  processed_reports = [
+    _make_ads_report(
+      report_id="r-processed",
+      report_name="pending_report",
+      status="COMPLETED",
+      report_type_id="spCampaigns",
+      created_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   12,
+                                   0,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   12,
+                                   5,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="p-us",
+      profile_country="US",
+      processed=True,
+      raw_report_text='[{"date":"2026-02-27","campaignId":"1","cost":2.50}]',
+    ),
+  ]
+  call_count = {"count": 0}
+
+  def _fake_list_reports(*, created_on_or_after):
+    call_count["count"] += 1
+    if call_count["count"] == 1:
+      return pending_reports
+    return processed_reports
+
+  fetch_mock = Mock(return_value=([{"report_id": "r1"}], [{"row": 1}]))
+  monkeypatch.setattr(firestore_service, "list_amazon_ads_reports",
+                      _fake_list_reports)
+  monkeypatch.setattr(dashboard_routes.amazon, "fetch_ads_stats_reports",
+                      fetch_mock)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/ads-reports/process',
+      json={"selected_report_name": "pending_report"},
+    )
+
+  assert resp.status_code == 200
+  payload = resp.get_json()
+  assert payload["action"] == "process"
+  assert payload["performed"] is True
+  assert payload["has_unprocessed_reports"] is False
+  assert "Processed 1 reports and saved 1 daily campaign rows." in payload[
+    "content_html"]
+  assert "Request Reports" in payload["content_html"]
   fetch_mock.assert_called_once()
-  request_mock.assert_not_called()
 
 
 def test_admin_ads_stats_upload_kdp_missing_file_returns_400(monkeypatch):

@@ -575,6 +575,71 @@
     return lines.join('\n');
   }
 
+  async function copyTextToClipboard(text) {
+    const textValue = String(text == null ? '' : text);
+    if (typeof navigator !== 'undefined'
+      && navigator.clipboard
+      && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(textValue);
+      return true;
+    }
+
+    if (typeof document === 'undefined' || !document.body || typeof document.createElement !== 'function') {
+      return false;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = textValue;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    try {
+      if (typeof document.execCommand !== 'function') {
+        return false;
+      }
+      return document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  function showCopyFeedback(popup, options) {
+    if (!popup) {
+      return;
+    }
+
+    const config = options || {};
+    const message = String(config.message || 'Copied to clipboard!');
+    const visibleDurationMs = Number(config.visibleDurationMs) || 2000;
+    const fadeDurationMs = Number(config.fadeDurationMs) || 1000;
+
+    if (popup._copyFeedbackVisibleTimer) {
+      clearTimeout(popup._copyFeedbackVisibleTimer);
+    }
+    if (popup._copyFeedbackHideTimer) {
+      clearTimeout(popup._copyFeedbackHideTimer);
+    }
+
+    popup.textContent = message;
+    popup.setAttribute('aria-hidden', 'false');
+    popup.classList.remove('is-fading');
+    popup.classList.add('is-visible');
+
+    popup._copyFeedbackVisibleTimer = setTimeout(() => {
+      popup.classList.add('is-fading');
+      popup._copyFeedbackHideTimer = setTimeout(() => {
+        popup.classList.remove('is-visible');
+        popup.classList.remove('is-fading');
+        popup.setAttribute('aria-hidden', 'true');
+      }, fadeDurationMs);
+    }, visibleDurationMs);
+  }
+
   function initAdsStatsPage(options) {
     const config = options || {};
     const adsStatsData = config.chartData || {};
@@ -1202,48 +1267,43 @@
       modeSelector.addEventListener('change', renderSelectedView);
       renderSelectedView();
 
-      document.addEventListener('click', (event) => {
+      document.addEventListener('click', async (event) => {
         const target = event.target instanceof Element ? event.target : null;
         const btn = target && target.closest ? target.closest('.chart-data-button') : null;
         if (!btn) {
           return;
         }
+
+        let popup = null;
+        let csv = '';
         const popupId = btn.getAttribute('data-popup-id');
         if (popupId) {
-          const popup = document.getElementById(popupId);
-          if (!popup) {
-            return;
+          popup = document.getElementById(popupId);
+          csv = reconciliationDebugCsv;
+        } else {
+          const canvasId = btn.getAttribute('data-canvas-id');
+          popup = canvasId ? document.getElementById(`${canvasId}-data-popup`) : null;
+          if (canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const chart = canvas && typeof chartCtor.getChart === 'function'
+              ? chartCtor.getChart(canvas)
+              : charts[canvasId];
+            csv = chartDataToCsv(chart);
           }
-          if (popup.classList.contains('is-visible')) {
-            popup.classList.remove('is-visible');
-            return;
-          }
-          const safeCsv = reconciliationDebugCsv
-            ? reconciliationDebugCsv.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            : '';
-          popup.innerHTML = safeCsv ? `<pre>${safeCsv}</pre>` : '<pre>No data</pre>';
-          popup.classList.add('is-visible');
+        }
+
+        if (!popup) {
           return;
         }
-        const canvasId = btn.getAttribute('data-canvas-id');
-        const popup = document.getElementById(`${canvasId}-data-popup`);
-        if (!canvasId || !popup) {
-          return;
+
+        try {
+          const copied = await copyTextToClipboard(csv);
+          showCopyFeedback(popup, {
+            message: copied ? 'Copied to clipboard!' : 'Copy failed',
+          });
+        } catch (_error) {
+          showCopyFeedback(popup, { message: 'Copy failed' });
         }
-        if (popup.classList.contains('is-visible')) {
-          popup.classList.remove('is-visible');
-          return;
-        }
-        const canvas = document.getElementById(canvasId);
-        const chart = canvas && typeof chartCtor.getChart === 'function'
-          ? chartCtor.getChart(canvas)
-          : charts[canvasId];
-        const csv = chartDataToCsv(chart);
-        const safeCsv = csv
-          ? csv.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          : '';
-        popup.innerHTML = safeCsv ? `<pre>${safeCsv}</pre>` : '<pre>No data</pre>';
-        popup.classList.add('is-visible');
       });
     }
 
@@ -1273,6 +1333,8 @@
       groupAdsEventsByDate: groupAdsEventsByDate,
       getAdsEventTooltipLines: getAdsEventTooltipLines,
       chartDataToCsv: chartDataToCsv,
+      copyTextToClipboard: copyTextToClipboard,
+      showCopyFeedback: showCopyFeedback,
       toNumber: toNumber,
       dayOfWeekIndexForDate: dayOfWeekIndexForDate,
       average: average,

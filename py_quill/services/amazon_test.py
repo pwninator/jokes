@@ -174,6 +174,28 @@ def test_create_report_sets_canonical_report_name_and_profile_context(
   assert report.api_base == "https://advertising-api.amazon.com"
 
 
+def test_build_report_name_uses_los_angeles_local_time(monkeypatch):
+  """Report names should use Los Angeles local time instead of UTC."""
+
+  class _FixedDateTime(datetime.datetime):
+
+    @classmethod
+    def now(cls, tz=None):
+      utc_now = cls(2026, 2, 27, 7, 30, 12, tzinfo=datetime.timezone.utc)
+      if tz is None:
+        return utc_now.replace(tzinfo=None)
+      return utc_now.astimezone(tz)
+
+  monkeypatch.setattr(amazon.datetime, "datetime", _FixedDateTime)
+
+  report_name = amazon._build_report_name(
+    report_type_id="spCampaigns",
+    profile_country="us",
+  )
+
+  assert report_name == "20260226_233012_spCampaigns_US"
+
+
 def test_request_daily_campaign_stats_reports_requests_three_reports(
     monkeypatch):
   calls: list[dict] = []

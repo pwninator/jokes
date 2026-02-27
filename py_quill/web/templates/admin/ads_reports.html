@@ -15,6 +15,32 @@
   .ads-reports-title-row p {
     margin: 6px 0 0;
   }
+  .ads-reports-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ads-reports-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .ads-reports-status {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .ads-reports-status--success {
+    color: #2d5d37;
+  }
+  .ads-reports-status--info {
+    color: var(--color-text-muted);
+  }
+  .ads-reports-action-button {
+    white-space: nowrap;
+  }
   .ads-reports-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -90,127 +116,13 @@
   }
 </style>
 
-<div class="ads-reports-layout">
-  <div class="ads-reports-title-row">
-    <h2>Ads Reports</h2>
-    <p class="muted">Showing reports created between {{ start_date }} and {{ end_date }} (last 3 days).</p>
-  </div>
-
-  <section class="ads-reports-card" aria-label="Recent ads reports">
-    <h3>Recent Report Metadata</h3>
-    {% if reports %}
-      <div class="ads-reports-table-wrap">
-        <table class="ads-reports-table">
-          <thead>
-            <tr>
-              <th>Created At (UTC)</th>
-              <th>Report Name</th>
-              <th>Report Type</th>
-              <th>Status</th>
-              <th>Profile</th>
-              <th>Country</th>
-              <th>Range Start</th>
-              <th>Range End</th>
-              <th>Processed</th>
-              <th>Cached JSON</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for report in reports %}
-              <tr
-                class="ads-reports-report-row{% if report.report_name == selected_report_name %} ads-reports-report-row--selected{% endif %}"
-                data-selected="{% if report.report_name == selected_report_name %}true{% else %}false{% endif %}"
-                data-report-url="{{ url_for('web.admin_ads_reports', selected_report_name=report.report_name) }}"
-                tabindex="0"
-                role="button"
-                aria-pressed="{% if report.report_name == selected_report_name %}true{% else %}false{% endif %}">
-                <td>{{ report.created_at }}</td>
-                <td>{{ report.report_name }}</td>
-                <td>{{ report.report_type_id }}</td>
-                <td>{{ report.status }}</td>
-                <td>{{ report.profile_id }}</td>
-                <td>{{ report.profile_country }}</td>
-                <td>{{ report.start_date }}</td>
-                <td>{{ report.end_date }}</td>
-                <td>
-                  <span class="ads-reports-chip {% if report.processed %}ads-reports-chip--yes{% else %}ads-reports-chip--no{% endif %}">
-                    {% if report.processed %}Yes{% else %}No{% endif %}
-                  </span>
-                </td>
-                <td>
-                  <span class="ads-reports-chip {% if report.has_raw_report_text %}ads-reports-chip--yes{% else %}ads-reports-chip--no{% endif %}">
-                    {% if report.has_raw_report_text %}Yes{% else %}No{% endif %}
-                  </span>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="muted ads-reports-empty">No reports found in the selected window.</p>
-    {% endif %}
-  </section>
-
-  <section class="ads-reports-card" aria-label="Cached report data">
-    <h3>Cached Data for Selected Report</h3>
-    {% if reports %}
-      {% if selected_cached_report_table %}
-        <p class="muted ads-reports-meta">
-          <strong>{{ selected_cached_report_table.report_type_id }}</strong> - {{ selected_cached_report_table.report_name }}
-          - profile {{ selected_cached_report_table.profile_id }} {{ selected_cached_report_table.profile_country }}
-          - range {{ selected_cached_report_table.start_date }} to {{ selected_cached_report_table.end_date }}
-          - created {{ selected_cached_report_table.created_at }}
-          - rows {{ selected_cached_report_table.row_count }}{% if selected_cached_report_table.truncated %} (showing first {{ selected_cached_report_table.rows|length }}){% endif %}
-        </p>
-        {% if selected_cached_report_table.columns %}
-          <div class="ads-reports-table-wrap">
-            <table class="ads-reports-table">
-              <thead>
-                <tr>
-                  {% for column in selected_cached_report_table.columns %}
-                    <th>{{ column }}</th>
-                  {% endfor %}
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in selected_cached_report_table.rows %}
-                  <tr>
-                    {% for column in selected_cached_report_table.columns %}
-                      <td>{{ row[column] }}</td>
-                    {% endfor %}
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="muted ads-reports-empty">No rows parsed from cached JSON.</p>
-        {% endif %}
-      {% else %}
-        <p class="muted ads-reports-empty">No cached data for this report</p>
-      {% endif %}
-    {% else %}
-      <p class="muted ads-reports-empty">No reports found in the selected window.</p>
-    {% endif %}
-  </section>
+<div id="adsReportsContent">
+  {% include "admin/_ads_reports_content.html" %}
 </div>
+<script src="{{ url_for('static', filename='js/ads_reports.js') }}"></script>
 <script>
-  const reportRows = document.querySelectorAll('.ads-reports-report-row[data-report-url]');
-  for (const row of reportRows) {
-    const destination = row.dataset.reportUrl;
-    if (!destination) {
-      continue;
-    }
-    row.addEventListener('click', () => {
-      window.location.assign(destination);
-    });
-    row.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        window.location.assign(destination);
-      }
-    });
+  if (window.initAdsReportsPage) {
+    window.initAdsReportsPage({ rootId: 'adsReportsContent' });
   }
 </script>
 {% endblock %}

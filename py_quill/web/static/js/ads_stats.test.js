@@ -8,11 +8,13 @@ const {
   buildReconciledChartStats,
   buildChartStats,
   chartDataToCsv,
+  copyTextToClipboard,
   isIsoDateString,
   normalizeAdsEvent,
   groupAdsEventsByDate,
   getAdsEventTooltipLines,
   getDailyStatsForCampaign,
+  showCopyFeedback,
 } = require('./ads_stats.js');
 
 function assertClose(actual, expected, tolerance = 1e-9) {
@@ -20,6 +22,21 @@ function assertClose(actual, expected, tolerance = 1e-9) {
     Math.abs(Number(actual) - Number(expected)) <= tolerance,
     `Expected ${actual} to be within ${tolerance} of ${expected}`,
   );
+}
+
+function createFakePopup() {
+  const classes = new Set();
+  const attributes = new Map();
+  return {
+    textContent: '',
+    classList: {
+      add: (...tokens) => tokens.forEach((token) => classes.add(token)),
+      remove: (...tokens) => tokens.forEach((token) => classes.delete(token)),
+      contains: (token) => classes.has(token),
+    },
+    setAttribute: (name, value) => attributes.set(name, value),
+    getAttribute: (name) => attributes.get(name),
+  };
 }
 
 test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', () => {
@@ -381,4 +398,47 @@ test('chartDataToCsv handles missing data points with empty string', () => {
   const lines = csv.split('\n');
   assert.equal(lines.length, 3);
   assert.ok(lines[2].endsWith(',20'));
+});
+
+test('copyTextToClipboard uses navigator clipboard when available', async () => {
+  const originalNavigator = global.navigator;
+  const writes = [];
+  global.navigator = {
+    clipboard: {
+      writeText: async (value) => {
+        writes.push(value);
+      },
+    },
+  };
+
+  try {
+    const copied = await copyTextToClipboard('alpha,beta');
+    assert.equal(copied, true);
+    assert.deepEqual(writes, ['alpha,beta']);
+  } finally {
+    global.navigator = originalNavigator;
+  }
+});
+
+test('showCopyFeedback keeps confirmation visible, then fades and hides it', async () => {
+  const popup = createFakePopup();
+
+  showCopyFeedback(popup, {
+    visibleDurationMs: 40,
+    fadeDurationMs: 30,
+  });
+
+  assert.equal(popup.textContent, 'Copied to clipboard!');
+  assert.equal(popup.getAttribute('aria-hidden'), 'false');
+  assert.equal(popup.classList.contains('is-visible'), true);
+  assert.equal(popup.classList.contains('is-fading'), false);
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(popup.classList.contains('is-visible'), true);
+  assert.equal(popup.classList.contains('is-fading'), true);
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.equal(popup.classList.contains('is-visible'), false);
+  assert.equal(popup.classList.contains('is-fading'), false);
+  assert.equal(popup.getAttribute('aria-hidden'), 'true');
 });

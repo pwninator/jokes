@@ -212,68 +212,84 @@ def admin_ads_stats():
 @auth_helpers.require_admin
 def admin_ads_reports():
   """Render recent ads report metadata and selected cached raw report rows."""
-  end_date = _today_in_los_angeles()
-  start_date = end_date - datetime.timedelta(days=_ADS_REPORTS_LOOKBACK_DAYS -
-                                             1)
-  reports = firestore.list_amazon_ads_reports(created_on_or_after=start_date)
   selected_report_name = str(flask.request.args.get('selected_report_name',
                                                     '')).strip()
-  selected_report = _select_amazon_ads_report(
-    reports=reports,
-    selected_report_name=selected_report_name,
-  )
+  view_model = _build_ads_reports_view_model(
+    selected_report_name=selected_report_name)
   return flask.render_template(
     'admin/ads_reports.html',
     site_name='Snickerdoodle',
-    start_date=start_date.isoformat(),
-    end_date=end_date.isoformat(),
-    reports=[_serialize_amazon_ads_report(report) for report in reports],
-    selected_report_name=selected_report.report_name
-    if selected_report else "",
-    selected_cached_report_table=_build_cached_ads_report_table(
-      selected_report),
+    **view_model,
   )
 
 
-@web_bp.route('/admin/ads-stats/refresh', methods=['POST'])
+@web_bp.route('/admin/ads-reports/request', methods=['POST'])
 @auth_helpers.require_admin
-def admin_ads_stats_refresh():
-  """Request or fetch ads stats reports based on current Firestore status."""
+def admin_ads_reports_request():
+  """Request new ads reports when no recent reports are pending processing."""
   try:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
-    ctx = amazon.get_ads_stats_context(run_time_utc)
-    if ctx.reports_by_expected_key:
-      report_metadata, daily_campaign_stats_rows = amazon.fetch_ads_stats_reports(
-        run_time_utc)
-      return flask.jsonify({
-        'called':
-        'fetch',
-        'reports_fetched':
-        len(report_metadata),
-        'daily_campaign_stats_count':
-        len(daily_campaign_stats_rows),
-        'done':
-        len(daily_campaign_stats_rows) > 0,
-        'button_text':
-        'Fetch',
-      })
-
-    request_result = amazon.request_ads_stats_reports(run_time_utc)
-    return flask.jsonify({
-      'called':
-      'request',
-      'reports_requested':
-      len(request_result.report_requests),
-      'done':
-      False,
-      'button_text':
-      'Fetch',
-    })
+    selected_report_name = _get_ads_reports_selected_report_name()
+    current_view_model = _build_ads_reports_view_model(
+      selected_report_name=selected_report_name)
+    performed = False
+    message = 'Reports are already pending.'
+    if not cast(bool, current_view_model['has_unprocessed_reports']):
+      request_result = amazon.request_ads_stats_reports(run_time_utc)
+      performed = True
+      num_requested = len(request_result.report_requests)
+      message = (f'Requested {num_requested} report set'
+                 f'{"s" if num_requested != 1 else ""}.')
+    updated_view_model = _build_ads_reports_view_model(
+      selected_report_name=selected_report_name,
+      action_status_message=message,
+      action_status_kind='success' if performed else 'info',
+    )
+    return _ads_reports_partial_response(
+      action='request',
+      performed=performed,
+      view_model=updated_view_model,
+    )
   except amazon.AmazonAdsError as exc:
     return flask.jsonify({'error': str(exc)}), 400
   except Exception as exc:
-    logger.error('Failed to refresh ads stats reports', exc_info=exc)
-    return flask.jsonify({'error': 'Failed to refresh ads stats reports'}), 500
+    logger.error('Failed to request ads stats reports', exc_info=exc)
+    return flask.jsonify({'error': 'Failed to request ads stats reports'}), 500
+
+
+@web_bp.route('/admin/ads-reports/process', methods=['POST'])
+@auth_helpers.require_admin
+def admin_ads_reports_process():
+  """Fetch and process pending ads reports when recent reports are unprocessed."""
+  try:
+    run_time_utc = datetime.datetime.now(datetime.timezone.utc)
+    selected_report_name = _get_ads_reports_selected_report_name()
+    current_view_model = _build_ads_reports_view_model(
+      selected_report_name=selected_report_name)
+    performed = False
+    message = 'All reports are already processed.'
+    if cast(bool, current_view_model['has_unprocessed_reports']):
+      report_metadata, daily_campaign_stats_rows = amazon.fetch_ads_stats_reports(
+        run_time_utc)
+      performed = True
+      message = ('Processed '
+                 f'{len(report_metadata)} reports and saved '
+                 f'{len(daily_campaign_stats_rows)} daily campaign rows.')
+    updated_view_model = _build_ads_reports_view_model(
+      selected_report_name=selected_report_name,
+      action_status_message=message,
+      action_status_kind='success' if performed else 'info',
+    )
+    return _ads_reports_partial_response(
+      action='process',
+      performed=performed,
+      view_model=updated_view_model,
+    )
+  except amazon.AmazonAdsError as exc:
+    return flask.jsonify({'error': str(exc)}), 400
+  except Exception as exc:
+    logger.error('Failed to process ads stats reports', exc_info=exc)
+    return flask.jsonify({'error': 'Failed to process ads stats reports'}), 500
 
 
 @web_bp.route('/admin/ads-stats/upload-kdp', methods=['POST'])
@@ -351,6 +367,7 @@ def _serialize_amazon_ads_event(
 def _serialize_amazon_ads_report(
   report: models.AmazonAdsReport, ) -> dict[str, object]:
   """Convert an ads report model to a JSON-safe dictionary for templates."""
+  created_at_los_angeles = report.created_at.astimezone(_LOS_ANGELES_TIMEZONE)
   return {
     'report_id': report.report_id,
     'report_name': report.report_name,
@@ -361,10 +378,118 @@ def _serialize_amazon_ads_report(
     'start_date': report.start_date.isoformat(),
     'end_date': report.end_date.isoformat(),
     'created_at': report.created_at.isoformat(),
+    'created_at_display':
+    created_at_los_angeles.strftime('%Y-%m-%d %H:%M:%S %Z'),
     'updated_at': report.updated_at.isoformat(),
     'processed': report.processed,
     'has_raw_report_text': bool((report.raw_report_text or "").strip()),
   }
+
+
+def _list_recent_amazon_ads_reports(
+) -> tuple[datetime.date, datetime.date, list[models.AmazonAdsReport]]:
+  """Return the recent ads reports window and matching reports."""
+  end_date = _today_in_los_angeles()
+  start_date = end_date - datetime.timedelta(days=_ADS_REPORTS_LOOKBACK_DAYS -
+                                             1)
+  reports = firestore.list_amazon_ads_reports(created_on_or_after=start_date)
+  return start_date, end_date, reports
+
+
+def _has_unprocessed_amazon_ads_reports(
+  reports: list[models.AmazonAdsReport], ) -> bool:
+  """Return whether any recent ads reports still need processing."""
+  return any(not report.processed for report in reports)
+
+
+def _get_ads_reports_action(has_unprocessed_reports: bool) -> dict[str, str]:
+  """Describe the primary action for the ads reports page."""
+  if has_unprocessed_reports:
+    return {
+      'label': 'Process Reports',
+      'url': flask.url_for('web.admin_ads_reports_process'),
+      'action': 'process',
+    }
+  return {
+    'label': 'Request Reports',
+    'url': flask.url_for('web.admin_ads_reports_request'),
+    'action': 'request',
+  }
+
+
+def _build_ads_reports_view_model(
+  *,
+  selected_report_name: str,
+  action_status_message: str | None = None,
+  action_status_kind: str = 'info',
+) -> dict[str, object]:
+  """Build the ads reports template context for full-page and partial renders."""
+  start_date, end_date, reports = _list_recent_amazon_ads_reports()
+  selected_report = _select_amazon_ads_report(
+    reports=reports,
+    selected_report_name=selected_report_name,
+  )
+  selected_report_name = selected_report.report_name if selected_report else ""
+  has_unprocessed_reports = _has_unprocessed_amazon_ads_reports(reports)
+  return {
+    'start_date':
+    start_date.isoformat(),
+    'end_date':
+    end_date.isoformat(),
+    'reports': [_serialize_amazon_ads_report(report) for report in reports],
+    'selected_report_name':
+    selected_report_name,
+    'selected_cached_report_table':
+    _build_cached_ads_report_table(selected_report),
+    'has_unprocessed_reports':
+    has_unprocessed_reports,
+    'primary_action':
+    _get_ads_reports_action(has_unprocessed_reports),
+    'action_status_message':
+    action_status_message or "",
+    'action_status_kind':
+    action_status_kind,
+  }
+
+
+def _get_ads_reports_selected_report_name() -> str:
+  """Read the selected report name from JSON or form data."""
+  payload = flask.request.get_json(silent=True)
+  if isinstance(payload, dict):
+    payload_dict = cast(dict[str, object], payload)
+    selected_report_name = payload_dict.get('selected_report_name', '')
+    return selected_report_name.strip() if isinstance(
+      selected_report_name, str) else str(selected_report_name or '').strip()
+  return (flask.request.form.get('selected_report_name') or '').strip()
+
+
+def _render_ads_reports_content(view_model: dict[str, object]) -> str:
+  """Render the replaceable ads reports content fragment."""
+  return flask.render_template(
+    'admin/_ads_reports_content.html',
+    **view_model,
+  )
+
+
+def _ads_reports_partial_response(
+  *,
+  action: str,
+  performed: bool,
+  view_model: dict[str, object],
+) -> flask.Response:
+  """Return JSON for in-place ads reports updates."""
+  return flask.jsonify({
+    'action':
+    action,
+    'performed':
+    performed,
+    'has_unprocessed_reports':
+    view_model['has_unprocessed_reports'],
+    'selected_report_name':
+    view_model['selected_report_name'],
+    'content_html':
+    _render_ads_reports_content(view_model),
+  })
 
 
 def _select_amazon_ads_report(
@@ -400,6 +525,7 @@ def _build_cached_ads_report_table(
   row_count = len(rows)
   display_rows = rows[:_ADS_REPORT_TABLE_MAX_ROWS]
   columns = _collect_table_columns(display_rows)
+  created_at_los_angeles = report.created_at.astimezone(_LOS_ANGELES_TIMEZONE)
   return {
     'report_name':
     report.report_name,
@@ -414,7 +540,7 @@ def _build_cached_ads_report_table(
     'end_date':
     report.end_date.isoformat(),
     'created_at':
-    report.created_at.isoformat(),
+    created_at_los_angeles.strftime('%Y-%m-%d %H:%M:%S %Z'),
     'columns':
     columns,
     'rows': [{

@@ -1,5 +1,7 @@
 """KDP xlsx parsing helpers for daily sales and KENP stats."""
 
+# pylint: disable=duplicate-code
+
 from __future__ import annotations
 
 import datetime
@@ -15,6 +17,29 @@ _CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
   "USD": 1.0,
   "CAD": 0.7320,
   "GBP": 1.3569,
+}
+_MARKETPLACE_TO_MARKET_CODE: dict[str, str] = {
+  "amazon.com": "US",
+  "amazon.ca": "CA",
+  "amazon.co.uk": "GB",
+  "amazon.com.au": "AU",
+  "amazon.de": "DE",
+  "amazon.fr": "FR",
+  "amazon.es": "ES",
+  "amazon.it": "IT",
+  "amazon.co.jp": "JP",
+  "amazon.com.mx": "MX",
+  "amazon.nl": "NL",
+  "amazon.se": "SE",
+  "amazon.pl": "PL",
+  "amazon.in": "IN",
+  "amazon.com.br": "BR",
+}
+_MARKET_CODE_TO_CURRENCY_CODE: dict[str, str] = {
+  "US": "USD",
+  "CA": "CAD",
+  "GB": "GBP",
+  "UK": "GBP",
 }
 
 
@@ -36,6 +61,24 @@ class _DailyAggregate:
   hardcover_royalties_usd: float = 0.0
   total_print_cost_usd: float = 0.0
   sale_items_by_asin: dict[str, models.AmazonProductStats] = field(
+    default_factory=dict)
+  market_currency_aggregates: dict[str, _MarketCurrencyAggregate] = field(
+    default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class _MarketCurrencyAggregate:
+  """Mutable aggregate for one date+market+currency bucket."""
+
+  market: str
+  currency_code: str
+  kenp_pages_read: int = 0
+  total_units_sold: int = 0
+  total_royalties_usd: float = 0.0
+  total_print_cost_usd: float = 0.0
+  sale_items_by_asin: dict[str, models.AmazonProductStats] = field(
+    default_factory=dict)
+  avg_offer_price_usd_candidates_by_asin: dict[str, set[float]] = field(
     default_factory=dict)
 
 
@@ -60,6 +103,31 @@ def parse_kdp_xlsx(file_bytes: bytes) -> list[models.AmazonKdpDailyStats]:
       aggregate.sale_items_by_asin.values(),
       key=lambda item: item.asin,
     )
+    market_currency_stats_by_key: dict[
+      str, models.AmazonKdpMarketCurrencyStats] = {}
+    for key in sorted(aggregate.market_currency_aggregates.keys()):
+      market_currency_aggregate = aggregate.market_currency_aggregates[key]
+      market_sale_items = sorted(
+        market_currency_aggregate.sale_items_by_asin.values(),
+        key=lambda item: item.asin,
+      )
+      market_currency_stats_by_key[key] = models.AmazonKdpMarketCurrencyStats(
+        market=market_currency_aggregate.market,
+        currency_code=market_currency_aggregate.currency_code,
+        total_units_sold=market_currency_aggregate.total_units_sold,
+        kenp_pages_read=market_currency_aggregate.kenp_pages_read,
+        total_royalties_usd=round(
+          market_currency_aggregate.total_royalties_usd, 2),
+        total_print_cost_usd=round(
+          market_currency_aggregate.total_print_cost_usd, 2),
+        sale_items=market_sale_items,
+        avg_offer_price_usd_candidates_by_asin={
+          asin: sorted(prices)
+          for asin, prices in
+          sorted(market_currency_aggregate.
+                 avg_offer_price_usd_candidates_by_asin.items()) if prices
+        },
+      )
     output.append(
       models.AmazonKdpDailyStats(
         date=date_value,
@@ -76,6 +144,7 @@ def parse_kdp_xlsx(file_bytes: bytes) -> list[models.AmazonKdpDailyStats]:
         hardcover_royalties_usd=round(aggregate.hardcover_royalties_usd, 2),
         total_print_cost_usd=round(aggregate.total_print_cost_usd, 2),
         sale_items=sale_items,
+        market_currency_stats_by_key=market_currency_stats_by_key,
       ))
   return output
 
@@ -121,6 +190,7 @@ def _apply_combined_sales_rows(
   for row in rows:
     date_value = _parse_iso_date(row.get("Royalty Date"), "Royalty Date")
     asin_or_isbn = _required_str(row.get("ASIN/ISBN"), "ASIN/ISBN")
+    market = _parse_market(row.get("Marketplace"))
     currency_code = _required_str(row.get("Currency"), "Currency").upper()
 
     book_variant = book_defs.find_book_variant(asin_or_isbn)
@@ -166,20 +236,39 @@ def _apply_combined_sales_rows(
     aggregate.total_print_cost_usd += print_cost_usd
 
     canonical_asin = book_variant.asin
-    existing = aggregate.sale_items_by_asin.setdefault(
-      canonical_asin,
-      models.AmazonProductStats(
-        asin=canonical_asin,
-        total_print_cost_usd=0.0,
-        total_royalty_usd=0.0,
+    _accumulate_sale_item(
+      aggregate.sale_items_by_asin,
+      canonical_asin=canonical_asin,
+      units_sold=net_units_sold,
+      sales_amount_usd=sales_amount_usd,
+      royalty_usd=royalty_usd,
+      print_cost_usd=print_cost_usd,
+    )
+
+    market_currency_key = _market_currency_key(
+      market=market,
+      currency_code=currency_code,
+    )
+    market_currency_aggregate = aggregate.market_currency_aggregates.setdefault(
+      market_currency_key,
+      _MarketCurrencyAggregate(
+        market=market,
+        currency_code=currency_code,
       ))
-    existing.units_sold += net_units_sold
-    existing.total_sales_usd += sales_amount_usd
-    existing.total_profit_usd += royalty_usd
-    existing.total_royalty_usd = (existing.total_royalty_usd
-                                  or 0.0) + royalty_usd
-    existing.total_print_cost_usd = (existing.total_print_cost_usd
-                                     or 0.0) + print_cost_usd
+    market_currency_aggregate.total_units_sold += net_units_sold
+    market_currency_aggregate.total_royalties_usd += royalty_usd
+    market_currency_aggregate.total_print_cost_usd += print_cost_usd
+    _accumulate_sale_item(
+      market_currency_aggregate.sale_items_by_asin,
+      canonical_asin=canonical_asin,
+      units_sold=net_units_sold,
+      sales_amount_usd=sales_amount_usd,
+      royalty_usd=royalty_usd,
+      print_cost_usd=print_cost_usd,
+    )
+    if net_units_sold > 0 and avg_offer_price_usd > 0:
+      market_currency_aggregate.avg_offer_price_usd_candidates_by_asin.setdefault(
+        canonical_asin, set()).add(round(avg_offer_price_usd, 6))
 
 
 def _apply_kenp_rows(
@@ -190,6 +279,7 @@ def _apply_kenp_rows(
   for row in rows:
     date_value = _parse_iso_date(row.get("Date"), "Date")
     asin = _required_str(row.get("ASIN"), "ASIN")
+    market = _parse_market(row.get("Marketplace"))
     book_variant = book_defs.find_book_variant(asin)
     if book_variant is None:
       raise AmazonKdpError(f"Unknown ASIN in KENP Read sheet: {asin}")
@@ -199,14 +289,29 @@ def _apply_kenp_rows(
     aggregate.kenp_pages_read += kenp_pages_read
 
     canonical_asin = book_variant.asin
-    existing = aggregate.sale_items_by_asin.setdefault(
-      canonical_asin,
-      models.AmazonProductStats(
-        asin=canonical_asin,
-        total_print_cost_usd=0.0,
-        total_royalty_usd=0.0,
+    _accumulate_sale_item(
+      aggregate.sale_items_by_asin,
+      canonical_asin=canonical_asin,
+      kenp_pages_read=kenp_pages_read,
+    )
+
+    currency_code = _MARKET_CODE_TO_CURRENCY_CODE.get(market, "USD")
+    market_currency_key = _market_currency_key(
+      market=market,
+      currency_code=currency_code,
+    )
+    market_currency_aggregate = aggregate.market_currency_aggregates.setdefault(
+      market_currency_key,
+      _MarketCurrencyAggregate(
+        market=market,
+        currency_code=currency_code,
       ))
-    existing.kenp_pages_read += kenp_pages_read
+    market_currency_aggregate.kenp_pages_read += kenp_pages_read
+    _accumulate_sale_item(
+      market_currency_aggregate.sale_items_by_asin,
+      canonical_asin=canonical_asin,
+      kenp_pages_read=kenp_pages_read,
+    )
 
 
 def _format_from_transaction_type(value: Any) -> str:
@@ -217,6 +322,48 @@ def _format_from_transaction_type(value: Any) -> str:
   if "paperback" in transaction_type:
     return "paperback"
   return "ebook"
+
+
+def _parse_market(value: Any) -> str:
+  """Normalize Marketplace text to a compact market code (for example `US`)."""
+  marketplace = _required_str(value, "Marketplace").lower()
+  market = _MARKETPLACE_TO_MARKET_CODE.get(marketplace)
+  if market:
+    return market
+  raise AmazonKdpError(f"Unsupported Marketplace in KDP report: {value}")
+
+
+def _market_currency_key(*, market: str, currency_code: str) -> str:
+  """Build deterministic key for one market/currency bucket."""
+  return f"{market.upper()}_{currency_code.upper()}"
+
+
+def _accumulate_sale_item(
+  sale_items_by_asin: dict[str, models.AmazonProductStats],
+  *,
+  canonical_asin: str,
+  units_sold: int = 0,
+  kenp_pages_read: int = 0,
+  sales_amount_usd: float = 0.0,
+  royalty_usd: float = 0.0,
+  print_cost_usd: float = 0.0,
+) -> None:
+  """Accumulate one row's metrics into the target ASIN bucket."""
+  existing = sale_items_by_asin.setdefault(
+    canonical_asin,
+    models.AmazonProductStats(
+      asin=canonical_asin,
+      total_print_cost_usd=0.0,
+      total_royalty_usd=0.0,
+    ))
+  existing.units_sold += units_sold
+  existing.kenp_pages_read += kenp_pages_read
+  existing.total_sales_usd += sales_amount_usd
+  existing.total_profit_usd += royalty_usd
+  existing.total_royalty_usd = (existing.total_royalty_usd
+                                or 0.0) + royalty_usd
+  existing.total_print_cost_usd = (existing.total_print_cost_usd
+                                   or 0.0) + print_cost_usd
 
 
 def _convert_amount_to_usd(amount: float, *, currency_code: str) -> float:

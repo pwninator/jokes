@@ -34,6 +34,11 @@ BOOK_PRINT_COUNTRIES = frozenset({
   "UK", "US"
 })
 
+EBOOK_MIN_PRICE_USD = 0.0
+EBOOK_MAX_PRICE_USD = 4.0
+PAPERBACK_MIN_PRICE_USD = 8.0
+PAPERBACK_MAX_PRICE_USD = 15.0
+
 
 class BookFormat(enum.Enum):
   """Supported Amazon formats for a book."""
@@ -77,6 +82,8 @@ class BookVariant:
   format: BookFormat = BookFormat.PAPERBACK
   print_cost: float = 0.0
   royalty_rate: float = 0.0
+  min_price_usd: float | None = None
+  max_price_usd: float | None = None
   supported_countries: frozenset[str] = ALL_COUNTRIES
   attribution_tags: dict[AttributionSource,
                          str] = dataclasses.field(default_factory=dict)
@@ -109,6 +116,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.PAPERBACK,
         print_cost=2.91,
         royalty_rate=0.6,
+        min_price_usd=PAPERBACK_MIN_PRICE_USD,
+        max_price_usd=PAPERBACK_MAX_PRICE_USD,
         supported_countries=BOOK_PRINT_COUNTRIES,
         attribution_tags={
           AttributionSource.AA:
@@ -131,6 +140,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.EBOOK,
         print_cost=0.0,
         royalty_rate=0.35,
+        min_price_usd=EBOOK_MIN_PRICE_USD,
+        max_price_usd=EBOOK_MAX_PRICE_USD,
         attribution_tags={
           AttributionSource.AA:
           ("maas=maas_adg_88E95258EF6D9D50F8DBAADDFA5F7DE4_afap_abs&ref_=aa_maas&tag=maas"
@@ -159,6 +170,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.PAPERBACK,
         print_cost=2.91,
         royalty_rate=0.6,
+        min_price_usd=PAPERBACK_MIN_PRICE_USD,
+        max_price_usd=PAPERBACK_MAX_PRICE_USD,
         supported_countries=BOOK_PRINT_COUNTRIES,
         # No tags yet
         # attribution_tags={
@@ -182,6 +195,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.EBOOK,
         print_cost=0.0,
         royalty_rate=0.35,
+        min_price_usd=EBOOK_MIN_PRICE_USD,
+        max_price_usd=EBOOK_MAX_PRICE_USD,
         # No tags yet
         # attribution_tags={
         #   AttributionSource.AA:
@@ -212,6 +227,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.PAPERBACK,
         print_cost=5.88,
         royalty_rate=0.6,
+        min_price_usd=PAPERBACK_MIN_PRICE_USD,
+        max_price_usd=PAPERBACK_MAX_PRICE_USD,
       ),
       BookFormat.EBOOK:
       BookVariant(
@@ -221,6 +238,8 @@ BOOKS: dict[BookKey, Book] = {
         format=BookFormat.PAPERBACK,
         print_cost=5.88,
         royalty_rate=0.6,
+        min_price_usd=EBOOK_MIN_PRICE_USD,
+        max_price_usd=EBOOK_MAX_PRICE_USD,
       ),
     },
   ),
@@ -237,9 +256,28 @@ BOOK_VARIANTS_BY_ISBN13: dict[str, BookVariant] = {
   for book in BOOKS.values()
   for variant in book.variants.values() if variant.isbn13
 }
+BOOK_KEY_BY_VARIANT_ASIN: dict[str, BookKey] = {
+  variant.asin: book_key
+  for book_key, book in BOOKS.items()
+  for variant in book.variants.values()
+}
+BOOK_KEY_BY_VARIANT_ISBN13: dict[str, BookKey] = {
+  variant.isbn13: book_key
+  for book_key, book in BOOKS.items()
+  for variant in book.variants.values() if variant.isbn13
+}
 
 
 def find_book_variant(asin_or_isbn13: str) -> BookVariant | None:
   """Find a book variant by ASIN or ISBN-13."""
   return BOOK_VARIANTS_BY_ASIN.get(
     asin_or_isbn13) or BOOK_VARIANTS_BY_ISBN13.get(asin_or_isbn13)
+
+
+def find_book(asin_or_isbn13: str) -> Book | None:
+  """Find a book by any of its variant ASIN/ISBN identifiers."""
+  book_key = (BOOK_KEY_BY_VARIANT_ASIN.get(asin_or_isbn13)
+              or BOOK_KEY_BY_VARIANT_ISBN13.get(asin_or_isbn13))
+  if not book_key:
+    return None
+  return BOOKS.get(book_key)

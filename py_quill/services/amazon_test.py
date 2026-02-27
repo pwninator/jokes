@@ -11,6 +11,15 @@ from common import models
 from services import amazon
 
 
+@pytest.fixture(autouse=True)
+def _stub_kdp_price_candidates(monkeypatch):
+  monkeypatch.setattr(
+    amazon,
+    "_load_kdp_price_candidates_by_market_currency_asin",
+    lambda *, start_date, end_date: {},
+  )
+
+
 def _report_status(
   report_id: str,
   status: str,
@@ -432,15 +441,24 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   assert daily.kenp_royalties_usd == 1.0
   assert daily.total_attributed_sales_usd == 99.0
   assert daily.total_units_sold == 9
-  # Pre-ads: (25*0.6 - 3*2.91) + (17*0.35 - 3*0.0) + 1.0 KENP
-  assert daily.gross_profit_before_ads_usd == pytest.approx(13.22, rel=1e-6)
-  assert daily.gross_profit_usd == pytest.approx(8.22, rel=1e-6)
+  # Decomposition remaps high-priced "ebook" attributed rows into paperback.
+  assert daily.gross_profit_before_ads_usd == pytest.approx(
+    14.667368421052629,
+    rel=1e-6,
+  )
+  assert daily.gross_profit_usd == pytest.approx(9.667368421052629, rel=1e-6)
   assert [item.asin
           for item in daily.sale_items] == ["B0G9765J19", "B0GNHFKQ8W"]
+  ebook_item = next(item for item in daily.sale_items
+                    if item.asin == "B0G9765J19")
   paperback_item = next(item for item in daily.sale_items
                         if item.asin == "B0GNHFKQ8W")
+  assert ebook_item.units_sold == 3
+  assert ebook_item.total_sales_usd == pytest.approx(11.210526315789473,
+                                                      rel=1e-6)
   assert paperback_item.units_sold == 3
-  assert paperback_item.total_sales_usd == 25.0
+  assert paperback_item.total_sales_usd == pytest.approx(30.789473684210527,
+                                                          rel=1e-6)
   assert paperback_item.kenp_pages_read == 0
 
 
@@ -516,9 +534,93 @@ def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
   assert daily.total_attributed_sales_usd == pytest.approx(14.64, rel=1e-6)
   assert daily.kenp_pages_read == 0
   assert daily.kenp_royalties_usd == pytest.approx(0.732, rel=1e-6)
-  assert daily.gross_profit_before_ads_usd == pytest.approx(3.294, rel=1e-6)
-  assert daily.gross_profit_usd == pytest.approx(-4.026, rel=1e-6)
+  assert daily.gross_profit_before_ads_usd == pytest.approx(2.214, rel=1e-6)
+  assert daily.gross_profit_usd == pytest.approx(-5.106, rel=1e-6)
+  assert daily.sale_items[0].asin == "B0GNHFKQ8W"
   assert daily.sale_items[0].total_sales_usd == pytest.approx(7.32, rel=1e-6)
+
+
+def test_get_daily_campaign_stats_from_reports_decomposes_asin_using_kdp_prices(
+    monkeypatch):
+  campaign_rows = [{
+    "campaignId": "123",
+    "campaignName": "Campaign A",
+    "date": "2026-02-14",
+    "cost": 0.0,
+    "impressions": 100,
+    "clicks": 10,
+    "sales14d": 14.98,
+    "unitsSoldClicks14d": 2,
+    "kindleEditionNormalizedPagesRoyalties14d": 0.0,
+  }]
+  advertised_product_rows = [{
+    "campaignId": "123",
+    "date": "2026-02-14",
+    "advertisedAsin": "B0G9765J19",
+    "attributedSalesSameSku14d": 14.98,
+    "unitsSoldSameSku14d": 2,
+  }]
+  purchased_product_rows = []
+
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  campaigns_report = _report_status(
+    report_id="campaigns-id",
+    status="COMPLETED",
+    url="https://example.com/campaigns.gz",
+    profile_id="profile-1",
+  )
+  advertised_products_report = _report_status(
+    report_id="advertised-id",
+    status="COMPLETED",
+    url="https://example.com/advertised.gz",
+    profile_id="profile-1",
+  )
+  purchased_products_report = _report_status(
+    report_id="products-id",
+    status="COMPLETED",
+    url="https://example.com/products.gz",
+    profile_id="profile-1",
+  )
+
+  def _fake_download(status: models.AmazonAdsReport):
+    if status.report_id == "campaigns-id":
+      return campaign_rows
+    if status.report_id == "advertised-id":
+      return advertised_product_rows
+    if status.report_id == "products-id":
+      return purchased_product_rows
+    raise AssertionError(f"Unexpected status: {status}")
+
+  monkeypatch.setattr(amazon, "_download_report_rows", _fake_download)
+  monkeypatch.setattr(
+    amazon,
+    "_load_kdp_price_candidates_by_market_currency_asin",
+    lambda *, start_date, end_date: {
+      ("US", "USD", "B0G9765J19"): (2.99, ),
+      ("US", "USD", "B0GNHFKQ8W"): (11.99, ),
+    },
+  )
+
+  output = amazon.get_daily_campaign_stats_from_reports(
+    profile=profile,
+    campaigns_report=campaigns_report,
+    advertised_products_report=advertised_products_report,
+    purchased_products_report=purchased_products_report,
+  )
+
+  assert len(output) == 1
+  daily = output[0]
+  by_asin = {item.asin: item for item in daily.sale_items}
+  assert by_asin["B0G9765J19"].units_sold == 1
+  assert by_asin["B0G9765J19"].total_sales_usd == pytest.approx(2.99, rel=1e-6)
+  assert by_asin["B0GNHFKQ8W"].units_sold == 1
+  assert by_asin["B0GNHFKQ8W"].total_sales_usd == pytest.approx(11.99,
+                                                                rel=1e-6)
 
 
 def test_get_daily_campaign_stats_from_reports_persists_ads_kenp_pages_by_asin(

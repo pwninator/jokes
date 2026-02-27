@@ -1721,6 +1721,98 @@ class AmazonAdsDailyStats:
 
 
 @dataclass(kw_only=True)
+class AmazonKdpMarketCurrencyStats:
+  """KDP daily stats scoped to one market/currency bucket."""
+
+  market: str
+  currency_code: str
+  total_units_sold: int = 0
+  kenp_pages_read: int = 0
+  total_royalties_usd: float = 0.0
+  total_print_cost_usd: float = 0.0
+  sale_items: list[AmazonProductStats] = field(default_factory=list)
+  avg_offer_price_usd_candidates_by_asin: dict[str, list[float]] = field(
+    default_factory=dict)
+
+  def to_dict(self) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    return {
+      "market":
+      self.market,
+      "currency_code":
+      self.currency_code,
+      "total_units_sold":
+      self.total_units_sold,
+      "kenp_pages_read":
+      self.kenp_pages_read,
+      "total_royalties_usd":
+      self.total_royalties_usd,
+      "total_print_cost_usd":
+      self.total_print_cost_usd,
+      "sale_items": [item.to_dict() for item in self.sale_items],
+      "avg_offer_price_usd_candidates_by_asin":
+      dict(self.avg_offer_price_usd_candidates_by_asin),
+    }
+
+  @classmethod
+  def from_dict(cls, data: dict[str, Any]) -> AmazonKdpMarketCurrencyStats:
+    """Create a market/currency KDP stats model from dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    market = str(data.get("market", "")).strip().upper()
+    currency_code = str(data.get("currency_code", "")).strip().upper()
+    if not market:
+      raise ValueError("AmazonKdpMarketCurrencyStats.market is required")
+    if not currency_code:
+      raise ValueError(
+        "AmazonKdpMarketCurrencyStats.currency_code is required")
+
+    _parse_int_field(data, "total_units_sold", 0)
+    _parse_int_field(data, "kenp_pages_read", 0)
+    _parse_float_field(data, "total_royalties_usd", 0.0)
+    _parse_float_field(data, "total_print_cost_usd", 0.0)
+    sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
+
+    raw_candidates = data.get("avg_offer_price_usd_candidates_by_asin")
+    avg_offer_price_usd_candidates_by_asin: dict[str, list[float]] = {}
+    if isinstance(raw_candidates, dict):
+      for asin, raw_prices in cast(dict[str, Any], raw_candidates).items():
+        asin_key = str(asin).strip()
+        if not asin_key or not isinstance(raw_prices, list):
+          continue
+        prices: list[float] = []
+        for raw_price in cast(list[Any], raw_prices):
+          if isinstance(raw_price, (int, float)):
+            prices.append(float(raw_price))
+          elif isinstance(raw_price, str):
+            stripped = raw_price.strip()
+            if not stripped:
+              continue
+            try:
+              prices.append(float(stripped))
+            except ValueError:
+              continue
+        if prices:
+          avg_offer_price_usd_candidates_by_asin[asin_key] = sorted(
+            set(prices))
+
+    return cls(
+      market=market,
+      currency_code=currency_code,
+      total_units_sold=data.get("total_units_sold", 0),
+      kenp_pages_read=data.get("kenp_pages_read", 0),
+      total_royalties_usd=data.get("total_royalties_usd", 0.0),
+      total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
+      sale_items=sale_items,
+      avg_offer_price_usd_candidates_by_asin=
+      avg_offer_price_usd_candidates_by_asin,
+    )
+
+
+@dataclass(kw_only=True)
 class AmazonKdpDailyStats:
   """Aggregated daily metrics from uploaded KDP xlsx data."""
 
@@ -1737,6 +1829,9 @@ class AmazonKdpDailyStats:
   hardcover_royalties_usd: float = 0.0
   total_print_cost_usd: float = 0.0
   sale_items: list[AmazonProductStats] = field(default_factory=list)
+  market_currency_stats_by_key: dict[str,
+                                     AmazonKdpMarketCurrencyStats] = field(
+                                       default_factory=dict)
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
@@ -1753,6 +1848,10 @@ class AmazonKdpDailyStats:
       "hardcover_royalties_usd": self.hardcover_royalties_usd,
       "total_print_cost_usd": self.total_print_cost_usd,
       "sale_items": [item.to_dict() for item in self.sale_items],
+      "market_currency_stats_by_key": {
+        key: stats.to_dict()
+        for key, stats in self.market_currency_stats_by_key.items()
+      },
     }
     if include_key:
       data["key"] = self.key
@@ -1787,6 +1886,8 @@ class AmazonKdpDailyStats:
     _parse_float_field(data, "total_print_cost_usd", 0.0)
 
     sale_items = _parse_amazon_product_stats_list(data.get("sale_items"))
+    market_currency_stats_by_key = _parse_amazon_kdp_market_currency_stats_map(
+      data.get("market_currency_stats_by_key"))
 
     return cls(
       key=key,
@@ -1802,6 +1903,7 @@ class AmazonKdpDailyStats:
       hardcover_royalties_usd=data.get("hardcover_royalties_usd", 0.0),
       total_print_cost_usd=data.get("total_print_cost_usd", 0.0),
       sale_items=sale_items,
+      market_currency_stats_by_key=market_currency_stats_by_key,
     )
 
   @classmethod
@@ -2508,6 +2610,24 @@ def _parse_amazon_product_stats_list(value: Any, ) -> list[AmazonProductStats]:
   parsed: list[AmazonProductStats] = []
   for item in value_dicts:
     parsed.append(AmazonProductStats.from_dict(item))
+  return parsed
+
+
+def _parse_amazon_kdp_market_currency_stats_map(
+  value: Any, ) -> dict[str, AmazonKdpMarketCurrencyStats]:
+  """Parse a mapping of key -> `AmazonKdpMarketCurrencyStats`."""
+  if not isinstance(value, dict):
+    return {}
+
+  parsed: dict[str, AmazonKdpMarketCurrencyStats] = {}
+  for key, item in cast(dict[str, Any], value).items():
+    if not isinstance(item, dict):
+      continue
+    key_str = str(key).strip()
+    if not key_str:
+      continue
+    parsed[key_str] = AmazonKdpMarketCurrencyStats.from_dict(
+      cast(dict[str, Any], item))
   return parsed
 
 

@@ -37,6 +37,7 @@ ADS_STATS_REQUIRED_REPORT_TYPES = (
   "spAdvertisedProduct",
   "spPurchasedProduct",
 )
+_KDP_PRICE_CANDIDATE_LOOKBACK_DAYS = 180
 _REQUEST_TIMEOUT_SEC = 30
 _USD_CURRENCY_CODE = "USD"
 
@@ -53,6 +54,12 @@ _COUNTRY_CODE_TO_CURRENCY_CODE: dict[str, str] = {
   "CA": "CAD",
   "GB": "GBP",
   "UK": "GBP",
+}
+_COUNTRY_CODE_TO_MARKET_CODE: dict[str, str] = {
+  "US": "US",
+  "CA": "CA",
+  "GB": "GB",
+  "UK": "GB",
 }
 
 # Valid columns for Sponsored Products campaigns report
@@ -201,6 +208,15 @@ class ReportPair:
   purchased_products_report: models.AmazonAdsReport
 
 
+@dataclass(frozen=True, kw_only=True)
+class _DecomposedSaleAllocation:
+  """One inferred ASIN allocation for an advertised-product row."""
+
+  asin: str
+  units_sold: int
+  total_sales_usd: float
+
+
 def get_profiles(*, region: str = "all") -> list[AmazonAdsProfile]:
   """Return Amazon Ads profiles for one region or all regions."""
   try:
@@ -321,6 +337,13 @@ def get_daily_campaign_stats_from_reports(
   _raise_if_report_not_completed(advertised_products_report)
   _raise_if_report_not_completed(purchased_products_report)
 
+  kdp_price_candidates_by_market_currency_asin = (
+    _load_kdp_price_candidates_by_market_currency_asin(
+      start_date=campaigns_report.start_date -
+      datetime.timedelta(days=_KDP_PRICE_CANDIDATE_LOOKBACK_DAYS),
+      end_date=campaigns_report.end_date,
+    ))
+
   campaign_rows = _download_report_rows(campaigns_report)
   advertised_product_rows = _download_report_rows(advertised_products_report)
   purchased_product_rows = _download_report_rows(purchased_products_report)
@@ -329,6 +352,8 @@ def get_daily_campaign_stats_from_reports(
     advertised_product_rows=advertised_product_rows,
     purchased_product_rows=purchased_product_rows,
     profile_country_code=profile.country_code,
+    kdp_price_candidates_by_market_currency_asin=(
+      kdp_price_candidates_by_market_currency_asin),
   )
   return merged_stats
 
@@ -979,18 +1004,14 @@ def parse_report_rows_text(
   return rows
 
 
-def _parse_report_rows_text(report_name: str,
-                            text: str) -> list[dict[str, Any]]:
-  """Backward-compatible private alias for parse_report_rows_text."""
-  return parse_report_rows_text(report_name, text)
-
-
 def _merge_report_rows(
   *,
   campaign_rows: list[dict[str, Any]],
   advertised_product_rows: list[dict[str, Any]],
   purchased_product_rows: list[dict[str, Any]],
   profile_country_code: str,
+  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
+                                                     tuple[float, ...]],
 ) -> list[models.AmazonAdsDailyCampaignStats]:
   """Merge report rows by day and normalize all monetary fields to USD."""
   advertised_by_campaign_date = _index_rows_by_campaign_and_date(
@@ -1013,6 +1034,7 @@ def _merge_report_rows(
       campaign_row=campaign_row,
       profile_country_code=profile_country_code,
     )
+    market_code = _normalize_market_code(profile_country_code)
     spend = _convert_amount_to_usd(
       _as_float(campaign_row.get("cost")),
       currency_code=currency_code,
@@ -1044,7 +1066,10 @@ def _merge_report_rows(
       date_value=date_value,
       advertised_by_campaign_date=advertised_by_campaign_date,
       purchased_by_campaign_date=purchased_by_campaign_date,
+      market_code=market_code,
       currency_code=currency_code,
+      kdp_price_candidates_by_market_currency_asin=(
+        kdp_price_candidates_by_market_currency_asin),
     )
     product_profit_total = sum(item.total_profit_usd for item in sale_items)
 
@@ -1093,7 +1118,10 @@ def _build_merged_sale_items_for_campaign_day(
                                     list[dict[str, Any]]],
   purchased_by_campaign_date: dict[tuple[str, datetime.date], list[dict[str,
                                                                         Any]]],
+  market_code: str,
   currency_code: str,
+  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
+                                                     tuple[float, ...]],
 ) -> list[models.AmazonProductStats]:
   """Build merged ASIN sale items by combining direct and halo sources."""
   merged_totals_by_asin: dict[str, models.AmazonProductStats] = {}
@@ -1103,20 +1131,27 @@ def _build_merged_sale_items_for_campaign_day(
     asin = _required_str(row.get("advertisedAsin"))
     if not asin:
       continue
-    canonical_asin = _canonical_book_variant_asin(asin)
-    if not canonical_asin:
-      continue
     direct_units = _extract_direct_units_sold(row)
     direct_sales = _convert_amount_to_usd(
       _extract_direct_sales_amount(row),
       currency_code=currency_code,
     )
-    _accumulate_asin_totals(
-      merged_totals_by_asin,
-      canonical_asin,
+    allocations = _decompose_advertised_row_allocations(
+      advertised_asin=asin,
+      market_code=market_code,
+      currency_code=currency_code,
       units_sold=direct_units,
-      sales_amount=direct_sales,
+      total_sales_usd=direct_sales,
+      kdp_price_candidates_by_market_currency_asin=(
+        kdp_price_candidates_by_market_currency_asin),
     )
+    for allocation in allocations:
+      _accumulate_asin_totals(
+        merged_totals_by_asin,
+        allocation.asin,
+        units_sold=allocation.units_sold,
+        sales_amount=allocation.total_sales_usd,
+      )
 
   for row in purchased_by_campaign_date.get(key, []):
     asin = _required_str(row.get("purchasedAsin"))
@@ -1168,6 +1203,341 @@ def _extract_direct_units_sold(advertised_row: dict[str, Any]) -> int:
   return _as_int(advertised_row.get("unitsSoldSameSku14d"))
 
 
+def _load_kdp_price_candidates_by_market_currency_asin(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[tuple[str, str, str], tuple[float, ...]]:
+  """Build `(market, currency, asin) -> candidate per-unit USD prices`."""
+  if end_date < start_date:
+    return {}
+
+  try:
+    kdp_rows = firestore.list_amazon_kdp_daily_stats(
+      start_date=start_date,
+      end_date=end_date,
+    )
+  except Exception as exc:  # pylint: disable=broad-exception-caught
+    logger.warn(f"Failed to load KDP price candidates: {exc}")
+    return {}
+
+  candidates: dict[tuple[str, str, str], set[float]] = {}
+  for daily_stat in kdp_rows:
+    for market_stats in daily_stat.market_currency_stats_by_key.values():
+      _add_kdp_candidates_from_market_stats(candidates, market_stats)
+
+    # Backward compatibility for historical docs without market/currency buckets.
+    for sale_item in daily_stat.sale_items:
+      units = _as_int(sale_item.units_sold)
+      if units <= 0:
+        continue
+      canonical_asin = _safe_canonical_book_variant_asin(sale_item.asin)
+      if not canonical_asin:
+        continue
+      key = ("ANY", _USD_CURRENCY_CODE, canonical_asin)
+      _add_price_candidate(
+        candidates,
+        key,
+        _as_float(sale_item.total_sales_usd) / units,
+      )
+
+  return {
+    key: tuple(sorted(prices))
+    for key, prices in candidates.items() if prices
+  }
+
+
+def _add_kdp_candidates_from_market_stats(
+  candidates: dict[tuple[str, str, str], set[float]],
+  market_stats: models.AmazonKdpMarketCurrencyStats,
+) -> None:
+  """Merge one KDP market/currency bucket into the price candidate map."""
+  market_code = _normalize_market_code(market_stats.market)
+  currency_code = _required_str(market_stats.currency_code).upper()
+  if not currency_code:
+    currency_code = _USD_CURRENCY_CODE
+
+  for asin, prices in market_stats.avg_offer_price_usd_candidates_by_asin.items(
+  ):
+    canonical_asin = _safe_canonical_book_variant_asin(asin)
+    if not canonical_asin:
+      continue
+    key = (market_code, currency_code, canonical_asin)
+    for price in prices:
+      _add_price_candidate(candidates, key, price)
+
+  for sale_item in market_stats.sale_items:
+    units = _as_int(sale_item.units_sold)
+    if units <= 0:
+      continue
+    canonical_asin = _safe_canonical_book_variant_asin(sale_item.asin)
+    if not canonical_asin:
+      continue
+    key = (market_code, currency_code, canonical_asin)
+    _add_price_candidate(
+      candidates,
+      key,
+      _as_float(sale_item.total_sales_usd) / units,
+    )
+
+
+def _add_price_candidate(
+  candidates: dict[tuple[str, str, str], set[float]],
+  key: tuple[str, str, str],
+  price: float,
+) -> None:
+  """Add one positive per-unit price to the candidate map."""
+  if price <= 0:
+    return
+  candidates.setdefault(key, set()).add(round(price, 6))
+
+
+def _decompose_advertised_row_allocations(
+  *,
+  advertised_asin: str,
+  market_code: str,
+  currency_code: str,
+  units_sold: int,
+  total_sales_usd: float,
+  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
+                                                     tuple[float, ...]],
+) -> list[_DecomposedSaleAllocation]:
+  """Infer per-ASIN unit/sales allocations from one advertised-product row."""
+  canonical_advertised_asin = _canonical_book_variant_asin(advertised_asin)
+  if not canonical_advertised_asin:
+    return []
+
+  normalized_units = max(0, units_sold)
+  book = book_defs.find_book(advertised_asin)
+  if book is None:
+    return [
+      _DecomposedSaleAllocation(
+        asin=canonical_advertised_asin,
+        units_sold=normalized_units,
+        total_sales_usd=total_sales_usd,
+      )
+    ]
+
+  variants = sorted(book.variants.values(), key=lambda variant: variant.asin)
+  if normalized_units <= 0:
+    return [
+      _DecomposedSaleAllocation(
+        asin=canonical_advertised_asin,
+        units_sold=0,
+        total_sales_usd=total_sales_usd,
+      )
+    ]
+
+  candidate_prices_by_asin: dict[str, tuple[float, ...]] = {}
+  for variant in variants:
+    candidate_prices_by_asin[
+      variant.asin] = _resolve_candidate_prices_for_variant(
+        variant=variant,
+        market_code=market_code,
+        currency_code=currency_code,
+        kdp_price_candidates_by_market_currency_asin=(
+          kdp_price_candidates_by_market_currency_asin),
+      )
+
+  best_score: tuple[float, int, int, tuple[int, ...]] | None = None
+  best_units_by_index: tuple[int, ...] | None = None
+  best_prices_by_index: tuple[float, ...] | None = None
+  advertised_index = next(
+    (index for index, variant in enumerate(variants)
+     if variant.asin == canonical_advertised_asin),
+    0,
+  )
+
+  for units_by_index in _enumerate_unit_allocations(normalized_units,
+                                                    len(variants)):
+    active_indices = [
+      index for index, unit_count in enumerate(units_by_index)
+      if unit_count > 0
+    ]
+    if not active_indices:
+      continue
+
+    candidate_prices_by_index = {
+      index: candidate_prices_by_asin[variants[index].asin]
+      for index in active_indices
+    }
+    for prices_by_index in _enumerate_price_combinations(
+        candidate_prices_by_index):
+      base_total_sales = sum(units_by_index[index] * prices_by_index[index]
+                             for index in active_indices)
+      sales_delta_abs = abs(total_sales_usd - base_total_sales)
+      score = (
+        sales_delta_abs,
+        len(active_indices),
+        -units_by_index[advertised_index],
+        units_by_index,
+      )
+      if best_score is None or score < best_score:
+        best_score = score
+        best_units_by_index = units_by_index
+        best_prices_by_index = tuple(
+          prices_by_index.get(index, 0.0) for index in range(len(variants)))
+
+  if best_units_by_index is None or best_prices_by_index is None:
+    return [
+      _DecomposedSaleAllocation(
+        asin=canonical_advertised_asin,
+        units_sold=normalized_units,
+        total_sales_usd=total_sales_usd,
+      )
+    ]
+
+  base_sales_by_index = [
+    best_units_by_index[index] * best_prices_by_index[index]
+    for index in range(len(variants))
+  ]
+  base_total_sales = sum(base_sales_by_index)
+  residual_delta = total_sales_usd - base_total_sales
+
+  weighted_indices = [
+    index for index, units in enumerate(best_units_by_index) if units > 0
+  ]
+  weights: dict[int, float] = {}
+  for index in weighted_indices:
+    weights[index] = base_sales_by_index[index]
+  weight_total = sum(weights.values())
+  if weight_total <= 0:
+    weights = {
+      index: float(best_units_by_index[index])
+      for index in weighted_indices
+    }
+    weight_total = sum(weights.values())
+
+  adjusted_sales_by_index = list(base_sales_by_index)
+  allocated_delta = 0.0
+  for index in weighted_indices[:-1]:
+    ratio = (weights[index] / weight_total) if weight_total > 0 else 0.0
+    delta_component = residual_delta * ratio
+    adjusted_sales_by_index[index] += delta_component
+    allocated_delta += delta_component
+  if weighted_indices:
+    last_index = weighted_indices[-1]
+    adjusted_sales_by_index[last_index] += residual_delta - allocated_delta
+
+  allocations = [
+    _DecomposedSaleAllocation(
+      asin=variants[index].asin,
+      units_sold=best_units_by_index[index],
+      total_sales_usd=adjusted_sales_by_index[index],
+    ) for index in range(len(variants)) if best_units_by_index[index] > 0
+    or abs(adjusted_sales_by_index[index]) > 1e-9
+  ]
+  if allocations:
+    return allocations
+
+  return [
+    _DecomposedSaleAllocation(
+      asin=canonical_advertised_asin,
+      units_sold=0,
+      total_sales_usd=0.0,
+    )
+  ]
+
+
+def _resolve_candidate_prices_for_variant(
+  *,
+  variant: book_defs.BookVariant,
+  market_code: str,
+  currency_code: str,
+  kdp_price_candidates_by_market_currency_asin: dict[tuple[str, str, str],
+                                                     tuple[float, ...]],
+) -> tuple[float, ...]:
+  """Return sorted candidate per-unit USD prices for one ASIN."""
+  candidate_prices: set[float] = set()
+  exact_key = (market_code, currency_code, variant.asin)
+  candidate_prices.update(
+    kdp_price_candidates_by_market_currency_asin.get(exact_key, ()))
+
+  for (candidate_market, _candidate_currency, candidate_asin
+       ), prices in kdp_price_candidates_by_market_currency_asin.items():
+    if candidate_market == market_code and candidate_asin == variant.asin:
+      candidate_prices.update(prices)
+
+  candidate_prices.update(
+    kdp_price_candidates_by_market_currency_asin.get(
+      ("ANY", _USD_CURRENCY_CODE, variant.asin), ()))
+
+  if variant.min_price_usd is not None:
+    candidate_prices = {
+      price
+      for price in candidate_prices if price >= variant.min_price_usd
+    }
+  if variant.max_price_usd is not None:
+    candidate_prices = {
+      price
+      for price in candidate_prices if price <= variant.max_price_usd
+    }
+
+  if not candidate_prices:
+    fallback_prices: list[float] = []
+    if variant.min_price_usd is not None:
+      fallback_prices.append(variant.min_price_usd)
+    if variant.max_price_usd is not None:
+      fallback_prices.append(variant.max_price_usd)
+    if (variant.min_price_usd is not None
+        and variant.max_price_usd is not None):
+      fallback_prices.append(
+        (variant.min_price_usd + variant.max_price_usd) / 2.0)
+    if fallback_prices:
+      candidate_prices.update(price for price in fallback_prices if price >= 0)
+
+  if not candidate_prices:
+    return (0.0, )
+
+  return tuple(sorted(candidate_prices))
+
+
+def _enumerate_unit_allocations(total_units: int,
+                                variant_count: int) -> list[tuple[int, ...]]:
+  """Return all non-negative integer splits that sum to `total_units`."""
+  if variant_count <= 0:
+    return []
+
+  output: list[tuple[int, ...]] = []
+
+  def _recurse(
+    index: int,
+    units_remaining: int,
+    current: list[int],
+  ) -> None:
+    if index == variant_count - 1:
+      output.append(tuple(current + [units_remaining]))
+      return
+    for units_here in range(units_remaining + 1):
+      _recurse(index + 1, units_remaining - units_here, current + [units_here])
+
+  _recurse(0, total_units, [])
+  return output
+
+
+def _enumerate_price_combinations(
+  candidate_prices_by_index: dict[int, tuple[float, ...]],
+) -> list[dict[int, float]]:
+  """Return cartesian combinations of candidate prices by variant index."""
+  indices = sorted(candidate_prices_by_index.keys())
+  if not indices:
+    return [{}]
+
+  output: list[dict[int, float]] = []
+
+  def _recurse(position: int, current: dict[int, float]) -> None:
+    if position >= len(indices):
+      output.append(dict(current))
+      return
+    index = indices[position]
+    for price in candidate_prices_by_index.get(index, (0.0, )):
+      current[index] = price
+      _recurse(position + 1, current)
+
+  _recurse(0, {})
+  return output
+
+
 def _accumulate_asin_totals(
   merged_totals_by_asin: dict[str, models.AmazonProductStats],
   asin: str,
@@ -1210,6 +1580,17 @@ def _build_product_stats(
   )
 
 
+def _safe_canonical_book_variant_asin(identifier: str) -> str | None:
+  """Best-effort canonical ASIN lookup without raising on unknown IDs."""
+  raw_identifier = (identifier or "").strip()
+  if not raw_identifier:
+    return None
+  book_variant = book_defs.find_book_variant(raw_identifier)
+  if book_variant is None:
+    return None
+  return book_variant.asin
+
+
 def _canonical_book_variant_asin(identifier: str) -> str | None:
   """Normalize an ASIN or ISBN identifier to the canonical book-variant ASIN."""
   raw_identifier = (identifier or "").strip()
@@ -1219,6 +1600,12 @@ def _canonical_book_variant_asin(identifier: str) -> str | None:
   if book_variant is None:
     raise AmazonAdsError(f"Unknown ASIN: {raw_identifier}")
   return book_variant.asin
+
+
+def _normalize_market_code(country_code: str) -> str:
+  """Normalize profile/report country codes to market keys used by KDP stats."""
+  normalized = country_code.strip().upper()
+  return _COUNTRY_CODE_TO_MARKET_CODE.get(normalized, normalized)
 
 
 def _extract_report_type_id(payload: dict[str, Any]) -> str:

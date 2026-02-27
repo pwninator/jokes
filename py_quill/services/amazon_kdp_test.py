@@ -198,6 +198,80 @@ def test_parse_kdp_xlsx_normalizes_paperback_isbn_to_variant_asin():
   assert [item.asin for item in stats[0].sale_items] == ["B0GNHFKQ8W"]
 
 
+def test_parse_kdp_xlsx_persists_market_currency_buckets_and_price_candidates(
+):
+  workbook_bytes = _build_kdp_workbook_bytes(
+    combined_sales_rows=[
+      [
+        "2026-02-20",
+        "Cute & Silly Animal Jokes",
+        "Amelia Blanc",
+        "B0G9765J19",
+        "Amazon.com",
+        "35%",
+        "Standard",
+        1,
+        0,
+        1,
+        2.99,
+        2.99,
+        "N/A",
+        1.05,
+        "USD",
+      ],
+      [
+        "2026-02-20",
+        "Cute & Silly Animal Jokes",
+        "Amelia Blanc",
+        "B0GNHFKQ8W",
+        "Amazon.ca",
+        "60%",
+        "Standard - Paperback",
+        1,
+        0,
+        1,
+        16.33,
+        16.33,
+        8.03,
+        1.77,
+        "CAD",
+      ],
+    ],
+    kenp_rows=[
+      [
+        "2026-02-20",
+        "Cute & Silly Animal Jokes",
+        "Amelia Blanc",
+        "B0G9765J19",
+        "Amazon.com",
+        40,
+      ],
+    ],
+  )
+
+  stats = amazon_kdp.parse_kdp_xlsx(workbook_bytes)
+
+  assert len(stats) == 1
+  day = stats[0]
+  assert set(day.market_currency_stats_by_key.keys()) == {"CA_CAD", "US_USD"}
+
+  us_bucket = day.market_currency_stats_by_key["US_USD"]
+  assert us_bucket.market == "US"
+  assert us_bucket.currency_code == "USD"
+  assert us_bucket.kenp_pages_read == 40
+  assert us_bucket.avg_offer_price_usd_candidates_by_asin["B0G9765J19"] == [
+    pytest.approx(2.99, rel=1e-6)
+  ]
+
+  ca_bucket = day.market_currency_stats_by_key["CA_CAD"]
+  assert ca_bucket.market == "CA"
+  assert ca_bucket.currency_code == "CAD"
+  assert ca_bucket.total_units_sold == 1
+  assert ca_bucket.avg_offer_price_usd_candidates_by_asin["B0GNHFKQ8W"] == [
+    pytest.approx(11.95356, rel=1e-6)
+  ]
+
+
 def test_parse_kdp_xlsx_raises_on_format_mismatch():
   workbook_bytes = _build_kdp_workbook_bytes(
     combined_sales_rows=[[

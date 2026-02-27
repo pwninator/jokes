@@ -1913,13 +1913,15 @@ def get_recent_stories(owner_user_id: str, limit: int) -> list[dict[str, str]]:
 
 def _parse_optional_date(value: Any) -> datetime.date | None:
   """Parse an optional Firestore date field from date/datetime/ISO string."""
-  if isinstance(value, datetime.datetime):
-    return value.date()
-  if isinstance(value, datetime.date):
-    return value
-  if isinstance(value, str):
-    stripped = value.strip()
-    if stripped:
+  match value:
+    case datetime.datetime() as value_datetime:
+      return value_datetime.date()
+    case datetime.date() as value_date:
+      return value_date
+    case str() as value_text:
+      stripped = value_text.strip()
+      if not stripped:
+        return None
       try:
         return datetime.date.fromisoformat(stripped)
       except ValueError:

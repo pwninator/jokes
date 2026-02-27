@@ -15,6 +15,7 @@ def _build_ads_daily_stat(
   *,
   asin: str,
   units: int,
+  country_code: str = "US",
   kenp_pages_read: int = 0,
 ) -> models.AmazonAdsDailyStats:
   campaign = models.AmazonAdsDailyCampaignStats(
@@ -25,7 +26,7 @@ def _build_ads_daily_stat(
     kenp_pages_read=kenp_pages_read,
     sale_items_by_asin_country={
       asin: {
-        "US":
+        country_code:
         models.AmazonProductStats(
           asin=asin,
           units_sold=units,
@@ -50,6 +51,7 @@ def _build_kdp_daily_stat(
   *,
   asin: str,
   units: int,
+  country_code: str = "US",
   kenp_pages_read: int = 0,
   sales_usd: float,
   royalty_usd: float,
@@ -62,7 +64,7 @@ def _build_kdp_daily_stat(
     total_print_cost_usd=print_cost_usd,
     sale_items_by_asin_country={
       asin: {
-        "US":
+        country_code:
         models.AmazonProductStats(
           asin=asin,
           units_sold=units,
@@ -126,7 +128,7 @@ def test_reconcile_daily_sales_uses_seed_and_matches_earliest_unmatched_lot(
     amazon_sales_reconciliation,
     "_load_seed_lots",
     lambda seed_date: {
-      asin:
+      amazon_sales_reconciliation._AsinCountryKey(asin=asin, country_code="US"):
       deque([
         models.AmazonSalesReconciledAdsLot(
           purchase_date=datetime.date(2026, 1, 1),
@@ -160,16 +162,16 @@ def test_reconcile_daily_sales_uses_seed_and_matches_earliest_unmatched_lot(
   day_10 = by_date["2026-01-10"]
   day_20 = by_date["2026-01-20"]
 
-  day_10_by_asin = day_10.by_asin[asin]
-  assert day_10_by_asin.kdp_units == 1
-  assert day_10_by_asin.ads_ship_date_units == 1
-  assert day_10_by_asin.organic_units == 0
+  day_10_by_asin_country = day_10.by_asin_country[asin]["US"]
+  assert day_10_by_asin_country.kdp_units == 1
+  assert day_10_by_asin_country.ads_ship_date_units == 1
+  assert day_10_by_asin_country.organic_units == 0
 
-  day_20_by_asin = day_20.by_asin[asin]
-  assert day_20_by_asin.kdp_units == 1
-  assert day_20_by_asin.ads_ship_date_units == 0
-  assert day_20_by_asin.organic_units == 1
-  assert day_10.zzz_ending_unmatched_ads_lots_by_asin[asin][
+  day_20_by_asin_country = day_20.by_asin_country[asin]["US"]
+  assert day_20_by_asin_country.kdp_units == 1
+  assert day_20_by_asin_country.ads_ship_date_units == 0
+  assert day_20_by_asin_country.organic_units == 1
+  assert day_10.zzz_ending_unmatched_ads_lots_by_asin_country[asin]["US"][
     0].units_remaining == 1
   assert day_20.unmatched_ads_click_date_units_total == 0
   assert day_10.ads_click_date_units_total == 0
@@ -239,9 +241,9 @@ def test_reconcile_daily_sales_falls_back_to_full_recompute_when_seed_missing(
   assert requested_ranges[1][0] == datetime.date(2026, 1, 1)
 
   by_date = {doc.date.isoformat(): doc for doc in captured_docs}
-  day_10_by_asin = by_date["2026-01-10"].by_asin[asin]
-  assert day_10_by_asin.ads_ship_date_units == 1
-  assert day_10_by_asin.organic_units == 0
+  day_10_by_asin_country = by_date["2026-01-10"].by_asin_country[asin]["US"]
+  assert day_10_by_asin_country.ads_ship_date_units == 1
+  assert day_10_by_asin_country.organic_units == 0
 
 
 def test_reconcile_daily_sales_normalizes_kdp_isbn_to_variant_asin(
@@ -304,8 +306,8 @@ def test_reconcile_daily_sales_normalizes_kdp_isbn_to_variant_asin(
   day_23 = by_date["2026-02-23"]
   assert paperback_isbn not in day_23.by_asin
   assert ads_asin in day_23.by_asin
-  assert day_23.by_asin[ads_asin].ads_ship_date_units == 1
-  assert day_23.by_asin[ads_asin].organic_units == 0
+  assert day_23.by_asin_country[ads_asin]["US"].ads_ship_date_units == 1
+  assert day_23.by_asin_country[ads_asin]["US"].organic_units == 0
 
 
 def test_reconcile_daily_sales_records_click_date_and_unmatched_stats(
@@ -381,7 +383,144 @@ def test_reconcile_daily_sales_records_click_date_and_unmatched_stats(
   assert click_day.unmatched_ads_click_date_units_total == 1
   assert click_day.ads_click_date_kenp_pages_read_total == 5
   assert click_day.unmatched_ads_click_date_kenp_pages_read_total == 2
-  assert click_day.by_asin[asin].ads_click_date_units == 1
-  assert click_day.by_asin[asin].unmatched_ads_click_date_units == 1
-  assert click_day.by_asin[asin].ads_click_date_kenp_pages_read == 5
-  assert click_day.by_asin[asin].unmatched_ads_click_date_kenp_pages_read == 2
+  click_stats = click_day.by_asin_country[asin]["US"]
+  assert click_stats.ads_click_date_units == 1
+  assert click_stats.unmatched_ads_click_date_units == 1
+  assert click_stats.ads_click_date_kenp_pages_read == 5
+  assert click_stats.unmatched_ads_click_date_kenp_pages_read == 2
+
+
+def test_reconcile_daily_sales_matches_only_same_country(monkeypatch):
+  asin = "B0G9765J19"
+  changed_date = datetime.date(2026, 2, 15)
+
+  def _bounds(collection_name: str):
+    if collection_name == firestore.AMAZON_ADS_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 2, 1), datetime.date(2026, 2, 15))
+    if collection_name == firestore.AMAZON_KDP_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 2, 1), datetime.date(2026, 2, 15))
+    return None
+
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_get_collection_date_bounds",
+    _bounds,
+  )
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_load_seed_lots",
+    lambda seed_date: None,
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_ads_daily_stat(
+        datetime.date(2026, 2, 10),
+        asin=asin,
+        country_code="US",
+        units=1,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_kdp_daily_stat(
+        datetime.date(2026, 2, 15),
+        asin=asin,
+        country_code="US",
+        units=1,
+        sales_usd=2.99,
+        royalty_usd=1.05,
+        print_cost_usd=0.0,
+      ),
+    ],
+  )
+
+  captured_docs: list[models.AmazonSalesReconciledDailyStats] = []
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_upsert_reconciled_docs",
+    lambda docs: captured_docs.extend(docs),
+  )
+
+  _ = amazon_sales_reconciliation.reconcile_daily_sales(
+    earliest_changed_date=changed_date)
+
+  by_date = {doc.date.isoformat(): doc for doc in captured_docs}
+  ship_day = by_date["2026-02-15"]
+  click_day = by_date["2026-02-10"]
+  assert ship_day.by_asin_country[asin]["US"].ads_ship_date_units == 1
+  assert ship_day.by_asin_country[asin]["US"].organic_units == 0
+  assert click_day.by_asin_country[asin]["US"].ads_click_date_units == 1
+
+
+def test_reconcile_daily_sales_does_not_cross_match_countries(monkeypatch):
+  asin = "B0G9765J19"
+  changed_date = datetime.date(2026, 2, 15)
+
+  def _bounds(collection_name: str):
+    if collection_name == firestore.AMAZON_ADS_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 2, 1), datetime.date(2026, 2, 15))
+    if collection_name == firestore.AMAZON_KDP_DAILY_STATS_COLLECTION:
+      return (datetime.date(2026, 2, 1), datetime.date(2026, 2, 15))
+    return None
+
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_get_collection_date_bounds",
+    _bounds,
+  )
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_load_seed_lots",
+    lambda seed_date: None,
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_ads_daily_stat(
+        datetime.date(2026, 2, 10),
+        asin=asin,
+        country_code="US",
+        units=1,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      _build_kdp_daily_stat(
+        datetime.date(2026, 2, 15),
+        asin=asin,
+        country_code="CA",
+        units=1,
+        sales_usd=2.99,
+        royalty_usd=1.05,
+        print_cost_usd=0.0,
+      ),
+    ],
+  )
+
+  captured_docs: list[models.AmazonSalesReconciledDailyStats] = []
+  monkeypatch.setattr(
+    amazon_sales_reconciliation,
+    "_upsert_reconciled_docs",
+    lambda docs: captured_docs.extend(docs),
+  )
+
+  _ = amazon_sales_reconciliation.reconcile_daily_sales(
+    earliest_changed_date=changed_date)
+
+  by_date = {doc.date.isoformat(): doc for doc in captured_docs}
+  ship_day = by_date["2026-02-15"]
+  click_day = by_date["2026-02-10"]
+  assert ship_day.by_asin_country[asin]["CA"].ads_ship_date_units == 0
+  assert ship_day.by_asin_country[asin]["CA"].organic_units == 1
+  assert click_day.by_asin_country[asin]["US"].ads_click_date_units == 0
+  assert click_day.by_asin_country[asin][
+    "US"].unmatched_ads_click_date_units == 1

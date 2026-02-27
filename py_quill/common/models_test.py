@@ -655,3 +655,91 @@ def test_amazon_ads_event_requires_title():
       "date": "2026-02-26",
       "title": "   ",
     }, )
+
+
+def test_reconciled_daily_stats_roundtrip_with_asin_country_maps():
+  stats = models.AmazonSalesReconciledDailyStats(
+    date=datetime.date(2026, 2, 26),
+    by_asin_country={
+      "B0G9765J19": {
+        "US":
+        models.AmazonSalesReconciledAsinStats(
+          asin="B0G9765J19",
+          country_code="US",
+          kdp_units=2,
+          ads_ship_date_units=1,
+          organic_units=1,
+        ),
+        "CA":
+        models.AmazonSalesReconciledAsinStats(
+          asin="B0G9765J19",
+          country_code="CA",
+          kdp_units=1,
+          ads_ship_date_units=1,
+          organic_units=0,
+        ),
+      }
+    },
+    zzz_ending_unmatched_ads_lots_by_asin_country={
+      "B0G9765J19": {
+        "US": [
+          models.AmazonSalesReconciledAdsLot(
+            purchase_date=datetime.date(2026, 2, 25),
+            units_remaining=1,
+          )
+        ]
+      }
+    },
+  )
+
+  payload = stats.to_dict()
+  restored = models.AmazonSalesReconciledDailyStats.from_dict(payload,
+                                                              key="doc-1")
+
+  assert restored.key == "doc-1"
+  assert restored.by_asin_country["B0G9765J19"]["US"].kdp_units == 2
+  assert restored.by_asin_country["B0G9765J19"]["CA"].ads_ship_date_units == 1
+  assert restored.zzz_ending_unmatched_ads_lots_by_asin_country["B0G9765J19"][
+    "US"][0].units_remaining == 1
+
+
+def test_reconciled_daily_stats_by_asin_property_aggregates_countries():
+  stats = models.AmazonSalesReconciledDailyStats(
+    date=datetime.date(2026, 2, 26),
+    by_asin_country={
+      "B0G9765J19": {
+        "US":
+        models.AmazonSalesReconciledAsinStats(
+          asin="B0G9765J19",
+          country_code="US",
+          kdp_units=2,
+          ads_ship_date_units=1,
+          organic_units=1,
+          kdp_sales_usd=5.98,
+        ),
+        "CA":
+        models.AmazonSalesReconciledAsinStats(
+          asin="B0G9765J19",
+          country_code="CA",
+          kdp_units=1,
+          ads_ship_date_units=1,
+          organic_units=0,
+          kdp_sales_usd=2.99,
+        ),
+      }
+    },
+  )
+
+  aggregated = stats.by_asin["B0G9765J19"]
+  assert aggregated.kdp_units == 3
+  assert aggregated.ads_ship_date_units == 2
+  assert aggregated.organic_units == 1
+  assert aggregated.kdp_sales_usd == pytest.approx(8.97, rel=1e-6)
+
+
+def test_reconciled_asin_stats_requires_country_code():
+  with pytest.raises(ValueError):
+    models.AmazonSalesReconciledAsinStats.from_dict({
+      "asin": "B0G9765J19",
+      "kdp_units": 1,
+    })

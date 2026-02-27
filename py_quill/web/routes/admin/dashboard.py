@@ -690,6 +690,7 @@ def _build_reconciliation_debug_csv(
     "recon_ads_ship_date_print_cost_usd_est",
     "recon_organic_print_cost_usd_est",
     "recon_by_asin_count",
+    "recon_by_asin_country_count",
     "recon_unmatched_lot_count",
   ])
   for date_key in date_keys:
@@ -698,9 +699,16 @@ def _build_reconciliation_debug_csv(
     reconciled_stat = reconciled_by_date.get(date_key)
     unmatched_lot_count = 0
     if reconciled_stat is not None:
-      for lots in reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin.values(
-      ):
-        unmatched_lot_count += len(lots)
+      for country_map in (
+          reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin_country.values(
+          )):
+        for lots in country_map.values():
+          unmatched_lot_count += len(lots)
+    by_asin_country_count = 0
+    if reconciled_stat is not None:
+      by_asin_country_count = sum(
+        len(country_map)
+        for country_map in reconciled_stat.by_asin_country.values())
     writer.writerow([
       date_key,
       ads_stat.impressions if ads_stat is not None else 0,
@@ -761,6 +769,7 @@ def _build_reconciliation_debug_csv(
       (reconciled_stat.organic_print_cost_usd_est
        if reconciled_stat is not None else 0.0),
       len(reconciled_stat.by_asin) if reconciled_stat is not None else 0,
+      by_asin_country_count,
       unmatched_lot_count,
     ])
 
@@ -881,71 +890,69 @@ def _build_reconciliation_debug_csv(
         ])
 
   writer.writerow([])
-  writer.writerow(["Section", "reconciled_by_asin"])
+  writer.writerow(["Section", "reconciled_by_asin_country"])
+  reconciled_units_headers = (
+    "kdp_units ads_click_date_units ads_ship_date_units "
+    "unmatched_ads_click_date_units organic_units "
+    "kdp_kenp_pages_read ads_click_date_kenp_pages_read "
+    "ads_ship_date_kenp_pages_read unmatched_ads_click_date_kenp_pages_read "
+    "organic_kenp_pages_read").split()
+  reconciled_money_headers = (
+    "kdp_sales_usd ads_click_date_sales_usd_est ads_ship_date_sales_usd_est "
+    "organic_sales_usd_est kdp_royalty_usd ads_click_date_royalty_usd_est "
+    "ads_ship_date_royalty_usd_est organic_royalty_usd_est "
+    "kdp_print_cost_usd ads_click_date_print_cost_usd_est "
+    "ads_ship_date_print_cost_usd_est organic_print_cost_usd_est").split()
   writer.writerow([
     "Date",
     "asin",
-    "kdp_units",
-    "ads_click_date_units",
-    "ads_ship_date_units",
-    "unmatched_ads_click_date_units",
-    "organic_units",
-    "kdp_kenp_pages_read",
-    "ads_click_date_kenp_pages_read",
-    "ads_ship_date_kenp_pages_read",
-    "unmatched_ads_click_date_kenp_pages_read",
-    "organic_kenp_pages_read",
-    "kdp_sales_usd",
-    "ads_click_date_sales_usd_est",
-    "ads_ship_date_sales_usd_est",
-    "organic_sales_usd_est",
-    "kdp_royalty_usd",
-    "ads_click_date_royalty_usd_est",
-    "ads_ship_date_royalty_usd_est",
-    "organic_royalty_usd_est",
-    "kdp_print_cost_usd",
-    "ads_click_date_print_cost_usd_est",
-    "ads_ship_date_print_cost_usd_est",
-    "organic_print_cost_usd_est",
+    "country_code",
+    *reconciled_units_headers,
+    *reconciled_money_headers,
   ])
   for date_key in date_keys:
     reconciled_stat = reconciled_by_date.get(date_key)
     if reconciled_stat is None:
       continue
-    for asin in sorted(reconciled_stat.by_asin.keys()):
-      asin_stats = reconciled_stat.by_asin[asin]
-      writer.writerow([
-        date_key,
-        asin,
-        asin_stats.kdp_units,
-        asin_stats.ads_click_date_units,
-        asin_stats.ads_ship_date_units,
-        asin_stats.unmatched_ads_click_date_units,
-        asin_stats.organic_units,
-        asin_stats.kdp_kenp_pages_read,
-        asin_stats.ads_click_date_kenp_pages_read,
-        asin_stats.ads_ship_date_kenp_pages_read,
-        asin_stats.unmatched_ads_click_date_kenp_pages_read,
-        asin_stats.organic_kenp_pages_read,
-        asin_stats.kdp_sales_usd,
-        asin_stats.ads_click_date_sales_usd_est,
-        asin_stats.ads_ship_date_sales_usd_est,
-        asin_stats.organic_sales_usd_est,
-        asin_stats.kdp_royalty_usd,
-        asin_stats.ads_click_date_royalty_usd_est,
-        asin_stats.ads_ship_date_royalty_usd_est,
-        asin_stats.organic_royalty_usd_est,
-        asin_stats.kdp_print_cost_usd,
-        asin_stats.ads_click_date_print_cost_usd_est,
-        asin_stats.ads_ship_date_print_cost_usd_est,
-        asin_stats.organic_print_cost_usd_est,
-      ])
+    for asin in sorted(reconciled_stat.by_asin_country.keys()):
+      country_map = reconciled_stat.by_asin_country[asin]
+      for country_code in sorted(country_map.keys()):
+        asin_stats = country_map[country_code]
+        writer.writerow([
+          date_key,
+          asin,
+          country_code,
+          asin_stats.kdp_units,
+          asin_stats.ads_click_date_units,
+          asin_stats.ads_ship_date_units,
+          asin_stats.unmatched_ads_click_date_units,
+          asin_stats.organic_units,
+          asin_stats.kdp_kenp_pages_read,
+          asin_stats.ads_click_date_kenp_pages_read,
+          asin_stats.ads_ship_date_kenp_pages_read,
+          asin_stats.unmatched_ads_click_date_kenp_pages_read,
+          asin_stats.organic_kenp_pages_read,
+          asin_stats.kdp_sales_usd,
+          asin_stats.ads_click_date_sales_usd_est,
+          asin_stats.ads_ship_date_sales_usd_est,
+          asin_stats.organic_sales_usd_est,
+          asin_stats.kdp_royalty_usd,
+          asin_stats.ads_click_date_royalty_usd_est,
+          asin_stats.ads_ship_date_royalty_usd_est,
+          asin_stats.organic_royalty_usd_est,
+          asin_stats.kdp_print_cost_usd,
+          asin_stats.ads_click_date_print_cost_usd_est,
+          asin_stats.ads_ship_date_print_cost_usd_est,
+          asin_stats.organic_print_cost_usd_est,
+        ])
 
   writer.writerow([])
-  writer.writerow(["Section", "reconciled_ending_unmatched_ads_lots"])
+  writer.writerow(
+    ["Section", "reconciled_ending_unmatched_ads_lots_by_asin_country"])
   writer.writerow([
     "Date",
     "asin",
+    "country_code",
     "purchase_date",
     "units_remaining",
     "kenp_pages_remaining",
@@ -954,15 +961,20 @@ def _build_reconciliation_debug_csv(
     reconciled_stat = reconciled_by_date.get(date_key)
     if reconciled_stat is None:
       continue
-    for asin in sorted(reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin):
-      lots = reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin[asin]
-      for lot in lots:
-        writer.writerow([
-          date_key,
-          asin,
-          lot.purchase_date.isoformat(),
-          lot.units_remaining,
-          lot.kenp_pages_remaining,
-        ])
+    for asin in sorted(
+        reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin_country):
+      country_map = reconciled_stat.zzz_ending_unmatched_ads_lots_by_asin_country[
+        asin]
+      for country_code in sorted(country_map.keys()):
+        lots = country_map[country_code]
+        for lot in lots:
+          writer.writerow([
+            date_key,
+            asin,
+            country_code,
+            lot.purchase_date.isoformat(),
+            lot.units_remaining,
+            lot.kenp_pages_remaining,
+          ])
 
   return output.getvalue().strip()

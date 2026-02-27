@@ -1920,9 +1920,10 @@ class AmazonSalesReconciledAdsLot:
 
 @dataclass(kw_only=True)
 class AmazonSalesReconciledAsinStats:
-  """Reconciled KDP vs ads unit and revenue estimates for one ASIN/day."""
+  """Reconciled KDP vs ads unit and revenue estimates for one ASIN+country/day."""
 
   asin: str
+  country_code: str | None = None
   kdp_units: int = 0
   ads_click_date_units: int = 0
   ads_ship_date_units: int = 0
@@ -1948,7 +1949,7 @@ class AmazonSalesReconciledAsinStats:
 
   def to_dict(self) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
-    return {
+    data: dict[str, object] = {
       "asin": self.asin,
       "kdp_units": self.kdp_units,
       "ads_click_date_units": self.ads_click_date_units,
@@ -1976,6 +1977,9 @@ class AmazonSalesReconciledAsinStats:
       self.ads_ship_date_print_cost_usd_est,
       "organic_print_cost_usd_est": self.organic_print_cost_usd_est,
     }
+    if self.country_code is not None:
+      data["country_code"] = self.country_code
+    return data
 
   @classmethod
   def from_dict(
@@ -1983,16 +1987,22 @@ class AmazonSalesReconciledAsinStats:
     data: dict[str, Any],
     *,
     asin: str | None = None,
+    country_code: str | None = None,
   ) -> AmazonSalesReconciledAsinStats:
-    """Create reconciled ASIN stats from dictionary data."""
+    """Create reconciled ASIN+country stats from dictionary data."""
     if not data:
       data = {}
     else:
       data = dict(data)
 
     resolved_asin = (asin or str(data.get("asin", "")).strip()).strip()
+    resolved_country_code = (country_code
+                             or str(data.get("country_code", "")).strip())
     if not resolved_asin:
       raise ValueError("AmazonSalesReconciledAsinStats.asin is required")
+    if not resolved_country_code:
+      raise ValueError(
+        "AmazonSalesReconciledAsinStats.country_code is required")
 
     for field_name in (
         "kdp_units",
@@ -2025,6 +2035,7 @@ class AmazonSalesReconciledAsinStats:
 
     return cls(
       asin=resolved_asin,
+      country_code=resolved_country_code,
       kdp_units=data.get("kdp_units", 0),
       ads_click_date_units=data.get("ads_click_date_units", 0),
       ads_ship_date_units=data.get("ads_ship_date_units", 0),
@@ -2089,10 +2100,23 @@ class AmazonSalesReconciledDailyStats:
   ads_click_date_print_cost_usd_est: float = 0.0
   ads_ship_date_print_cost_usd_est: float = 0.0
   organic_print_cost_usd_est: float = 0.0
-  by_asin: dict[str,
-                AmazonSalesReconciledAsinStats] = field(default_factory=dict)
-  zzz_ending_unmatched_ads_lots_by_asin: dict[
-    str, list[AmazonSalesReconciledAdsLot]] = field(default_factory=dict)
+  by_asin_country: dict[str, dict[str,
+                                  AmazonSalesReconciledAsinStats]] = (field(
+                                    default_factory=dict))
+  zzz_ending_unmatched_ads_lots_by_asin_country: dict[str, dict[
+    str, list[AmazonSalesReconciledAdsLot]]] = field(default_factory=dict)
+
+  @property
+  def by_asin(self) -> dict[str, AmazonSalesReconciledAsinStats]:
+    """Return ASIN-level aggregates collapsed across all countries."""
+    return _aggregate_reconciled_stats_by_asin(self.by_asin_country)
+
+  @property
+  def zzz_ending_unmatched_ads_lots_by_asin(
+      self) -> dict[str, list[AmazonSalesReconciledAdsLot]]:
+    """Return ASIN-level unmatched lots collapsed across all countries."""
+    return _aggregate_reconciled_lots_by_asin(
+      self.zzz_ending_unmatched_ads_lots_by_asin_country)
 
   def to_dict(self, include_key: bool = False) -> dict[str, object]:
     """Convert to dictionary for Firestore storage."""
@@ -2128,13 +2152,20 @@ class AmazonSalesReconciledDailyStats:
       "ads_ship_date_print_cost_usd_est":
       self.ads_ship_date_print_cost_usd_est,
       "organic_print_cost_usd_est": self.organic_print_cost_usd_est,
-      "by_asin": {
-        asin: stats.to_dict()
-        for asin, stats in self.by_asin.items()
+      "by_asin_country": {
+        asin: {
+          country_code: stats.to_dict()
+          for country_code, stats in country_map.items()
+        }
+        for asin, country_map in self.by_asin_country.items()
       },
-      "zzz_ending_unmatched_ads_lots_by_asin": {
-        asin: [lot.to_dict() for lot in lots]
-        for asin, lots in self.zzz_ending_unmatched_ads_lots_by_asin.items()
+      "zzz_ending_unmatched_ads_lots_by_asin_country": {
+        asin: {
+          country_code: [lot.to_dict() for lot in lots]
+          for country_code, lots in country_map.items()
+        }
+        for asin, country_map in
+        self.zzz_ending_unmatched_ads_lots_by_asin_country.items()
       },
     }
     if include_key:
@@ -2187,10 +2218,11 @@ class AmazonSalesReconciledDailyStats:
     ):
       _parse_float_field(data, field_name, 0.0)
 
-    by_asin = _parse_amazon_sales_reconciled_asin_stats_map(
-      data.get("by_asin"))
-    zzz_lots = _parse_amazon_sales_reconciled_lots_map(
-      data.get("zzz_ending_unmatched_ads_lots_by_asin"))
+    by_asin_country = _parse_amazon_sales_reconciled_asin_country_stats_map(
+      data.get("by_asin_country"))
+    zzz_lots_by_asin_country = (
+      _parse_amazon_sales_reconciled_lots_by_asin_country_map(
+        data.get("zzz_ending_unmatched_ads_lots_by_asin_country")))
 
     return cls(
       key=key,
@@ -2229,8 +2261,8 @@ class AmazonSalesReconciledDailyStats:
       ads_ship_date_print_cost_usd_est=data.get(
         "ads_ship_date_print_cost_usd_est", 0.0),
       organic_print_cost_usd_est=data.get("organic_print_cost_usd_est", 0.0),
-      by_asin=by_asin,
-      zzz_ending_unmatched_ads_lots_by_asin=zzz_lots,
+      by_asin_country=by_asin_country,
+      zzz_ending_unmatched_ads_lots_by_asin_country=zzz_lots_by_asin_country,
     )
 
   @classmethod
@@ -2638,46 +2670,115 @@ def _aggregate_product_stats_by_asin(
   return aggregated
 
 
-def _parse_amazon_sales_reconciled_asin_stats_map(
-  value: Any, ) -> dict[str, AmazonSalesReconciledAsinStats]:
-  """Parse a mapping of ASIN -> reconciled stats."""
+def _parse_amazon_sales_reconciled_asin_country_stats_map(
+  value: Any, ) -> dict[str, dict[str, AmazonSalesReconciledAsinStats]]:
+  """Parse nested `(asin -> country -> reconciled stats)` map."""
   if not isinstance(value, dict):
     return {}
 
-  parsed: dict[str, AmazonSalesReconciledAsinStats] = {}
-  for asin, item in cast(dict[str, Any], value).items():
-    if not isinstance(item, dict):
-      continue
+  parsed: dict[str, dict[str, AmazonSalesReconciledAsinStats]] = {}
+  for asin, raw_country_map in cast(dict[str, Any], value).items():
     asin_key = str(asin).strip()
-    if not asin_key:
+    if not asin_key or not isinstance(raw_country_map, dict):
       continue
-    parsed[asin_key] = AmazonSalesReconciledAsinStats.from_dict(
-      cast(dict[str, Any], item),
-      asin=asin_key,
-    )
-  return parsed
-
-
-def _parse_amazon_sales_reconciled_lots_map(
-  value: Any, ) -> dict[str, list[AmazonSalesReconciledAdsLot]]:
-  """Parse a mapping of ASIN -> unmatched ads lots."""
-  if not isinstance(value, dict):
-    return {}
-
-  parsed: dict[str, list[AmazonSalesReconciledAdsLot]] = {}
-  for asin, raw_lots in cast(dict[str, Any], value).items():
-    asin_key = str(asin).strip()
-    if not asin_key or not isinstance(raw_lots, list):
-      continue
-    lots: list[AmazonSalesReconciledAdsLot] = []
-    for raw_lot in cast(list[Any], raw_lots):
-      if not isinstance(raw_lot, dict):
+    country_map: dict[str, AmazonSalesReconciledAsinStats] = {}
+    for country_code, raw_item in cast(dict[str, Any],
+                                       raw_country_map).items():
+      country_code_key = str(country_code).strip().upper()
+      if not country_code_key or not isinstance(raw_item, dict):
         continue
-      lots.append(
-        AmazonSalesReconciledAdsLot.from_dict(cast(dict[str, Any], raw_lot)))
-    if lots:
-      parsed[asin_key] = lots
+      country_map[country_code_key] = AmazonSalesReconciledAsinStats.from_dict(
+        cast(dict[str, Any], raw_item),
+        asin=asin_key,
+        country_code=country_code_key,
+      )
+    if country_map:
+      parsed[asin_key] = country_map
   return parsed
+
+
+def _parse_amazon_sales_reconciled_lots_by_asin_country_map(
+  value: Any, ) -> dict[str, dict[str, list[AmazonSalesReconciledAdsLot]]]:
+  """Parse nested `(asin -> country -> unmatched ads lots)` map."""
+  if not isinstance(value, dict):
+    return {}
+
+  parsed: dict[str, dict[str, list[AmazonSalesReconciledAdsLot]]] = {}
+  for asin, raw_country_map in cast(dict[str, Any], value).items():
+    asin_key = str(asin).strip()
+    if not asin_key or not isinstance(raw_country_map, dict):
+      continue
+    country_map: dict[str, list[AmazonSalesReconciledAdsLot]] = {}
+    for country_code, raw_lots in cast(dict[str, Any],
+                                       raw_country_map).items():
+      country_code_key = str(country_code).strip().upper()
+      if not country_code_key or not isinstance(raw_lots, list):
+        continue
+      lots: list[AmazonSalesReconciledAdsLot] = []
+      for raw_lot in cast(list[Any], raw_lots):
+        if not isinstance(raw_lot, dict):
+          continue
+        lots.append(
+          AmazonSalesReconciledAdsLot.from_dict(cast(dict[str, Any], raw_lot)))
+      if lots:
+        country_map[country_code_key] = lots
+    if country_map:
+      parsed[asin_key] = country_map
+  return parsed
+
+
+def _aggregate_reconciled_stats_by_asin(
+  value: dict[str, dict[str, AmazonSalesReconciledAsinStats]],
+) -> dict[str, AmazonSalesReconciledAsinStats]:
+  """Aggregate nested `(asin -> country -> stats)` into ASIN totals."""
+  aggregated: dict[str, AmazonSalesReconciledAsinStats] = {}
+  for asin in sorted(value.keys()):
+    country_map = value[asin]
+    merged = AmazonSalesReconciledAsinStats(asin=asin)
+    for country_item in country_map.values():
+      merged.kdp_units += country_item.kdp_units
+      merged.ads_click_date_units += country_item.ads_click_date_units
+      merged.ads_ship_date_units += country_item.ads_ship_date_units
+      merged.unmatched_ads_click_date_units += (
+        country_item.unmatched_ads_click_date_units)
+      merged.organic_units += country_item.organic_units
+      merged.kdp_kenp_pages_read += country_item.kdp_kenp_pages_read
+      merged.ads_click_date_kenp_pages_read += (
+        country_item.ads_click_date_kenp_pages_read)
+      merged.ads_ship_date_kenp_pages_read += (
+        country_item.ads_ship_date_kenp_pages_read)
+      merged.unmatched_ads_click_date_kenp_pages_read += (
+        country_item.unmatched_ads_click_date_kenp_pages_read)
+      merged.organic_kenp_pages_read += country_item.organic_kenp_pages_read
+      merged.kdp_sales_usd += country_item.kdp_sales_usd
+      merged.ads_click_date_sales_usd_est += country_item.ads_click_date_sales_usd_est
+      merged.ads_ship_date_sales_usd_est += country_item.ads_ship_date_sales_usd_est
+      merged.organic_sales_usd_est += country_item.organic_sales_usd_est
+      merged.kdp_royalty_usd += country_item.kdp_royalty_usd
+      merged.ads_click_date_royalty_usd_est += country_item.ads_click_date_royalty_usd_est
+      merged.ads_ship_date_royalty_usd_est += country_item.ads_ship_date_royalty_usd_est
+      merged.organic_royalty_usd_est += country_item.organic_royalty_usd_est
+      merged.kdp_print_cost_usd += country_item.kdp_print_cost_usd
+      merged.ads_click_date_print_cost_usd_est += country_item.ads_click_date_print_cost_usd_est
+      merged.ads_ship_date_print_cost_usd_est += country_item.ads_ship_date_print_cost_usd_est
+      merged.organic_print_cost_usd_est += country_item.organic_print_cost_usd_est
+    aggregated[asin] = merged
+  return aggregated
+
+
+def _aggregate_reconciled_lots_by_asin(
+  value: dict[str, dict[str, list[AmazonSalesReconciledAdsLot]]],
+) -> dict[str, list[AmazonSalesReconciledAdsLot]]:
+  """Aggregate nested `(asin -> country -> lots)` into ASIN-only lots."""
+  aggregated: dict[str, list[AmazonSalesReconciledAdsLot]] = {}
+  for asin in sorted(value.keys()):
+    country_map = value[asin]
+    merged: list[AmazonSalesReconciledAdsLot] = []
+    for lots in country_map.values():
+      merged.extend(lots)
+    if merged:
+      aggregated[asin] = merged
+  return aggregated
 
 
 def _parse_string_list(

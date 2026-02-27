@@ -1561,24 +1561,15 @@ def _finalize_product_stats_by_asin_country(
 
 def _safe_canonical_book_variant_asin(identifier: str) -> str | None:
   """Best-effort canonical ASIN lookup without raising on unknown IDs."""
-  raw_identifier = (identifier or "").strip()
-  if not raw_identifier:
-    return None
-  book_variant = book_defs.find_book_variant(raw_identifier)
-  if book_variant is None:
-    return None
-  return book_variant.asin
+  return book_defs.canonical_variant_asin(identifier)
 
 
 def _canonical_book_variant_asin(identifier: str) -> str | None:
   """Normalize an ASIN or ISBN identifier to the canonical book-variant ASIN."""
-  raw_identifier = (identifier or "").strip()
-  if not raw_identifier:
-    return None
-  book_variant = book_defs.find_book_variant(raw_identifier)
-  if book_variant is None:
-    raise AmazonAdsError(f"Unknown ASIN: {raw_identifier}")
-  return book_variant.asin
+  canonical_asin = book_defs.canonical_variant_asin(identifier)
+  if canonical_asin is None:
+    raise AmazonAdsError(f"Unknown ASIN: {identifier.strip()}")
+  return canonical_asin
 
 
 def _normalize_country_code(country_code: str) -> str:

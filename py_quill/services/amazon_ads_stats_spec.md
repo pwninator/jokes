@@ -51,6 +51,11 @@ Collections:
 3. `amazon_kdp_daily_stats`
 4. `amazon_sales_reconciled_daily_stats`
 
+Reconciled docs persist per-item data as nested ASIN+country maps:
+
+- `by_asin_country[asin][country_code] -> reconciled per-item stats`
+- `zzz_ending_unmatched_ads_lots_by_asin_country[asin][country_code] -> lots`
+
 Model classes live in `py_quill/common/models.py` and are the storage contract.
 
 ## 3. Ads Request/Fetch Lifecycle
@@ -231,7 +236,7 @@ Each lot stores:
 - `units_remaining`
 - `kenp_pages_remaining`
 
-Lots are FIFO per ASIN.
+Lots are FIFO per `(ASIN, country_code)`.
 
 ### 7.2 Incremental recompute window
 
@@ -239,7 +244,7 @@ Given `earliest_changed_date`:
 
 1. Start recompute at `earliest_changed_date - 14 days`.
 2. If previous-day reconciled doc exists, seed unmatched lots from its
-   `zzz_ending_unmatched_ads_lots_by_asin`.
+   `zzz_ending_unmatched_ads_lots_by_asin_country`.
 3. If missing seed, fall back to full recompute from earliest raw date.
 
 ### 7.3 Daily loop
@@ -251,12 +256,12 @@ For each day in recompute range:
 2. Append today’s ads lots from
    `amazon_ads_daily_stats.campaigns_by_id[*].sale_items_by_asin_country`.
 3. Apply KDP stats for today:
-   - Match units FIFO by ASIN
-   - Match KENP pages FIFO by ASIN
+   - Match units FIFO by `(ASIN, country_code)`
+   - Match KENP pages FIFO by `(ASIN, country_code)`
    - Compute ads-ship vs organic split on ship date
    - Project matched quantities back to original click dates
 4. Snapshot remaining lots into
-   `zzz_ending_unmatched_ads_lots_by_asin`.
+   `zzz_ending_unmatched_ads_lots_by_asin_country`.
 
 ### 7.4 Settled flag
 

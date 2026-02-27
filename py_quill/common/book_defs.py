@@ -274,6 +274,17 @@ def find_book_variant(asin_or_isbn13: str) -> BookVariant | None:
     asin_or_isbn13) or BOOK_VARIANTS_BY_ISBN13.get(asin_or_isbn13)
 
 
+def canonical_variant_asin(asin_or_isbn13: str) -> str | None:
+  """Return canonical variant ASIN for an ASIN/ISBN identifier."""
+  identifier = asin_or_isbn13.strip()
+  if not identifier:
+    return None
+  book_variant = find_book_variant(identifier)
+  if book_variant is None:
+    return None
+  return book_variant.asin
+
+
 def find_book(asin_or_isbn13: str) -> Book | None:
   """Find a book by any of its variant ASIN/ISBN identifiers."""
   book_key = (BOOK_KEY_BY_VARIANT_ASIN.get(asin_or_isbn13)

@@ -3249,11 +3249,13 @@ def test_get_amazon_sales_reconciled_daily_stat_returns_model(monkeypatch):
     def to_dict(self):
       return {
         "date": "2026-02-18",
-        "zzz_ending_unmatched_ads_lots_by_asin": {
-          "ASIN1": [{
-            "purchase_date": "2026-02-17",
-            "units_remaining": 2,
-          }]
+        "zzz_ending_unmatched_ads_lots_by_asin_country": {
+          "ASIN1": {
+            "US": [{
+              "purchase_date": "2026-02-17",
+              "units_remaining": 2,
+            }]
+          }
         },
       }
 
@@ -3282,7 +3284,7 @@ def test_get_amazon_sales_reconciled_daily_stat_returns_model(monkeypatch):
   assert isinstance(seed, models.AmazonSalesReconciledDailyStats)
   assert seed is not None
   assert seed.date == datetime.date(2026, 2, 18)
-  assert seed.zzz_ending_unmatched_ads_lots_by_asin["ASIN1"][
+  assert seed.zzz_ending_unmatched_ads_lots_by_asin_country["ASIN1"]["US"][
     0].units_remaining == 2
 
 
@@ -3387,13 +3389,15 @@ def test_upsert_amazon_sales_reconciled_daily_stats_uses_date_as_key(
       date=datetime.date(2026, 2, 18),
       organic_units_total=3,
       ads_ship_date_units_total=2,
-      zzz_ending_unmatched_ads_lots_by_asin={
-        "ASIN1": [
-          models.AmazonSalesReconciledAdsLot(
-            purchase_date=datetime.date(2026, 2, 17),
-            units_remaining=1,
-          )
-        ]
+      zzz_ending_unmatched_ads_lots_by_asin_country={
+        "ASIN1": {
+          "US": [
+            models.AmazonSalesReconciledAdsLot(
+              purchase_date=datetime.date(2026, 2, 17),
+              units_remaining=1,
+            )
+          ]
+        }
       },
     )
   ]
@@ -3409,5 +3413,5 @@ def test_upsert_amazon_sales_reconciled_daily_stats_uses_date_as_key(
   assert captured["merge"] is True
   assert captured["committed"] is True
   assert captured["data"]["organic_units_total"] == 3
-  assert captured["data"]["zzz_ending_unmatched_ads_lots_by_asin"]["ASIN1"][0][
-    "units_remaining"] == 1
+  assert captured["data"]["zzz_ending_unmatched_ads_lots_by_asin_country"][
+    "ASIN1"]["US"][0]["units_remaining"] == 1

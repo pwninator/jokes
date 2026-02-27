@@ -117,8 +117,51 @@
     width: 100%;
     margin-bottom: 56px;
   }
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
   .chart-container h3 {
-    margin: 0 0 10px;
+    margin: 0;
+  }
+  .chart-data-button {
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+  .chart-data-button:hover {
+    background: var(--color-border);
+  }
+  .chart-data-popup {
+    display: none;
+    position: absolute;
+    top: 44px;
+    right: 0;
+    z-index: 10;
+    max-width: 90%;
+    max-height: 280px;
+    overflow: auto;
+    padding: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px var(--color-shadow);
+  }
+  .chart-data-popup.is-visible {
+    display: block;
+  }
+  .chart-data-popup pre {
+    margin: 0;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--color-text);
   }
   .chart-container:last-child {
     margin-bottom: 0;
@@ -188,31 +231,59 @@
 
 <section class="stats-charts">
   <div class="chart-container">
-    <h3>Profit</h3>
+    <div class="chart-header">
+      <h3>Profit</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="profitChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="profitChart-data-popup" data-canvas-id="profitChart"></div>
     <canvas id="profitChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>Profit (Reconciled)</h3>
+    <div class="chart-header">
+      <h3>Profit (Reconciled)</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="reconciledProfitTimelineChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="reconciledProfitTimelineChart-data-popup" data-canvas-id="reconciledProfitTimelineChart"></div>
     <canvas id="reconciledProfitTimelineChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>POAS</h3>
+    <div class="chart-header">
+      <h3>POAS</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="poasChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="poasChart-data-popup" data-canvas-id="poasChart"></div>
     <canvas id="poasChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>POAS (Reconciled)</h3>
+    <div class="chart-header">
+      <h3>POAS (Reconciled)</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="reconciledPoasTimelineChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="reconciledPoasTimelineChart-data-popup" data-canvas-id="reconciledPoasTimelineChart"></div>
     <canvas id="reconciledPoasTimelineChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>CPC / Conversion Rate</h3>
+    <div class="chart-header">
+      <h3>CPC / Conversion Rate</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="cpcAndConversionRateChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="cpcAndConversionRateChart-data-popup" data-canvas-id="cpcAndConversionRateChart"></div>
     <canvas id="cpcAndConversionRateChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>CTR</h3>
+    <div class="chart-header">
+      <h3>CTR</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="ctrChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="ctrChart-data-popup" data-canvas-id="ctrChart"></div>
     <canvas id="ctrChart"></canvas>
   </div>
   <div class="chart-container">
-    <h3>Impressions / Clicks</h3>
+    <div class="chart-header">
+      <h3>Impressions / Clicks</h3>
+      <button class="chart-data-button" type="button" data-canvas-id="impressionsAndClicksChart">Data</button>
+    </div>
+    <div class="chart-data-popup" id="impressionsAndClicksChart-data-popup" data-canvas-id="impressionsAndClicksChart"></div>
     <canvas id="impressionsAndClicksChart"></canvas>
   </div>
 </section>

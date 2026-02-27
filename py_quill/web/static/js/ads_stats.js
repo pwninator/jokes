@@ -483,6 +483,33 @@
 
       const charts = {};
 
+      function chartDataToCsv(chart) {
+        if (!chart || !chart.data) {
+          return '';
+        }
+        const labels = chart.data.labels || [];
+        const datasets = chart.data.datasets || [];
+        if (labels.length === 0 && datasets.length === 0) {
+          return '';
+        }
+        const escapeCsv = (val) => {
+          const s = String(val);
+          return s.includes(',') || s.includes('"') || s.includes('\n')
+            ? `"${s.replace(/"/g, '""')}"`
+            : s;
+        };
+        const headerCols = ['Date', ...datasets.map((d) => d.label || '')];
+        const rows = [headerCols.map(escapeCsv).join(',')];
+        for (let i = 0; i < labels.length; i += 1) {
+          const row = [
+            escapeCsv(labels[i]),
+            ...datasets.map((d) => escapeCsv(d.data[i] != null ? d.data[i] : '')),
+          ];
+          rows.push(row.join(','));
+        }
+        return rows.join('\n');
+      }
+
       function createMultiLineChart(canvasId, labels, datasets, scales) {
         const canvas = document.getElementById(canvasId);
         if (!canvas || typeof canvas.getContext !== 'function') {
@@ -810,6 +837,24 @@
       campaignSelector.addEventListener('change', renderSelectedView);
       modeSelector.addEventListener('change', renderSelectedView);
       renderSelectedView();
+
+      document.querySelectorAll('.chart-data-button').forEach((btn) => {
+        const canvasId = btn.getAttribute('data-canvas-id');
+        const popup = document.getElementById(`${canvasId}-data-popup`);
+        if (!canvasId || !popup) {
+          return;
+        }
+        btn.addEventListener('click', () => {
+          const chart = charts[canvasId];
+          if (popup.classList.contains('is-visible')) {
+            popup.classList.remove('is-visible');
+            return;
+          }
+          const csv = chartDataToCsv(chart);
+          popup.innerHTML = csv ? `<pre>${csv.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>` : '<pre>No data</pre>';
+          popup.classList.add('is-visible');
+        });
+      });
     }
 
     if (document.readyState === 'loading') {

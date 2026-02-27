@@ -693,3 +693,114 @@ def test_get_daily_campaign_stats_from_reports_raises_on_profile_mismatch():
       advertised_products_report=advertised_products_report,
       purchased_products_report=purchased_products_report,
     )
+
+
+def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
+  run_time_utc = datetime.datetime(2026, 2, 26, tzinfo=datetime.timezone.utc)
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  monkeypatch.setattr(amazon.time, "sleep", lambda _seconds: None)
+  monkeypatch.setattr(
+    amazon,
+    "_get_ads_stats_context",
+    lambda _run_time: amazon._AdsStatsContext(  # pylint: disable=protected-access
+      selected_profiles=[profile],
+      reports_by_expected_key={},
+      report_start_date=datetime.date(2026, 1, 1),
+      report_end_date=datetime.date(2026, 1, 31),
+      profiles_considered=1,
+    ),
+  )
+  monkeypatch.setattr(
+    amazon,
+    "_collect_expected_report_ids_for_profile",
+    lambda *, profile_id, reports_by_expected_key: ["r1", "r2", "r3"],
+  )
+  monkeypatch.setattr(
+    amazon,
+    "get_reports",
+    lambda *, profile_id, report_ids, region: [
+      _report_status(
+        report_id="r1",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        profile_id=profile_id,
+      ),
+      _report_status(
+        report_id="r2",
+        status="COMPLETED",
+        report_type_id="spAdvertisedProduct",
+        profile_id=profile_id,
+      ),
+      _report_status(
+        report_id="r3",
+        status="COMPLETED",
+        report_type_id="spPurchasedProduct",
+        profile_id=profile_id,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    amazon,
+    "_are_reports_complete",
+    lambda campaigns_report, advertised_products_report,
+    purchased_products_report: True,
+  )
+  monkeypatch.setattr(
+    amazon,
+    "get_daily_campaign_stats_from_reports",
+    lambda **kwargs: [
+      models.AmazonAdsDailyCampaignStats(
+        campaign_id="campaign-1",
+        campaign_name="Campaign 1",
+        date=datetime.date(2026, 2, 20),
+        total_units_sold=1,
+        sale_items=[
+          models.AmazonProductStats(
+            asin="B0G9765J19",
+            units_sold=1,
+            total_sales_usd=10.0,
+            total_profit_usd=4.0,
+          )
+        ],
+      )
+    ],
+  )
+  monkeypatch.setattr(
+    amazon.firestore,
+    "upsert_amazon_ads_daily_stats",
+    lambda stats: stats,
+  )
+  monkeypatch.setattr(
+    amazon.firestore,
+    "upsert_amazon_ads_report",
+    lambda report: report,
+  )
+
+  captured_reconciliation: list[dict[str, object]] = []
+
+  def _capture_reconciliation(*, earliest_changed_date, run_time_utc):
+    captured_reconciliation.append({
+      "earliest_changed_date": earliest_changed_date,
+      "run_time_utc": run_time_utc,
+    })
+
+  monkeypatch.setattr(
+    amazon.amazon_sales_reconciliation,
+    "reconcile_daily_sales",
+    _capture_reconciliation,
+  )
+
+  _ = amazon.fetch_ads_stats_reports(run_time_utc)
+
+  assert len(captured_reconciliation) == 1
+  assert captured_reconciliation[0]["earliest_changed_date"] == datetime.date(
+    2026,
+    2,
+    20,
+  )
+  assert captured_reconciliation[0]["run_time_utc"] == run_time_utc

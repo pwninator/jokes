@@ -6,12 +6,10 @@ import datetime
 from zoneinfo import ZoneInfo
 
 import flask
-from common import amazon_redirect
-from common import models
+from common import amazon_redirect, models
 from firebase_functions import logger
 from functions import auth_helpers
-from services import amazon_kdp
-from services import firestore
+from services import amazon_kdp, amazon_sales_reconciliation, firestore
 from web.routes import web_bp
 from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
@@ -214,6 +212,10 @@ def admin_ads_stats_upload_kdp():
   try:
     stats = amazon_kdp.parse_kdp_xlsx(uploaded_file.read())
     _ = firestore.upsert_amazon_kdp_daily_stats(stats)
+    if stats:
+      earliest_changed_date = min(stat.date for stat in stats)
+      _ = amazon_sales_reconciliation.reconcile_daily_sales(
+        earliest_changed_date=earliest_changed_date)
   except amazon_kdp.AmazonKdpError as exc:
     return flask.jsonify({'error': str(exc)}), 400
   except Exception as exc:
@@ -260,7 +262,8 @@ def _build_ads_stats_chart_data(
     daily_entry["cost"] = stat.spend
     daily_entry["sales_usd"] = stat.total_attributed_sales_usd
     daily_entry["units_sold"] = float(stat.total_units_sold)
-    daily_entry["gross_profit_before_ads_usd"] = stat.gross_profit_before_ads_usd
+    daily_entry[
+      "gross_profit_before_ads_usd"] = stat.gross_profit_before_ads_usd
     daily_entry["gross_profit_usd"] = stat.gross_profit_usd
 
     # Serialize campaign details for client-side filtering
@@ -271,14 +274,17 @@ def _build_ads_stats_chart_data(
   impressions = [int(daily_totals[label]["impressions"]) for label in labels]
   clicks = [int(daily_totals[label]["clicks"]) for label in labels]
   cost = [round(float(daily_totals[label]["cost"]), 2) for label in labels]
-  sales_usd = [round(float(daily_totals[label]["sales_usd"]), 2) for label in labels]
+  sales_usd = [
+    round(float(daily_totals[label]["sales_usd"]), 2) for label in labels
+  ]
   units_sold = [int(daily_totals[label]["units_sold"]) for label in labels]
   gross_profit_before_ads_usd = [
     round(float(daily_totals[label]["gross_profit_before_ads_usd"]), 2)
     for label in labels
   ]
   gross_profit_usd = [
-    round(float(daily_totals[label]["gross_profit_usd"]), 2) for label in labels
+    round(float(daily_totals[label]["gross_profit_usd"]), 2)
+    for label in labels
   ]
 
   events_payload = [e.to_dict(include_key=True) for e in events_list]

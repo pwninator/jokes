@@ -57,6 +57,8 @@ AMAZON_ADS_REPORTS_COLLECTION = "amazon_ads_reports"
 AMAZON_ADS_DAILY_STATS_COLLECTION = "amazon_ads_daily_stats"
 AMAZON_ADS_EVENTS_COLLECTION = "amazon_ads_events"
 AMAZON_KDP_DAILY_STATS_COLLECTION = "amazon_kdp_daily_stats"
+AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION = (
+  "amazon_sales_reconciled_daily_stats")
 
 
 def get_async_db() -> AsyncClient:
@@ -250,6 +252,74 @@ def list_amazon_kdp_daily_stats(
       key=doc.id,
     ) for doc in docs if doc.exists and doc.to_dict() is not None
   ]
+
+
+def get_amazon_daily_stats_date_bounds(
+  collection_name: str, ) -> tuple[datetime.date, datetime.date] | None:
+  """Return `(min_date, max_date)` for a date-keyed Amazon stats collection."""
+  collection_name = (collection_name or "").strip()
+  if not collection_name:
+    raise ValueError("collection_name is required")
+
+  collection_ref = db().collection(collection_name)
+  oldest_docs = list(
+    collection_ref.order_by("date",
+                            direction=Query.ASCENDING).limit(1).stream())
+  newest_docs = list(
+    collection_ref.order_by("date",
+                            direction=Query.DESCENDING).limit(1).stream())
+  if not oldest_docs or not newest_docs:
+    return None
+
+  oldest_payload = oldest_docs[0].to_dict() or {}
+  newest_payload = newest_docs[0].to_dict() or {}
+  oldest_date = _parse_optional_date(oldest_payload.get("date"))
+  newest_date = _parse_optional_date(newest_payload.get("date"))
+  if oldest_date is None or newest_date is None:
+    return None
+  return oldest_date, newest_date
+
+
+def get_amazon_sales_reconciled_daily_stat(
+  date_value: datetime.date,
+) -> models.AmazonSalesReconciledDailyStats | None:
+  """Return one reconciled daily stats document by date, if it exists."""
+  doc = db().collection(
+    AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION).document(
+      date_value.isoformat()).get()
+  if not getattr(doc, "exists", False):
+    return None
+  data = doc.to_dict()
+  if not isinstance(data, dict):
+    return None
+  return models.AmazonSalesReconciledDailyStats.from_firestore_dict(
+    data,
+    key=doc.id,
+  )
+
+
+def upsert_amazon_sales_reconciled_daily_stats(
+  stats: list[models.AmazonSalesReconciledDailyStats],
+) -> list[models.AmazonSalesReconciledDailyStats]:
+  """Batch upsert reconciled daily stats keyed by date."""
+  if not stats:
+    return []
+
+  db_client = db()
+  batch = db_client.batch()
+  collection_ref = db_client.collection(
+    AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION)
+  for daily_stat in stats:
+    stats_key = daily_stat.date.isoformat()
+    payload = daily_stat.to_dict(include_key=False)
+    batch.set(
+      collection_ref.document(stats_key),
+      payload,
+      merge=True,
+    )
+    daily_stat.key = stats_key
+  batch.commit()
+  return stats
 
 
 def _prepare_jokes_query(
@@ -1800,6 +1870,22 @@ def get_recent_stories(owner_user_id: str, limit: int) -> list[dict[str, str]]:
   return [
     book for book in book_dicts if book.get('title') and book.get('summary')
   ]
+
+
+def _parse_optional_date(value: Any) -> datetime.date | None:
+  """Parse an optional Firestore date field from date/datetime/ISO string."""
+  if isinstance(value, datetime.datetime):
+    return value.date()
+  if isinstance(value, datetime.date):
+    return value
+  if isinstance(value, str):
+    stripped = value.strip()
+    if stripped:
+      try:
+        return datetime.date.fromisoformat(stripped)
+      except ValueError:
+        return None
+  return None
 
 
 @transactional

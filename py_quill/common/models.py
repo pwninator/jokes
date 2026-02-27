@@ -1799,6 +1799,259 @@ class AmazonKdpDailyStats:
 
 
 @dataclass(kw_only=True)
+class AmazonSalesReconciledAdsLot:
+  """Unmatched ads-attributed units carried forward for one ASIN/date."""
+
+  purchase_date: datetime.date
+  units_remaining: int = 0
+
+  def to_dict(self) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    return {
+      "purchase_date": self.purchase_date.isoformat(),
+      "units_remaining": self.units_remaining,
+    }
+
+  @classmethod
+  def from_dict(cls, data: dict[str, Any]) -> AmazonSalesReconciledAdsLot:
+    """Create an unmatched ads lot model from dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    parsed_date = _parse_required_date(
+      data.get("purchase_date"),
+      field_name="AmazonSalesReconciledAdsLot.purchase_date",
+    )
+    _parse_int_field(data, "units_remaining", 0)
+
+    return cls(
+      purchase_date=parsed_date,
+      units_remaining=data.get("units_remaining", 0),
+    )
+
+
+@dataclass(kw_only=True)
+class AmazonSalesReconciledAsinStats:
+  """Reconciled KDP vs ads unit and revenue estimates for one ASIN/day."""
+
+  asin: str
+  kdp_units: int = 0
+  ads_matched_units: int = 0
+  organic_units: int = 0
+  kdp_sales_usd: float = 0.0
+  ads_matched_sales_usd_est: float = 0.0
+  organic_sales_usd_est: float = 0.0
+  kdp_royalty_usd: float = 0.0
+  ads_matched_royalty_usd_est: float = 0.0
+  organic_royalty_usd_est: float = 0.0
+  kdp_print_cost_usd: float = 0.0
+  ads_matched_print_cost_usd_est: float = 0.0
+  organic_print_cost_usd_est: float = 0.0
+
+  def to_dict(self) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    return {
+      "asin": self.asin,
+      "kdp_units": self.kdp_units,
+      "ads_matched_units": self.ads_matched_units,
+      "organic_units": self.organic_units,
+      "kdp_sales_usd": self.kdp_sales_usd,
+      "ads_matched_sales_usd_est": self.ads_matched_sales_usd_est,
+      "organic_sales_usd_est": self.organic_sales_usd_est,
+      "kdp_royalty_usd": self.kdp_royalty_usd,
+      "ads_matched_royalty_usd_est": self.ads_matched_royalty_usd_est,
+      "organic_royalty_usd_est": self.organic_royalty_usd_est,
+      "kdp_print_cost_usd": self.kdp_print_cost_usd,
+      "ads_matched_print_cost_usd_est": self.ads_matched_print_cost_usd_est,
+      "organic_print_cost_usd_est": self.organic_print_cost_usd_est,
+    }
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    *,
+    asin: str | None = None,
+  ) -> AmazonSalesReconciledAsinStats:
+    """Create reconciled ASIN stats from dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    resolved_asin = (asin or str(data.get("asin", "")).strip()).strip()
+    if not resolved_asin:
+      raise ValueError("AmazonSalesReconciledAsinStats.asin is required")
+
+    for field_name in (
+        "kdp_units",
+        "ads_matched_units",
+        "organic_units",
+    ):
+      _parse_int_field(data, field_name, 0)
+    for field_name in (
+        "kdp_sales_usd",
+        "ads_matched_sales_usd_est",
+        "organic_sales_usd_est",
+        "kdp_royalty_usd",
+        "ads_matched_royalty_usd_est",
+        "organic_royalty_usd_est",
+        "kdp_print_cost_usd",
+        "ads_matched_print_cost_usd_est",
+        "organic_print_cost_usd_est",
+    ):
+      _parse_float_field(data, field_name, 0.0)
+
+    return cls(
+      asin=resolved_asin,
+      kdp_units=data.get("kdp_units", 0),
+      ads_matched_units=data.get("ads_matched_units", 0),
+      organic_units=data.get("organic_units", 0),
+      kdp_sales_usd=data.get("kdp_sales_usd", 0.0),
+      ads_matched_sales_usd_est=data.get("ads_matched_sales_usd_est", 0.0),
+      organic_sales_usd_est=data.get("organic_sales_usd_est", 0.0),
+      kdp_royalty_usd=data.get("kdp_royalty_usd", 0.0),
+      ads_matched_royalty_usd_est=data.get("ads_matched_royalty_usd_est", 0.0),
+      organic_royalty_usd_est=data.get("organic_royalty_usd_est", 0.0),
+      kdp_print_cost_usd=data.get("kdp_print_cost_usd", 0.0),
+      ads_matched_print_cost_usd_est=data.get("ads_matched_print_cost_usd_est",
+                                              0.0),
+      organic_print_cost_usd_est=data.get("organic_print_cost_usd_est", 0.0),
+    )
+
+
+@dataclass(kw_only=True)
+class AmazonSalesReconciledDailyStats:
+  """Daily reconciled KDP ship-date sales split into ads and organic estimates."""
+
+  key: str | None = None
+  date: datetime.date
+  is_settled: bool = False
+  reconciled_at: datetime.datetime | None = None
+  kdp_units_total: int = 0
+  ads_matched_units_total: int = 0
+  organic_units_total: int = 0
+  kdp_sales_usd_total: float = 0.0
+  ads_matched_sales_usd_est: float = 0.0
+  organic_sales_usd_est: float = 0.0
+  kdp_royalty_usd_total: float = 0.0
+  ads_matched_royalty_usd_est: float = 0.0
+  organic_royalty_usd_est: float = 0.0
+  kdp_print_cost_usd_total: float = 0.0
+  ads_matched_print_cost_usd_est: float = 0.0
+  organic_print_cost_usd_est: float = 0.0
+  by_asin: dict[str,
+                AmazonSalesReconciledAsinStats] = field(default_factory=dict)
+  zzz_ending_unmatched_ads_lots_by_asin: dict[
+    str, list[AmazonSalesReconciledAdsLot]] = field(default_factory=dict)
+
+  def to_dict(self, include_key: bool = False) -> dict[str, object]:
+    """Convert to dictionary for Firestore storage."""
+    data: dict[str, object] = {
+      "date": self.date.isoformat(),
+      "is_settled": self.is_settled,
+      "reconciled_at": self.reconciled_at,
+      "kdp_units_total": self.kdp_units_total,
+      "ads_matched_units_total": self.ads_matched_units_total,
+      "organic_units_total": self.organic_units_total,
+      "kdp_sales_usd_total": self.kdp_sales_usd_total,
+      "ads_matched_sales_usd_est": self.ads_matched_sales_usd_est,
+      "organic_sales_usd_est": self.organic_sales_usd_est,
+      "kdp_royalty_usd_total": self.kdp_royalty_usd_total,
+      "ads_matched_royalty_usd_est": self.ads_matched_royalty_usd_est,
+      "organic_royalty_usd_est": self.organic_royalty_usd_est,
+      "kdp_print_cost_usd_total": self.kdp_print_cost_usd_total,
+      "ads_matched_print_cost_usd_est": self.ads_matched_print_cost_usd_est,
+      "organic_print_cost_usd_est": self.organic_print_cost_usd_est,
+      "by_asin": {
+        asin: stats.to_dict()
+        for asin, stats in self.by_asin.items()
+      },
+      "zzz_ending_unmatched_ads_lots_by_asin": {
+        asin: [lot.to_dict() for lot in lots]
+        for asin, lots in self.zzz_ending_unmatched_ads_lots_by_asin.items()
+      },
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    key: str | None = None,
+  ) -> AmazonSalesReconciledDailyStats:
+    """Create reconciled daily stats from dictionary data."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    parsed_date = _parse_required_date(
+      data.get("date"),
+      field_name="AmazonSalesReconciledDailyStats.date",
+    )
+
+    for field_name in (
+        "kdp_units_total",
+        "ads_matched_units_total",
+        "organic_units_total",
+    ):
+      _parse_int_field(data, field_name, 0)
+    for field_name in (
+        "kdp_sales_usd_total",
+        "ads_matched_sales_usd_est",
+        "organic_sales_usd_est",
+        "kdp_royalty_usd_total",
+        "ads_matched_royalty_usd_est",
+        "organic_royalty_usd_est",
+        "kdp_print_cost_usd_total",
+        "ads_matched_print_cost_usd_est",
+        "organic_print_cost_usd_est",
+    ):
+      _parse_float_field(data, field_name, 0.0)
+
+    by_asin = _parse_amazon_sales_reconciled_asin_stats_map(
+      data.get("by_asin"))
+    zzz_lots = _parse_amazon_sales_reconciled_lots_map(
+      data.get("zzz_ending_unmatched_ads_lots_by_asin"))
+
+    return cls(
+      key=key,
+      date=parsed_date,
+      is_settled=bool(data.get("is_settled", False)),
+      reconciled_at=_parse_optional_datetime(data.get("reconciled_at")),
+      kdp_units_total=data.get("kdp_units_total", 0),
+      ads_matched_units_total=data.get("ads_matched_units_total", 0),
+      organic_units_total=data.get("organic_units_total", 0),
+      kdp_sales_usd_total=data.get("kdp_sales_usd_total", 0.0),
+      ads_matched_sales_usd_est=data.get("ads_matched_sales_usd_est", 0.0),
+      organic_sales_usd_est=data.get("organic_sales_usd_est", 0.0),
+      kdp_royalty_usd_total=data.get("kdp_royalty_usd_total", 0.0),
+      ads_matched_royalty_usd_est=data.get("ads_matched_royalty_usd_est", 0.0),
+      organic_royalty_usd_est=data.get("organic_royalty_usd_est", 0.0),
+      kdp_print_cost_usd_total=data.get("kdp_print_cost_usd_total", 0.0),
+      ads_matched_print_cost_usd_est=data.get("ads_matched_print_cost_usd_est",
+                                              0.0),
+      organic_print_cost_usd_est=data.get("organic_print_cost_usd_est", 0.0),
+      by_asin=by_asin,
+      zzz_ending_unmatched_ads_lots_by_asin=zzz_lots,
+    )
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    key: str,
+  ) -> AmazonSalesReconciledDailyStats:
+    """Create reconciled daily stats from Firestore data."""
+    return cls.from_dict(data, key=key)
+
+
+@dataclass(kw_only=True)
 class AmazonAdsReport:
   """Amazon Ads report metadata persisted in Firestore."""
 
@@ -2088,6 +2341,27 @@ def _parse_required_date(value: Any, *, field_name: str) -> datetime.date:
   raise ValueError(f"{field_name} is required")
 
 
+def _parse_optional_datetime(value: Any) -> datetime.datetime | None:
+  """Parse an optional datetime from datetime or ISO string input."""
+  if value is None:
+    return None
+  if isinstance(value, datetime.datetime):
+    if value.tzinfo is None:
+      return value.replace(tzinfo=datetime.timezone.utc)
+    return value.astimezone(datetime.timezone.utc)
+  if isinstance(value, str):
+    stripped = value.strip()
+    if not stripped:
+      return None
+    normalized = stripped[:-1] + "+00:00" if stripped.endswith(
+      "Z") else stripped
+    parsed = datetime.datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+      return parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed.astimezone(datetime.timezone.utc)
+  raise ValueError(f"Invalid datetime value: {value}")
+
+
 def _parse_amazon_product_stats_list(value: Any, ) -> list[AmazonProductStats]:
   """Parse a list of dictionaries into `AmazonProductStats` items."""
   if not isinstance(value, list):
@@ -2097,6 +2371,48 @@ def _parse_amazon_product_stats_list(value: Any, ) -> list[AmazonProductStats]:
   parsed: list[AmazonProductStats] = []
   for item in value_dicts:
     parsed.append(AmazonProductStats.from_dict(item))
+  return parsed
+
+
+def _parse_amazon_sales_reconciled_asin_stats_map(
+  value: Any, ) -> dict[str, AmazonSalesReconciledAsinStats]:
+  """Parse a mapping of ASIN -> reconciled stats."""
+  if not isinstance(value, dict):
+    return {}
+
+  parsed: dict[str, AmazonSalesReconciledAsinStats] = {}
+  for asin, item in cast(dict[str, Any], value).items():
+    if not isinstance(item, dict):
+      continue
+    asin_key = str(asin).strip()
+    if not asin_key:
+      continue
+    parsed[asin_key] = AmazonSalesReconciledAsinStats.from_dict(
+      cast(dict[str, Any], item),
+      asin=asin_key,
+    )
+  return parsed
+
+
+def _parse_amazon_sales_reconciled_lots_map(
+  value: Any, ) -> dict[str, list[AmazonSalesReconciledAdsLot]]:
+  """Parse a mapping of ASIN -> unmatched ads lots."""
+  if not isinstance(value, dict):
+    return {}
+
+  parsed: dict[str, list[AmazonSalesReconciledAdsLot]] = {}
+  for asin, raw_lots in cast(dict[str, Any], value).items():
+    asin_key = str(asin).strip()
+    if not asin_key or not isinstance(raw_lots, list):
+      continue
+    lots: list[AmazonSalesReconciledAdsLot] = []
+    for raw_lot in cast(list[Any], raw_lots):
+      if not isinstance(raw_lot, dict):
+        continue
+      lots.append(
+        AmazonSalesReconciledAdsLot.from_dict(cast(dict[str, Any], raw_lot)))
+    if lots:
+      parsed[asin_key] = lots
   return parsed
 
 

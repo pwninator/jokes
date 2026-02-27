@@ -3038,3 +3038,174 @@ def test_list_amazon_ads_daily_stats_invalid_range_raises():
       start_date=datetime.date(2026, 2, 3),
       end_date=datetime.date(2026, 2, 2),
     )
+
+
+def test_get_amazon_daily_stats_date_bounds_returns_min_and_max(monkeypatch):
+  """Date bounds helper should read oldest and newest docs by date."""
+  from services import firestore as fs
+
+  captured_order_bys: list[tuple[str, object]] = []
+
+  class DummyDoc:
+
+    def __init__(self, date_value):
+      self._date_value = date_value
+
+    def to_dict(self):
+      return {"date": self._date_value}
+
+  class DummyLimitedQuery:
+
+    def __init__(self, date_value):
+      self._date_value = date_value
+
+    def stream(self):
+      return [DummyDoc(self._date_value)]
+
+  class DummyOrderedQuery:
+
+    def __init__(self, direction):
+      self._direction = direction
+
+    def limit(self, count):
+      assert count == 1
+      if self._direction == "ASC":
+        return DummyLimitedQuery("2026-02-01")
+      return DummyLimitedQuery("2026-02-28")
+
+  class DummyCollection:
+
+    def order_by(self, field_path, direction=None):
+      captured_order_bys.append((field_path, direction))
+      return DummyOrderedQuery(direction)
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "test_collection"
+      return DummyCollection()
+
+  class DummyQuery:
+    ASCENDING = "ASC"
+    DESCENDING = "DESC"
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+  monkeypatch.setattr(fs, "Query", DummyQuery)
+
+  bounds = fs.get_amazon_daily_stats_date_bounds("test_collection")
+
+  assert bounds == (datetime.date(2026, 2, 1), datetime.date(2026, 2, 28))
+  assert captured_order_bys == [("date", "ASC"), ("date", "DESC")]
+
+
+def test_get_amazon_sales_reconciled_daily_stat_returns_model(monkeypatch):
+  """Getter should parse the stored reconciled daily payload into a model."""
+  from services import firestore as fs
+
+  class DummyDoc:
+    exists = True
+    id = "2026-02-18"
+
+    def to_dict(self):
+      return {
+        "date": "2026-02-18",
+        "zzz_ending_unmatched_ads_lots_by_asin": {
+          "ASIN1": [{
+            "purchase_date": "2026-02-17",
+            "units_remaining": 2,
+          }]
+        },
+      }
+
+  class DummyCollection:
+
+    def document(self, doc_id):
+      assert doc_id == "2026-02-18"
+
+      class DummyDocumentRef:
+
+        def get(self_inner):
+          return DummyDoc()
+
+      return DummyDocumentRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == fs.AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  seed = fs.get_amazon_sales_reconciled_daily_stat(datetime.date(2026, 2, 18))
+
+  assert isinstance(seed, models.AmazonSalesReconciledDailyStats)
+  assert seed is not None
+  assert seed.date == datetime.date(2026, 2, 18)
+  assert seed.zzz_ending_unmatched_ads_lots_by_asin["ASIN1"][
+    0].units_remaining == 2
+
+
+def test_upsert_amazon_sales_reconciled_daily_stats_uses_date_as_key(
+    monkeypatch):
+  """Reconciled daily stats should be upserted using date string as key."""
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyBatch:
+
+    def set(self, doc_ref, data, merge=False):
+      captured["doc_ref"] = doc_ref
+      captured["data"] = data
+      captured["merge"] = merge
+
+    def commit(self):
+      captured["committed"] = True
+
+  class DummyCollection:
+
+    def document(self, doc_id):
+      captured["doc_id"] = doc_id
+      return f"doc::{doc_id}"
+
+  class DummyDB:
+
+    def batch(self):
+      return DummyBatch()
+
+    def collection(self, name):
+      captured["collection"] = name
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  stats = [
+    models.AmazonSalesReconciledDailyStats(
+      date=datetime.date(2026, 2, 18),
+      organic_units_total=3,
+      ads_matched_units_total=2,
+      zzz_ending_unmatched_ads_lots_by_asin={
+        "ASIN1": [
+          models.AmazonSalesReconciledAdsLot(
+            purchase_date=datetime.date(2026, 2, 17),
+            units_remaining=1,
+          )
+        ]
+      },
+    )
+  ]
+
+  saved = fs.upsert_amazon_sales_reconciled_daily_stats(stats)
+
+  assert saved == stats
+  assert saved[0].key == "2026-02-18"
+  assert captured[
+    "collection"] == fs.AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION
+  assert captured["doc_id"] == "2026-02-18"
+  assert captured["doc_ref"] == "doc::2026-02-18"
+  assert captured["merge"] is True
+  assert captured["committed"] is True
+  assert captured["data"]["organic_units_total"] == 3
+  assert captured["data"]["zzz_ending_unmatched_ads_lots_by_asin"]["ASIN1"][0][
+    "units_remaining"] == 1

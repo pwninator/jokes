@@ -7,6 +7,10 @@ const {
   buildDaysOfWeekSeries,
   buildReconciledChartStats,
   buildChartStats,
+  isIsoDateString,
+  normalizeAdsEvent,
+  groupAdsEventsByDate,
+  getAdsEventTooltipLines,
   getDailyStatsForCampaign,
 } = require('./ads_stats.js');
 
@@ -265,4 +269,56 @@ test('buildReconciledChartStats returns empty series for specific campaigns', ()
   assert.deepEqual(reconciled.cost, []);
   assert.deepEqual(reconciled.poas, []);
   assert.deepEqual(reconciled.tpoas, []);
+});
+
+test('normalizeAdsEvent validates required fields and date format', () => {
+  assert.equal(normalizeAdsEvent(null), null);
+  assert.equal(normalizeAdsEvent({}), null);
+  assert.equal(normalizeAdsEvent({ date: '2026-02-2', title: 'Launch' }), null);
+  assert.equal(normalizeAdsEvent({ date: '2026-02-22', title: '' }), null);
+
+  const normalized = normalizeAdsEvent({
+    key: 'k1',
+    date: '2026-02-22',
+    title: 'Launch Day',
+  });
+  assert.deepEqual(normalized, {
+    key: 'k1',
+    date: '2026-02-22',
+    title: 'Launch Day',
+  });
+  assert.equal(isIsoDateString('2026-02-22'), true);
+  assert.equal(isIsoDateString('2026-2-22'), false);
+});
+
+test('groupAdsEventsByDate groups and sorts events by date', () => {
+  const grouped = groupAdsEventsByDate([
+    { date: '2026-02-23', title: 'Promo start' },
+    { date: '2026-02-22', title: 'Launch' },
+    { date: '2026-02-22', title: 'Budget increase' },
+    { date: 'bad-date', title: 'Ignore me' },
+  ]);
+
+  assert.deepEqual(grouped, [
+    {
+      date: '2026-02-22',
+      titles: ['Launch', 'Budget increase'],
+    },
+    {
+      date: '2026-02-23',
+      titles: ['Promo start'],
+    },
+  ]);
+});
+
+test('getAdsEventTooltipLines returns date followed by one title per line', () => {
+  assert.deepEqual(getAdsEventTooltipLines(null), []);
+  assert.deepEqual(getAdsEventTooltipLines({ date: 'bad', titles: ['x'] }), []);
+  assert.deepEqual(
+    getAdsEventTooltipLines({
+      date: '2026-02-22',
+      titles: ['Launch', 'Budget increase'],
+    }),
+    ['2026-02-22', 'Launch', 'Budget increase'],
+  );
 });

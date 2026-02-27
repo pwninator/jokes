@@ -55,6 +55,7 @@ JOKE_FIELDS_TO_LOG = {
 UNCATEGORIZED_CATEGORY_ID = "_uncategorized"
 AMAZON_ADS_REPORTS_COLLECTION = "amazon_ads_reports"
 AMAZON_ADS_DAILY_STATS_COLLECTION = "amazon_ads_daily_stats"
+AMAZON_ADS_EVENTS_COLLECTION = "amazon_ads_events"
 AMAZON_KDP_DAILY_STATS_COLLECTION = "amazon_kdp_daily_stats"
 AMAZON_SALES_RECONCILED_DAILY_STATS_COLLECTION = (
   "amazon_sales_reconciled_daily_stats")
@@ -159,6 +160,63 @@ def list_amazon_ads_daily_stats(
       doc.to_dict(),
       key=doc.id,
     ) for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
+def upsert_amazon_ads_event(
+  event: models.AmazonAdsEvent, ) -> models.AmazonAdsEvent:
+  """Upsert an ads event document keyed by date + title slug."""
+  title = (event.title or "").strip()
+  if not title:
+    raise ValueError("AmazonAdsEvent.title is required for upsert")
+
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  event_key = utils.create_firestore_key(event.date.isoformat(), title)
+  doc_ref = db().collection(AMAZON_ADS_EVENTS_COLLECTION).document(event_key)
+  existing_doc = doc_ref.get()
+  existing_payload = existing_doc.to_dict() if existing_doc.exists else {}
+  if not isinstance(existing_payload, dict):
+    existing_payload = {}
+
+  existing_created_at = existing_payload.get("created_at")
+  if isinstance(existing_created_at, datetime.datetime):
+    if existing_created_at.tzinfo is None:
+      created_at = existing_created_at.replace(tzinfo=datetime.timezone.utc)
+    else:
+      created_at = existing_created_at.astimezone(datetime.timezone.utc)
+  else:
+    created_at = event.created_at or now_utc
+
+  event.title = title
+  event.key = event_key
+  event.created_at = created_at
+  event.updated_at = now_utc
+
+  payload = event.to_dict(include_key=False)
+  _ = doc_ref.set(payload, merge=True)
+  return event
+
+
+def list_amazon_ads_events(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> list[models.AmazonAdsEvent]:
+  """List ads events with Firestore-side date range filtering."""
+  if end_date < start_date:
+    raise ValueError("end_date must be on or after start_date")
+
+  query = db().collection(AMAZON_ADS_EVENTS_COLLECTION).where(
+    filter=FieldFilter("date", ">=",
+                       start_date.isoformat()), ).where(filter=FieldFilter(
+                         "date", "<=", end_date.isoformat()), ).order_by(
+                           "date",
+                           direction=Query.ASCENDING,
+                         )
+  docs = query.stream()
+  return [
+    models.AmazonAdsEvent.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists and doc.to_dict() is not None
   ]
 
 

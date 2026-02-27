@@ -27,6 +27,15 @@
         </select>
       </div>
     </div>
+    <div class="ads-stats-event-controls">
+      <button id="adsStatsCreateEventToggleButton" type="button">Create Event</button>
+      <form id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden>
+        <input id="adsStatsEventDateInput" type="text" placeholder="YYYY-MM-DD" required>
+        <input id="adsStatsEventTitleInput" type="text" placeholder="Title" required>
+        <button id="adsStatsEventCreateButton" type="submit">Create</button>
+        <span id="adsStatsCreateEventStatus" class="muted"></span>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -77,6 +86,28 @@
     width: min(240px, 100%);
     min-width: 0;
     max-width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .ads-stats-event-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+  }
+  .ads-stats-create-event-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ads-stats-create-event-form input[type="text"] {
+    width: min(220px, 100%);
+    min-width: 0;
     padding: 8px;
     border-radius: 6px;
     border: 1px solid var(--color-border);
@@ -177,6 +208,9 @@
     .ads-stats-filters-row {
       justify-content: flex-start;
     }
+    .ads-stats-event-controls {
+      align-items: stretch;
+    }
   }
   @media (max-width: 640px) {
     .ads-stats-filter {
@@ -185,6 +219,13 @@
       align-items: stretch;
     }
     .ads-stats-filter select {
+      width: 100%;
+    }
+    .ads-stats-create-event-form {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .ads-stats-create-event-form input[type="text"] {
       width: 100%;
     }
   }
@@ -291,10 +332,74 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/ads_stats.js') }}"></script>
 <script>
-  if (window.initAdsStatsPage) {
-    window.initAdsStatsPage({
+  const adsStatsPage = window.initAdsStatsPage
+    ? window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
       reconciledClickDateChartData: {{ reconciled_click_date_chart_data | tojson }},
+      adsEvents: {{ ads_events | tojson }},
+    })
+    : null;
+
+  const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+  const createEventToggleButton = document.getElementById('adsStatsCreateEventToggleButton');
+  const createEventForm = document.getElementById('adsStatsCreateEventForm');
+  const createEventDateInput = document.getElementById('adsStatsEventDateInput');
+  const createEventTitleInput = document.getElementById('adsStatsEventTitleInput');
+  const createEventSubmitButton = document.getElementById('adsStatsEventCreateButton');
+  const createEventStatus = document.getElementById('adsStatsCreateEventStatus');
+
+  if (createEventToggleButton && createEventForm) {
+    createEventToggleButton.addEventListener('click', () => {
+      createEventForm.hidden = !createEventForm.hidden;
+      if (!createEventForm.hidden && createEventDateInput) {
+        createEventDateInput.focus();
+      }
+    });
+  }
+
+  if (createEventForm && createEventDateInput && createEventTitleInput && createEventSubmitButton && createEventStatus) {
+    createEventForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const dateValue = createEventDateInput.value.trim();
+      const titleValue = createEventTitleInput.value.trim();
+      if (!ISO_DATE_PATTERN.test(dateValue)) {
+        createEventStatus.textContent = 'Date must be YYYY-MM-DD';
+        return;
+      }
+      if (!titleValue) {
+        createEventStatus.textContent = 'Title is required';
+        return;
+      }
+
+      createEventSubmitButton.disabled = true;
+      createEventStatus.textContent = 'Saving...';
+      try {
+        const response = await fetch('/admin/ads-stats/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            date: dateValue,
+            title: titleValue,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to save event');
+        }
+        const savedEvent = data.event || {};
+        if (adsStatsPage && typeof adsStatsPage.upsertAdsEvent === 'function') {
+          adsStatsPage.upsertAdsEvent(savedEvent);
+        }
+        createEventTitleInput.value = '';
+        createEventStatus.textContent = 'Saved';
+      } catch (error) {
+        createEventStatus.textContent = error?.message || 'Failed to save event';
+      } finally {
+        createEventSubmitButton.disabled = false;
+      }
     });
   }
 

@@ -2,6 +2,7 @@
   'use strict';
 
   const DAYS_OF_WEEK_MODE = 'Days of Week';
+  const TIMELINE_MODE = 'Timeline';
   const DAYS_OF_WEEK_LABELS = Object.freeze([
     'Sun',
     'Mon',
@@ -11,6 +12,70 @@
     'Fri',
     'Sat',
   ]);
+  const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+  function isIsoDateString(value) {
+    return ISO_DATE_RE.test(String(value || ''));
+  }
+
+  function normalizeAdsEvent(rawEvent) {
+    if (!rawEvent || typeof rawEvent !== 'object') {
+      return null;
+    }
+
+    const dateValue = String(rawEvent.date || '').trim();
+    const titleValue = String(rawEvent.title || '').trim();
+    const keyValue = String(rawEvent.key || '').trim();
+    if (!isIsoDateString(dateValue) || !titleValue) {
+      return null;
+    }
+
+    return {
+      key: keyValue || null,
+      date: dateValue,
+      title: titleValue,
+    };
+  }
+
+  function groupAdsEventsByDate(adsEvents) {
+    const groupedByDate = {};
+    (adsEvents || []).forEach((rawEvent) => {
+      const event = normalizeAdsEvent(rawEvent);
+      if (!event) {
+        return;
+      }
+      if (!groupedByDate[event.date]) {
+        groupedByDate[event.date] = [];
+      }
+      groupedByDate[event.date].push(event.title);
+    });
+
+    return Object.keys(groupedByDate).sort().map((dateValue) => {
+      return {
+        date: dateValue,
+        titles: groupedByDate[dateValue],
+      };
+    });
+  }
+
+  function getAdsEventTooltipLines(eventGroup) {
+    if (!eventGroup || !isIsoDateString(eventGroup.date)) {
+      return [];
+    }
+    const titles = Array.isArray(eventGroup.titles)
+      ? eventGroup.titles.map((title) => String(title || '').trim()).filter(Boolean)
+      : [];
+    return [eventGroup.date, ...titles];
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   function toNumber(value) {
     const parsedValue = Number(value);
@@ -420,6 +485,34 @@
     const config = options || {};
     const adsStatsData = config.chartData || {};
     const reconciledClickDateChartData = config.reconciledClickDateChartData || {};
+    let adsEvents = Array.isArray(config.adsEvents)
+      ? config.adsEvents.map((event) => normalizeAdsEvent(event)).filter(Boolean)
+      : [];
+    let adsEventGroups = groupAdsEventsByDate(adsEvents);
+    let renderSelectedView = null;
+
+    function upsertAdsEvent(rawEvent) {
+      const event = normalizeAdsEvent(rawEvent);
+      if (!event) {
+        return false;
+      }
+
+      const eventKey = event.key || `${event.date}__${event.title}`;
+      const existingIndex = adsEvents.findIndex((item) => {
+        const itemKey = item.key || `${item.date}__${item.title}`;
+        return itemKey === eventKey;
+      });
+      if (existingIndex >= 0) {
+        adsEvents[existingIndex] = event;
+      } else {
+        adsEvents.push(event);
+      }
+      adsEventGroups = groupAdsEventsByDate(adsEvents);
+      if (typeof renderSelectedView === 'function') {
+        renderSelectedView();
+      }
+      return true;
+    }
 
     function formatCurrency(value) {
       return `$${Number(value).toLocaleString('en-US', {
@@ -482,6 +575,167 @@
       }
 
       const charts = {};
+      const adsEventsOverlayPlugin = {
+        id: 'adsEventsOverlay',
+        afterEvent: function (chart, args) {
+          const pluginOptions = chart.options && chart.options.plugins
+            ? chart.options.plugins.adsEventsOverlay
+            : null;
+          if (!pluginOptions || !pluginOptions.enabled) {
+            hideAdsEventTooltip(chart);
+            if (chart.$adsEventsHoveredDate) {
+              chart.$adsEventsHoveredDate = '';
+              chart.draw();
+            }
+            return;
+          }
+
+          const chartEvent = args && args.event ? args.event : null;
+          if (!chartEvent || chartEvent.type === 'mouseout' || chartEvent.type === 'mouseleave') {
+            hideAdsEventTooltip(chart);
+            if (chart.$adsEventsHoveredDate) {
+              chart.$adsEventsHoveredDate = '';
+              chart.draw();
+            }
+            return;
+          }
+
+          const chartArea = chart.chartArea;
+          const xScale = chart.scales ? chart.scales.x : null;
+          if (!chartArea || !xScale || !Number.isFinite(chartEvent.x) || !Number.isFinite(chartEvent.y)) {
+            return;
+          }
+
+          const events = Array.isArray(pluginOptions.events) ? pluginOptions.events : [];
+          let nearestGroup = null;
+          let nearestPixelX = null;
+          let nearestDistance = Number.POSITIVE_INFINITY;
+          events.forEach((eventGroup) => {
+            const pixelX = xScale.getPixelForValue(eventGroup.date);
+            if (!Number.isFinite(pixelX) || pixelX < chartArea.left || pixelX > chartArea.right) {
+              return;
+            }
+            const distance = Math.abs(chartEvent.x - pixelX);
+            if (distance <= 8 && distance < nearestDistance) {
+              nearestDistance = distance;
+              nearestPixelX = pixelX;
+              nearestGroup = eventGroup;
+            }
+          });
+
+          const nextHoveredDate = nearestGroup ? nearestGroup.date : '';
+          if (chart.$adsEventsHoveredDate !== nextHoveredDate) {
+            chart.$adsEventsHoveredDate = nextHoveredDate;
+            chart.draw();
+          }
+
+          if (!nearestGroup
+            || chartEvent.y < chartArea.top
+            || chartEvent.y > chartArea.bottom) {
+            hideAdsEventTooltip(chart);
+            return;
+          }
+
+          showAdsEventTooltip(
+            chart,
+            nearestGroup,
+            Number.isFinite(nearestPixelX) ? nearestPixelX : chartEvent.x,
+            chartEvent.y,
+          );
+        },
+        afterDraw: function (chart) {
+          const pluginOptions = chart.options && chart.options.plugins
+            ? chart.options.plugins.adsEventsOverlay
+            : null;
+          if (!pluginOptions || !pluginOptions.enabled) {
+            return;
+          }
+
+          const chartArea = chart.chartArea;
+          const xScale = chart.scales ? chart.scales.x : null;
+          if (!chartArea || !xScale) {
+            return;
+          }
+
+          const events = Array.isArray(pluginOptions.events) ? pluginOptions.events : [];
+          const ctx = chart.ctx;
+          ctx.save();
+          events.forEach((eventGroup) => {
+            const pixelX = xScale.getPixelForValue(eventGroup.date);
+            if (!Number.isFinite(pixelX) || pixelX < chartArea.left || pixelX > chartArea.right) {
+              return;
+            }
+            const isHovered = chart.$adsEventsHoveredDate === eventGroup.date;
+            ctx.beginPath();
+            ctx.moveTo(pixelX, chartArea.top);
+            ctx.lineTo(pixelX, chartArea.bottom);
+            ctx.lineWidth = isHovered ? 2 : 1;
+            ctx.strokeStyle = isHovered ? '#1f2937' : '#8d99ae';
+            ctx.stroke();
+          });
+          ctx.restore();
+        },
+      };
+
+      function getAdsEventTooltipElement(chart) {
+        if (chart.$adsEventsTooltipEl) {
+          return chart.$adsEventsTooltipEl;
+        }
+        const container = chart.canvas && chart.canvas.parentElement;
+        if (!container) {
+          return null;
+        }
+        const tooltipEl = document.createElement('div');
+        tooltipEl.style.position = 'absolute';
+        tooltipEl.style.display = 'none';
+        tooltipEl.style.padding = '8px 10px';
+        tooltipEl.style.borderRadius = '6px';
+        tooltipEl.style.border = '1px solid #cfd8dc';
+        tooltipEl.style.background = '#ffffff';
+        tooltipEl.style.color = '#1f2937';
+        tooltipEl.style.fontSize = '12px';
+        tooltipEl.style.lineHeight = '1.4';
+        tooltipEl.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.16)';
+        tooltipEl.style.pointerEvents = 'none';
+        tooltipEl.style.zIndex = '20';
+        container.appendChild(tooltipEl);
+        chart.$adsEventsTooltipEl = tooltipEl;
+        return tooltipEl;
+      }
+
+      function hideAdsEventTooltip(chart) {
+        const tooltipEl = chart.$adsEventsTooltipEl;
+        if (tooltipEl) {
+          tooltipEl.style.display = 'none';
+        }
+      }
+
+      function showAdsEventTooltip(chart, eventGroup, xPos, yPos) {
+        const lines = getAdsEventTooltipLines(eventGroup);
+        if (lines.length === 0) {
+          hideAdsEventTooltip(chart);
+          return;
+        }
+
+        const tooltipEl = getAdsEventTooltipElement(chart);
+        const container = chart.canvas && chart.canvas.parentElement;
+        if (!tooltipEl || !container) {
+          return;
+        }
+
+        tooltipEl.innerHTML = lines.map((line, index) => {
+          const fontWeight = index === 0 ? '700' : '400';
+          return `<div style="font-weight: ${fontWeight};">${escapeHtml(line)}</div>`;
+        }).join('');
+        tooltipEl.style.display = 'block';
+
+        const maxLeft = Math.max(8, container.clientWidth - tooltipEl.offsetWidth - 8);
+        const maxTop = Math.max(8, container.clientHeight - tooltipEl.offsetHeight - 8);
+        const left = Math.max(8, Math.min(maxLeft, xPos + 12));
+        const top = Math.max(8, Math.min(maxTop, yPos + 12));
+        tooltipEl.style.left = `${left}px`;
+        tooltipEl.style.top = `${top}px`;
+      }
 
       function chartDataToCsv(chart) {
         if (!chart || !chart.data) {
@@ -510,7 +764,7 @@
         return rows.join('\n');
       }
 
-      function createMultiLineChart(canvasId, labels, datasets, scales) {
+      function createMultiLineChart(canvasId, labels, datasets, scales, mode) {
         const canvas = document.getElementById(canvasId);
         if (!canvas || typeof canvas.getContext !== 'function') {
           return;
@@ -543,8 +797,13 @@
                   },
                 },
               },
+              adsEventsOverlay: {
+                enabled: mode === TIMELINE_MODE,
+                events: adsEventGroups,
+              },
             },
           },
+          plugins: [adsEventsOverlayPlugin],
         });
       }
 
@@ -621,7 +880,7 @@
         };
       }
 
-      function renderProfitChart(canvasId, series, includeOrganicProfit) {
+      function renderProfitChart(canvasId, series, includeOrganicProfit, mode) {
         const datasets = [
           createLineDataset({
             label: 'Cost',
@@ -656,10 +915,11 @@
           series.labels,
           datasets,
           buildSingleAxis('currency'),
+          mode,
         );
       }
 
-      function renderPoasChart(canvasId, series, includeTpoas) {
+      function renderPoasChart(canvasId, series, includeTpoas, mode) {
         const ratioSeries = includeTpoas ? [...series.poas, ...series.tpoas] : [...series.poas];
         const suggestedMax = Math.max(1.1, ...ratioSeries, 1.0);
         const datasets = [
@@ -684,10 +944,11 @@
           series.labels,
           datasets,
           buildSingleAxis('ratio', suggestedMax),
+          mode,
         );
       }
 
-      function renderCpcAndConversionRateChart(series) {
+      function renderCpcAndConversionRateChart(series, mode) {
         createMultiLineChart(
           'cpcAndConversionRateChart',
           series.labels,
@@ -708,10 +969,11 @@
             }),
           ],
           buildDualAxis('currency', 'percent'),
+          mode,
         );
       }
 
-      function renderCtrChart(series) {
+      function renderCtrChart(series, mode) {
         createMultiLineChart(
           'ctrChart',
           series.labels,
@@ -724,10 +986,11 @@
             }),
           ],
           buildSingleAxis('percent'),
+          mode,
         );
       }
 
-      function renderImpressionsAndClicksChart(series) {
+      function renderImpressionsAndClicksChart(series, mode) {
         createMultiLineChart(
           'impressionsAndClicksChart',
           series.labels,
@@ -748,6 +1011,7 @@
             }),
           ],
           buildDualAxis('number', 'number'),
+          mode,
         );
       }
 
@@ -760,13 +1024,13 @@
           reconciledClickDateChartData,
         );
 
-        renderProfitChart('profitChart', stats, false);
-        renderProfitChart('reconciledProfitTimelineChart', reconciledStats, true);
-        renderPoasChart('poasChart', stats, false);
-        renderPoasChart('reconciledPoasTimelineChart', reconciledStats, true);
-        renderCpcAndConversionRateChart(stats);
-        renderCtrChart(stats);
-        renderImpressionsAndClicksChart(stats);
+        renderProfitChart('profitChart', stats, false, mode);
+        renderProfitChart('reconciledProfitTimelineChart', reconciledStats, true, mode);
+        renderPoasChart('poasChart', stats, false, mode);
+        renderPoasChart('reconciledPoasTimelineChart', reconciledStats, true, mode);
+        renderCpcAndConversionRateChart(stats, mode);
+        renderCtrChart(stats, mode);
+        renderImpressionsAndClicksChart(stats, mode);
 
         const statImpressions = document.getElementById('stat-impressions');
         const statClicks = document.getElementById('stat-clicks');
@@ -830,7 +1094,7 @@
         campaignSelector.appendChild(option);
       });
 
-      const renderSelectedView = () => {
+      renderSelectedView = () => {
         calculateAndRender(campaignSelector.value, modeSelector.value);
       };
 
@@ -859,9 +1123,14 @@
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', setup, { once: true });
-      return;
+      return {
+        upsertAdsEvent: upsertAdsEvent,
+      };
     }
     setup();
+    return {
+      upsertAdsEvent: upsertAdsEvent,
+    };
   }
 
   if (typeof window !== 'undefined') {
@@ -871,7 +1140,12 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       DAYS_OF_WEEK_MODE: DAYS_OF_WEEK_MODE,
+      TIMELINE_MODE: TIMELINE_MODE,
       DAYS_OF_WEEK_LABELS: DAYS_OF_WEEK_LABELS,
+      isIsoDateString: isIsoDateString,
+      normalizeAdsEvent: normalizeAdsEvent,
+      groupAdsEventsByDate: groupAdsEventsByDate,
+      getAdsEventTooltipLines: getAdsEventTooltipLines,
       toNumber: toNumber,
       dayOfWeekIndexForDate: dayOfWeekIndexForDate,
       average: average,

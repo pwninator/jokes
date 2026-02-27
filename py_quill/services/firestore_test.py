@@ -3040,6 +3040,146 @@ def test_list_amazon_ads_daily_stats_invalid_range_raises():
     )
 
 
+def test_upsert_amazon_ads_event_uses_date_and_title_slug_as_key(monkeypatch):
+  """Ads events should be upserted using date + title slug as doc key."""
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyDocSnapshot:
+
+    def __init__(self, exists):
+      self.exists = exists
+
+    def to_dict(self):
+      return {}
+
+  class DummyDocRef:
+
+    def get(self):
+      return DummyDocSnapshot(False)
+
+    def set(self, data, merge=False):
+      captured["data"] = data
+      captured["merge"] = merge
+
+  class DummyCollection:
+
+    def document(self, doc_id):
+      captured["doc_id"] = doc_id
+      return DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      captured["collection"] = name
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  event = models.AmazonAdsEvent(
+    date=datetime.date(2026, 2, 18),
+    title="Campaign Launch",
+  )
+  saved = fs.upsert_amazon_ads_event(event)
+
+  assert saved.key == "2026_02_18__campaign_launch"
+  assert captured["collection"] == fs.AMAZON_ADS_EVENTS_COLLECTION
+  assert captured["doc_id"] == "2026_02_18__campaign_launch"
+  assert captured["merge"] is True
+  assert isinstance(captured["data"], dict)
+  assert captured["data"]["date"] == "2026-02-18"
+  assert captured["data"]["title"] == "Campaign Launch"
+  assert isinstance(captured["data"]["created_at"], datetime.datetime)
+  assert isinstance(captured["data"]["updated_at"], datetime.datetime)
+
+
+def test_list_amazon_ads_events_filters_by_date_range(monkeypatch):
+  """Ads events listing should apply Firestore-side date range filters."""
+  from services import firestore as fs
+
+  captured_filters: list[object] = []
+
+  class DummyFieldFilter:
+
+    def __init__(self, field_path, op_string, value):
+      self.field_path = field_path
+      self.op_string = op_string
+      self.value = value
+
+  class DummyDoc:
+    exists = True
+    id = "2026_02_18__campaign_launch"
+
+    def to_dict(self):
+      return {
+        "date": "2026-02-18",
+        "title": "Campaign Launch",
+      }
+
+  class DummyQuery:
+
+    def where(self, *, filter):
+      captured_filters.append(filter)
+      return self
+
+    def order_by(self, _field_path, direction=None):
+      del direction
+      return self
+
+    def stream(self):
+      return [DummyDoc()]
+
+  class DummyCollection:
+
+    def where(self, *, filter):
+      return DummyQuery().where(filter=filter)
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCollection()
+
+  monkeypatch.setattr(fs, "FieldFilter", DummyFieldFilter)
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  rows = fs.list_amazon_ads_events(
+    start_date=datetime.date(2026, 2, 1),
+    end_date=datetime.date(2026, 2, 28),
+  )
+
+  assert len(rows) == 1
+  assert rows[0].key == "2026_02_18__campaign_launch"
+  assert rows[0].date == datetime.date(2026, 2, 18)
+  assert rows[0].title == "Campaign Launch"
+  assert len(captured_filters) == 2
+  lower = captured_filters[0]
+  upper = captured_filters[1]
+  assert isinstance(lower, DummyFieldFilter)
+  assert isinstance(upper, DummyFieldFilter)
+  assert (lower.field_path, lower.op_string, lower.value) == (
+    "date",
+    ">=",
+    "2026-02-01",
+  )
+  assert (upper.field_path, upper.op_string, upper.value) == (
+    "date",
+    "<=",
+    "2026-02-28",
+  )
+
+
+def test_list_amazon_ads_events_invalid_range_raises():
+  """Invalid event date range should fail fast before querying Firestore."""
+  from services import firestore as fs
+
+  with pytest.raises(ValueError):
+    fs.list_amazon_ads_events(
+      start_date=datetime.date(2026, 2, 5),
+      end_date=datetime.date(2026, 2, 4),
+    )
+
+
 def test_get_amazon_daily_stats_date_bounds_returns_min_and_max(monkeypatch):
   """Date bounds helper should read oldest and newest docs by date."""
   from services import firestore as fs

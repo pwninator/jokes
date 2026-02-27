@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from zoneinfo import ZoneInfo
 
 import flask
@@ -15,6 +16,7 @@ from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
 
 _ADS_STATS_LOOKBACK_DAYS = 30
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _LOS_ANGELES_TIMEZONE = ZoneInfo("America/Los_Angeles")
 
 
@@ -162,6 +164,10 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  ads_events = firestore.list_amazon_ads_events(
+    start_date=start_date,
+    end_date=end_date,
+  )
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
     start_date=start_date,
@@ -178,6 +184,7 @@ def admin_ads_stats():
     site_name='Snickerdoodle',
     chart_data=chart_data,
     reconciled_click_date_chart_data=reconciled_click_date_chart_data,
+    ads_events=[_serialize_amazon_ads_event(event) for event in ads_events],
     start_date=start_date.isoformat(),
     end_date=end_date.isoformat(),
   )
@@ -250,6 +257,48 @@ def admin_ads_stats_upload_kdp():
     return flask.jsonify({'error': 'Failed to process KDP report'}), 500
 
   return flask.jsonify({'days_saved': len(stats)})
+
+
+@web_bp.route('/admin/ads-stats/events', methods=['POST'])
+@auth_helpers.require_admin
+def admin_ads_stats_create_event():
+  """Create or update an ads event marker used on timeline charts."""
+  payload = flask.request.get_json(silent=True) or {}
+  date_raw = str(payload.get('date', '')).strip()
+  title = str(payload.get('title', '')).strip()
+
+  if not _ISO_DATE_RE.fullmatch(date_raw):
+    return flask.jsonify({'error': 'Date must be in YYYY-MM-DD format'}), 400
+  if not title:
+    return flask.jsonify({'error': 'Title is required'}), 400
+
+  try:
+    parsed_date = datetime.date.fromisoformat(date_raw)
+  except ValueError:
+    return flask.jsonify({'error': 'Date must be in YYYY-MM-DD format'}), 400
+
+  try:
+    saved_event = firestore.upsert_amazon_ads_event(
+      models.AmazonAdsEvent(date=parsed_date, title=title))
+  except ValueError as exc:
+    return flask.jsonify({'error': str(exc)}), 400
+  except Exception as exc:
+    logger.error('Failed to save ads event', exc_info=exc)
+    return flask.jsonify({'error': 'Failed to save ads event'}), 500
+
+  return flask.jsonify({'event': _serialize_amazon_ads_event(saved_event)})
+
+
+def _serialize_amazon_ads_event(
+  event: models.AmazonAdsEvent, ) -> dict[str, object]:
+  """Convert an ads event model to a JSON-safe dictionary."""
+  return {
+    'key': event.key,
+    'date': event.date.isoformat(),
+    'title': event.title,
+    'created_at': event.created_at.isoformat() if event.created_at else None,
+    'updated_at': event.updated_at.isoformat() if event.updated_at else None,
+  }
 
 
 def _build_ads_stats_chart_data(

@@ -348,6 +348,17 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
       ),
     ],
   )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [
+      models.AmazonAdsEvent(
+        key="2026_02_19__campaign_launch",
+        date=datetime.date(2026, 2, 19),
+        title="Campaign launch",
+      )
+    ],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -358,6 +369,13 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert call_args["end_date"] == datetime.date(2026, 2, 20)
   assert captured["start_date"] == "2026-01-22"
   assert captured["end_date"] == "2026-02-20"
+  assert captured["ads_events"] == [{
+    "key": "2026_02_19__campaign_launch",
+    "date": "2026-02-19",
+    "title": "Campaign launch",
+    "created_at": None,
+    "updated_at": None,
+  }]
 
   chart_data = captured["chart_data"]
   assert len(chart_data["labels"]) == 30
@@ -427,6 +445,11 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
     "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
   )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -448,6 +471,11 @@ def test_admin_ads_stats_page_includes_refresh_link(monkeypatch):
   monkeypatch.setattr(
     firestore_service,
     "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
     lambda *, start_date, end_date: [],
   )
 
@@ -475,6 +503,11 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
     "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
   )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -495,6 +528,10 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'chartData:' in html
   assert 'reconciledClickDateChartData:' in html
   assert 'id="modeSelector"' in html
+  assert 'id="adsStatsCreateEventToggleButton"' in html
+  assert 'id="adsStatsCreateEventForm"' in html
+  assert 'id="adsStatsEventDateInput"' in html
+  assert 'id="adsStatsEventTitleInput"' in html
   assert 'id="stat-ctr"' in html
   assert '<canvas id="ctrChart"></canvas>' in html
   assert '<option value="Timeline">Timeline</option>' in html
@@ -592,6 +629,11 @@ def test_admin_ads_stats_filtering(monkeypatch):
     "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
   )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -618,6 +660,90 @@ def test_admin_ads_stats_filtering(monkeypatch):
   # Find index of the stats date
   date_idx = chart_data["labels"].index("2026-02-20")
   assert chart_data["units_sold"][date_idx] == 2
+
+
+def test_admin_ads_stats_create_event_success(monkeypatch):
+  """Ads stats event endpoint saves and returns serialized event payload."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  created_event = models.AmazonAdsEvent(
+    key="2026_02_20__campaign_launch",
+    date=datetime.date(2026, 2, 20),
+    title="Campaign launch",
+    created_at=datetime.datetime(
+      2026,
+      2,
+      20,
+      12,
+      0,
+      tzinfo=datetime.timezone.utc,
+    ),
+    updated_at=datetime.datetime(
+      2026,
+      2,
+      20,
+      12,
+      5,
+      tzinfo=datetime.timezone.utc,
+    ),
+  )
+  upsert_mock = Mock(return_value=created_event)
+  monkeypatch.setattr(
+    firestore_service,
+    "upsert_amazon_ads_event",
+    upsert_mock,
+  )
+
+  with app.test_client() as client:
+    resp = client.post(
+      "/admin/ads-stats/events",
+      json={
+        "date": "2026-02-20",
+        "title": "Campaign launch",
+      },
+    )
+
+  assert resp.status_code == 200
+  assert resp.get_json() == {
+    "event": {
+      "key": "2026_02_20__campaign_launch",
+      "date": "2026-02-20",
+      "title": "Campaign launch",
+      "created_at": "2026-02-20T12:00:00+00:00",
+      "updated_at": "2026-02-20T12:05:00+00:00",
+    }
+  }
+  upsert_mock.assert_called_once()
+
+
+def test_admin_ads_stats_create_event_invalid_payload(monkeypatch):
+  """Ads stats event endpoint validates strict date format and title."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  with app.test_client() as client:
+    bad_date_resp = client.post(
+      "/admin/ads-stats/events",
+      json={
+        "date": "2026-2-20",
+        "title": "Campaign launch",
+      },
+    )
+    missing_title_resp = client.post(
+      "/admin/ads-stats/events",
+      json={
+        "date": "2026-02-20",
+        "title": "   ",
+      },
+    )
+
+  assert bad_date_resp.status_code == 400
+  assert bad_date_resp.get_json() == {
+    "error": "Date must be in YYYY-MM-DD format"
+  }
+  assert missing_title_resp.status_code == 400
+  assert missing_title_resp.get_json() == {"error": "Title is required"}
 
 
 def test_admin_ads_stats_upload_kdp_success(monkeypatch):

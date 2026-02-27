@@ -598,3 +598,57 @@ def test_amazon_ads_report_from_dict_rejects_camel_case_fields():
         "createdAt": "2026-02-19T06:00:00Z",
         "updatedAt": "2026-02-19T06:05:00Z",
       }, )
+
+
+def test_amazon_ads_event_to_and_from_dict():
+  source = models.AmazonAdsEvent(
+    date=datetime.date(2026, 2, 26),
+    title="Campaign launch",
+    created_at=datetime.datetime(
+      2026,
+      2,
+      26,
+      4,
+      30,
+      tzinfo=datetime.timezone.utc,
+    ),
+    updated_at=datetime.datetime(
+      2026,
+      2,
+      26,
+      5,
+      30,
+      tzinfo=datetime.timezone.utc,
+    ),
+  )
+
+  payload = source.to_dict()
+  restored = models.AmazonAdsEvent.from_dict(payload, key="event-key")
+
+  assert restored.key == "event-key"
+  assert restored.date == datetime.date(2026, 2, 26)
+  assert restored.title == "Campaign launch"
+  assert restored.created_at == datetime.datetime(
+    2026,
+    2,
+    26,
+    4,
+    30,
+    tzinfo=datetime.timezone.utc,
+  )
+  assert restored.updated_at == datetime.datetime(
+    2026,
+    2,
+    26,
+    5,
+    30,
+    tzinfo=datetime.timezone.utc,
+  )
+
+
+def test_amazon_ads_event_requires_title():
+  with pytest.raises(ValueError):
+    models.AmazonAdsEvent.from_dict({
+      "date": "2026-02-26",
+      "title": "   ",
+    }, )

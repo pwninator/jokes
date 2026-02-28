@@ -966,8 +966,7 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
       self.reference = DummyDocRef()
 
     def to_dict(self):
-      # Simulate older doc missing joke_ids so upsert backfills.
-      return {"joke_str": "a,b"}
+      return {"joke_str_hash": "hash-ab"}
 
   class DummyQuery:
 
@@ -993,14 +992,14 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
 
   monkeypatch.setattr(fs, "db", DummyDB)
 
-  sheet = models.JokeSheet(joke_ids=["a", "b"])
+  sheet = models.JokeSheet(joke_str_hash="hash-ab", joke_ids=["a", "b"])
   saved = fs.upsert_joke_sheet(sheet)
   assert saved.key == "existing-id"
-  assert saved.joke_str == "a,b"
+  assert saved.joke_str_hash == "hash-ab"
   assert saved.joke_ids == ["a", "b"]
   assert captured["merge"] is True
   assert captured["data"] == {
-    "joke_str": "a,b",
+    "joke_str_hash": "hash-ab",
     "joke_ids": ["a", "b"],
     "category_id": None,
     "index": None,
@@ -1048,13 +1047,13 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
 
   monkeypatch.setattr(fs, "db", DummyDB)
 
-  sheet = models.JokeSheet(joke_ids=["a", "b"])
+  sheet = models.JokeSheet(joke_str_hash="hash-ab", joke_ids=["a", "b"])
   saved = fs.upsert_joke_sheet(sheet)
   assert saved.key == "created-id"
-  assert saved.joke_str == "a,b"
+  assert saved.joke_str_hash == "hash-ab"
   assert saved.joke_ids == ["a", "b"]
   assert captured["data"] == {
-    "joke_str": "a,b",
+    "joke_str_hash": "hash-ab",
     "joke_ids": ["a", "b"],
     "category_id": None,
     "index": None,
@@ -1089,7 +1088,7 @@ def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
 
     def to_dict(self):
       return {
-        "joke_str": "a,b",
+        "joke_str_hash": "hash-ab",
         "joke_ids": ["a", "b"],
         "category_id": None,
         "index": None,
@@ -1124,10 +1123,10 @@ def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
 
   monkeypatch.setattr(fs, "db", DummyDB)
 
-  sheet = models.JokeSheet(joke_ids=["a", "b"])
+  sheet = models.JokeSheet(joke_str_hash="hash-ab", joke_ids=["a", "b"])
   saved = fs.upsert_joke_sheet(sheet)
   assert saved.key == "existing-id"
-  assert saved.joke_str == "a,b"
+  assert saved.joke_str_hash == "hash-ab"
   assert saved.joke_ids == ["a", "b"]
   assert captured["set_called"] is False
 
@@ -1155,8 +1154,7 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
       return True
 
     def to_dict(self):
-      # Missing category_id so upsert should backfill.
-      return {"joke_str": "a,b", "joke_ids": ["a", "b"]}
+      return {"joke_str_hash": "hash-ab", "joke_ids": ["a", "b"]}
 
   class DummyQuery:
 
@@ -1183,6 +1181,7 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
   monkeypatch.setattr(fs, "db", DummyDB)
 
   sheet = models.JokeSheet(
+    joke_str_hash="hash-ab",
     joke_ids=["a", "b"],
     category_id="cats",
     image_gcs_uri="gs://tmp/joke_notes_sheets/abc.png",
@@ -1191,14 +1190,14 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
   )
   saved = fs.upsert_joke_sheet(sheet)
   assert saved.key == "existing-id"
-  assert saved.joke_str == "a,b"
+  assert saved.joke_str_hash == "hash-ab"
   assert saved.joke_ids == ["a", "b"]
   assert saved.category_id == "cats"
   assert saved.image_gcs_uri == "gs://tmp/joke_notes_sheets/abc.png"
   assert saved.pdf_gcs_uri == "gs://tmp/joke_notes_sheets/abc.pdf"
   assert captured["merge"] is True
   assert captured["data"] == {
-    "joke_str": "a,b",
+    "joke_str_hash": "hash-ab",
     "joke_ids": ["a", "b"],
     "category_id": "cats",
     "index": None,
@@ -1208,6 +1207,21 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
     "pdf_gcs_uri": "gs://tmp/joke_notes_sheets/abc.pdf",
     "avg_saved_users_fraction": 0.0,
   }
+
+
+def test_upsert_joke_sheet_requires_joke_str_hash(monkeypatch):
+  from common import models
+  from services import firestore as fs
+
+  class DummyDB:
+
+    def collection(self, name: str):
+      raise AssertionError(f"Should not query Firestore for {name}")
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  with pytest.raises(ValueError, match="joke_str_hash"):
+    fs.upsert_joke_sheet(models.JokeSheet(joke_ids=["a", "b"]))
 
 
 def test_get_joke_sheets_by_category_filters_index(monkeypatch):
@@ -1275,7 +1289,7 @@ def test_get_joke_sheet_by_slug_filters_sheet_slug(monkeypatch):
 
     def to_dict(self):
       return {
-        "joke_str": "a,b",
+        "joke_str_hash": "hash-ab",
         "joke_ids": ["a", "b"],
         "category_id": None,
         "index": None,

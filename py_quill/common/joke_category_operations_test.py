@@ -1613,7 +1613,6 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
   existing = [
     models.JokeSheet(
       key="s1",
-      joke_str="j1,j2,j3,j4,j5",
       joke_ids=["j1", "j2", "j3", "j4", "j5"],
       category_id="cats",
     )
@@ -1666,7 +1665,6 @@ def test_ensure_category_joke_sheets_deletes_invalid_sheet(monkeypatch):
   existing = [
     models.JokeSheet(
       key="s1",
-      joke_str="j1,j2,jx",
       joke_ids=["j1", "j2", "jx"],
       category_id="cats",
     )
@@ -1716,13 +1714,11 @@ def test_ensure_category_joke_sheets_deletes_non_five_id_sheets(monkeypatch):
   existing = [
     models.JokeSheet(
       key="s1",
-      joke_str="j1,j2,j3,j4",
       joke_ids=["j1", "j2", "j3", "j4"],
       category_id="cats",
     ),
     models.JokeSheet(
       key="s2",
-      joke_str="",
       joke_ids=[],
       category_id="cats",
     ),

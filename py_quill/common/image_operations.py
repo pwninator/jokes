@@ -64,6 +64,8 @@ _SOCIAL_BACKGROUND_4X5_WEBSITE_MORE_URL = (
 _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
+_BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/999_about_page_template.png"
+
 
 @dataclass(frozen=True)
 class JokeBookExportFiles:
@@ -215,6 +217,13 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     page_index += 1
     files.append((setup_file_name, setup_bytes))
     files.append((punchline_file_name, punchline_bytes))
+
+  about_bytes = cloud_storage.download_bytes_from_gcs(_BOOK_PAGE_ABOUT_GCS_URI)
+  about_file_name = _book_export_file_name(_BOOK_PAGE_ABOUT_GCS_URI, 'about')
+  if about_file_name.startswith('999_'):
+    files.append((about_file_name, about_bytes))
+  else:
+    files.append((f'999_{about_file_name}', about_bytes))
 
   return files
 
@@ -583,7 +592,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃ¢â‚¬â€backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Âbackgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.

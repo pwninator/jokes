@@ -750,7 +750,7 @@ class JokeSheet:
   """Represents a joke sheet document in Firestore (`joke_sheets`)."""
 
   key: str | None = None
-  joke_str: str = ""
+  joke_str_hash: str = ""
   joke_ids: list[str] = field(default_factory=list)
   category_id: str | None = None
   index: int | None = None

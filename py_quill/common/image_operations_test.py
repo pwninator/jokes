@@ -1528,7 +1528,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
       raise ValueError(f"Unexpected download request {resource}")
 
     mock_download_image.side_effect = download_side_effect
-    mock_download_bytes.return_value = b'belongs-to-page'
+    mock_download_bytes.side_effect = [b'belongs-to-page', b'about-page']
 
     mock_convert_for_print.side_effect = [b'setup-kdp', b'punchline-kdp']
     mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
@@ -1576,6 +1576,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
         '002_intro.jpg',
         '003_joke1_setup.jpg',
         '004_joke1_punchline.jpg',
+        '999_about_page_template.png',
       ])
 
       self.assertEqual(zip_file.read('001_belongs.png'), b'belongs-to-page')
@@ -1588,6 +1589,8 @@ class ExportJokePageFilesTest(unittest.TestCase):
       self.assertEqual(zip_file.read('003_joke1_setup.jpg'), b'setup-kdp')
       self.assertEqual(zip_file.read('004_joke1_punchline.jpg'),
                        b'punchline-kdp')
+      self.assertEqual(zip_file.read('999_about_page_template.png'),
+                       b'about-page')
 
     enhance_calls = mock_enhance_page_bytes.call_args_list
     self.assertEqual(len(enhance_calls), 2)
@@ -1611,9 +1614,10 @@ class ExportJokePageFilesTest(unittest.TestCase):
     pdf_call = mock_create_pdf.call_args
     self.assertEqual(pdf_call.kwargs, {'dpi': 300, 'quality': 100})
     pdf_images = pdf_call.args[0]
-    self.assertEqual(pdf_images[2:], [b'setup-kdp', b'punchline-kdp'])
+    self.assertEqual(pdf_images[2:4], [b'setup-kdp', b'punchline-kdp'])
     self.assertEqual(pdf_images[0], b'belongs-to-page')
     self.assertIsInstance(pdf_images[1], (bytes, bytearray))
+    self.assertEqual(pdf_images[4], b'about-page')
 
 
 if __name__ == '__main__':

@@ -666,21 +666,21 @@ def upsert_joke_sheet(sheet: models.JokeSheet) -> models.JokeSheet:
   """Ensure a joke_sheets document exists for the given joke sheet.
 
   Identity semantics:
-  - Sheets are unique by `joke_str`.
+  - Sheets are unique by `joke_str_hash`.
   - Other fields (including category_id, pdf_gcs_uri, image_gcs_uri) may be
     overwritten by later calls for the same joke set.
 
   Returns:
     A JokeSheet with `key` populated to the Firestore document id.
   """
-  if not sheet.joke_str:
-    sheet.joke_str = ",".join(sheet.joke_ids or [])
+  if not sheet.joke_str_hash:
+    raise ValueError("JokeSheet.joke_str_hash is required for upsert")
 
   payload = sheet.to_dict()
 
   collection_ref = db().collection('joke_sheets')
-  existing = (collection_ref.where(
-    filter=FieldFilter('joke_str', '==', sheet.joke_str)).limit(1).get())
+  existing = (collection_ref.where(filter=FieldFilter(
+    'joke_str_hash', '==', sheet.joke_str_hash)).limit(1).get())
   for doc in existing:
     if getattr(doc, 'exists', False):
       doc_dict = doc.to_dict() if hasattr(doc, 'to_dict') else None
@@ -2296,5 +2296,3 @@ def get_joke_with_metadata(
   joke_data = joke_doc.to_dict() or {}
   metadata = get_joke_metadata(joke_id)
   return joke_data, metadata
-
-

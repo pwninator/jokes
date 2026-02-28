@@ -34,7 +34,7 @@ def ensure_joke_notes_sheet(
   """Create a joke notes sheet (PNG + PDF), upload to GCS, upsert Firestore, and return the sheet.
 
   Notes:
-  - The Firestore doc is unique by joke IDs only (sorted `joke_str`).
+  - The Firestore doc is unique by the SHA-256 file stem (`joke_str_hash`).
   - The asset filenames include `quality`, so subsequent calls with different
     quality will overwrite the stored URIs on the same Firestore doc.
   - The saved-users fraction is averaged across the supplied jokes.
@@ -81,6 +81,7 @@ def ensure_joke_notes_sheet(
       )
 
   sheet = models.JokeSheet(
+    joke_str_hash=filename_base,
     joke_ids=list(joke_ids),
     category_id=category_id,
     index=index,

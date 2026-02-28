@@ -152,6 +152,7 @@ def test_ensure_joke_notes_sheet_averages_and_skips_missing_keys(monkeypatch):
     f"{joke_notes_sheet_operations._IMAGE_DIR_GCS_URI}/{expected_stem}.png")
 
   assert result.key == "sheet-1"
+  assert result.joke_str_hash == expected_stem
   assert result.joke_ids == ["joke1"]
   assert result.avg_saved_users_fraction == pytest.approx(0.4)
   assert gcs_calls == [expected_pdf, expected_image]
@@ -213,6 +214,7 @@ def test_ensure_joke_notes_sheet_uploads_all_page_images_and_pdf(monkeypatch):
   assert result.image_gcs_uri == expected_image_uris[0]
   assert result.image_gcs_uris == expected_image_uris
   assert result.pdf_gcs_uri == expected_pdf_uri
+  assert result.joke_str_hash == expected_stem
   assert created_pdf_images == page_images
   assert uploaded == [
     (expected_image_uris[0], "image/png"),

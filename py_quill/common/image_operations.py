@@ -103,6 +103,33 @@ def create_blank_book_cover(*, color_mode: str) -> bytes:
   return buffer.getvalue()
 
 
+def _enhance_kdp_export_page_bytes(
+  page_bytes: bytes,
+  *,
+  editor: image_editor.ImageEditor,
+) -> bytes:
+  """Apply the default image-enhancement pass to a final KDP page image."""
+  with Image.open(BytesIO(page_bytes)) as page_image:
+    _ = page_image.load()
+    enhanced_page = editor.enhance_image(page_image)
+
+  try:
+    if enhanced_page.mode != 'RGB':
+      enhanced_page = enhanced_page.convert('RGB')
+
+    buffer = BytesIO()
+    enhanced_page.save(
+      buffer,
+      format='JPEG',
+      quality=100,
+      subsampling=0,
+      dpi=(300, 300),
+    )
+    return buffer.getvalue()
+  finally:
+    enhanced_page.close()
+
+
 def _build_kdp_export_pages(joke_ids: list[str]) -> list[tuple[str, bytes]]:
   """Build ordered print-ready page files for joke-book exports."""
   if not joke_ids:
@@ -112,6 +139,7 @@ def _build_kdp_export_pages(joke_ids: list[str]) -> list[tuple[str, bytes]]:
   page_index = 3
   total_pages = len(joke_ids) * 2
   current_page_number = 1
+  editor = image_editor.ImageEditor()
 
   # Add a blank intro page as page 002 before any joke pages.
   intro_bytes = create_blank_book_cover(color_mode=_KDP_PRINT_COLOR_MODE)
@@ -141,20 +169,26 @@ def _build_kdp_export_pages(joke_ids: list[str]) -> list[tuple[str, bytes]]:
     setup_image = cloud_storage.download_image_from_gcs(setup_img_url)
     punchline_image = cloud_storage.download_image_from_gcs(punchline_img_url)
 
-    setup_bytes = _convert_for_print_kdp(
-      setup_image,
-      is_punchline=False,
-      page_number=current_page_number,
-      total_pages=total_pages,
-      color_mode=_KDP_PRINT_COLOR_MODE,
+    setup_bytes = _enhance_kdp_export_page_bytes(
+      _convert_for_print_kdp(
+        setup_image,
+        is_punchline=False,
+        page_number=current_page_number,
+        total_pages=total_pages,
+        color_mode=_KDP_PRINT_COLOR_MODE,
+      ),
+      editor=editor,
     )
     current_page_number += 1
-    punchline_bytes = _convert_for_print_kdp(
-      punchline_image,
-      is_punchline=True,
-      page_number=current_page_number,
-      total_pages=total_pages,
-      color_mode=_KDP_PRINT_COLOR_MODE,
+    punchline_bytes = _enhance_kdp_export_page_bytes(
+      _convert_for_print_kdp(
+        punchline_image,
+        is_punchline=True,
+        page_number=current_page_number,
+        total_pages=total_pages,
+        color_mode=_KDP_PRINT_COLOR_MODE,
+      ),
+      editor=editor,
     )
     current_page_number += 1
 

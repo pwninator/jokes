@@ -1434,6 +1434,25 @@ class AddPageNumberToImageTest(unittest.TestCase):
 class ExportJokePageFilesTest(unittest.TestCase):
   """Tests for joke-book ZIP/PDF export."""
 
+  def test_enhance_kdp_export_page_bytes_uses_default_editor_args(self):
+    """KDP export enhancement should call enhance_image with default args."""
+    page_image = Image.new('RGB', (32, 32), 'red')
+    buffer = BytesIO()
+    page_image.save(buffer, format='JPEG', quality=100)
+
+    mock_editor = MagicMock()
+    mock_editor.enhance_image.return_value = Image.new('RGB', (32, 32), 'blue')
+
+    enhanced_bytes = image_operations._enhance_kdp_export_page_bytes(
+      buffer.getvalue(),
+      editor=mock_editor,
+    )
+
+    self.assertIsInstance(enhanced_bytes, (bytes, bytearray))
+    mock_editor.enhance_image.assert_called_once()
+    self.assertEqual(mock_editor.enhance_image.call_args.kwargs, {})
+
+  @patch('common.image_operations._enhance_kdp_export_page_bytes')
   @patch('common.image_operations._convert_for_print_kdp')
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
@@ -1450,6 +1469,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_upload_bytes,
     mock_get_public_url,
     mock_convert_for_print,
+    mock_enhance_page_bytes,
   ):
     """export_joke_page_files_for_kdp should upload ZIP and PDF and return both URLs."""
     joke_ids = ['joke1']
@@ -1502,6 +1522,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_download_image.side_effect = download_side_effect
 
     mock_convert_for_print.side_effect = [b'setup-kdp', b'punchline-kdp']
+    mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
     mock_create_pdf.return_value = b'%PDF-export'
     mock_build_export_uris.return_value = (
       'gs://snickerdoodle_temp_files/joke_book_pages.zip',
@@ -1555,6 +1576,13 @@ class ExportJokePageFilesTest(unittest.TestCase):
       self.assertEqual(zip_file.read('003_joke1_setup.jpg'), b'setup-kdp')
       self.assertEqual(zip_file.read('004_joke1_punchline.jpg'),
                        b'punchline-kdp')
+
+    enhance_calls = mock_enhance_page_bytes.call_args_list
+    self.assertEqual(len(enhance_calls), 2)
+    self.assertEqual(enhance_calls[0].args[0], b'setup-kdp')
+    self.assertEqual(enhance_calls[1].args[0], b'punchline-kdp')
+    self.assertIn('editor', enhance_calls[0].kwargs)
+    self.assertIn('editor', enhance_calls[1].kwargs)
 
     convert_calls = mock_convert_for_print.call_args_list
     self.assertEqual(len(convert_calls), 2)

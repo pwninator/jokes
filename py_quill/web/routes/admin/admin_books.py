@@ -4,17 +4,74 @@ from __future__ import annotations
 
 import datetime
 from io import BytesIO
+from typing import cast
 
 import flask
 from common import (config, image_generation, joke_book_operations, models,
                     utils)
 from firebase_functions import logger
 from functions import auth_helpers
-from google.cloud.firestore import ArrayUnion
 from PIL import Image, UnidentifiedImageError
-from services import cloud_storage, firestore
+from services import cloud_storage
+from storage import joke_books_firestore
 from web.routes import web_bp
 from web.routes.admin import joke_feed_utils
+
+
+def _as_object_dict(value: object) -> dict[str, object]:
+  """Return a shallow string-keyed dict view of a JSON-like object."""
+  if not isinstance(value, dict):
+    return {}
+  return dict(cast(dict[str, object], value))
+
+
+def _as_optional_string(value: object) -> str | None:
+  """Return a non-empty string value, or None."""
+  if isinstance(value, str) and value:
+    return value
+  return None
+
+
+def _as_string_list(value: object) -> list[str]:
+  """Return a filtered list of non-empty strings."""
+  if not isinstance(value, list):
+    return []
+  return [
+    item for item in cast(list[object], value)
+    if isinstance(item, str) and item
+  ]
+
+
+def _as_int(value: object, default: int = 0) -> int:
+  """Convert a numeric-like value to int with fallback."""
+  if isinstance(value, bool):
+    return int(value)
+  if isinstance(value, int):
+    return value
+  if isinstance(value, float):
+    return int(value)
+  if isinstance(value, str):
+    stripped = value.strip()
+    if stripped:
+      try:
+        return int(stripped)
+      except ValueError:
+        return default
+  return default
+
+
+def _as_float(value: object, default: float = 0.0) -> float:
+  """Convert a numeric-like value to float with fallback."""
+  if isinstance(value, (int, float)):
+    return float(value)
+  if isinstance(value, str):
+    stripped = value.strip()
+    if stripped:
+      try:
+        return float(stripped)
+      except ValueError:
+        return default
+  return default
 
 
 def _format_book_page_image(image_url: str | None) -> str | None:
@@ -80,8 +137,8 @@ def _format_joke_preview(image_url: str | None) -> str | None:
 
 def _extract_total_cost(joke_data: dict[str, object]) -> float | None:
   """Safely extract total generation cost from joke data."""
-  generation_metadata = joke_data.get('generation_metadata')
-  if not isinstance(generation_metadata, dict):
+  generation_metadata = _as_object_dict(joke_data.get('generation_metadata'))
+  if not generation_metadata:
     return None
 
   total_cost = generation_metadata.get('total_cost')
@@ -98,7 +155,7 @@ def _convert_to_png_bytes(raw_bytes: bytes) -> bytes:
   """Validate raw image bytes and return PNG-encoded bytes."""
   try:
     image = Image.open(BytesIO(raw_bytes))
-    image.load()
+    image.load()  # pyright: ignore[reportUnusedCallResult]
   except (UnidentifiedImageError, OSError, ValueError) as exc:
     raise ValueError('Invalid image file') from exc
 
@@ -113,11 +170,18 @@ def _convert_to_png_bytes(raw_bytes: bytes) -> bytes:
   return buffer.getvalue()
 
 
+def _status_for_joke_book_error(message: str) -> int:
+  """Map storage-layer joke-book errors to HTTP status codes."""
+  if 'not found' in message or 'does not belong to book' in message:
+    return 404
+  return 400
+
+
 @web_bp.route('/admin/joke-books')
 @auth_helpers.require_admin
 def admin_joke_books():
   """Render a simple table of all joke book documents."""
-  books = firestore.get_all_joke_books()
+  books = joke_books_firestore.list_joke_books()
   return flask.render_template(
     'admin/joke_books.html',
     books=books,
@@ -129,46 +193,28 @@ def admin_joke_books():
 @auth_helpers.require_admin
 def admin_joke_book_detail(book_id: str):
   """Render an image-centric view of a single joke book."""
-  client = firestore.db()
-  book_ref = client.collection('joke_books').document(book_id)
-  book_doc = book_ref.get()
-  if not getattr(book_doc, 'exists', False):
+  book, entries = joke_books_firestore.get_joke_book_detail_raw(book_id)
+  if not book:
     return flask.Response('Joke book not found', status=404)
-
-  book_data = book_doc.to_dict() or {}
-  jokes = book_data.get('jokes') or []
-  book_info = {
-    'id': book_id,
-    'book_name': book_data.get('book_name') or book_id,
-    'zip_url': book_data.get('zip_url'),
-  }
 
   joke_rows: list[dict[str, object]] = []
   total_book_cost = 0.0
-  for sequence, joke_id in enumerate(jokes, start=1):
-    joke_ref = client.collection('jokes').document(joke_id)
-    joke_doc = joke_ref.get()
-    joke_data = joke_doc.to_dict() or {} if getattr(joke_doc, 'exists',
-                                                    False) else {}
-    metadata_ref = joke_ref.collection('metadata').document('metadata')
-    metadata_doc = metadata_ref.get()
-    setup_url = None
-    punchline_url = None
-    setup_variants: list[str] = []
-    punchline_variants: list[str] = []
-    book_page_ready = False
-    if getattr(metadata_doc, 'exists', False):
-      metadata = metadata_doc.to_dict() or {}
-      setup_url = metadata.get('book_page_setup_image_url')
-      punchline_url = metadata.get('book_page_punchline_image_url')
-      setup_variants = metadata.get('all_book_page_setup_image_urls') or []
-      punchline_variants = metadata.get(
-        'all_book_page_punchline_image_urls') or []
-      book_page_ready = metadata.get('book_page_ready', False)
+  for sequence, entry in enumerate(entries, start=1):
+    joke_id = str(entry.get('id') or '')
+    joke_data = _as_object_dict(entry.get('joke'))
+    metadata = _as_object_dict(entry.get('metadata'))
+    setup_url = _as_optional_string(metadata.get('book_page_setup_image_url'))
+    punchline_url = _as_optional_string(
+      metadata.get('book_page_punchline_image_url'))
+    setup_variants = _as_string_list(
+      metadata.get('all_book_page_setup_image_urls'))
+    punchline_variants = _as_string_list(
+      metadata.get('all_book_page_punchline_image_urls'))
+    book_page_ready = bool(metadata.get('book_page_ready', False))
 
     joke_data_for_card = dict(joke_data)
-    joke_data_for_card.setdefault('setup_text', '')
-    joke_data_for_card.setdefault('punchline_text', '')
+    _ = joke_data_for_card.setdefault('setup_text', '')
+    _ = joke_data_for_card.setdefault('punchline_text', '')
     joke_model = models.PunnyJoke.from_firestore_dict(joke_data_for_card,
                                                       joke_id)
     edit_payload = joke_feed_utils.build_edit_payload(joke_model)
@@ -177,12 +223,12 @@ def admin_joke_book_detail(book_id: str):
     if isinstance(joke_cost, (int, float)):
       total_book_cost += float(joke_cost)
 
-    num_views = int(joke_data.get('num_viewed_users') or 0)
-    num_saves = int(joke_data.get('num_saved_users') or 0)
-    num_shares = int(joke_data.get('num_shared_users') or 0)
-    popularity_score = float(joke_data.get('popularity_score') or 0.0)
-    num_saved_users_fraction = float(
-      joke_data.get('num_saved_users_fraction') or 0.0)
+    num_views = _as_int(joke_data.get('num_viewed_users'))
+    num_saves = _as_int(joke_data.get('num_saved_users'))
+    num_shares = _as_int(joke_data.get('num_shared_users'))
+    popularity_score = _as_float(joke_data.get('popularity_score'))
+    num_saved_users_fraction = _as_float(
+      joke_data.get('num_saved_users_fraction'))
 
     joke_rows.append({
       'sequence':
@@ -200,17 +246,21 @@ def admin_joke_book_detail(book_id: str):
       'total_cost':
       joke_cost,
       'setup_original_image':
-      _format_book_page_image(joke_data.get('setup_image_url')),
+      _format_book_page_image(
+        _as_optional_string(joke_data.get('setup_image_url'))),
       'punchline_original_image':
-      _format_book_page_image(joke_data.get('punchline_image_url')),
+      _format_book_page_image(
+        _as_optional_string(joke_data.get('punchline_image_url'))),
       'setup_original_image_raw':
-      joke_data.get('setup_image_url'),
+      _as_optional_string(joke_data.get('setup_image_url')),
       'punchline_original_image_raw':
-      joke_data.get('punchline_image_url'),
+      _as_optional_string(joke_data.get('punchline_image_url')),
       'setup_preview':
-      _format_joke_preview(joke_data.get('setup_image_url')),
+      _format_joke_preview(
+        _as_optional_string(joke_data.get('setup_image_url'))),
       'punchline_preview':
-      _format_joke_preview(joke_data.get('punchline_image_url')),
+      _format_joke_preview(
+        _as_optional_string(joke_data.get('punchline_image_url'))),
       'setup_variants': [{
         'image_url': url,
         'thumb_url': _format_book_page_thumb(url) or url,
@@ -244,7 +294,7 @@ def admin_joke_book_detail(book_id: str):
 
   return flask.render_template(
     'admin/joke_book_detail.html',
-    book=book_info,
+    book=book,
     jokes=joke_rows,
     generate_book_page_url=generate_book_page_url,
     update_book_page_url=flask.url_for('web.admin_update_joke_book_page'),
@@ -280,66 +330,18 @@ def admin_update_joke_book_page():
                            'remove_book_page_setup_image_url, or '
                            'remove_book_page_punchline_image_url'), 400)
 
-  client = firestore.db()
-  book_ref = client.collection('joke_books').document(book_id)
-  book_doc = book_ref.get()
-  if not getattr(book_doc, 'exists', False):
-    return flask.Response('Joke book not found', 404)
-
-  book_data = book_doc.to_dict() or {}
-  joke_ids = book_data.get('jokes') or []
-  if isinstance(joke_ids, list) and joke_ids and joke_id not in joke_ids:
-    return flask.Response('Joke does not belong to this book', 404)
-
-  joke_ref = client.collection('jokes').document(joke_id)
-  metadata_ref = joke_ref.collection('metadata').document('metadata')
-  metadata_doc = metadata_ref.get()
-  existing_metadata = metadata_doc.to_dict() if getattr(
-    metadata_doc, 'exists', False) else {}
-
-  current_setup = existing_metadata.get('book_page_setup_image_url')
-  current_punchline = existing_metadata.get('book_page_punchline_image_url')
-
-  if new_setup_url or new_punchline_url:
-    updates = models.PunnyJoke.prepare_book_page_metadata_updates(
-      existing_metadata,
-      new_setup_url or current_setup,
-      new_punchline_url or current_punchline,
-    )
-  else:
-    updates: dict[str, object] = {}
-
-    if remove_setup_url:
-      setup_history_raw = existing_metadata.get(
-        'all_book_page_setup_image_urls')
-      setup_history = (list(setup_history_raw) if isinstance(
-        setup_history_raw, list) else [])
-      filtered_setup = [
-        url for url in setup_history if url != remove_setup_url
-      ]
-      updates['all_book_page_setup_image_urls'] = filtered_setup
-      if current_setup == remove_setup_url:
-        updates['book_page_setup_image_url'] = (filtered_setup[0]
-                                                if filtered_setup else None)
-
-    if remove_punchline_url:
-      punchline_history_raw = existing_metadata.get(
-        'all_book_page_punchline_image_urls')
-      punchline_history = (list(punchline_history_raw) if isinstance(
-        punchline_history_raw, list) else [])
-      filtered_punchline = [
-        url for url in punchline_history if url != remove_punchline_url
-      ]
-      updates['all_book_page_punchline_image_urls'] = filtered_punchline
-      if current_punchline == remove_punchline_url:
-        updates['book_page_punchline_image_url'] = (
-          filtered_punchline[0] if filtered_punchline else None)
-
-  metadata_ref.set(updates, merge=True)
-
-  setup_response = updates.get('book_page_setup_image_url', current_setup)
-  punchline_response = updates.get('book_page_punchline_image_url',
-                                   current_punchline)
+  try:
+    setup_response, punchline_response = (
+      joke_books_firestore.update_book_page_selection(
+        book_id=book_id,
+        joke_id=joke_id,
+        new_setup_url=new_setup_url,
+        new_punchline_url=new_punchline_url,
+        remove_setup_url=remove_setup_url,
+        remove_punchline_url=remove_punchline_url,
+      ))
+  except ValueError as exc:
+    return flask.Response(str(exc), _status_for_joke_book_error(str(exc)))
 
   return flask.jsonify({
     'book_id': book_id,
@@ -363,39 +365,16 @@ def admin_set_main_joke_image_from_book_page():
   if target not in {'setup', 'punchline'}:
     return flask.Response('target must be setup or punchline', 400)
 
-  client = firestore.db()
-  book_ref = client.collection('joke_books').document(book_id)
-  book_doc = book_ref.get()
-  if not getattr(book_doc, 'exists', False):
-    return flask.Response('Joke book not found', 404)
-
-  book_data = book_doc.to_dict() or {}
-  joke_ids = book_data.get('jokes') or []
-  if isinstance(joke_ids, list) and joke_ids and joke_id not in joke_ids:
-    return flask.Response('Joke does not belong to this book', 404)
-
-  joke_ref = client.collection('jokes').document(joke_id)
-  metadata_ref = joke_ref.collection('metadata').document('metadata')
-  metadata_doc = metadata_ref.get()
-  metadata = metadata_doc.to_dict() if getattr(metadata_doc, 'exists',
-                                               False) else {}
-
-  page_field = ('book_page_setup_image_url'
-                if target == 'setup' else 'book_page_punchline_image_url')
-  page_url = metadata.get(page_field)
-  if not page_url:
-    return flask.Response('Book page image not found', 400)
+  try:
+    page_url = joke_books_firestore.promote_book_page_image_to_main(
+      book_id=book_id,
+      joke_id=joke_id,
+      target=target,
+    )
+  except ValueError as exc:
+    return flask.Response(str(exc), _status_for_joke_book_error(str(exc)))
 
   main_field = 'setup_image_url' if target == 'setup' else 'punchline_image_url'
-  history_field = 'all_setup_image_urls' if target == 'setup' else 'all_punchline_image_urls'
-  upscaled_field = 'setup_image_url_upscaled' if target == 'setup' else 'punchline_image_url_upscaled'
-
-  joke_ref.update({
-    main_field: page_url,
-    history_field: ArrayUnion([page_url]),
-    upscaled_field: None,
-  })
-
   return flask.jsonify({
     'book_id': book_id,
     'joke_id': joke_id,
@@ -408,26 +387,23 @@ def admin_set_main_joke_image_from_book_page():
 def admin_joke_book_refresh(book_id: str, joke_id: str):
   """Return latest images and cost for a single joke in a book."""
   logger.info(f'Refreshing joke {joke_id} for book {book_id}')
-  client = firestore.db()
-  joke_ref = client.collection('jokes').document(joke_id)
-  joke_doc = joke_ref.get()
-  if not getattr(joke_doc, 'exists', False):
+  book = joke_books_firestore.get_joke_book(book_id)
+  if not book or joke_id not in book.jokes:
     return flask.jsonify({'error': 'Joke not found'}), 404
 
-  joke_data = joke_doc.to_dict() or {}
-  metadata_ref = joke_ref.collection('metadata').document('metadata')
-  metadata_doc = metadata_ref.get()
-  setup_url = None
-  punchline_url = None
-  setup_variants: list[str] = []
-  punchline_variants: list[str] = []
-  if getattr(metadata_doc, 'exists', False):
-    metadata = metadata_doc.to_dict() or {}
-    setup_url = metadata.get('book_page_setup_image_url')
-    punchline_url = metadata.get('book_page_punchline_image_url')
-    setup_variants = metadata.get('all_book_page_setup_image_urls') or []
-    punchline_variants = metadata.get(
-      'all_book_page_punchline_image_urls') or []
+  joke_data, metadata = joke_books_firestore.get_joke_with_metadata(joke_id)
+  if joke_data is None:
+    return flask.jsonify({'error': 'Joke not found'}), 404
+
+  joke_data = _as_object_dict(joke_data)
+  metadata = _as_object_dict(metadata)
+  setup_url = _as_optional_string(metadata.get('book_page_setup_image_url'))
+  punchline_url = _as_optional_string(
+    metadata.get('book_page_punchline_image_url'))
+  setup_variants = _as_string_list(
+    metadata.get('all_book_page_setup_image_urls'))
+  punchline_variants = _as_string_list(
+    metadata.get('all_book_page_punchline_image_urls'))
 
   resp_data = {
     'id':
@@ -437,13 +413,15 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     'punchline_image':
     _format_book_page_image(punchline_url),
     'setup_original_image':
-    _format_book_page_image(joke_data.get('setup_image_url')),
+    _format_book_page_image(
+      _as_optional_string(joke_data.get('setup_image_url'))),
     'punchline_original_image':
-    _format_book_page_image(joke_data.get('punchline_image_url')),
+    _format_book_page_image(
+      _as_optional_string(joke_data.get('punchline_image_url'))),
     'setup_original_image_raw':
-    joke_data.get('setup_image_url'),
+    _as_optional_string(joke_data.get('setup_image_url')),
     'punchline_original_image_raw':
-    joke_data.get('punchline_image_url'),
+    _as_optional_string(joke_data.get('punchline_image_url')),
     'setup_image_download':
     _format_book_page_download(setup_url),
     'punchline_image_download':
@@ -451,9 +429,11 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     'total_cost':
     _extract_total_cost(joke_data),
     'setup_original_preview':
-    _format_joke_preview(joke_data.get('setup_image_url')),
+    _format_joke_preview(_as_optional_string(
+      joke_data.get('setup_image_url'))),
     'punchline_original_preview':
-    _format_joke_preview(joke_data.get('punchline_image_url')),
+    _format_joke_preview(
+      _as_optional_string(joke_data.get('punchline_image_url'))),
     'setup_variants': [{
       'image_url': url,
       'thumb_url': _format_book_page_thumb(url) or url,
@@ -463,15 +443,15 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
       'thumb_url': _format_book_page_thumb(url) or url,
     } for url in punchline_variants if url],
     'num_views':
-    int(joke_data.get('num_viewed_users') or 0),
+    _as_int(joke_data.get('num_viewed_users')),
     'num_saves':
-    int(joke_data.get('num_saved_users') or 0),
+    _as_int(joke_data.get('num_saved_users')),
     'num_shares':
-    int(joke_data.get('num_shared_users') or 0),
+    _as_int(joke_data.get('num_shared_users')),
     'popularity_score':
-    float(joke_data.get('popularity_score') or 0.0),
+    _as_float(joke_data.get('popularity_score')),
     'num_saved_users_fraction':
-    float(joke_data.get('num_saved_users_fraction') or 0.0),
+    _as_float(joke_data.get('num_saved_users_fraction')),
   }
   return flask.jsonify(resp_data)
 
@@ -480,8 +460,8 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
 @auth_helpers.require_admin
 def admin_joke_book_add_joke(book_id: str):
   """Add a joke or multiple jokes to the book."""
-  payload = flask.request.get_json(silent=True) or {}
-  joke_ids = payload.get('joke_ids')
+  payload = _as_object_dict(flask.request.get_json(silent=True))
+  joke_ids = _as_string_list(payload.get('joke_ids'))
 
   if not joke_ids:
     return flask.jsonify({'error': 'joke_ids is required'}), 400
@@ -512,14 +492,14 @@ def admin_joke_book_remove_joke(book_id: str, joke_id: str):
 @auth_helpers.require_admin
 def admin_joke_book_reorder_joke(book_id: str, joke_id: str):
   """Reorder a joke in the book."""
-  payload = flask.request.get_json(silent=True) or {}
+  payload = _as_object_dict(flask.request.get_json(silent=True))
   new_position = payload.get('new_position')
   if new_position is None:
     return flask.jsonify({'error': 'new_position is required'}), 400
 
   try:
     # Convert from 1-based UI index to 0-based list index
-    idx = int(new_position) - 1
+    idx = int(cast(int | float | str, new_position)) - 1
     joke_book_operations.reorder_joke_in_book(book_id, joke_id, idx)
     return flask.jsonify({'status': 'ok'})
   except Exception as exc:
@@ -577,27 +557,17 @@ def admin_joke_book_upload_image():
   gcs_uri = f"gs://{config.IMAGE_BUCKET_NAME}/{gcs_path}"
 
   try:
-    cloud_storage.upload_bytes_to_gcs(png_bytes, gcs_uri, 'image/png')
+    _ = cloud_storage.upload_bytes_to_gcs(png_bytes, gcs_uri, 'image/png')
   except Exception as exc:
     logger.error('Failed to upload image', exc_info=exc)
     return flask.Response('Upload failed', 500)
 
   public_url = cloud_storage.get_public_image_cdn_url(gcs_uri)
-  client = firestore.db()
-  joke_ref = client.collection('jokes').document(joke_id)
-
-  if target_field.startswith('book_page'):
-    metadata_ref = joke_ref.collection('metadata').document('metadata')
-    variant_field = f"all_{target_field}s"
-
-    if not metadata_ref.get().exists:
-      metadata_ref.set({})
-
-    metadata_ref.update({
-      target_field: public_url,
-      variant_field: ArrayUnion([public_url]),
-    })
-  else:
-    joke_ref.update({target_field: public_url})
+  joke_books_firestore.persist_uploaded_joke_image(
+    joke_id=joke_id,
+    book_id=book_id,
+    target_field=target_field,
+    public_url=public_url,
+  )
 
   return flask.jsonify({'url': public_url})

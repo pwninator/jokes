@@ -576,16 +576,21 @@
   <a class="back-link site-footer__link text-button" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
   <div class="page-actions-right">
     <div class="zip-action-group">
+      {% if book.zip_url or book.paperback_pdf_url %}
       {% if book.zip_url %}
       <a class="back-link site-footer__link text-button download-zip-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
+      {% endif %}
+      {% if book.paperback_pdf_url %}
+      <a class="back-link site-footer__link text-button download-paperback-pdf-link" href="{{ book.paperback_pdf_url }}" target="_blank" rel="noopener noreferrer">Download paperback PDF</a>
+      {% endif %}
       {% else %}
-      <span class="muted download-zip-missing">ZIP not generated</span>
+      <span class="muted download-files-missing">Files not generated</span>
       {% endif %}
       <button
-        class="cta-btn nav-cta text-button book-zip-regenerate"
+        class="cta-btn nav-cta text-button book-files-regenerate"
         type="button"
         data-book-id="{{ book.id }}">
-        {% if book.zip_url %}Regenerate ZIP{% else %}Generate ZIP{% endif %}
+        {% if book.zip_url or book.paperback_pdf_url %}Regenerate Files{% else %}Generate Files{% endif %}
       </button>
     </div>
     <button class="cta-btn nav-cta text-button book-page-filter-toggle" type="button">All pages</button>
@@ -804,9 +809,9 @@
     const setMainImageUrl = {{ set_main_image_url | tojson }};
     const jokeCreationUrl = {{ joke_creation_url | tojson }};
     const functionsOrigin = {{ functions_origin | tojson }};
-    const regenerateZipEndpoint = functionsOrigin
-      ? `${functionsOrigin}/update_joke_book_zip`
-      : '/update_joke_book_zip';
+    const regenerateFilesEndpoint = functionsOrigin
+      ? `${functionsOrigin}/update_joke_book_files`
+      : '/update_joke_book_files';
     const activeColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--color-primary-dark')
       .trim() || '#ff0000';
@@ -988,8 +993,8 @@
       tile.style.border = isActive ? activeVariantBorder : inactiveVariantBorder;
     };
 
-    const setupZipRegenerator = () => {
-      const button = document.querySelector('.book-zip-regenerate');
+    const setupFilesRegenerator = () => {
+      const button = document.querySelector('.book-files-regenerate');
       const container = button?.closest('.zip-action-group');
       if (!button || !container) return;
       const bookId = button.dataset.bookId;
@@ -1000,7 +1005,7 @@
         button.disabled = true;
         button.textContent = 'Regenerating...';
         try {
-          const resp = await fetch(regenerateZipEndpoint, {
+          const resp = await fetch(regenerateFilesEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: { joke_book_id: bookId } }),
@@ -1012,32 +1017,45 @@
           }
 
           const payload = await resp.json();
-          const newUrl = payload?.data?.zip_url;
-          if (!newUrl) {
-            throw new Error('zip_url missing from response');
+          const newZipUrl = payload?.data?.zip_url;
+          const newPdfUrl = payload?.data?.paperback_pdf_url;
+          if (!newZipUrl || !newPdfUrl) {
+            throw new Error('export file URLs missing from response');
           }
 
-          let link = container.querySelector('.download-zip-link');
-          if (!link) {
-            link = document.createElement('a');
-            link.className =
+          let zipLink = container.querySelector('.download-zip-link');
+          if (!zipLink) {
+            zipLink = document.createElement('a');
+            zipLink.className =
               'back-link site-footer__link text-button download-zip-link';
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.textContent = 'Download all pages (ZIP)';
-            container.insertBefore(link, button);
+            zipLink.target = '_blank';
+            zipLink.rel = 'noopener noreferrer';
+            zipLink.textContent = 'Download all pages (ZIP)';
+            container.insertBefore(zipLink, button);
           }
-          link.href = newUrl;
+          zipLink.href = newZipUrl;
 
-          const missingLabel = container.querySelector('.download-zip-missing');
+          let pdfLink = container.querySelector('.download-paperback-pdf-link');
+          if (!pdfLink) {
+            pdfLink = document.createElement('a');
+            pdfLink.className =
+              'back-link site-footer__link text-button download-paperback-pdf-link';
+            pdfLink.target = '_blank';
+            pdfLink.rel = 'noopener noreferrer';
+            pdfLink.textContent = 'Download paperback PDF';
+            container.insertBefore(pdfLink, button);
+          }
+          pdfLink.href = newPdfUrl;
+
+          const missingLabel = container.querySelector('.download-files-missing');
           if (missingLabel) {
             missingLabel.remove();
           }
 
-          button.textContent = 'Regenerate ZIP';
+          button.textContent = 'Regenerate Files';
         } catch (error) {
-          console.error('Failed to regenerate ZIP', error);
-          alert(error?.message || 'Failed to regenerate ZIP');
+          console.error('Failed to regenerate files', error);
+          alert(error?.message || 'Failed to regenerate files');
           button.textContent = originalLabel;
         } finally {
           button.disabled = false;
@@ -1474,7 +1492,7 @@
         });
     }
 
-    setupZipRegenerator();
+    setupFilesRegenerator();
 
     forms.forEach((form) => {
       const revealBtn = form.querySelector('.reveal-btn');

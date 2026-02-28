@@ -1,7 +1,5 @@
 """Tests for the joke_book_fns module."""
 import json
-import zipfile
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from common import models
@@ -36,99 +34,27 @@ class DummyReq:
     raise TypeError("Request is not JSON")
 
 
-@patch('functions.joke_book_fns.firestore')
-def test_get_joke_book_returns_html(mock_firestore):
+@patch('functions.joke_book_fns.joke_books_firestore')
+def test_get_joke_book_returns_html(mock_joke_books_firestore):
   """Test that get_joke_book returns a valid HTML page."""
-  # Arrange
   joke_book_id = "test_book_123"
-
-  # Mock Firestore snapshots
-  mock_book_snapshot = MagicMock()
-  mock_book_snapshot.exists = True
-  mock_book_snapshot.to_dict.return_value = {
-    "book_name": "My Test Joke Book",
-    "jokes": ["joke1", "joke2"],
-    "zip_url": "https://cdn.example.com/book.zip",
-  }
-
-  mock_joke1_snapshot = MagicMock()
-  mock_joke1_snapshot.exists = True
-  mock_joke1_snapshot.to_dict.return_value = {
-    "setup_text": "test_setup1",
-    "punchline_text": "test_punchline1",
-    "setup_image_url_upscaled": "http://example.com/setup1-upscaled.png",
-    "punchline_image_url_upscaled":
-    "http://example.com/punchline1-upscaled.png",
-  }
-
-  mock_joke2_snapshot = MagicMock()
-  mock_joke2_snapshot.exists = True
-  mock_joke2_snapshot.to_dict.return_value = {
-    "setup_text": "test_setup2",
-    "punchline_text": "test_punchline2",
-    "setup_image_url_upscaled": "http://example.com/setup2-upscaled.png",
-    "punchline_image_url_upscaled":
-    "http://example.com/punchline2-upscaled.png",
-  }
-
-  mock_meta1 = MagicMock()
-  mock_meta1.exists = True
-  mock_meta1.to_dict.return_value = {
-    "book_page_setup_image_url": "http://example.com/page_setup1.tif",
-    "book_page_punchline_image_url": "http://example.com/page_punchline1.tif",
-  }
-
-  mock_meta2 = MagicMock()
-  mock_meta2.exists = True
-  mock_meta2.to_dict.return_value = {
-    "book_page_setup_image_url": "http://example.com/page_setup2.tif",
-    "book_page_punchline_image_url": "http://example.com/page_punchline2.tif",
-  }
-
-  mock_db = MagicMock()
-  mock_firestore.db.return_value = mock_db
-
-  joke_books_collection = MagicMock()
-  jokes_collection = MagicMock()
-
-  def collection_side_effect(name):
-    if name == "joke_books":
-      return joke_books_collection
-    if name == "jokes":
-      return jokes_collection
-    return MagicMock()
-
-  mock_db.collection.side_effect = collection_side_effect
-
-  # joke_books collection
-  book_doc_ref = MagicMock()
-  book_doc_ref.get.return_value = mock_book_snapshot
-  joke_books_collection.document.return_value = book_doc_ref
-
-  # jokes collection with nested metadata subcollection
-  def jokes_document_side_effect(doc_id):
-    joke_ref = MagicMock()
-    if doc_id == "joke1":
-      joke_ref.get.return_value = mock_joke1_snapshot
-      metadata_collection = MagicMock()
-      metadata_doc_ref = MagicMock()
-      metadata_doc_ref.get.return_value = mock_meta1
-      metadata_collection.document.return_value = metadata_doc_ref
-      joke_ref.collection.return_value = metadata_collection
-    elif doc_id == "joke2":
-      joke_ref.get.return_value = mock_joke2_snapshot
-      metadata_collection = MagicMock()
-      metadata_doc_ref = MagicMock()
-      metadata_doc_ref.get.return_value = mock_meta2
-      metadata_collection.document.return_value = metadata_doc_ref
-      joke_ref.collection.return_value = metadata_collection
-    else:
-      joke_not_found = MagicMock()
-      joke_not_found.exists = False
-      joke_ref.get.return_value = joke_not_found
-    return joke_ref
-
-  jokes_collection.document.side_effect = jokes_document_side_effect
+  mock_joke_books_firestore.get_book_page_spread_urls.return_value = (
+    models.JokeBook(
+      id=joke_book_id,
+      book_name="My Test Joke Book",
+      jokes=["joke1", "joke2"],
+      zip_url="https://cdn.example.com/book.zip",
+      paperback_pdf_url="https://cdn.example.com/book_paperback.pdf",
+    ),
+    [
+      "http://example.com/page_setup1.tif",
+      "http://example.com/page_setup2.tif",
+    ],
+    [
+      "http://example.com/page_punchline1.tif",
+      "http://example.com/page_punchline2.tif",
+    ],
+  )
 
   req = DummyReq(path=f"/joke-book/{joke_book_id}")
 
@@ -146,76 +72,20 @@ def test_get_joke_book_returns_html(mock_firestore):
   assert '<h1>My Test Joke Book</h1>' in html_content
   # Download link should point to the stored zip_url
   assert 'href="https://cdn.example.com/book.zip"' in html_content
+  assert 'href="https://cdn.example.com/book_paperback.pdf"' in html_content
   assert '<img src="http://example.com/page_setup1.tif"' in html_content
   assert '<img src="http://example.com/page_punchline1.tif"' in html_content
   assert '<img src="http://example.com/page_setup2.tif"' in html_content
   assert '<img src="http://example.com/page_punchline2.tif"' in html_content
 
 
-@patch('functions.joke_book_fns.firestore')
-def test_get_joke_book_errors_when_book_pages_missing(mock_firestore):
+@patch('functions.joke_book_fns.joke_books_firestore')
+def test_get_joke_book_errors_when_book_pages_missing(
+    mock_joke_books_firestore):
   """get_joke_book should error if any joke is missing book page images."""
   joke_book_id = "test_book_missing_pages"
-
-  mock_book_snapshot = MagicMock()
-  mock_book_snapshot.exists = True
-  mock_book_snapshot.to_dict.return_value = {
-    "book_name": "Book With Missing Pages",
-    "jokes": ["joke1"],
-  }
-
-  mock_joke_snapshot = MagicMock()
-  mock_joke_snapshot.exists = True
-  mock_joke_snapshot.to_dict.return_value = {
-    "setup_text": "setup",
-    "punchline_text": "punchline",
-    "setup_image_url_upscaled": "http://example.com/setup-upscaled.png",
-    "punchline_image_url_upscaled":
-    "http://example.com/punchline-upscaled.png",
-  }
-
-  # Metadata exists but lacks book page URLs
-  mock_meta = MagicMock()
-  mock_meta.exists = True
-  mock_meta.to_dict.return_value = {}
-
-  mock_db = MagicMock()
-  mock_firestore.db.return_value = mock_db
-
-  joke_books_collection = MagicMock()
-  jokes_collection = MagicMock()
-
-  def collection_side_effect(name):
-    if name == "joke_books":
-      return joke_books_collection
-    if name == "jokes":
-      return jokes_collection
-    return MagicMock()
-
-  mock_db.collection.side_effect = collection_side_effect
-
-  # joke_books collection
-  book_doc_ref = MagicMock()
-  book_doc_ref.get.return_value = mock_book_snapshot
-  joke_books_collection.document.return_value = book_doc_ref
-
-  # jokes collection with metadata missing book page URLs
-  def jokes_document_side_effect(doc_id):
-    joke_ref = MagicMock()
-    if doc_id == "joke1":
-      joke_ref.get.return_value = mock_joke_snapshot
-      metadata_collection = MagicMock()
-      metadata_doc_ref = MagicMock()
-      metadata_doc_ref.get.return_value = mock_meta
-      metadata_collection.document.return_value = metadata_doc_ref
-      joke_ref.collection.return_value = metadata_collection
-    else:
-      joke_not_found = MagicMock()
-      joke_not_found.exists = False
-      joke_ref.get.return_value = joke_not_found
-    return joke_ref
-
-  jokes_collection.document.side_effect = jokes_document_side_effect
+  mock_joke_books_firestore.get_book_page_spread_urls.side_effect = ValueError(
+    'Joke joke1 does not have book page images')
 
   req = DummyReq(path=f"/joke-book/{joke_book_id}")
 
@@ -232,12 +102,15 @@ def test_get_joke_book_errors_when_book_pages_missing(mock_firestore):
 
 
 @patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
-@patch('functions.joke_book_fns.image_operations.zip_joke_page_images_for_kdp')
+@patch(
+  'functions.joke_book_fns.image_operations.export_joke_page_files_for_kdp')
 @patch(
   'functions.joke_book_fns.image_operations.generate_and_populate_book_pages')
+@patch('functions.joke_book_fns.joke_books_firestore')
 @patch('functions.joke_book_fns.firestore')
 def test_create_book_uses_top_jokes_when_joke_ids_missing(
-    mock_firestore, mock_generate_pages, mock_zip_pages, mock_get_user_id):
+    mock_firestore, mock_joke_books_firestore, mock_generate_pages,
+    mock_export_files, mock_get_user_id):
   """create_book should use top jokes when joke_ids is not provided."""
   # Arrange
   top_joke1 = MagicMock()
@@ -245,13 +118,10 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   top_joke2 = MagicMock()
   top_joke2.key = "j2"
   mock_firestore.get_top_jokes.return_value = [top_joke1, top_joke2]
-  mock_zip_pages.return_value = 'https://cdn.example.com/book.zip'
-
-  mock_collection = MagicMock()
-  mock_doc_ref = MagicMock()
-  mock_collection.document.return_value = mock_doc_ref
-  mock_firestore.db.return_value.collection.return_value = mock_collection
-
+  mock_export_files.return_value = MagicMock(
+    zip_url='https://cdn.example.com/book.zip',
+    paperback_pdf_url='https://cdn.example.com/book_paperback.pdf',
+  )
   # Provide a deterministic doc id
   joke_book_fns.utils.create_timestamped_firestore_key = lambda user_id: "book123"
 
@@ -269,14 +139,14 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
     'popularity_score_recent',
     joke_book_fns.NUM_TOP_JOKES_FOR_BOOKS,
   )
-  mock_zip_pages.assert_called_once_with(['j1', 'j2'])
-  mock_doc_ref.set.assert_called_once_with({
-    'book_name':
-    'My Auto Book',
-    'jokes': ['j1', 'j2'],
-    'zip_url':
-    'https://cdn.example.com/book.zip',
-  })
+  mock_export_files.assert_called_once_with(['j1', 'j2'])
+  created_book = mock_joke_books_firestore.create_joke_book.call_args.args[0]
+  assert created_book.id == 'book123'
+  assert created_book.book_name == 'My Auto Book'
+  assert created_book.jokes == ['j1', 'j2']
+  assert created_book.zip_url == 'https://cdn.example.com/book.zip'
+  assert created_book.paperback_pdf_url == (
+    'https://cdn.example.com/book_paperback.pdf')
   mock_generate_pages.assert_any_call('j1', overwrite=True)
   mock_generate_pages.assert_any_call('j2', overwrite=True)
   assert isinstance(resp, https_fn.Response)
@@ -323,45 +193,39 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
   assert updates['book_page_punchline_image_prompt'] == "punch-final-prompt"
 
 
-@patch('functions.joke_book_fns.image_operations.zip_joke_page_images_for_kdp')
-@patch('functions.joke_book_fns.firestore')
-def test_update_joke_book_zip_regenerates_and_updates(mock_firestore,
-                                                      mock_zip_joke_pages):
-  """update_joke_book_zip should regenerate the zip and persist the URL."""
+@patch(
+  'functions.joke_book_fns.image_operations.export_joke_page_files_for_kdp')
+@patch('functions.joke_book_fns.joke_books_firestore')
+def test_update_joke_book_files_regenerates_and_updates(
+    mock_joke_books_firestore, mock_export_files):
+  """update_joke_book_files should regenerate both export files and persist the URLs."""
   book_id = 'book123'
   joke_ids = ['j1', 'j2']
 
-  mock_zip_joke_pages.return_value = 'https://cdn.example.com/new.zip'
+  mock_export_files.return_value = MagicMock(
+    zip_url='https://cdn.example.com/new.zip',
+    paperback_pdf_url='https://cdn.example.com/new_paperback.pdf',
+  )
 
-  mock_book_snapshot = MagicMock()
-  mock_book_snapshot.exists = True
-  mock_book_snapshot.to_dict.return_value = {'jokes': joke_ids}
-
-  mock_db = MagicMock()
-  joke_books_collection = MagicMock()
-  book_doc_ref = MagicMock()
-  book_doc_ref.get.return_value = mock_book_snapshot
-  joke_books_collection.document.return_value = book_doc_ref
-
-  def collection_side_effect(name):
-    if name == 'joke_books':
-      return joke_books_collection
-    return MagicMock()
-
-  mock_db.collection.side_effect = collection_side_effect
-  mock_firestore.db.return_value = mock_db
+  mock_joke_books_firestore.get_joke_book.return_value = models.JokeBook(
+    id=book_id,
+    jokes=joke_ids,
+  )
 
   req = DummyReq(
-    path='/update_joke_book_zip',
+    path='/update_joke_book_files',
     args={'joke_book_id': book_id},
     method='POST',
   )
 
-  resp = joke_book_fns.update_joke_book_zip(req)
+  resp = joke_book_fns.update_joke_book_files(req)
 
-  mock_zip_joke_pages.assert_called_once_with(joke_ids)
-  book_doc_ref.update.assert_called_once_with(
-    {'zip_url': 'https://cdn.example.com/new.zip'})
+  mock_export_files.assert_called_once_with(joke_ids)
+  mock_joke_books_firestore.update_joke_book_export_files.assert_called_once_with(
+    book_id,
+    zip_url='https://cdn.example.com/new.zip',
+    paperback_pdf_url='https://cdn.example.com/new_paperback.pdf',
+  )
   assert isinstance(resp, https_fn.Response)
   assert resp.status_code == 200
   payload = json.loads(resp.get_data(as_text=True))
@@ -369,52 +233,40 @@ def test_update_joke_book_zip_regenerates_and_updates(mock_firestore,
     'data': {
       'book_id': book_id,
       'zip_url': 'https://cdn.example.com/new.zip',
+      'paperback_pdf_url': 'https://cdn.example.com/new_paperback.pdf',
     }
   }
 
 
-@patch('functions.joke_book_fns.firestore')
-def test_update_joke_book_zip_errors_when_no_jokes(mock_firestore):
-  """update_joke_book_zip should error if jokes list is empty."""
+@patch('functions.joke_book_fns.joke_books_firestore')
+def test_update_joke_book_files_errors_when_no_jokes(
+    mock_joke_books_firestore):
+  """update_joke_book_files should error if jokes list is empty."""
   book_id = 'book-empty'
-
-  mock_book_snapshot = MagicMock()
-  mock_book_snapshot.exists = True
-  mock_book_snapshot.to_dict.return_value = {'jokes': []}
-
-  mock_db = MagicMock()
-  joke_books_collection = MagicMock()
-  book_doc_ref = MagicMock()
-  book_doc_ref.get.return_value = mock_book_snapshot
-  joke_books_collection.document.return_value = book_doc_ref
-
-  def collection_side_effect(name):
-    if name == 'joke_books':
-      return joke_books_collection
-    return MagicMock()
-
-  mock_db.collection.side_effect = collection_side_effect
-  mock_firestore.db.return_value = mock_db
+  mock_joke_books_firestore.get_joke_book.return_value = models.JokeBook(
+    id=book_id,
+    jokes=[],
+  )
 
   req = DummyReq(
-    path='/update_joke_book_zip',
+    path='/update_joke_book_files',
     args={'joke_book_id': book_id},
     method='POST',
   )
 
-  resp = joke_book_fns.update_joke_book_zip(req)
+  resp = joke_book_fns.update_joke_book_files(req)
 
   assert isinstance(resp, https_fn.Response)
   assert resp.status_code == 400
   payload = json.loads(resp.get_data(as_text=True))
-  assert payload == {'data': {'error': 'Joke book has no jokes to zip'}}
+  assert payload == {'data': {'error': 'Joke book has no jokes to export'}}
 
 
 @patch(
   'functions.joke_book_fns.image_operations.generate_and_populate_book_pages')
 def test_generate_joke_book_page_allows_base_image_source(mock_generate_pages):
-  mock_generate_pages.return_value = (MagicMock(url='setup'), MagicMock(
-    url='punch'))
+  mock_generate_pages.return_value = (MagicMock(url='setup'),
+                                      MagicMock(url='punch'))
   req = DummyReq(
     path='/generate_joke_book_page',
     args={
@@ -429,8 +281,8 @@ def test_generate_joke_book_page_allows_base_image_source(mock_generate_pages):
   mock_generate_pages.assert_called_once_with(
     'j123',
     overwrite=True,
-    additional_setup_instructions=None,
-    additional_punchline_instructions=None,
+    additional_setup_instructions='',
+    additional_punchline_instructions='',
     base_image_source='book_page',
     style_update=False,
     include_image_description=True,
@@ -457,8 +309,4 @@ def test_generate_joke_book_page_rejects_invalid_base_image_source():
   assert isinstance(resp, https_fn.Response)
   assert resp.status_code == 400
   payload = json.loads(resp.get_data(as_text=True))
-  assert payload == {
-    'data': {
-      'error': 'Invalid base_image_source: invalid'
-    }
-  }
+  assert payload == {'data': {'error': 'Invalid base_image_source: invalid'}}

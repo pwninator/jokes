@@ -681,7 +681,8 @@ class CreateBookPagesTest(unittest.TestCase):
       overwrite=False,
     )
 
-    self.assertEqual(result[0].url, 'https://cdn.example.com/existing_setup.jpg')
+    self.assertEqual(result[0].url,
+                     'https://cdn.example.com/existing_setup.jpg')
     self.assertEqual(result[1].url,
                      'https://cdn.example.com/existing_punchline.jpg')
     mock_firestore.update_punny_joke.assert_not_called()
@@ -1430,26 +1431,27 @@ class AddPageNumberToImageTest(unittest.TestCase):
     )
 
 
-class ZipJokePageImagesTest(unittest.TestCase):
-  """Tests for zip_joke_page_images function."""
+class ExportJokePageFilesTest(unittest.TestCase):
+  """Tests for joke-book ZIP/PDF export."""
 
   @patch('common.image_operations._convert_for_print_kdp')
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
   @patch('common.image_operations.cloud_storage.download_image_from_gcs')
-  @patch(
-    'common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
+  @patch('common.image_operations._build_joke_book_export_uris')
+  @patch('common.image_operations.pdf_client.create_pdf')
   @patch('common.image_operations.firestore')
-  def test_zip_joke_page_images_builds_zip_and_uploads(
+  def test_export_joke_page_files_builds_zip_and_pdf_and_uploads(
     self,
     mock_firestore,
-    mock_extract_gcs_uri,
+    mock_create_pdf,
+    mock_build_export_uris,
     mock_download_image,
     mock_upload_bytes,
     mock_get_public_url,
     mock_convert_for_print,
   ):
-    """zip_joke_page_images should upload a ZIP and return its public URL."""
+    """export_joke_page_files_for_kdp should upload ZIP and PDF and return both URLs."""
     joke_ids = ['joke1']
 
     # Firestore metadata for book pages
@@ -1490,16 +1492,6 @@ class ZipJokePageImagesTest(unittest.TestCase):
 
     jokes_collection.document.side_effect = jokes_document_side_effect
 
-    # Cloud Storage helpers
-    def extract_side_effect(url):
-      if url == setup_url:
-        return "gs://bucket/setup1.jpg"
-      if url == punch_url:
-        return "gs://bucket/punch1.png"
-      raise ValueError(f"Unexpected URL {url}")
-
-    mock_extract_gcs_uri.side_effect = extract_side_effect
-
     def download_side_effect(resource):
       if resource == setup_url:
         return Image.new('RGB', (10, 10), 'red')
@@ -1510,24 +1502,43 @@ class ZipJokePageImagesTest(unittest.TestCase):
     mock_download_image.side_effect = download_side_effect
 
     mock_convert_for_print.side_effect = [b'setup-kdp', b'punchline-kdp']
-
-    mock_get_public_url.return_value = 'https://cdn.example.com/book.zip'
+    mock_create_pdf.return_value = b'%PDF-export'
+    mock_build_export_uris.return_value = (
+      'gs://snickerdoodle_temp_files/joke_book_pages.zip',
+      'gs://snickerdoodle_temp_files/joke_book_pages_paperback.pdf',
+    )
+    mock_get_public_url.side_effect = [
+      'https://cdn.example.com/book.zip',
+      'https://cdn.example.com/book_paperback.pdf',
+    ]
 
     # Act
-    result_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
+    result = image_operations.export_joke_page_files_for_kdp(joke_ids)
 
-    # Assert URL is returned
-    self.assertEqual(result_url, 'https://cdn.example.com/book.zip')
+    # Assert URLs are returned
+    self.assertEqual(result.zip_url, 'https://cdn.example.com/book.zip')
+    self.assertEqual(result.paperback_pdf_url,
+                     'https://cdn.example.com/book_paperback.pdf')
 
-    # One ZIP upload with application/zip content type
-    mock_upload_bytes.assert_called_once()
-    upload_args, upload_kwargs = mock_upload_bytes.call_args
-    self.assertIsInstance(upload_args[0], (bytes, bytearray))
-    self.assertEqual(upload_args[2], 'application/zip')
-    self.assertEqual(upload_kwargs, {})
+    self.assertEqual(mock_upload_bytes.call_count, 2)
+    zip_upload_args, zip_upload_kwargs = mock_upload_bytes.call_args_list[0]
+    self.assertIsInstance(zip_upload_args[0], (bytes, bytearray))
+    self.assertEqual(zip_upload_args[1],
+                     'gs://snickerdoodle_temp_files/joke_book_pages.zip')
+    self.assertEqual(zip_upload_args[2], 'application/zip')
+    self.assertEqual(zip_upload_kwargs, {})
+
+    pdf_upload_args, pdf_upload_kwargs = mock_upload_bytes.call_args_list[1]
+    self.assertEqual(pdf_upload_args[0], b'%PDF-export')
+    self.assertEqual(
+      pdf_upload_args[1],
+      'gs://snickerdoodle_temp_files/joke_book_pages_paperback.pdf',
+    )
+    self.assertEqual(pdf_upload_args[2], 'application/pdf')
+    self.assertEqual(pdf_upload_kwargs, {})
 
     # Inspect ZIP structure
-    zip_bytes = upload_args[0]
+    zip_bytes = zip_upload_args[0]
     with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
       names = sorted(zip_file.namelist())
       self.assertEqual(names, [
@@ -1556,6 +1567,12 @@ class ZipJokePageImagesTest(unittest.TestCase):
     self.assertEqual(punchline_call.kwargs['page_number'], 2)
     self.assertEqual(punchline_call.kwargs['total_pages'], 2)
     self.assertTrue(punchline_call.kwargs['is_punchline'])
+
+    pdf_call = mock_create_pdf.call_args
+    self.assertEqual(pdf_call.kwargs, {'dpi': 300, 'quality': 100})
+    pdf_images = pdf_call.args[0]
+    self.assertEqual(pdf_images[1:], [b'setup-kdp', b'punchline-kdp'])
+    self.assertIsInstance(pdf_images[0], (bytes, bytearray))
 
 
 if __name__ == '__main__':

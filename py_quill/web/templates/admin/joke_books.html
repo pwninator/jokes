@@ -13,7 +13,7 @@
       <th scope="col">Book name</th>
       <th scope="col">Document ID</th>
       <th scope="col">Jokes</th>
-      <th scope="col">ZIP</th>
+      <th scope="col">Files</th>
     </tr>
   </thead>
   <tbody>
@@ -24,20 +24,29 @@
       <td>{{ book.joke_count }}</td>
       <td>
         <div class="zip-actions" data-book-id="{{ book.id }}">
+          {% if book.zip_url or book.paperback_pdf_url %}
           {% if book.zip_url %}
           <a class="zip-link text-button"
             href="{{ book.zip_url }}"
             data-book-id="{{ book.id }}"
             target="_blank"
             rel="noopener noreferrer">Download</a>
+          {% endif %}
+          {% if book.paperback_pdf_url %}
+          <a class="paperback-pdf-link text-button"
+            href="{{ book.paperback_pdf_url }}"
+            data-book-id="{{ book.id }}"
+            target="_blank"
+            rel="noopener noreferrer">Paperback PDF</a>
+          {% endif %}
           {% else %}
-          <span class="muted zip-missing-label">Not generated</span>
+          <span class="muted files-missing-label">Not generated</span>
           {% endif %}
           <button
             type="button"
-            class="text-button regenerate-zip-button"
+            class="text-button regenerate-files-button"
             data-book-id="{{ book.id }}">
-            {% if book.zip_url %}Regenerate ZIP{% else %}Generate ZIP{% endif %}
+            {% if book.zip_url or book.paperback_pdf_url %}Regenerate Files{% else %}Generate Files{% endif %}
           </button>
         </div>
       </td>
@@ -49,10 +58,10 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const functionsOrigin = {{ functions_origin | tojson }};
-    const regenerateZipEndpoint = functionsOrigin
-      ? `${functionsOrigin}/update_joke_book_zip`
-      : '/update_joke_book_zip';
-    const buttons = document.querySelectorAll('.regenerate-zip-button');
+    const regenerateFilesEndpoint = functionsOrigin
+      ? `${functionsOrigin}/update_joke_book_files`
+      : '/update_joke_book_files';
+    const buttons = document.querySelectorAll('.regenerate-files-button');
     buttons.forEach((button) => {
       button.addEventListener('click', async () => {
         const bookId = button.dataset.bookId;
@@ -63,14 +72,14 @@
         const actions = button.closest('.zip-actions');
         const linkSelector = `.zip-link[data-book-id="${bookId}"]`;
         let link = actions?.querySelector(linkSelector);
-        const missingLabel = actions?.querySelector('.zip-missing-label');
+        const missingLabel = actions?.querySelector('.files-missing-label');
         const originalLabel = button.textContent;
 
         button.disabled = true;
         button.textContent = 'Regenerating…';
 
         try {
-          const resp = await fetch(regenerateZipEndpoint, {
+          const resp = await fetch(regenerateFilesEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -84,34 +93,51 @@
           }
 
           const payload = await resp.json();
-          const newUrl = payload?.data?.zip_url;
-          if (!newUrl) {
-            throw new Error('zip_url missing from response');
+          const newZipUrl = payload?.data?.zip_url;
+          const newPdfUrl = payload?.data?.paperback_pdf_url;
+          if (!newZipUrl || !newPdfUrl) {
+            throw new Error('export file URLs missing from response');
           }
 
           if (!link && actions) {
             link = document.createElement('a');
             link.className = 'zip-link text-button';
             link.dataset.bookId = bookId;
-            link.textContent = 'Download';
+            link.textContent = 'Download ZIP';
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             actions.insertBefore(link, button);
           }
 
           if (link) {
-            link.href = newUrl;
+            link.href = newZipUrl;
             link.removeAttribute('aria-disabled');
+          }
+
+          let pdfLink = actions?.querySelector(`.paperback-pdf-link[data-book-id="${bookId}"]`);
+          if (!pdfLink && actions) {
+            pdfLink = document.createElement('a');
+            pdfLink.className = 'paperback-pdf-link text-button';
+            pdfLink.dataset.bookId = bookId;
+            pdfLink.textContent = 'Paperback PDF';
+            pdfLink.target = '_blank';
+            pdfLink.rel = 'noopener noreferrer';
+            actions.insertBefore(pdfLink, button);
+          }
+
+          if (pdfLink) {
+            pdfLink.href = newPdfUrl;
+            pdfLink.removeAttribute('aria-disabled');
           }
 
           if (missingLabel) {
             missingLabel.remove();
           }
 
-          button.textContent = 'Regenerate ZIP';
+          button.textContent = 'Regenerate Files';
         } catch (error) {
-          console.error('Failed to regenerate ZIP', error);
-          alert(error?.message || 'Failed to regenerate ZIP');
+          console.error('Failed to regenerate files', error);
+          alert(error?.message || 'Failed to regenerate files');
           button.textContent = originalLabel;
         } finally {
           button.disabled = false;

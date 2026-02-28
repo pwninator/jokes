@@ -17,7 +17,7 @@ from firebase_functions import logger
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from google.cloud.firestore_v1.document import DocumentReference
 from PIL import Image, ImageDraw, ImageFont
-from services import cloud_storage, firestore, image_client, image_editor
+from services import cloud_storage, firestore, image_client, image_editor, pdf_client
 
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
@@ -65,6 +65,13 @@ _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
 
+@dataclass(frozen=True)
+class JokeBookExportFiles:
+  """Public URLs for generated joke-book export files."""
+  zip_url: str
+  paperback_pdf_url: str
+
+
 def create_blank_book_cover(*, color_mode: str) -> bytes:
   """Create a blank JPEG cover image matching book page dimensions.
 
@@ -96,21 +103,8 @@ def create_blank_book_cover(*, color_mode: str) -> bytes:
   return buffer.getvalue()
 
 
-def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
-  """Create and store a ZIP of book page images for the given jokes.
-
-  The ZIP will contain sequentially numbered setup/punchline pages for each joke, using the original file names with a three-digit page prefix
-
-  Args:
-    joke_ids: Ordered list of joke document IDs.
-
-  Returns:
-    Public URL of the stored ZIP file.
-
-  Raises:
-    ValueError: If the joke list is empty, a joke is missing, or required
-      metadata/images are missing.
-  """
+def _build_kdp_export_pages(joke_ids: list[str]) -> list[tuple[str, bytes]]:
+  """Build ordered print-ready page files for joke-book exports."""
   if not joke_ids:
     raise ValueError("Joke book has no jokes")
 
@@ -171,7 +165,11 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
     files.append((setup_file_name, setup_bytes))
     files.append((punchline_file_name, punchline_bytes))
 
-  # Build ZIP in memory
+  return files
+
+
+def _build_zip_bytes(files: list[tuple[str, bytes]]) -> bytes:
+  """Build a ZIP archive from the provided file list."""
   zip_buffer = BytesIO()
   with zipfile.ZipFile(
       zip_buffer,
@@ -180,22 +178,43 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
   ) as zip_file:
     for filename, content in files:
       zip_file.writestr(filename, content)
+  return zip_buffer.getvalue()
 
-  zip_bytes = zip_buffer.getvalue()
 
-  # Store ZIP in temporary files bucket and return its public URL
-  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-  gcs_uri = cloud_storage.get_gcs_uri(
-    'snickerdoodle_temp_files',
-    f'joke_book_pages_{timestamp}',
-    'zip',
+def _build_joke_book_export_uris() -> tuple[str, str]:
+  """Return paired GCS URIs for the ZIP and paperback PDF exports."""
+  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+  bucket_name = 'snickerdoodle_temp_files'
+  base_name = f'joke_book_pages_{timestamp}'
+  zip_gcs_uri = f'gs://{bucket_name}/{base_name}.zip'
+  pdf_gcs_uri = f'gs://{bucket_name}/{base_name}_paperback.pdf'
+  return zip_gcs_uri, pdf_gcs_uri
+
+
+def export_joke_page_files_for_kdp(joke_ids: list[str]) -> JokeBookExportFiles:
+  """Create and store the ZIP and paperback PDF for a joke-book export."""
+  files = _build_kdp_export_pages(joke_ids)
+  zip_bytes = _build_zip_bytes(files)
+  pdf_bytes = pdf_client.create_pdf(
+    [content for _, content in files],
+    dpi=300,
+    quality=100,
   )
+  zip_gcs_uri, pdf_gcs_uri = _build_joke_book_export_uris()
   _ = cloud_storage.upload_bytes_to_gcs(
     zip_bytes,
-    gcs_uri,
+    zip_gcs_uri,
     'application/zip',
   )
-  return cloud_storage.get_public_url(gcs_uri)
+  _ = cloud_storage.upload_bytes_to_gcs(
+    pdf_bytes,
+    pdf_gcs_uri,
+    'application/pdf',
+  )
+  return JokeBookExportFiles(
+    zip_url=cloud_storage.get_public_url(zip_gcs_uri),
+    paperback_pdf_url=cloud_storage.get_public_url(pdf_gcs_uri),
+  )
 
 
 def generate_and_populate_book_pages(
@@ -512,7 +531,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire scene—backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneâ€”backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.

@@ -85,7 +85,7 @@ send_daily_joke_scheduler = joke_notification_fns.send_daily_joke_scheduler
 create_joke_book = joke_book_fns.create_joke_book
 get_joke_book = joke_book_fns.get_joke_book
 generate_joke_book_page = joke_book_fns.generate_joke_book_page
-update_joke_book_zip = joke_book_fns.update_joke_book_zip
+update_joke_book_files = joke_book_fns.update_joke_book_files
 
 # Export the admin functions
 # set_user_role = admin_fns.set_user_role

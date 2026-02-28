@@ -4,18 +4,37 @@ from io import BytesIO
 from typing import Any
 
 import img2pdf
-from PIL import Image
-
 from common import models
+from PIL import Image
 from services import cloud_storage
 
 
+def _can_embed_jpeg_bytes(
+  image_bytes: bytes,
+  *,
+  page_width: int | None,
+  page_height: int | None,
+) -> bool:
+  """Return True when JPEG bytes can be embedded into the PDF unchanged."""
+  try:
+    with Image.open(BytesIO(image_bytes)) as image:
+      if image.format != 'JPEG':
+        return False
+      if image.mode != 'RGB':
+        return False
+      if page_width is not None and page_height is not None:
+        return image.size == (page_width, page_height)
+      return True
+  except OSError:
+    return False
+
+
 def create_pdf(
-    images: list[Any],
-    dpi: int = 300,
-    quality: int = 80,
-    page_width: int | None = None,
-    page_height: int | None = None,
+  images: list[Any],
+  dpi: int = 300,
+  quality: int = 80,
+  page_width: int | None = None,
+  page_height: int | None = None,
 ) -> bytes:
   """Creates a PDF from a list of images.
 
@@ -38,6 +57,13 @@ def create_pdf(
     if isinstance(image_item, Image.Image):
       img = image_item
     elif isinstance(image_item, bytes):
+      if _can_embed_jpeg_bytes(
+          image_item,
+          page_width=page_width,
+          page_height=page_height,
+      ):
+        jpeg_bytes_list.append(image_item)
+        continue
       img = Image.open(BytesIO(image_item))
     elif isinstance(image_item, str):
       img = cloud_storage.download_image_from_gcs(image_item)
@@ -71,4 +97,6 @@ def create_pdf(
   # img2pdf.convert can take a list of bytes
   pdf_bytes = img2pdf.convert(jpeg_bytes_list)
 
+  if not pdf_bytes:
+    raise ValueError("No images to convert to PDF")
   return pdf_bytes

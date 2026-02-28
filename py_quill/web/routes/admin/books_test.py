@@ -5,11 +5,9 @@ from __future__ import annotations
 from io import BytesIO
 from unittest.mock import Mock
 
-from google.cloud.firestore import ArrayUnion
 from PIL import Image
 
 from functions import auth_helpers
-from services import firestore as firestore_service
 from web.app import app
 from web.routes.admin import admin_books as books_routes
 
@@ -29,70 +27,20 @@ def _make_image_bytes(format_name: str) -> bytes:
   return buffer.getvalue()
 
 
-class _FakeSnapshot:
-
-  def __init__(self, doc_id: str, data: dict | None, exists: bool = True):
-    self.id = doc_id
-    self._data = data
-    self.exists = exists
-
-  def to_dict(self):
-    return self._data
-
-
-class _FakeDocumentRef:
-
-  def __init__(self,
-               snapshot: _FakeSnapshot,
-               subcollections: dict[str, "_FakeCollection"] | None = None):
-    self._snapshot = snapshot
-    self._subcollections = subcollections or {}
-
-  def get(self):
-    return self._snapshot
-
-  def collection(self, name: str):
-    return self._subcollections.get(name, _FakeCollection({}))
-
-
-class _FakeCollection:
-
-  def __init__(self, docs: dict[str, _FakeDocumentRef]):
-    self._docs = docs
-
-  def stream(self):
-    return [doc.get() for doc in self._docs.values()]
-
-  def document(self, doc_id: str):
-    return self._docs.get(
-      doc_id, _FakeDocumentRef(_FakeSnapshot(doc_id, None, exists=False)))
-
-
-class _FakeFirestore:
-
-  def __init__(self, books: dict[str, _FakeDocumentRef],
-               jokes: dict[str, _FakeDocumentRef]):
-    self._books = books
-    self._jokes = jokes
-
-  def collection(self, name: str):
-    if name == "joke_books":
-      return _FakeCollection(self._books)
-    if name == "jokes":
-      return _FakeCollection(self._jokes)
-    return _FakeCollection({})
-
-
 def test_admin_joke_books_links_to_detail(monkeypatch):
   """Admin list page links to the detail view."""
   _mock_admin_session(monkeypatch)
-  book_doc = _FakeSnapshot("book-1", {
-    "book_name": "Pirate Jokes",
-    "jokes": ["joke-a", "joke-b"],
-  })
-  books = {"book-1": _FakeDocumentRef(book_doc)}
-  fake_db = _FakeFirestore(books=books, jokes={})
-  monkeypatch.setattr(firestore_service, "db", lambda: fake_db)
+  monkeypatch.setattr(
+    books_routes.joke_books_firestore,
+    "list_joke_books",
+    lambda: [
+      books_routes.models.JokeBook(
+        id='book-1',
+        book_name='Pirate Jokes',
+        jokes=['joke-a', 'joke-b'],
+      )
+    ],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/joke-books')
@@ -113,57 +61,57 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   punchline_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
                    "width=1024,format=auto,quality=75/path/punchline.png")
 
-  metadata_doc_one = _FakeDocumentRef(
-    _FakeSnapshot(
-      "metadata", {
-        "book_page_setup_image_url":
-        setup_url,
-        "book_page_punchline_image_url":
-        punchline_url,
-        "book_page_ready":
-        True,
-        "all_book_page_setup_image_urls":
-        [setup_url, "https://cdn/setup2.png"],
-        "all_book_page_punchline_image_urls":
-        [punchline_url, "https://cdn/punch2.png"],
-      }))
-  joke_one = _FakeDocumentRef(
-    _FakeSnapshot(
-      "joke-1", {
-        "setup_text": "Setup one",
-        "punchline_text": "Punch one",
-        "generation_metadata": {
-          "total_cost": 0.1234,
+  monkeypatch.setattr(
+    books_routes.joke_books_firestore,
+    "get_joke_book_detail_raw",
+    lambda _book_id: (
+      books_routes.models.JokeBook(
+        id='book-42',
+        book_name='Space Llamas',
+        jokes=['joke-1', 'joke-2'],
+        zip_url='https://example.com/book.zip',
+        paperback_pdf_url='https://example.com/book_paperback.pdf',
+      ),
+      [
+        {
+          'id': 'joke-1',
+          'joke': {
+            'setup_text': 'Setup one',
+            'punchline_text': 'Punch one',
+            'generation_metadata': {
+              'total_cost': 0.1234,
+            },
+          },
+          'metadata': {
+            'book_page_setup_image_url':
+            setup_url,
+            'book_page_punchline_image_url':
+            punchline_url,
+            'book_page_ready':
+            True,
+            'all_book_page_setup_image_urls':
+            [setup_url, 'https://cdn/setup2.png'],
+            'all_book_page_punchline_image_urls':
+            [punchline_url, 'https://cdn/punch2.png'],
+          },
         },
-      }), {"metadata": _FakeCollection({"metadata": metadata_doc_one})})
-
-  metadata_doc_two = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
-  joke_two = _FakeDocumentRef(
-    _FakeSnapshot(
-      "joke-2", {
-        "setup_text": "Setup two",
-        "punchline_text": "Punch two",
-        "generation_metadata": {
-          "generations": [{
-            "model_name": "gpt",
-            "cost": 0.05
-          }]
+        {
+          'id': 'joke-2',
+          'joke': {
+            'setup_text': 'Setup two',
+            'punchline_text': 'Punch two',
+            'generation_metadata': {
+              'generations': [{
+                'model_name': 'gpt',
+                'cost': 0.05,
+              }]
+            },
+          },
+          'metadata': {},
         },
-      }), {"metadata": _FakeCollection({"metadata": metadata_doc_two})})
-
-  books = {
-    "book-42":
-    _FakeDocumentRef(
-      _FakeSnapshot(
-        "book-42", {
-          "book_name": "Space Llamas",
-          "jokes": ["joke-1", "joke-2"],
-          "zip_url": "https://example.com/book.zip",
-        }))
-  }
-  jokes = {"joke-1": joke_one, "joke-2": joke_two}
-  fake_db = _FakeFirestore(books=books, jokes=jokes)
-  monkeypatch.setattr(firestore_service, "db", lambda: fake_db)
+      ],
+    ),
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/joke-books/book-42')
@@ -180,6 +128,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "data-image-original" in html
   assert "No punchline image" in html
   assert "Download all pages" in html
+  assert "Download paperback PDF" in html
   assert "Set as main joke image" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
   assert "$0.1234" in html
@@ -203,20 +152,25 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
 def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
   """Refresh endpoint returns download-ready CDN URLs."""
   _mock_admin_session(monkeypatch)
-
-  setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
-               "width=900,format=auto,quality=80/path/setup.png")
-  metadata_doc = _FakeDocumentRef(
-    _FakeSnapshot("metadata", {
-      "book_page_setup_image_url": setup_url,
-    }))
-  joke = _FakeDocumentRef(
-    _FakeSnapshot("joke-5", {"generation_metadata": {
-      "total_cost": 0.2
-    }}), {"metadata": _FakeCollection({"metadata": metadata_doc})})
-
-  fake_db = _FakeFirestore(books={}, jokes={"joke-5": joke})
-  monkeypatch.setattr(firestore_service, "db", lambda: fake_db)
+  monkeypatch.setattr(
+    books_routes.joke_books_firestore,
+    "get_joke_book",
+    lambda _book_id: books_routes.models.JokeBook(id='book-abc',
+                                                  jokes=['joke-5']),
+  )
+  monkeypatch.setattr(
+    books_routes.joke_books_firestore,
+    "get_joke_with_metadata",
+    lambda _joke_id: ({
+      "generation_metadata": {
+        "total_cost": 0.2
+      }
+    }, {
+      "book_page_setup_image_url":
+      ("https://images.quillsstorybook.com/cdn-cgi/image/"
+       "width=900,format=auto,quality=80/path/setup.png")
+    }),
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/joke-books/book-abc/jokes/joke-5/refresh')
@@ -235,27 +189,28 @@ def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):
   """Detail view uses emulator Cloud Function URL when running locally."""
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(books_routes.utils, "is_emulator", lambda: True)
-
-  books = {
-    "book-local":
-    _FakeDocumentRef(
-      _FakeSnapshot("book-local", {
-        "book_name": "Local Book",
-        "jokes": ["joke-123"],
-      }))
-  }
-  metadata_doc = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
-  joke = _FakeDocumentRef(
-    _FakeSnapshot(
-      "joke-123", {
-        "setup_text": "Setup local",
-        "punchline_text": "Punch local",
-        "generation_metadata": {
-          "total_cost": 1.0
+  monkeypatch.setattr(
+    books_routes.joke_books_firestore,
+    "get_joke_book_detail_raw",
+    lambda _book_id: (
+      books_routes.models.JokeBook(
+        id='book-local',
+        book_name='Local Book',
+        jokes=['joke-123'],
+      ),
+      [{
+        'id': 'joke-123',
+        'joke': {
+          'setup_text': 'Setup local',
+          'punchline_text': 'Punch local',
+          'generation_metadata': {
+            'total_cost': 1.0,
+          },
         },
-      }), {"metadata": _FakeCollection({"metadata": metadata_doc})})
-  fake_db = _FakeFirestore(books=books, jokes={"joke-123": joke})
-  monkeypatch.setattr(firestore_service, "db", lambda: fake_db)
+        'metadata': {},
+      }],
+    ),
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/joke-books/book-local')
@@ -274,8 +229,8 @@ def test_admin_routes_allow_emulator_without_auth(monkeypatch):
     raise AssertionError("verify_session should not be called in emulator")
 
   monkeypatch.setattr(auth_helpers, "verify_session", _fail)
-  fake_db = _FakeFirestore(books={}, jokes={})
-  monkeypatch.setattr(firestore_service, "db", lambda: fake_db)
+  monkeypatch.setattr(books_routes.joke_books_firestore, "list_joke_books",
+                      lambda: [])
 
   with app.test_client() as client:
     resp = client.get('/admin/joke-books')
@@ -298,16 +253,9 @@ def test_admin_joke_book_upload_image_book_page(monkeypatch):
   monkeypatch.setattr(books_routes.cloud_storage, "get_public_image_cdn_url",
                       mock_get_cdn)
 
-  # Mock Firestore
-  mock_metadata_ref = Mock()
-  mock_metadata_ref.get.return_value = Mock(exists=True)
-
-  mock_joke_ref = Mock()
-  mock_joke_ref.collection.return_value.document.return_value = mock_metadata_ref
-
-  mock_db = Mock()
-  mock_db.collection.return_value.document.return_value = mock_joke_ref
-  monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
+  mock_persist = Mock()
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      "persist_uploaded_joke_image", mock_persist)
 
   image_bytes = _make_image_bytes('JPEG')
   data = {
@@ -334,11 +282,12 @@ def test_admin_joke_book_upload_image_book_page(monkeypatch):
   assert args[1].endswith(".png")
   assert args[2] == "image/png"
 
-  # Verify Firestore Update
-  mock_metadata_ref.update.assert_called_once()
-  update_args = mock_metadata_ref.update.call_args[0][0]
-  assert update_args['book_page_setup_image_url'] == "https://cdn/image.png"
-  assert 'all_book_page_setup_image_urls' in update_args
+  mock_persist.assert_called_once_with(
+    joke_id='joke-123',
+    book_id='book-456',
+    target_field='book_page_setup_image_url',
+    public_url='https://cdn/image.png',
+  )
 
 
 def test_admin_joke_book_upload_image_main_joke(monkeypatch):
@@ -353,11 +302,9 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   monkeypatch.setattr(books_routes.cloud_storage, "get_public_image_cdn_url",
                       mock_get_cdn)
 
-  # Mock Firestore
-  mock_joke_ref = Mock()
-  mock_db = Mock()
-  mock_db.collection.return_value.document.return_value = mock_joke_ref
-  monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
+  mock_persist = Mock()
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      "persist_uploaded_joke_image", mock_persist)
 
   data = {
     'joke_id': 'joke-999',
@@ -381,9 +328,12 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   assert args[1].endswith(".png")
   assert args[2] == "image/png"
 
-  # Verify Firestore Update on Main Doc
-  mock_joke_ref.update.assert_called_once_with(
-    {'punchline_image_url': "https://cdn/main-image.png"})
+  mock_persist.assert_called_once_with(
+    joke_id='joke-999',
+    book_id='manual',
+    target_field='punchline_image_url',
+    public_url='https://cdn/main-image.png',
+  )
 
 
 def test_admin_joke_book_upload_invalid_input(monkeypatch):
@@ -427,52 +377,10 @@ def test_admin_joke_book_upload_invalid_input(monkeypatch):
 def test_admin_update_joke_book_page_updates_metadata(monkeypatch):
   """Selecting a variant updates metadata with normalized history."""
   _mock_admin_session(monkeypatch)
-
-  existing_meta = {
-    'book_page_setup_image_url': 'https://old/setup.png',
-    'book_page_punchline_image_url': 'https://old/punch.png',
-  }
-  metadata_doc = Mock()
-  metadata_doc.exists = True
-  metadata_doc.to_dict.return_value = existing_meta
-  metadata_ref = Mock()
-  metadata_ref.get.return_value = metadata_doc
-
-  joke_ref = Mock()
-  joke_ref.collection.return_value.document.return_value = metadata_ref
-
-  book_doc = Mock()
-  book_doc.exists = True
-  book_doc.to_dict.return_value = {'jokes': ['joke-1']}
-  book_ref = Mock()
-  book_ref.get.return_value = book_doc
-
-  joke_books_collection = Mock()
-  joke_books_collection.document.return_value = book_ref
-  jokes_collection = Mock()
-  jokes_collection.document.return_value = joke_ref
-
-  mock_db = Mock()
-
-  def _collection(name):
-    if name == 'joke_books':
-      return joke_books_collection
-    if name == 'jokes':
-      return jokes_collection
-    return Mock()
-
-  mock_db.collection.side_effect = _collection
-  monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
-
-  updates = {
-    'book_page_setup_image_url': 'https://cdn/new.png',
-    'book_page_punchline_image_url': 'https://old/punch.png',
-    'all_book_page_setup_image_urls': ['https://cdn/new.png'],
-    'all_book_page_punchline_image_urls': ['https://old/punch.png'],
-  }
-  mock_prepare = Mock(return_value=updates)
-  monkeypatch.setattr(books_routes.models.PunnyJoke,
-                      "prepare_book_page_metadata_updates", mock_prepare)
+  mock_update = Mock(return_value=('https://cdn/new.png',
+                                   'https://old/punch.png'))
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      "update_book_page_selection", mock_update)
 
   with app.test_client() as client:
     resp = client.post('/admin/joke-books/update-page',
@@ -484,57 +392,29 @@ def test_admin_update_joke_book_page_updates_metadata(monkeypatch):
                        })
 
   assert resp.status_code == 200
-  mock_prepare.assert_called_once_with(existing_meta, 'https://cdn/new.png',
-                                       'https://old/punch.png')
-  metadata_ref.set.assert_called_once_with(updates, merge=True)
+  mock_update.assert_called_once_with(
+    book_id='book-1',
+    joke_id='joke-1',
+    new_setup_url='https://cdn/new.png',
+    new_punchline_url=None,
+    remove_setup_url=None,
+    remove_punchline_url=None,
+  )
   assert resp.json['book_page_setup_image_url'] == 'https://cdn/new.png'
 
 
 def test_admin_update_joke_book_page_removes_variant(monkeypatch):
   """Deleting a variant prunes it from metadata history."""
   _mock_admin_session(monkeypatch)
-
-  setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
-               "width=1024,format=auto,quality=75/path/setup.png")
-  alt_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
-             "width=1024,format=auto,quality=75/path/setup2.png")
-  existing_meta = {
-    'book_page_setup_image_url': setup_url,
-    'all_book_page_setup_image_urls': [setup_url, alt_url],
-  }
-  metadata_doc = Mock()
-  metadata_doc.exists = True
-  metadata_doc.to_dict.return_value = existing_meta
-  metadata_ref = Mock()
-  metadata_ref.get.return_value = metadata_doc
-
-  joke_ref = Mock()
-  joke_ref.collection.return_value.document.return_value = metadata_ref
-
-  book_doc = Mock()
-  book_doc.exists = True
-  book_doc.to_dict.return_value = {'jokes': ['joke-1']}
-  book_ref = Mock()
-  book_ref.get.return_value = book_doc
-
-  joke_books_collection = Mock()
-  joke_books_collection.document.return_value = book_ref
-  jokes_collection = Mock()
-  jokes_collection.document.return_value = joke_ref
-
-  mock_db = Mock()
-
-  def _collection(name):
-    if name == 'joke_books':
-      return joke_books_collection
-    if name == 'jokes':
-      return jokes_collection
-    return Mock()
-
-  mock_db.collection.side_effect = _collection
-  monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
-
-  remove_url = setup_url
+  remove_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                "width=1024,format=auto,quality=75/path/setup.png")
+  mock_update = Mock(return_value=(
+    "https://images.quillsstorybook.com/cdn-cgi/image/"
+    "width=1024,format=auto,quality=75/path/setup2.png",
+    None,
+  ))
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      "update_book_page_selection", mock_update)
 
   with app.test_client() as client:
     resp = client.post('/admin/joke-books/update-page',
@@ -545,9 +425,15 @@ def test_admin_update_joke_book_page_removes_variant(monkeypatch):
                        })
 
   assert resp.status_code == 200
-  update_args = metadata_ref.set.call_args[0][0]
-  assert update_args['all_book_page_setup_image_urls'] == [alt_url]
-  assert update_args['book_page_setup_image_url'] == alt_url
+  mock_update.assert_called_once_with(
+    book_id='book-1',
+    joke_id='joke-1',
+    new_setup_url=None,
+    new_punchline_url=None,
+    remove_setup_url=remove_url,
+    remove_punchline_url=None,
+  )
+  assert resp.json['book_page_setup_image_url'].endswith('setup2.png')
 
 
 def test_admin_update_joke_book_page_requires_new_url(monkeypatch):
@@ -568,36 +454,9 @@ def test_admin_update_joke_book_page_requires_new_url(monkeypatch):
 def test_admin_set_main_image_from_book_page(monkeypatch):
   """Promoting a book page image updates the main joke document."""
   _mock_admin_session(monkeypatch)
-
-  metadata_doc = Mock()
-  metadata_doc.exists = True
-  metadata_doc.to_dict.return_value = {
-    'book_page_setup_image_url': 'https://cdn/book-setup.png',
-    'book_page_punchline_image_url': 'https://cdn/book-punch.png',
-  }
-  metadata_ref = Mock()
-  metadata_ref.get.return_value = metadata_doc
-
-  joke_ref = Mock()
-  joke_ref.collection.return_value.document.return_value = metadata_ref
-
-  book_doc = Mock()
-  book_doc.exists = True
-  book_doc.to_dict.return_value = {'jokes': ['joke-77']}
-  book_ref = Mock()
-  book_ref.get.return_value = book_doc
-
-  def _collection(name):
-    collection = Mock()
-    if name == 'joke_books':
-      collection.document.return_value = book_ref
-    elif name == 'jokes':
-      collection.document.return_value = joke_ref
-    return collection
-
-  mock_db = Mock()
-  mock_db.collection.side_effect = _collection
-  monkeypatch.setattr(firestore_service, "db", lambda: mock_db)
+  mock_promote = Mock(return_value="https://cdn/book-setup.png")
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      "promote_book_page_image_to_main", mock_promote)
 
   with app.test_client() as client:
     resp = client.post('/admin/joke-books/set-main-image',
@@ -608,8 +467,9 @@ def test_admin_set_main_image_from_book_page(monkeypatch):
                        })
 
   assert resp.status_code == 200
-  update_args = joke_ref.update.call_args[0][0]
-  assert update_args['setup_image_url'] == "https://cdn/book-setup.png"
-  assert isinstance(update_args['all_setup_image_urls'], ArrayUnion)
-  assert update_args['setup_image_url_upscaled'] is None
+  mock_promote.assert_called_once_with(
+    book_id='book-abc',
+    joke_id='joke-77',
+    target='setup',
+  )
   assert resp.get_json()['setup_image_url'] == "https://cdn/book-setup.png"

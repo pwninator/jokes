@@ -827,6 +827,47 @@ class JokeSheet:
 
 
 @dataclass(kw_only=True)
+class JokeBook:
+  """Represents a joke book document in Firestore (`joke_books`)."""
+
+  id: str | None = None
+  """Firestore document ID for this joke book."""
+
+  book_name: str = ""
+  jokes: list[str] = field(default_factory=list)
+  zip_url: str | None = None
+  paperback_pdf_url: str | None = None
+
+  @property
+  def joke_count(self) -> int:
+    """Return the number of jokes in the book."""
+    return len(self.jokes)
+
+  def to_dict(self) -> dict[str, Any]:
+    """Serialize joke book fields for Firestore writes."""
+    data = dataclasses.asdict(self)
+    data.pop('id', None)
+    return data
+
+  @classmethod
+  def from_firestore_dict(cls, data: dict[str, Any], key: str) -> JokeBook:
+    """Create a JokeBook from a Firestore dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    data['id'] = key
+    if 'book_name' not in data or data.get('book_name') is None:
+      data['book_name'] = ''
+    _parse_string_list(data, 'jokes', dedupe=False)
+
+    allowed = {field.name for field in dataclasses.fields(cls)}
+    filtered = {name: value for name, value in data.items() if name in allowed}
+    return cls(**filtered)
+
+
+@dataclass(kw_only=True)
 class JokeSocialPost:
   """Represents a social post derived from jokes."""
 

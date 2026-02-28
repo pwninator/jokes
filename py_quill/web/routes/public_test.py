@@ -9,9 +9,17 @@ import pytest
 from common import models
 from services import search
 from web.app import app
+from web.routes import books as books_routes
 from web.routes import jokes as jokes_routes
 from web.routes import public as public_routes
 from web.utils import urls
+
+
+def _stub_book_sample_jokes(monkeypatch, jokes=None):
+  mock_get_punny_jokes = Mock(return_value=jokes or [])
+  monkeypatch.setattr(books_routes.firestore, "get_punny_jokes",
+                      mock_get_punny_jokes)
+  return mock_get_punny_jokes
 
 
 def test_topic_page_uses_batch_fetch(monkeypatch):
@@ -125,7 +133,9 @@ def test_home2_page_renders_top_jokes(monkeypatch):
   assert 'Cache-Control' in resp.headers
 
 
-def test_books_page_renders_book_promo():
+def test_books_page_renders_book_promo(monkeypatch):
+  _stub_book_sample_jokes(monkeypatch)
+
   with app.test_client() as client:
     resp = client.get('/books?country_override=US')
 
@@ -133,14 +143,16 @@ def test_books_page_renders_book_promo():
   html = resp.get_data(as_text=True)
   assert 'Your Lunchbox Notes are on their way' not in html
   assert 'Get the Book on Amazon' in html
-  assert 'data-analytics-event="web_book_amazon_click"' in html
+  assert 'data-analytics-event="web_lunchbox_thank_you_amazon_click"' in html
   assert f'<link rel="canonical" href="{urls.canonical_url("/books")}">' in html
   assert 'href="https://www.amazon.com/dp/' in html
   assert 'Cache-Control' in resp.headers
 
 
-def test_books_page_uses_aa_attribution_when_s_param_present():
+def test_books_page_uses_aa_attribution_when_s_param_present(monkeypatch):
   """Books page should use aa attribution when s=aa is in URL."""
+  _stub_book_sample_jokes(monkeypatch)
+
   with app.test_client() as client:
     resp = client.get('/books?country_override=US&s=aa')
 
@@ -149,8 +161,10 @@ def test_books_page_uses_aa_attribution_when_s_param_present():
   assert 'maas_adg_6A723A0BB792380DDC25626BCF75CEC2' in html
 
 
-def test_books_page_uses_aa_attribution_when_source_param_present():
+def test_books_page_uses_aa_attribution_when_source_param_present(monkeypatch):
   """Books page should use aa attribution when source=aa is in URL."""
+  _stub_book_sample_jokes(monkeypatch)
+
   with app.test_client() as client:
     resp = client.get('/books?country_override=US&source=aa')
 
@@ -159,8 +173,10 @@ def test_books_page_uses_aa_attribution_when_source_param_present():
   assert 'maas_adg_6A723A0BB792380DDC25626BCF75CEC2' in html
 
 
-def test_books_page_uses_web_book_page_attribution_when_no_param():
+def test_books_page_uses_web_book_page_attribution_when_no_param(monkeypatch):
   """Books page should use web_book_page attribution when no s/source param."""
+  _stub_book_sample_jokes(monkeypatch)
+
   with app.test_client() as client:
     resp = client.get('/books?country_override=US')
 
@@ -169,7 +185,9 @@ def test_books_page_uses_web_book_page_attribution_when_no_param():
   assert 'maas_adg_D9F839E029FE823F6776B65B865F1494' in html
 
 
-def test_books_page_ref_notes_download_overrides_hero_copy():
+def test_books_page_ref_notes_download_overrides_hero_copy(monkeypatch):
+  _stub_book_sample_jokes(monkeypatch)
+
   with app.test_client() as client:
     resp = client.get('/books?country_override=US&ref=notes_download')
 
@@ -181,6 +199,56 @@ def test_books_page_ref_notes_download_overrides_hero_copy():
   assert 'whole lot more where those came from' in html
   assert 'hand-picked favorites from our paperback book' in html
   assert 'full collection of 36 illustrated jokes today' in html
+
+
+def test_books_page_renders_sample_joke_cards(monkeypatch):
+  sample_jokes = [
+    models.PunnyJoke(
+      key='because_they_can_t_catch_it__why_didn_t_lions_like_fast_foo',
+      setup_text="Why didn't lions like fast food?",
+      punchline_text="Because they can't catch it.",
+      setup_image_url='http://example.com/lion-setup.jpg',
+      punchline_image_url='http://example.com/lion-punchline.jpg',
+    ),
+    models.PunnyJoke(
+      key='honey__i_m_home__what_did_the_bee_say_when_it_r',
+      setup_text='What did the bee say when it returned to the hive?',
+      punchline_text='"Honey, I\'m home!"',
+      setup_image_url='http://example.com/bee-setup.jpg',
+      punchline_image_url='http://example.com/bee-punchline.jpg',
+    ),
+    models.PunnyJoke(
+      key='the_mew_seum__where_did_the_kittens_go_for_t',
+      setup_text='Where did the kittens go for the field trip?',
+      punchline_text='The mew-seum.',
+      setup_image_url='http://example.com/kitten-setup.jpg',
+      punchline_image_url='http://example.com/kitten-punchline.jpg',
+    ),
+  ]
+  mock_get_punny_jokes = _stub_book_sample_jokes(
+    monkeypatch,
+    jokes=[sample_jokes[2], sample_jokes[0], sample_jokes[1]],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/books?country_override=US')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'A Little Peek Inside the Book' in html
+  assert ('Here are 3 real jokes from Cute &amp; Silly Animal Jokes, each '
+          'paired with its full-color illustration.') in html
+  assert html.count('class="joke-card') == 3
+  first_joke_id = f'"joke_id": "{sample_jokes[0].key}"'
+  second_joke_id = f'"joke_id": "{sample_jokes[1].key}"'
+  third_joke_id = f'"joke_id": "{sample_jokes[2].key}"'
+  assert html.index(first_joke_id) < html.index(second_joke_id)
+  assert html.index(second_joke_id) < html.index(third_joke_id)
+  mock_get_punny_jokes.assert_called_once_with([
+    'because_they_can_t_catch_it__why_didn_t_lions_like_fast_foo',
+    'honey__i_m_home__what_did_the_bee_say_when_it_r',
+    'the_mew_seum__where_did_the_kittens_go_for_t',
+  ])
 
 
 def test_home2_page_includes_nonempty_unique_meta_tags(monkeypatch):

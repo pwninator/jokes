@@ -1,7 +1,8 @@
 {% extends "base.html" %}
+{% from "components/joke_card.html" import joke_card %}
 
-{% block title %}Lunchbox Kit · Thank You · {{ site_name }}{% endblock %}
-{% block meta_description %}Thanks! Your free lunchbox joke cards are on the way.{% endblock %}
+{% block title %}Super Cute Joke Book For Kids · {{ site_name }}{% endblock %}
+{% block meta_description %}Wholesome joke book with adorable illustrations for kids.{% endblock %}
 
 {% block content %}
 {% if show_success_banner %}
@@ -48,13 +49,27 @@
     </ul>
 
     <a class="nav-cta text-button thankyou-amazon-cta" href="{{ amazon_url }}" target="_blank"
-      rel="nofollow noopener noreferrer" data-meta-event="InitiateCheckout" data-analytics-event="web_book_amazon_click"
+      rel="nofollow noopener noreferrer" data-meta-event="InitiateCheckout" data-analytics-event="web_lunchbox_thank_you_amazon_click"
       data-analytics-label="book_outlink">
       Get the Book on Amazon
     </a>
     <p class="text-footer thankyou-prime">Eligible for Prime Shipping</p>
   </div>
 </section>
+
+{% if sample_jokes %}
+<section class="favorites-section" aria-labelledby="book-samples-title">
+  <header class="section-header">
+    <h2 class="favorites-title text-section-heading" id="book-samples-title">A Little Peek Inside the Book</h2>
+    <p class="favorites-subtitle text-body">Here are 3 real jokes from Cute &amp; Silly Animal Jokes, each paired with its full-color illustration.</p>
+  </header>
+  <div class="favorites-grid">
+    {% for joke in sample_jokes %}
+    {{ joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id='book-sample-' ~ loop.index) }}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 <section class="thankyou-creators" aria-labelledby="thankyou-creators-title">
   <h2 class="text-section-heading thankyou-creators__title" id="thankyou-creators-title">Made with Love (and Giggles)

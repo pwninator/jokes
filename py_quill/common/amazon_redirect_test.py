@@ -84,15 +84,26 @@ def test_amazon_redirect_config_base_urls():
     "US") == "https://www.amazon.com/review/create-review/?ie=UTF8&asin=B0REV")
 
 
-def test_get_paperback_review_url_uses_review_config():
-  url = amazon_redirect.get_paperback_review_url(
+def test_get_amazon_redirect_bridge_url_for_review():
+  url = amazon_redirect.get_amazon_redirect_bridge_url(
     amazon_redirect.BookKey.ANIMAL_JOKES,
-    country_code="US",
+    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
+    book_format=amazon_redirect.BookFormat.PAPERBACK,
     source=amazon_redirect.AttributionSource.PRINTABLE_QR_CODE,
   )
 
-  assert url.startswith("https://www.amazon.com/review/create-review/")
-  assert "asin=" in url
+  assert url == "https://snickerdoodlejokes.com/review-animal-jokes?s=pqc"
+
+
+def test_get_amazon_redirect_bridge_url_ignores_format_for_product():
+  url = amazon_redirect.get_amazon_redirect_bridge_url(
+    amazon_redirect.BookKey.ANIMAL_JOKES,
+    page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
+    book_format=amazon_redirect.BookFormat.EBOOK,
+    source=amazon_redirect.AttributionSource.WEB_BOOK_PAGE,
+  )
+
+  assert url == "https://snickerdoodlejokes.com/book-animal-jokes?s=web_book_page"
 
 
 def test_resolve_country_and_asin_with_supported_list(monkeypatch):

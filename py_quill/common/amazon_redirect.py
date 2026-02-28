@@ -6,7 +6,8 @@ import dataclasses
 import enum
 import urllib.parse
 
-from common.book_defs import (AttributionSource, BOOKS, Book, BookFormat,
+from common import config
+from common.book_defs import (BOOKS, AttributionSource, Book, BookFormat,
                               BookKey, BookVariant)
 from firebase_functions import logger
 
@@ -168,7 +169,7 @@ class AmazonRedirectConfig:
     return DEFAULT_COUNTRY_CODE, primary_variant
 
 
-AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
+AMAZON_REDIRECTS_BY_SLUG: dict[str, AmazonRedirectConfig] = {
   # Cute & Silly Animal Jokes - Product Page
   'book-animal-jokes':
   AmazonRedirectConfig(
@@ -222,6 +223,29 @@ AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
     "Redirects to the customer review page for the Valentine's Day joke book.",
   ),
 }
+
+
+def _redirect_lookup_key(
+  book_key: BookKey,
+  page_type: AmazonRedirectPageType,
+  book_format: BookFormat | None,
+) -> tuple[BookKey, AmazonRedirectPageType, BookFormat | None]:
+  """Return the inverse-lookup key for a redirect config."""
+  if page_type == AmazonRedirectPageType.PRODUCT:
+    return (book_key, page_type, None)
+  return (book_key, page_type, book_format)
+
+
+AMAZON_REDIRECT_SLUGS_BY_TARGET: dict[tuple[
+  BookKey, AmazonRedirectPageType, BookFormat | None], str] = {
+    _redirect_lookup_key(
+      config_entry.book_key,
+      config_entry.page_type,
+      config_entry.format,
+    ):
+    slug
+    for slug, config_entry in AMAZON_REDIRECTS_BY_SLUG.items()
+  }
 
 
 def normalize_country_code(country_code: str | None) -> str | None:
@@ -297,37 +321,23 @@ def _apply_attribution_tag(base_url: str,
   return urllib.parse.urlunparse(rebuilt)
 
 
-def get_review_url(
+def get_amazon_redirect_bridge_url(
   book_key: BookKey,
   *,
-  book_format: BookFormat,
-  country_code: str | None = None,
-  source: str | AttributionSource | None = None,
+  page_type: AmazonRedirectPageType,
+  book_format: BookFormat | None = None,
+  source: AttributionSource | None = None,
 ) -> str:
-  """Return the direct Amazon review URL for the requested book format."""
-  config = AmazonRedirectConfig(
-    book_key=book_key,
-    page_type=AmazonRedirectPageType.REVIEW,
-    format=book_format,
-    description='Generated review URL',
-  )
-  target_url, _resolved_country, _resolved_asin = config.resolve_target_url(
-    country_code,
-    source,
-  )
-  return target_url
+  """Return the public Snickerdoodle redirect URL for an Amazon target."""
+  slug = AMAZON_REDIRECT_SLUGS_BY_TARGET.get(
+    _redirect_lookup_key(book_key, page_type, book_format))
+  if not slug:
+    raise KeyError(
+      f'Missing Amazon redirect slug for {book_key.value}/{page_type.value}/{book_format.value if book_format else "none"}'
+    )
 
+  url = f'https://{config.ROOT_HOST}/{slug}'
+  if source:
+    url = f"{url}?{urllib.parse.urlencode({'s': source.value})}"
 
-def get_paperback_review_url(
-  book_key: BookKey,
-  *,
-  country_code: str | None = None,
-  source: str | AttributionSource | None = None,
-) -> str:
-  """Return the direct Amazon paperback review URL for a book."""
-  return get_review_url(
-    book_key,
-    book_format=BookFormat.PAPERBACK,
-    country_code=country_code,
-    source=source,
-  )
+  return url

@@ -5,13 +5,14 @@ from __future__ import annotations
 from urllib.parse import urlencode
 
 import flask
-from common import amazon_redirect
+from common import amazon_redirect, book_defs
 from firebase_functions import logger
 from web.routes import web_bp
 from web.utils import analytics, urls
 
 
-def get_request_source(req: flask.Request, default: str | None = None) -> str | None:
+def get_request_source(req: flask.Request,
+                       default: str | None = None) -> str | None:
   """Return the attribution source from request args (s or source param)."""
   return req.args.get('source') or req.args.get('s') or default
 
@@ -26,7 +27,7 @@ def get_books_attribution_source(
   if not raw:
     return default_source
   try:
-    _ = amazon_redirect.AttributionSource(raw)
+    _ = book_defs.AttributionSource(raw)
     return raw
   except ValueError:
     return default_source
@@ -77,7 +78,7 @@ def _handle_amazon_redirect(
   source: str | None = None,
 ) -> flask.Response:
   """Shared handler for public Amazon redirect endpoints."""
-  config_entry = amazon_redirect.AMAZON_REDIRECTS.get(redirect_key)
+  config_entry = amazon_redirect.AMAZON_REDIRECTS_BY_SLUG.get(redirect_key)
   if not config_entry:
     return flask.Response('Redirect not found', status=404)
 
@@ -133,7 +134,7 @@ def redirect_endpoint_for_key(
 def amazon_redirect_view_models() -> list[dict[str, str | list[str]]]:
   """Return metadata for all configured Amazon redirects."""
   items: list[dict[str, str | list[str]]] = []
-  for key, config_entry in amazon_redirect.AMAZON_REDIRECTS.items():
+  for key, config_entry in amazon_redirect.AMAZON_REDIRECTS_BY_SLUG.items():
     endpoint, slug = redirect_endpoint_for_key(key)
     if not endpoint or slug is None:
       continue
@@ -181,5 +182,5 @@ def printable_qr_code_redirect():
   # Redirect to the animal jokes book page
   return _handle_amazon_redirect(
     'book-animal-jokes',
-    source=amazon_redirect.AttributionSource.PRINTABLE_QR_CODE.value,
+    source=book_defs.AttributionSource.PRINTABLE_QR_CODE.value,
   )

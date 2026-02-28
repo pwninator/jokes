@@ -20,7 +20,8 @@ def about():
   country_code = resolve_request_country_code(flask.request)
   attribution_source = get_books_attribution_source(
     flask.request, default_source='web_book_page')
-  redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
+  redirect_config = amazon_redirect.AMAZON_REDIRECTS_BY_SLUG[
+    'book-animal-jokes']
   amazon_url, _, _ = redirect_config.resolve_target_url(
     requested_country_code=country_code,
     source=attribution_source,

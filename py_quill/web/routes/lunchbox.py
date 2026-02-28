@@ -37,7 +37,7 @@ def lunchbox():
     else:
       try:
         country_code = resolve_request_country_code(flask.request)
-        joke_lead_operations.create_lead(
+        _ = joke_lead_operations.create_lead(
           email=email_value,
           country_code=country_code,
           signup_source='lunchbox',
@@ -79,7 +79,8 @@ def lunchbox_thank_you():
 
   # Resolve Amazon URL based on user's country
   country_code = resolve_request_country_code(flask.request)
-  redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
+  redirect_config = amazon_redirect.AMAZON_REDIRECTS_BY_SLUG[
+    'book-animal-jokes']
   amazon_url, _, _ = redirect_config.resolve_target_url(
     requested_country_code=country_code,
     source='lunchbox_thank_you',

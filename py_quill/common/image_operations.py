@@ -67,8 +67,8 @@ _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
 _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/999_about_page_template.png"
 _BOOK_REVIEW_QR_SIZE_PX = 350
-_BOOK_REVIEW_QR_X = 50
-_BOOK_REVIEW_QR_Y = 50
+_BOOK_REVIEW_QR_X = 486
+_BOOK_REVIEW_QR_Y = 1554
 
 
 @dataclass(frozen=True)
@@ -209,10 +209,11 @@ def _add_paperback_review_qr_to_page(
   associated_book_key: str,
 ) -> bytes:
   """Overlay a paperback-review QR code onto a converted page image."""
-  review_url = amazon_redirect.get_paperback_review_url(
+  review_url = amazon_redirect.get_amazon_redirect_bridge_url(
     book_defs.BookKey(associated_book_key),
-    country_code=amazon_redirect.DEFAULT_COUNTRY_CODE,
-    source=book_defs.AttributionSource.PRINTABLE_QR_CODE,
+    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
+    book_format=book_defs.BookFormat.PAPERBACK,
+    source=book_defs.AttributionSource.BOOK_ABOUT_PAGE,
   )
   qr_image = _create_qr_code_image(
     review_url,

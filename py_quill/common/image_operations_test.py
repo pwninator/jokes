@@ -11,7 +11,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, call, patch
 
-from common import image_operations, joke_notes_sheet_operations, models
+from common import amazon_redirect, image_operations, joke_notes_sheet_operations, models
 from PIL import Image, ImageFont
 from services import image_editor
 
@@ -1501,7 +1501,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertEqual(setup_call.kwargs['right'], 0)
 
   @patch('common.image_operations._create_qr_code_image')
-  @patch('common.image_operations.amazon_redirect.get_paperback_review_url')
+  @patch('common.image_operations.amazon_redirect.get_amazon_redirect_bridge_url')
   def test_add_paperback_review_qr_to_page_overlays_qr(
     self,
     mock_get_review_url,
@@ -1532,6 +1532,13 @@ class ExportJokePageFilesTest(unittest.TestCase):
     )
 
     mock_get_review_url.assert_called_once()
+    self.assertEqual(mock_get_review_url.call_args.args,
+                     (amazon_redirect.BookKey.ANIMAL_JOKES, ))
+    self.assertEqual(mock_get_review_url.call_args.kwargs, {
+      'page_type': amazon_redirect.AmazonRedirectPageType.REVIEW,
+      'book_format': amazon_redirect.BookFormat.PAPERBACK,
+      'source': amazon_redirect.AttributionSource.BOOK_ABOUT_PAGE,
+    })
     mock_create_qr_code_image.assert_called_once_with(
       'https://example.com/review',
       size_px=image_operations._BOOK_REVIEW_QR_SIZE_PX,

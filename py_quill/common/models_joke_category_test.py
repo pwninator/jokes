@@ -61,3 +61,15 @@ def test_joke_category_from_firestore_dict_sets_id_and_defaults():
   assert cat.joke_description_query == 'should_be_ignored'
   assert cat.search_distance == 0.33
   assert cat.all_image_urls == ['https://a.png']
+
+
+def test_joke_category_from_firestore_dict_reads_lunchbox_pdf_uri():
+  cat = models.JokeCategory.from_firestore_dict(
+    {
+      'display_name': 'Cats',
+      'joke_description_query': 'cats',
+      'lunchbox_notes_pdf_gcs_uri': 'gs://bucket/cats.pdf',
+    },
+    key='cats',
+  )
+  assert cat.lunchbox_notes_pdf_gcs_uri == 'gs://bucket/cats.pdf'

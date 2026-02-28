@@ -20,6 +20,31 @@ def _mock_admin_session(monkeypatch):
                       }))
 
 
+def _mock_category_doc_stream(monkeypatch, docs):
+  """Stub firestore.db() for category collection streaming."""
+
+  class _Collection:
+
+    def __init__(self, stream_docs):
+      self._stream_docs = stream_docs
+
+    def stream(self):
+      return self._stream_docs
+
+    def document(self, _doc_id):
+      return Mock()
+
+  class _Db:
+
+    def __init__(self, stream_docs):
+      self._stream_docs = stream_docs
+
+    def collection(self, _name):
+      return _Collection(self._stream_docs)
+
+  monkeypatch.setattr(categories_routes.firestore, "db", lambda: _Db(docs))
+
+
 def test_admin_create_category_calls_refresh(monkeypatch):
   """Creating a category should initialize the category cache."""
   _mock_admin_session(monkeypatch)
@@ -365,21 +390,12 @@ def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):
     tags=["first_tag", "second_tag"],
   )
 
-  class _NoopCollection:
-
-    def document(self, _doc_id):
-      return object()
-
-  class _NoopDb:
-
-    def collection(self, _name):
-      return _NoopCollection()
-
   monkeypatch.setattr(categories_routes.firestore, "get_all_joke_categories",
                       lambda **_kwargs: [approved_category])
   monkeypatch.setattr(categories_routes.firestore,
                       "get_uncategorized_public_jokes",
                       lambda _cats: [uncategorized_joke])
+  _mock_category_doc_stream(monkeypatch, [])
 
   with app.test_client() as client:
     resp = client.get('/admin/joke-categories')
@@ -406,6 +422,41 @@ def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):
     "joke-approved-1\n\nseasonal: None\n\ntags:\ntag_a\ntag_b")
   assert _decoded_title_for("joke-uncat-1") == (
     "joke-uncat-1\n\nseasonal: Winter\n\ntags:\nfirst_tag\nsecond_tag")
+
+
+def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
+  """The category page should show a lunchbox PDF link from the live doc."""
+  _mock_admin_session(monkeypatch)
+
+  category = models.JokeCategory(
+    id="animals",
+    display_name="Animals",
+    joke_description_query="animals",
+    state="APPROVED",
+  )
+  monkeypatch.setattr(categories_routes.firestore, "get_all_joke_categories",
+                      lambda **_kwargs: [category])
+  monkeypatch.setattr(categories_routes.firestore,
+                      "get_uncategorized_public_jokes", lambda _cats: [])
+  monkeypatch.setattr(
+    categories_routes.cloud_storage, "get_public_cdn_url",
+    lambda gcs_uri: f"https://cdn.example/{gcs_uri.split('/')[-1]}")
+
+  live_doc = Mock()
+  live_doc.exists = True
+  live_doc.id = "animals"
+  live_doc.to_dict.return_value = {
+    "lunchbox_notes_pdf_gcs_uri": "gs://bucket/animals_notes.pdf",
+  }
+  _mock_category_doc_stream(monkeypatch, [live_doc])
+
+  with app.test_client() as client:
+    resp = client.get('/admin/joke-categories')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Generate lunchbox notes" in html
+  assert 'href="https://cdn.example/animals_notes.pdf"' in html
 
 
 def test_admin_get_joke_category_live_returns_live_fields(monkeypatch):
@@ -455,3 +506,80 @@ def test_admin_get_joke_category_live_returns_live_fields(monkeypatch):
   assert data["image_url"] == "https://cdn/cat.png"
   assert data["image_description"] == "Cute animals"
   assert data["joke_id_order"] == ["joke-1", "joke-2"]
+
+
+def test_admin_generate_category_lunchbox_notes_persists_pdf_uri(monkeypatch):
+  """Generating lunchbox notes should persist the ensured PDF URI."""
+  _mock_admin_session(monkeypatch)
+
+  category = models.JokeCategory(
+    id="animals",
+    display_name="Animals",
+    joke_description_query="animals",
+    jokes=[
+      models.PunnyJoke(
+        key="joke-1",
+        setup_text="Setup",
+        punchline_text="Punchline",
+        setup_image_url="gs://images/setup.png",
+        punchline_image_url="gs://images/punchline.png",
+      )
+    ],
+  )
+  monkeypatch.setattr(
+    categories_routes.firestore, "get_joke_category",
+    lambda category_id: category if category_id == "animals" else None)
+
+  ensured_sheet = Mock(pdf_gcs_uri="gs://public/animals_notes.pdf")
+  mock_ensure = Mock(return_value=ensured_sheet)
+  monkeypatch.setattr(categories_routes.joke_notes_sheet_operations,
+                      "ensure_joke_notes_sheet", mock_ensure)
+
+  mock_doc = Mock()
+  mock_collection = Mock()
+  mock_collection.document.return_value = mock_doc
+  mock_db = Mock()
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(categories_routes.firestore, "db", lambda: mock_db)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-categories/animals/generate-lunchbox-notes')
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith(
+    '/admin/joke-categories?notes_generated=animals')
+  mock_ensure.assert_called_once_with(category.jokes)
+  mock_db.collection.assert_called_with('joke_categories')
+  mock_collection.document.assert_called_with('animals')
+  mock_doc.set.assert_called_once_with(
+    {'lunchbox_notes_pdf_gcs_uri': 'gs://public/animals_notes.pdf'},
+    merge=True,
+  )
+
+
+def test_admin_generate_category_lunchbox_notes_requires_category_jokes(
+    monkeypatch):
+  """Generating lunchbox notes should fail when the category has no jokes."""
+  _mock_admin_session(monkeypatch)
+
+  category = models.JokeCategory(
+    id="animals",
+    display_name="Animals",
+    joke_description_query="animals",
+    jokes=[],
+  )
+  monkeypatch.setattr(categories_routes.firestore, "get_joke_category",
+                      lambda _category_id: category)
+  mock_ensure = Mock()
+  monkeypatch.setattr(categories_routes.joke_notes_sheet_operations,
+                      "ensure_joke_notes_sheet", mock_ensure)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-categories/animals/generate-lunchbox-notes')
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith(
+    '/admin/joke-categories?error=no_category_jokes')
+  mock_ensure.assert_not_called()

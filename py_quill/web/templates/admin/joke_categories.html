@@ -75,6 +75,9 @@
 {% if updated %}
 <p class="muted">Category updated: <code>{{ updated }}</code></p>
 {% endif %}
+{% if notes_generated %}
+<p class="muted">Lunchbox notes generated: <code>{{ notes_generated }}</code></p>
+{% endif %}
 {% if error %}
 <p class="muted">Error: <code>{{ error }}</code></p>
 {% endif %}
@@ -171,6 +174,13 @@
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px dashed var(--color-border);
+  }
+  .category-download-actions {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
   }
   .edit-flex {
     display: flex;
@@ -386,6 +396,14 @@
             <button class="text-button" type="submit">Save</button>
           </div>
         </form>
+      </div>
+      <div class="category-download-actions">
+        <form method="post" action="{{ url_for('web.admin_generate_category_lunchbox_notes', category_id=category.id) }}">
+          <button class="text-button" type="submit">Generate lunchbox notes</button>
+        </form>
+        {% if category.lunchbox_notes_pdf_gcs_uri %}
+        <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View PDF</a>
+        {% endif %}
       </div>
       <div class="joke-grid" aria-label="Category joke thumbnails">
         {% for joke in category.jokes %}

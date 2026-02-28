@@ -1044,6 +1044,9 @@ class JokeCategory:
   all_image_urls: list[str] = field(default_factory=list)
   """All known image URLs for the category (used by the app image carousel)."""
 
+  lunchbox_notes_pdf_gcs_uri: str | None = None
+  """Optional generated lunchbox notes PDF for the full category."""
+
   image_description: str | None = None
   joke_id_order: list[str] = field(default_factory=list)
   jokes: list[PunnyJoke] = field(default_factory=list)

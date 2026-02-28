@@ -5,13 +5,35 @@ from __future__ import annotations
 import flask
 from firebase_functions import logger
 from google.cloud.firestore import DELETE_FIELD
+from typing import Any, cast
 
 from common import config
+from common import joke_notes_sheet_operations
 from common import models
 from common import joke_category_operations
 from functions import auth_helpers
-import services.firestore as firestore
+from services import cloud_storage
+from services import firestore
 from web.routes import web_bp
+
+
+def _get_category_lunchbox_pdf_gcs_uris() -> dict[str, str]:
+  """Fetch live lunchbox PDF URIs from the main category documents."""
+  docs: Any = firestore.db().collection("joke_categories").stream()
+  results: dict[str, str] = {}
+  for doc in docs:
+    if not getattr(doc, "exists", False):
+      continue
+    raw_data: Any = doc.to_dict()
+    if not isinstance(raw_data, dict):
+      continue
+    data = cast(dict[str, object], raw_data)
+    raw_pdf_gcs_uri = data.get("lunchbox_notes_pdf_gcs_uri")
+    pdf_gcs_uri = raw_pdf_gcs_uri.strip() if isinstance(raw_pdf_gcs_uri,
+                                                        str) else ""
+    if pdf_gcs_uri:
+      results[doc.id] = pdf_gcs_uri
+  return results
 
 
 @web_bp.route('/admin/joke-categories')
@@ -22,25 +44,30 @@ def admin_joke_categories():
     fetch_cached_jokes=True,
     use_cache=True,
   )
+  lunchbox_pdf_gcs_uris = _get_category_lunchbox_pdf_gcs_uris()
+  for category in categories:
+    category_id = getattr(category, "id", None)
+    if isinstance(category_id, str) and category_id in lunchbox_pdf_gcs_uris:
+      category.lunchbox_notes_pdf_gcs_uri = lunchbox_pdf_gcs_uris[category_id]
 
-  def _state_key(category) -> str:
-    state = (getattr(category, "state", None) or "").upper()
-    return state
+  def _state_key(category: models.JokeCategory) -> str:
+    return (category.state or "").upper()
 
-  def _unique_joke_count(categories_in_section: list) -> int:
+  def _unique_joke_count(
+    categories_in_section: list[models.JokeCategory], ) -> int:
     seen: set[str] = set()
-    for category in categories_in_section or []:
-      for joke in getattr(category, "jokes", []) or []:
-        joke_id = getattr(joke, "key", None)
+    for category in categories_in_section:
+      for joke in category.jokes:
+        joke_id = joke.key
         if isinstance(joke_id, str) and joke_id:
           seen.add(joke_id)
     return len(seen)
 
-  approved: list = []
-  seasonal: list = []
-  proposed: list = []
-  rejected: list = []
-  book: list = []
+  approved: list[models.JokeCategory] = []
+  seasonal: list[models.JokeCategory] = []
+  proposed: list[models.JokeCategory] = []
+  rejected: list[models.JokeCategory] = []
+  book: list[models.JokeCategory] = []
   for category in categories:
     state = _state_key(category)
     if state == "APPROVED":
@@ -79,7 +106,9 @@ def admin_joke_categories():
     uncategorized_jokes=uncategorized,
     created=flask.request.args.get('created'),
     updated=flask.request.args.get('updated'),
+    notes_generated=flask.request.args.get('notes_generated'),
     error=flask.request.args.get('error'),
+    public_file_url_for_gcs=cloud_storage.get_public_cdn_url,
   )
 
 
@@ -156,8 +185,8 @@ def admin_create_joke_category():
   def _parse_tags(raw: str) -> list[str]:
     if not raw:
       return []
-    seen = set()
-    result = []
+    seen: set[str] = set()
+    result: list[str] = []
     for part in raw.split(','):
       tag = (part or '').strip()
       if not tag or tag in seen:
@@ -177,22 +206,19 @@ def admin_create_joke_category():
       '/admin/joke-categories?error=category_source_required')
 
   try:
-    create_kwargs: dict[str, object] = {
-      "display_name": display_name,
-      "state": "PROPOSED",
-      "joke_description_query": joke_description_query or None,
-      "seasonal_name": seasonal_name or None,
-      "book_id": book_id or None,
-      "tags": tags or None,
-      "negative_tags": negative_tags or None,
-      "image_description": image_description or None,
-    }
-    if search_distance is not None:
-      create_kwargs["search_distance"] = search_distance
+    category_id = firestore.create_joke_category(
+      display_name=display_name,
+      state="PROPOSED",
+      joke_description_query=joke_description_query or None,
+      seasonal_name=seasonal_name or None,
+      book_id=book_id or None,
+      search_distance=search_distance,
+      tags=tags or None,
+      negative_tags=negative_tags or None,
+      image_description=image_description or None,
+    )
 
-    category_id = firestore.create_joke_category(**create_kwargs)
-
-    category_data = {
+    category_data: dict[str, object] = {
       'state': 'PROPOSED',
       'joke_description_query': joke_description_query,
       'seasonal_name': seasonal_name,
@@ -204,11 +230,11 @@ def admin_create_joke_category():
     if image_description:
       category_data['image_description'] = image_description
 
-    joke_category_operations.refresh_single_category_cache(
+    _ = joke_category_operations.refresh_single_category_cache(
       category_id,
       category_data,
     )
-    joke_category_operations.rebuild_joke_categories_index()
+    _ = joke_category_operations.rebuild_joke_categories_index()
   except Exception as exc:  # pylint: disable=broad-except
     logger.error(f"Failed creating category {display_name}: {exc}")
     return flask.redirect('/admin/joke-categories?error=create_failed')
@@ -242,8 +268,8 @@ def admin_update_joke_category(category_id: str):
   def _parse_tags(raw: str) -> list[str]:
     if not raw:
       return []
-    seen = set()
-    result = []
+    seen: set[str] = set()
+    result: list[str] = []
     for part in raw.split(','):
       tag = (part or '').strip()
       if not tag or tag in seen:
@@ -262,8 +288,8 @@ def admin_update_joke_category(category_id: str):
   all_image_urls = None
   if 'all_image_urls' in form:
     all_image_urls_raw = (form.get('all_image_urls') or '').splitlines()
-    parsed = []
-    seen = set()
+    parsed: list[str] = []
+    seen: set[str] = set()
     for line in all_image_urls_raw:
       url = (line or '').strip()
       if not url or url in seen:
@@ -317,26 +343,57 @@ def admin_update_joke_category(category_id: str):
 
   try:
     client = firestore.db()
-    client.collection('joke_categories').document(category_id).set(
+    _ = client.collection('joke_categories').document(category_id).set(
       payload,
       merge=True,
     )
 
-    joke_category_operations.refresh_single_category_cache(
+    refresh_payload: dict[str, object] = {
+      'state': state,
+      'seasonal_name': seasonal_name,
+      'joke_description_query': joke_description_query,
+      'book_id': book_id,
+      'search_distance': search_distance,
+      'tags': tags,
+      'negative_tags': negative_tags,
+      'joke_id_order': joke_id_order,
+    }
+    _ = joke_category_operations.refresh_single_category_cache(
       category_id,
-      {
-        'state': state,
-        'seasonal_name': seasonal_name,
-        'joke_description_query': joke_description_query,
-        'book_id': book_id,
-        'search_distance': search_distance,
-        'tags': tags,
-        'negative_tags': negative_tags,
-        'joke_id_order': joke_id_order,
-      },
+      refresh_payload,
     )
   except Exception as exc:  # pylint: disable=broad-except
     logger.error(f"Failed updating category {category_id}: {exc}")
     return flask.redirect('/admin/joke-categories?error=update_failed')
 
   return flask.redirect(f'/admin/joke-categories?updated={category_id}')
+
+
+@web_bp.route('/admin/joke-categories/<category_id>/generate-lunchbox-notes',
+              methods=['POST'])
+@auth_helpers.require_admin
+def admin_generate_category_lunchbox_notes(category_id: str):
+  """Generate lunchbox notes PDF for all jokes in a category."""
+  category_id = (category_id or '').strip()
+  if not category_id:
+    return flask.redirect('/admin/joke-categories?error=missing_category_id')
+
+  try:
+    category = firestore.get_joke_category(category_id)
+    if not category:
+      return flask.redirect('/admin/joke-categories?error=category_not_found')
+
+    if not category.jokes:
+      return flask.redirect('/admin/joke-categories?error=no_category_jokes')
+
+    sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(category.jokes)
+    _ = firestore.db().collection('joke_categories').document(category_id).set(
+      {'lunchbox_notes_pdf_gcs_uri': sheet.pdf_gcs_uri},
+      merge=True,
+    )
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(f"Failed generating lunchbox notes for {category_id}: {exc}")
+    return flask.redirect('/admin/joke-categories?error=generate_notes_failed')
+
+  return flask.redirect(
+    f'/admin/joke-categories?notes_generated={category_id}')

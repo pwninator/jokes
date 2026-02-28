@@ -448,7 +448,9 @@ def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
   live_doc.exists = True
   live_doc.id = "animals"
   live_doc.to_dict.return_value = {
-    "lunchbox_notes_pdf_gcs_uri": "gs://bucket/animals_notes.pdf",
+    "lunchbox_notes_branded_pdf_gcs_uri": "gs://bucket/animals_branded.pdf",
+    "lunchbox_notes_unbranded_pdf_gcs_uri":
+    "gs://bucket/animals_unbranded.pdf",
   }
   _mock_category_doc_stream(monkeypatch, [live_doc])
 
@@ -458,9 +460,10 @@ def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert "Generate lunchbox notes" in html
-  assert 'href="https://cdn.example/animals_notes.pdf"' in html
+  assert 'href="https://cdn.example/animals_branded.pdf"' in html
+  assert 'href="https://cdn.example/animals_unbranded.pdf"' in html
   assert '"https://bigapi.example.com"' in html
-  assert "printable_lunchbox" in html
+  assert "lunchbox_note" in html
 
 
 def test_admin_get_joke_category_live_returns_live_fields(monkeypatch):

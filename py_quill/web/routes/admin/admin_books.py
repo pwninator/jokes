@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import cast
 
 import flask
-from common import (config, image_generation, joke_book_operations, models,
-                    utils)
+from common import (book_defs, config, image_generation,
+                    joke_book_operations, models, utils)
 from firebase_functions import logger
 from functions import auth_helpers
 from PIL import Image, UnidentifiedImageError
@@ -148,6 +148,22 @@ def _format_book_asset_preview(gcs_uri: str | None) -> str | None:
     )
   except ValueError:
     return None
+
+
+def _book_definition_options() -> list[dict[str, str]]:
+  """Return admin-select options for available book definitions."""
+  options: list[dict[str, str]] = []
+  for book_key, book in sorted(
+      book_defs.BOOKS.items(),
+      key=lambda item: item[1].title,
+  ):
+    if book_defs.BookFormat.PAPERBACK not in book.variants:
+      continue
+    options.append({
+      'value': book_key.value,
+      'title': book.title,
+    })
+  return options
 
 
 def _extract_total_cost(joke_data: dict[str, object]) -> float | None:
@@ -310,6 +326,7 @@ def admin_joke_book_detail(book_id: str):
   return flask.render_template(
     'admin/joke_book_detail.html',
     book=book,
+    book_definition_options=_book_definition_options(),
     belongs_to_page_preview_url=_format_book_asset_preview(
       book.belongs_to_page_gcs_uri),
     jokes=joke_rows,
@@ -319,6 +336,8 @@ def admin_joke_book_detail(book_id: str):
       'web.admin_set_main_joke_image_from_book_page'),
     upload_belongs_to_page_url=flask.url_for(
       'web.admin_joke_book_upload_belongs_to_page'),
+    update_associated_book_url=flask.url_for(
+      'web.admin_joke_book_update_associated_book'),
     joke_creation_url=utils.joke_creation_url(),
     image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
     book_total_cost=total_book_cost if joke_rows else None,
@@ -643,4 +662,32 @@ def admin_joke_book_upload_belongs_to_page():
   return flask.jsonify({
     'belongs_to_page_gcs_uri': updated_book.belongs_to_page_gcs_uri,
     'preview_url': preview_url,
+  })
+
+
+@web_bp.route('/admin/joke-books/update-associated-book', methods=['POST'])
+@auth_helpers.require_admin
+def admin_joke_book_update_associated_book():
+  """Update the optional associated book definition for a joke book."""
+  book_id = flask.request.form.get('joke_book_id')
+  if not book_id:
+    return flask.Response('joke_book_id is required', 400)
+
+  associated_book_key = flask.request.form.get('associated_book_key')
+  try:
+    updated_book = joke_books_firestore.update_joke_book_associated_book_key(
+      book_id,
+      associated_book_key=associated_book_key,
+    )
+  except ValueError as exc:
+    return flask.Response(str(exc), _status_for_joke_book_error(str(exc)))
+
+  associated_book_title = None
+  if updated_book.associated_book_key:
+    associated_book_title = book_defs.BOOKS[book_defs.BookKey(
+      updated_book.associated_book_key)].title
+
+  return flask.jsonify({
+    'associated_book_key': updated_book.associated_book_key,
+    'associated_book_title': associated_book_title,
   })

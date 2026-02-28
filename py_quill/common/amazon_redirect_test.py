@@ -84,6 +84,17 @@ def test_amazon_redirect_config_base_urls():
     "US") == "https://www.amazon.com/review/create-review/?ie=UTF8&asin=B0REV")
 
 
+def test_get_paperback_review_url_uses_review_config():
+  url = amazon_redirect.get_paperback_review_url(
+    amazon_redirect.BookKey.ANIMAL_JOKES,
+    country_code="US",
+    source=amazon_redirect.AttributionSource.PRINTABLE_QR_CODE,
+  )
+
+  assert url.startswith("https://www.amazon.com/review/create-review/")
+  assert "asin=" in url
+
+
 def test_resolve_country_and_asin_with_supported_list(monkeypatch):
   book = amazon_redirect.Book(
     title="Test Book",

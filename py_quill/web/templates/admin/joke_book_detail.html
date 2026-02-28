@@ -142,12 +142,33 @@
     gap: 10px;
   }
 
+  .book-association-form {
+    flex: 1 1 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .book-association-select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    font-family: inherit;
+    font-size: 14px;
+  }
+
   .belongs-to-upload-input {
     display: block;
     width: 100%;
   }
 
   .belongs-to-status {
+    min-height: 1.4em;
+  }
+
+  .book-association-status {
     min-height: 1.4em;
   }
 
@@ -701,6 +722,38 @@
       </div>
       <div class="text-body belongs-to-status" aria-live="polite"></div>
     </form>
+    <form
+      class="book-association-form"
+      action="{{ update_associated_book_url }}"
+      method="post"
+      data-book-id="{{ book.id }}">
+      <input type="hidden" name="joke_book_id" value="{{ book.id }}">
+      <label class="text-button" for="associated-book-select">Associated book</label>
+      <select
+        id="associated-book-select"
+        class="book-association-select"
+        name="associated_book_key">
+        <option value="">None</option>
+        {% for option in book_definition_options %}
+        <option
+          value="{{ option.value }}"
+          {% if option.value == book.associated_book_key %}selected{% endif %}>
+          {{ option.title }}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="text-body muted">
+        If set, page 999 gets a paperback review QR code at 50, 50.
+      </div>
+      <div class="text-body muted associated-book-value">
+        {% if book.associated_book_key %}
+        <code>{{ book.associated_book_key }}</code>
+        {% else %}
+        No book association selected
+        {% endif %}
+      </div>
+      <div class="text-body book-association-status" aria-live="polite"></div>
+    </form>
   </div>
 </section>
 
@@ -907,6 +960,7 @@
     const updateBookPageUrl = "{{ update_book_page_url }}";
     const setMainImageUrl = {{ set_main_image_url | tojson }};
     const uploadBelongsToPageUrl = {{ upload_belongs_to_page_url | tojson }};
+    const updateAssociatedBookUrl = {{ update_associated_book_url | tojson }};
     const jokeCreationUrl = {{ joke_creation_url | tojson }};
     const functionsOrigin = {{ functions_origin | tojson }};
     const regenerateFilesEndpoint = functionsOrigin
@@ -1213,6 +1267,48 @@
         } finally {
           input.disabled = false;
           input.value = '';
+        }
+      });
+    };
+
+    const setupAssociatedBookSelector = () => {
+      const form = document.querySelector('.book-association-form');
+      const select = form?.querySelector('.book-association-select');
+      const status = form?.querySelector('.book-association-status');
+      const valueBox = form?.querySelector('.associated-book-value');
+      if (!form || !select || !status || !valueBox) return;
+
+      select.addEventListener('change', async () => {
+        const formData = new FormData();
+        formData.set('joke_book_id', form.dataset.bookId || bookId);
+        formData.set('associated_book_key', select.value);
+
+        select.disabled = true;
+        status.textContent = 'Saving...';
+
+        try {
+          const resp = await fetch(updateAssociatedBookUrl, {
+            method: 'POST',
+            body: formData,
+          });
+          if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(text || 'Save failed');
+          }
+
+          const data = await resp.json();
+          if (data?.associated_book_key) {
+            valueBox.innerHTML = `<code>${data.associated_book_key}</code>`;
+            status.textContent = 'Saved.';
+          } else {
+            valueBox.textContent = 'No book association selected';
+            status.textContent = 'Cleared.';
+          }
+        } catch (error) {
+          console.error('Failed to update associated book', error);
+          status.textContent = error?.message || 'Save failed.';
+        } finally {
+          select.disabled = false;
         }
       });
     };
@@ -1648,6 +1744,7 @@
 
     setupFilesRegenerator();
     setupBelongsToUploader();
+    setupAssociatedBookSelector();
 
     forms.forEach((form) => {
       const revealBtn = form.querySelector('.reveal-btn');

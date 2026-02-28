@@ -27,18 +27,27 @@ def test_generate_file_stem_sorts_joke_ids():
   stem_a = joke_notes_sheet_operations._generate_file_stem(
     ["b", "a"],
     quality=80,
+    branded=True,
   )
   stem_b = joke_notes_sheet_operations._generate_file_stem(
     ["a", "b"],
     quality=80,
+    branded=True,
   )
   stem_c = joke_notes_sheet_operations._generate_file_stem(
     ["a", "b"],
     quality=90,
+    branded=True,
+  )
+  stem_d = joke_notes_sheet_operations._generate_file_stem(
+    ["a", "b"],
+    quality=80,
+    branded=False,
   )
 
   assert stem_a == stem_b
   assert stem_a != stem_c
+  assert stem_a != stem_d
 
 
 def test_average_saved_users_fraction_handles_empty():
@@ -61,7 +70,8 @@ def test_average_saved_users_fraction_handles_invalid_values():
 def test_chunk_jokes_for_sheet_prefers_six_page_batches():
   jokes = [_make_joke(key=f"j{i}", fraction=0.1) for i in range(20)]
 
-  pages = joke_notes_sheet_operations._chunk_jokes_for_sheet(jokes)
+  pages = joke_notes_sheet_operations._chunk_jokes_for_sheet(jokes,
+                                                             branded=True)
 
   assert [len(page_jokes) for page_jokes, _, _ in pages] == [6, 6, 6, 2]
   assert [template_url for _, template_url, _ in pages] == [
@@ -76,12 +86,25 @@ def test_chunk_jokes_for_sheet_prefers_six_page_batches():
 def test_chunk_jokes_for_sheet_uses_only_six_page_batches_when_even():
   jokes = [_make_joke(key=f"j{i}", fraction=0.1) for i in range(12)]
 
-  pages = joke_notes_sheet_operations._chunk_jokes_for_sheet(jokes)
+  pages = joke_notes_sheet_operations._chunk_jokes_for_sheet(jokes,
+                                                             branded=True)
 
   assert [len(page_jokes) for page_jokes, _, _ in pages] == [6, 6]
   assert [template_url for _, template_url, _ in pages] == [
     joke_notes_sheet_operations._JOKE_NOTES_BRANDED6_URL,
     joke_notes_sheet_operations._JOKE_NOTES_BRANDED6_URL,
+  ]
+
+
+def test_chunk_jokes_for_sheet_uses_unbranded_templates_when_requested():
+  jokes = [_make_joke(key=f"j{i}", fraction=0.1) for i in range(8)]
+
+  pages = joke_notes_sheet_operations._chunk_jokes_for_sheet(jokes,
+                                                             branded=False)
+
+  assert [template_url for _, template_url, _ in pages] == [
+    joke_notes_sheet_operations._JOKE_NOTES_UNBRANDED6_URL,
+    joke_notes_sheet_operations._JOKE_NOTES_UNBRANDED5_URL,
   ]
 
 
@@ -145,6 +168,7 @@ def test_ensure_joke_notes_sheet_averages_and_skips_missing_keys(monkeypatch):
   expected_stem = joke_notes_sheet_operations._generate_file_stem(
     ["joke1"],
     quality=80,
+    branded=True,
   )
   expected_pdf = (
     f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_stem}.pdf")
@@ -194,13 +218,15 @@ def test_ensure_joke_notes_sheet_uploads_all_page_images_and_pdf(monkeypatch):
                       lambda _image: b"png-bytes")
   monkeypatch.setattr(
     joke_notes_sheet_operations, "_create_joke_notes_sheet_images",
-    lambda jokes_arg: page_images if jokes_arg == jokes else [])
+    lambda jokes_arg, *, branded: page_images
+    if jokes_arg == jokes and branded is True else [])
 
   result = joke_notes_sheet_operations.ensure_joke_notes_sheet(jokes)
 
   expected_stem = joke_notes_sheet_operations._generate_file_stem(
     [joke.key for joke in jokes if joke.key],
     quality=80,
+    branded=True,
   )
   expected_image_uris = [
     f"{joke_notes_sheet_operations._IMAGE_DIR_GCS_URI}/{expected_stem}.png",

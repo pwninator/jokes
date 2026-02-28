@@ -34,6 +34,7 @@ praat-parselmouth
 pytest
 pytest-cov
 pytest-asyncio
+qrcode
 requests
 soundfile>=0.12.0
 tabulate

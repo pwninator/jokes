@@ -69,6 +69,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
         id='book-42',
         book_name='Space Llamas',
         jokes=['joke-1', 'joke-2'],
+        associated_book_key='animal-jokes',
         belongs_to_page_gcs_uri='gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
         zip_url='https://example.com/book.zip',
         paperback_pdf_url='https://example.com/book_paperback.pdf',
@@ -122,6 +123,8 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "Space Llamas" in html
   assert 'class="book-id">book-42</code>' in html
   assert 'Belongs-to Page' in html
+  assert 'Associated book' in html
+  assert 'animal-jokes' in html
   assert '_joke_assets/book/belongs.png' in html
   assert 'Upload image' in html
   assert "joke-1" in html and "joke-2" in html
@@ -151,6 +154,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert 'aria-pressed="false"' in html
   assert "/admin/joke-books/update-page" in html
   assert "/admin/joke-books/set-main-image" in html
+  assert "/admin/joke-books/update-associated-book" in html
 
 
 def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
@@ -401,6 +405,37 @@ def test_admin_joke_book_upload_belongs_to_page(monkeypatch):
     belongs_to_page_gcs_uri=
     ('gs://images.quillsstorybook.com/_joke_assets/book/'
      '20260228_120000__belongs_to__space_llamas.png'),
+  )
+
+
+def test_admin_joke_book_update_associated_book(monkeypatch):
+  """Book-level association updates the stored book key."""
+  _mock_admin_session(monkeypatch)
+
+  mock_update = Mock(
+    return_value=books_routes.models.JokeBook(
+      id='book-456',
+      book_name='Space Llamas',
+      associated_book_key='animal-jokes',
+    ))
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      'update_joke_book_associated_book_key', mock_update)
+
+  with app.test_client() as client:
+    resp = client.post('/admin/joke-books/update-associated-book',
+                       data={
+                         'joke_book_id': 'book-456',
+                         'associated_book_key': 'animal-jokes',
+                       })
+
+  assert resp.status_code == 200
+  assert resp.get_json() == {
+    'associated_book_key': 'animal-jokes',
+    'associated_book_title': 'Cute & Silly Animal Jokes',
+  }
+  mock_update.assert_called_once_with(
+    'book-456',
+    associated_book_key='animal-jokes',
   )
 
 

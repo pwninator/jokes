@@ -28,8 +28,7 @@ class JokeCreationOp(str, Enum):
   JOKE_AUDIO = "joke_audio"
   JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
-  PRINTABLE_NOTE = "printable_note"
-  PRINTABLE_LUNCHBOX = "printable_lunchbox"
+  LUNCHBOX_NOTE = "lunchbox_note"
   ANIMATION = "animation"
   ANIMATION_LAUGH = "animation_laugh"
   CHARACTER = "character"
@@ -105,10 +104,8 @@ def _route_joke_creation_op(req: flask.Request) -> flask.Response:
     return _run_joke_video_tuner(req)
   if op == JokeCreationOp.SOCIAL:
     return social_fns.run_social_post_creation_process(req)
-  if op == JokeCreationOp.PRINTABLE_NOTE:
-    return _run_printable_sheet_proc(req)
-  if op == JokeCreationOp.PRINTABLE_LUNCHBOX:
-    return _run_printable_lunchbox_proc(req)
+  if op == JokeCreationOp.LUNCHBOX_NOTE:
+    return _run_lunchbox_note_proc(req)
   if op == JokeCreationOp.ANIMATION:
     return _run_character_animation_op(req)
   if op == JokeCreationOp.ANIMATION_LAUGH:
@@ -591,8 +588,8 @@ def _run_joke_creation_proc(req: flask.Request) -> flask.Response:
   return error_response('Failed to save joke', req=req, status=500)
 
 
-def _run_printable_sheet_proc(req: flask.Request) -> flask.Response:
-  """Create a manual printable notes sheet from selected jokes."""
+def _run_lunchbox_note_proc(req: flask.Request) -> flask.Response:
+  """Create either a manual note sheet or a full-category lunchbox export."""
 
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}',
@@ -600,53 +597,48 @@ def _run_printable_sheet_proc(req: flask.Request) -> flask.Response:
                           status=405)
 
   joke_ids = get_list_param(req, 'joke_ids')
-  sheet_slug = (get_param(req, 'sheet_slug') or '').strip()
-  if not sheet_slug:
-    return error_response('sheet_slug is required',
-                          error_type='invalid_request',
-                          status=400,
-                          req=req)
-  if len(joke_ids) != 5:
-    return error_response('joke_ids must contain exactly 5 items',
-                          error_type='invalid_request',
-                          status=400,
-                          req=req)
-
-  jokes = firestore.get_punny_jokes(joke_ids)
-  if len(jokes) != len(joke_ids):
-    return error_response('One or more joke_ids were not found',
-                          error_type='invalid_request',
-                          status=404,
-                          req=req)
-
-  sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
-    jokes,
-    sheet_slug=sheet_slug,
-  )
-  return success_response(
-    {
-      "sheet_id": sheet.key,
-      "sheet_slug": sheet.sheet_slug,
-      "pdf_gcs_uri": sheet.pdf_gcs_uri,
-      "image_gcs_uri": sheet.image_gcs_uri,
-    },
-    req=req,
-  )
-
-
-def _run_printable_lunchbox_proc(req: flask.Request) -> flask.Response:
-  """Create and persist a category lunchbox-notes PDF."""
-  if req.method != 'POST':
-    return error_response(f'Method not allowed: {req.method}',
-                          req=req,
-                          status=405)
-
   category_id = (get_str_param(req, 'category_id') or '').strip()
-  if not category_id:
-    return error_response('category_id is required',
+  has_joke_ids = bool(joke_ids)
+  has_category_id = bool(category_id)
+  if has_joke_ids == has_category_id:
+    return error_response('Exactly one of joke_ids or category_id is required',
                           error_type='invalid_request',
                           status=400,
                           req=req)
+
+  if has_joke_ids:
+    sheet_slug = (get_param(req, 'sheet_slug') or '').strip()
+    if not sheet_slug:
+      return error_response('sheet_slug is required',
+                            error_type='invalid_request',
+                            status=400,
+                            req=req)
+    if len(joke_ids) != 5:
+      return error_response('joke_ids must contain exactly 5 items',
+                            error_type='invalid_request',
+                            status=400,
+                            req=req)
+
+    jokes = firestore.get_punny_jokes(joke_ids)
+    if len(jokes) != len(joke_ids):
+      return error_response('One or more joke_ids were not found',
+                            error_type='invalid_request',
+                            status=404,
+                            req=req)
+
+    sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
+      jokes,
+      sheet_slug=sheet_slug,
+    )
+    return success_response(
+      {
+        "sheet_id": sheet.key,
+        "sheet_slug": sheet.sheet_slug,
+        "pdf_gcs_uri": sheet.pdf_gcs_uri,
+        "image_gcs_uri": sheet.image_gcs_uri,
+      },
+      req=req,
+    )
 
   category = firestore.get_joke_category(category_id)
   if not category:
@@ -660,16 +652,27 @@ def _run_printable_lunchbox_proc(req: flask.Request) -> flask.Response:
                           status=400,
                           req=req)
 
-  sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(category.jokes)
+  branded_sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
+    category.jokes,
+    branded=True,
+  )
+  unbranded_sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
+    category.jokes,
+    branded=False,
+  )
   _ = firestore.db().collection('joke_categories').document(category_id).set(
-    {'lunchbox_notes_pdf_gcs_uri': sheet.pdf_gcs_uri},
+    {
+      'lunchbox_notes_branded_pdf_gcs_uri': branded_sheet.pdf_gcs_uri,
+      'lunchbox_notes_unbranded_pdf_gcs_uri': unbranded_sheet.pdf_gcs_uri,
+    },
     merge=True,
   )
   return success_response(
     {
       "category_id": category_id,
-      "pdf_gcs_uri": sheet.pdf_gcs_uri,
-      "image_gcs_uri": sheet.image_gcs_uri,
+      "lunchbox_notes_branded_pdf_gcs_uri": branded_sheet.pdf_gcs_uri,
+      "lunchbox_notes_unbranded_pdf_gcs_uri": unbranded_sheet.pdf_gcs_uri,
+      "image_gcs_uri": branded_sheet.image_gcs_uri,
     },
     req=req,
   )

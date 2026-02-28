@@ -27,6 +27,7 @@ def ensure_joke_notes_sheet(
   jokes: list[models.PunnyJoke],
   *,
   quality: int = 80,
+  branded: bool = True,
   category_id: str | None = None,
   index: int | None = None,
   sheet_slug: str | None = None,
@@ -35,12 +36,14 @@ def ensure_joke_notes_sheet(
 
   Notes:
   - The Firestore doc is unique by the SHA-256 file stem (`joke_str_hash`).
-  - The asset filenames include `quality`, so subsequent calls with different
-    quality will overwrite the stored URIs on the same Firestore doc.
+  - The asset filenames include `quality` and `branded`, so subsequent calls
+    with different output variants create distinct assets and Firestore docs.
   - The saved-users fraction is averaged across the supplied jokes.
   """
   joke_ids = [joke.key for joke in jokes if joke.key]
-  filename_base = _generate_file_stem(joke_ids, quality=quality)
+  filename_base = _generate_file_stem(joke_ids,
+                                      quality=quality,
+                                      branded=branded)
   pdf_gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename_base}.pdf"
   page_image_gcs_uris = _build_page_image_gcs_uris(filename_base, len(jokes))
   image_gcs_uri = page_image_gcs_uris[0]
@@ -55,7 +58,7 @@ def ensure_joke_notes_sheet(
 
   if not (pdf_exists and all_images_exist):
     if not all_images_exist:
-      notes_images = _create_joke_notes_sheet_images(jokes)
+      notes_images = _create_joke_notes_sheet_images(jokes, branded=branded)
 
       for page_index, page_image_gcs_uri in enumerate(page_image_gcs_uris):
         if image_exists[page_index]:
@@ -94,7 +97,12 @@ def ensure_joke_notes_sheet(
   return firestore.upsert_joke_sheet(sheet)
 
 
-def _generate_file_stem(joke_ids: list[str], *, quality: int) -> str:
+def _generate_file_stem(
+  joke_ids: list[str],
+  *,
+  quality: int,
+  branded: bool,
+) -> str:
   """Generate a deterministic file stem from joke IDs using SHA-256.
 
   Joke IDs are sorted before hashing so different orderings produce the same
@@ -102,6 +110,7 @@ def _generate_file_stem(joke_ids: list[str], *, quality: int) -> str:
   """
   hash_components = sorted(joke_ids) + [
     f"quality={int(quality)}",
+    f"branded={branded}",
     f"version={_JOKE_NOTES_SHEET_VERSION}",
   ]
   hash_source = "|".join(hash_components)
@@ -140,37 +149,42 @@ def _get_joke_notes_sheet_page_count(joke_count: int) -> int:
 
 def _chunk_jokes_for_sheet(
   jokes: list[models.PunnyJoke],
+  *,
+  branded: bool,
 ) -> list[tuple[list[models.PunnyJoke], str, int]]:
   """Split jokes into sheet pages using as many 6-card pages as possible."""
+  branded_five_url = (_JOKE_NOTES_BRANDED5_URL
+                      if branded else _JOKE_NOTES_UNBRANDED5_URL)
+  branded_six_url = (_JOKE_NOTES_BRANDED6_URL
+                     if branded else _JOKE_NOTES_UNBRANDED6_URL)
   total_jokes = len(jokes)
-  if total_jokes == 0:
-    return [(list(jokes), _JOKE_NOTES_BRANDED5_URL, 5)]
-
   if total_jokes <= 5:
-    return [(list(jokes), _JOKE_NOTES_BRANDED5_URL, 5)]
+    return [(list(jokes), branded_five_url, 5)]
 
   remainder = total_jokes % 6
   jokes_for_six_pages = total_jokes if remainder == 0 else total_jokes - remainder
 
   pages: list[tuple[list[models.PunnyJoke], str, int]] = []
   for start in range(0, jokes_for_six_pages, 6):
-    pages.append((list(jokes[start:start + 6]), _JOKE_NOTES_BRANDED6_URL, 6))
+    pages.append((list(jokes[start:start + 6]), branded_six_url, 6))
 
   if remainder > 0:
-    pages.append(
-      (list(jokes[jokes_for_six_pages:]), _JOKE_NOTES_BRANDED5_URL, 5))
+    pages.append((list(jokes[jokes_for_six_pages:]), branded_five_url, 5))
 
   return pages
 
 
 def _create_joke_notes_sheet_images(
-  jokes: list[models.PunnyJoke], ) -> list[Image.Image]:
+  jokes: list[models.PunnyJoke],
+  *,
+  branded: bool,
+) -> list[Image.Image]:
   """Create one or more sheet page images for the supplied jokes."""
   return [
     _create_joke_notes_sheet_image(page_jokes,
                                    template_url=template_url,
-                                   max_jokes=max_jokes)
-    for page_jokes, template_url, max_jokes in _chunk_jokes_for_sheet(jokes)
+                                   max_jokes=max_jokes) for page_jokes,
+    template_url, max_jokes in _chunk_jokes_for_sheet(jokes, branded=branded)
   ]
 
 

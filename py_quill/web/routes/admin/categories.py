@@ -14,10 +14,10 @@ from services import firestore
 from web.routes import web_bp
 
 
-def _get_category_lunchbox_pdf_gcs_uris() -> dict[str, str]:
+def _get_category_lunchbox_pdf_gcs_uris() -> dict[str, dict[str, str]]:
   """Fetch live lunchbox PDF URIs from the main category documents."""
   docs: Any = firestore.db().collection("joke_categories").stream()
-  results: dict[str, str] = {}
+  results: dict[str, dict[str, str]] = {}
   for doc in docs:
     if not getattr(doc, "exists", False):
       continue
@@ -25,11 +25,20 @@ def _get_category_lunchbox_pdf_gcs_uris() -> dict[str, str]:
     if not isinstance(raw_data, dict):
       continue
     data = cast(dict[str, object], raw_data)
-    raw_pdf_gcs_uri = data.get("lunchbox_notes_pdf_gcs_uri")
-    pdf_gcs_uri = raw_pdf_gcs_uri.strip() if isinstance(raw_pdf_gcs_uri,
-                                                        str) else ""
-    if pdf_gcs_uri:
-      results[doc.id] = pdf_gcs_uri
+    raw_branded_pdf_gcs_uri = data.get("lunchbox_notes_branded_pdf_gcs_uri")
+    branded_pdf_gcs_uri = (raw_branded_pdf_gcs_uri.strip() if isinstance(
+      raw_branded_pdf_gcs_uri, str) else "")
+    raw_unbranded_pdf_gcs_uri = data.get(
+      "lunchbox_notes_unbranded_pdf_gcs_uri")
+    unbranded_pdf_gcs_uri = (raw_unbranded_pdf_gcs_uri.strip() if isinstance(
+      raw_unbranded_pdf_gcs_uri, str) else "")
+    category_uris: dict[str, str] = {}
+    if branded_pdf_gcs_uri:
+      category_uris["branded"] = branded_pdf_gcs_uri
+    if unbranded_pdf_gcs_uri:
+      category_uris["unbranded"] = unbranded_pdf_gcs_uri
+    if category_uris:
+      results[doc.id] = category_uris
   return results
 
 
@@ -45,7 +54,11 @@ def admin_joke_categories():
   for category in categories:
     category_id = getattr(category, "id", None)
     if isinstance(category_id, str) and category_id in lunchbox_pdf_gcs_uris:
-      category.lunchbox_notes_pdf_gcs_uri = lunchbox_pdf_gcs_uris[category_id]
+      category_uris = lunchbox_pdf_gcs_uris[category_id]
+      category.lunchbox_notes_branded_pdf_gcs_uri = category_uris.get(
+        "branded")
+      category.lunchbox_notes_unbranded_pdf_gcs_uri = category_uris.get(
+        "unbranded")
 
   def _state_key(category: models.JokeCategory) -> str:
     return (category.state or "").upper()

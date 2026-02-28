@@ -1500,6 +1500,50 @@ class ExportJokePageFilesTest(unittest.TestCase):
                      image_operations._BOOK_PAGE_BLEED_PX)
     self.assertEqual(setup_call.kwargs['right'], 0)
 
+  @patch('common.image_operations._create_qr_code_image')
+  @patch('common.image_operations.amazon_redirect.get_paperback_review_url')
+  def test_add_paperback_review_qr_to_page_overlays_qr(
+    self,
+    mock_get_review_url,
+    mock_create_qr_code_image,
+  ):
+    """Paperback review QR overlay should paste the generated QR at 50,50."""
+    base_image = Image.new(
+      'RGB',
+      (image_operations._BOOK_PAGE_FINAL_WIDTH,
+       image_operations._BOOK_PAGE_FINAL_HEIGHT),
+      'white',
+    )
+    buffer = BytesIO()
+    base_image.save(buffer, format='JPEG', quality=100)
+
+    qr_image = Image.new(
+      'RGB',
+      (image_operations._BOOK_REVIEW_QR_SIZE_PX,
+       image_operations._BOOK_REVIEW_QR_SIZE_PX),
+      'black',
+    )
+    mock_get_review_url.return_value = 'https://example.com/review'
+    mock_create_qr_code_image.return_value = qr_image
+
+    updated_bytes = image_operations._add_paperback_review_qr_to_page(
+      buffer.getvalue(),
+      associated_book_key='animal-jokes',
+    )
+
+    mock_get_review_url.assert_called_once()
+    mock_create_qr_code_image.assert_called_once_with(
+      'https://example.com/review',
+      size_px=image_operations._BOOK_REVIEW_QR_SIZE_PX,
+    )
+    updated_image = Image.open(BytesIO(updated_bytes))
+    self.assertEqual(
+      updated_image.getpixel((image_operations._BOOK_REVIEW_QR_X + 10,
+                              image_operations._BOOK_REVIEW_QR_Y + 10)),
+      (0, 0, 0),
+    )
+
+  @patch('common.image_operations._add_paperback_review_qr_to_page')
   @patch('common.image_operations._enhance_kdp_export_page_bytes')
   @patch('common.image_operations._convert_for_print_kdp')
   @patch('common.image_operations.cloud_storage.get_public_url')
@@ -1518,12 +1562,14 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_get_public_url,
     mock_convert_for_print,
     mock_enhance_page_bytes,
+    mock_add_review_qr,
   ):
     """export_joke_page_files_for_kdp should upload ZIP and PDF and return both URLs."""
     book = models.JokeBook(
       id='book-1',
       book_name='My Book',
       jokes=['joke1'],
+      associated_book_key='animal-jokes',
       belongs_to_page_gcs_uri=
       'gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
     )
@@ -1584,6 +1630,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
       b'punchline-kdp',
       b'about-page',
     ]
+    mock_add_review_qr.return_value = b'about-page-with-qr'
     mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
     mock_create_pdf.return_value = b'%PDF-export'
     mock_build_export_uris.return_value = (
@@ -1643,7 +1690,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
       self.assertEqual(zip_file.read('004_joke1_punchline.jpg'),
                        b'punchline-kdp')
       self.assertEqual(zip_file.read('999_about_page_template.png'),
-                       b'about-page')
+                       b'about-page-with-qr')
 
     enhance_calls = mock_enhance_page_bytes.call_args_list
     self.assertEqual(len(enhance_calls), 2)
@@ -1671,6 +1718,10 @@ class ExportJokePageFilesTest(unittest.TestCase):
     about_call = convert_calls[3]
     self.assertFalse(about_call.kwargs['is_left_page'])
     self.assertFalse(about_call.kwargs['add_page_number'])
+    mock_add_review_qr.assert_called_once_with(
+      b'about-page',
+      associated_book_key='animal-jokes',
+    )
 
     pdf_call = mock_create_pdf.call_args
     self.assertEqual(pdf_call.kwargs, {'dpi': 300, 'quality': 100})
@@ -1678,7 +1729,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertEqual(pdf_images[2:4], [b'setup-kdp', b'punchline-kdp'])
     self.assertEqual(pdf_images[0], b'belongs-to-page')
     self.assertIsInstance(pdf_images[1], (bytes, bytearray))
-    self.assertEqual(pdf_images[4], b'about-page')
+    self.assertEqual(pdf_images[4], b'about-page-with-qr')
 
 
 if __name__ == '__main__':
@@ -1779,7 +1830,9 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     result = joke_notes_sheet_operations.ensure_joke_notes_sheet(jokes,
                                                                  quality=42)
 
-    expected_hash_source = f'joke1|quality=42|version={joke_notes_sheet_operations._JOKE_NOTES_SHEET_VERSION}'
+    expected_hash_source = (
+      'joke1|quality=42|branded=True|'
+      f'version={joke_notes_sheet_operations._JOKE_NOTES_SHEET_VERSION}')
     expected_stem = hashlib.sha256(
       expected_hash_source.encode('utf-8')).hexdigest()
     expected_pdf_gcs_uri = (
@@ -1807,7 +1860,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     self.assertEqual(upserted_sheet.image_gcs_uris, [expected_image_gcs_uri])
     self.assertAlmostEqual(upserted_sheet.avg_saved_users_fraction, 0.4)
 
-    mock_create_image.assert_called_once_with(jokes)
+    mock_create_image.assert_called_once_with(jokes, branded=True)
     mock_create_pdf.assert_called_once_with([notes_image], quality=42)
     # Two uploads: PNG and PDF.
     self.assertEqual(mock_upload_bytes.call_count, 2)
@@ -1862,7 +1915,8 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     )
 
     expected_hash = hashlib.sha256(
-      f'a|b|quality=42|version={joke_notes_sheet_operations._JOKE_NOTES_SHEET_VERSION}'
+      ('a|b|quality=42|branded=True|'
+       f'version={joke_notes_sheet_operations._JOKE_NOTES_SHEET_VERSION}')
       .encode('utf-8')).hexdigest()
     expected_pdf_gcs_uri = (
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_hash}.pdf")

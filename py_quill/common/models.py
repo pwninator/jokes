@@ -847,6 +847,7 @@ class JokeBook:
 
   book_name: str = ""
   jokes: list[str] = field(default_factory=list)
+  associated_book_key: str | None = None
   belongs_to_page_gcs_uri: str | None = None
   zip_url: str | None = None
   paperback_pdf_url: str | None = None
@@ -1045,8 +1046,11 @@ class JokeCategory:
   all_image_urls: list[str] = field(default_factory=list)
   """All known image URLs for the category (used by the app image carousel)."""
 
-  lunchbox_notes_pdf_gcs_uri: str | None = None
-  """Optional generated lunchbox notes PDF for the full category."""
+  lunchbox_notes_branded_pdf_gcs_uri: str | None = None
+  """Optional branded lunchbox notes PDF for the full category."""
+
+  lunchbox_notes_unbranded_pdf_gcs_uri: str | None = None
+  """Optional unbranded lunchbox notes PDF for the full category."""
 
   image_description: str | None = None
   joke_id_order: list[str] = field(default_factory=list)

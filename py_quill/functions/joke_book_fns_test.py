@@ -137,6 +137,7 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   assert created_book.id == 'book123'
   assert created_book.book_name == 'My Auto Book'
   assert created_book.jokes == ['j1', 'j2']
+  assert created_book.associated_book_key is None
   assert created_book.belongs_to_page_gcs_uri is None
   assert created_book.zip_url is None
   assert created_book.paperback_pdf_url is None

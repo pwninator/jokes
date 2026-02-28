@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, cast
 
-from common import models
+from common import book_defs, models
 from google.cloud.firestore import (ArrayUnion, Client, CollectionReference,
                                     DocumentReference, DocumentSnapshot)
 from services import firestore as firestore_service
@@ -136,6 +136,24 @@ def update_joke_book_belongs_to_page(
     belongs_to_page_gcs_uri,
   })
   book.belongs_to_page_gcs_uri = belongs_to_page_gcs_uri
+  return book
+
+
+def update_joke_book_associated_book_key(
+  book_id: str,
+  *,
+  associated_book_key: str | None,
+) -> models.JokeBook:
+  """Update the optional associated book definition for a joke book."""
+  book = _get_required_book(book_id)
+  normalized_key = (associated_book_key or '').strip() or None
+  if normalized_key is not None:
+    _ = book_defs.BookKey(normalized_key)
+
+  _ = _book_ref(book_id).update({
+    'associated_book_key': normalized_key,
+  })
+  book.associated_book_key = normalized_key
   return book
 
 

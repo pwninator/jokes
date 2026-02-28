@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import datetime
+import importlib
 import math
 import zipfile
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from io import BytesIO
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 import requests
 from agents import constants
-from common import config, models
+from common import amazon_redirect, book_defs, config, models
 from firebase_functions import logger
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from google.cloud.firestore_v1.document import DocumentReference
@@ -65,6 +66,9 @@ _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
 _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/999_about_page_template.png"
+_BOOK_REVIEW_QR_SIZE_PX = 350
+_BOOK_REVIEW_QR_X = 50
+_BOOK_REVIEW_QR_Y = 50
 
 
 @dataclass(frozen=True)
@@ -139,6 +143,90 @@ def _book_export_file_name(gcs_uri: str, fallback_stem: str) -> str:
   if '.' in filename:
     return filename
   return f'{fallback_stem}.bin'
+
+
+def _create_qr_code_image(
+  content: str,
+  *,
+  size_px: int,
+) -> Image.Image:
+  """Create a square QR code image for the provided content."""
+  try:
+    qr_module: Any = importlib.import_module('qrcode')
+  except ImportError as exc:  # pragma: no cover - dependency error path
+    raise RuntimeError(
+      'qrcode dependency is required for book review QR codes') from exc
+
+  qr = qr_module.QRCode(
+    version=None,
+    error_correction=qr_module.constants.ERROR_CORRECT_M,
+    box_size=10,
+    border=4,
+  )
+  qr.add_data(content)
+  qr.make(fit=True)
+  raw_qr_image: Any = qr.make_image(fill_color='black', back_color='white')
+  if hasattr(raw_qr_image, 'get_image'):
+    raw_qr_image = raw_qr_image.get_image()
+  qr_image = cast(Image.Image, raw_qr_image).convert('RGB')
+  if qr_image.size != (size_px, size_px):
+    qr_image = qr_image.resize((size_px, size_px), Image.Resampling.NEAREST)
+  return qr_image
+
+
+def _overlay_image_bytes(
+  base_bytes: bytes,
+  *,
+  overlay_image: Image.Image,
+  x: int,
+  y: int,
+) -> bytes:
+  """Paste an overlay image onto a JPEG page and return JPEG bytes."""
+  with Image.open(BytesIO(base_bytes)) as base_image:
+    base_image.load()  # pyright: ignore[reportUnusedCallResult]
+    composed_image = base_image.convert('RGB')
+  overlay_rgb = overlay_image.convert('RGB')
+
+  try:
+    composed_image.paste(overlay_rgb, (x, y))
+    buffer = BytesIO()
+    composed_image.save(
+      buffer,
+      format='JPEG',
+      quality=100,
+      subsampling=0,
+      dpi=(300, 300),
+    )
+    return buffer.getvalue()
+  finally:
+    overlay_rgb.close()
+    composed_image.close()
+
+
+def _add_paperback_review_qr_to_page(
+  page_bytes: bytes,
+  *,
+  associated_book_key: str,
+) -> bytes:
+  """Overlay a paperback-review QR code onto a converted page image."""
+  review_url = amazon_redirect.get_paperback_review_url(
+    book_defs.BookKey(associated_book_key),
+    country_code=amazon_redirect.DEFAULT_COUNTRY_CODE,
+    source=book_defs.AttributionSource.PRINTABLE_QR_CODE,
+  )
+  qr_image = _create_qr_code_image(
+    review_url,
+    size_px=_BOOK_REVIEW_QR_SIZE_PX,
+  )
+  try:
+    return _overlay_image_bytes(
+      page_bytes,
+      overlay_image=qr_image,
+      x=_BOOK_REVIEW_QR_X,
+      y=_BOOK_REVIEW_QR_Y,
+    )
+  finally:
+    qr_image.close()
 
 
 def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
@@ -235,6 +323,11 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     color_mode=_KDP_PRINT_COLOR_MODE,
     add_page_number=False,
   )
+  if book.associated_book_key:
+    about_bytes = _add_paperback_review_qr_to_page(
+      about_bytes,
+      associated_book_key=book.associated_book_key,
+    )
   about_file_name = _book_export_file_name(_BOOK_PAGE_ABOUT_GCS_URI, 'about')
   if about_file_name.startswith('999_'):
     files.append((about_file_name, about_bytes))

@@ -657,8 +657,9 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
   assert second_call.kwargs["save_to_firestore"] is False
 
 
-def test_joke_creation_process_handles_printable_note_op(monkeypatch):
-  """PRINTABLE_NOTE should create a manual notes sheet."""
+def test_joke_creation_process_handles_lunchbox_note_op_for_manual_sheet(
+    monkeypatch):
+  """LUNCHBOX_NOTE should create a manual notes sheet from selected jokes."""
   monkeypatch.setattr(
     joke_creation_fns,
     'get_user_id',
@@ -697,7 +698,7 @@ def test_joke_creation_process_handles_printable_note_op(monkeypatch):
   resp = joke_creation_fns.joke_creation_process(
     DummyReq(
       data={
-        "op": joke_creation_fns.JokeCreationOp.PRINTABLE_NOTE.value,
+        "op": joke_creation_fns.JokeCreationOp.LUNCHBOX_NOTE.value,
         "joke_ids": [j.key for j in jokes],
         "sheet_slug": "manual-notes-pack",
       }))
@@ -709,8 +710,9 @@ def test_joke_creation_process_handles_printable_note_op(monkeypatch):
   assert len(captured["jokes"]) == 5
 
 
-def test_joke_creation_process_handles_printable_lunchbox_op(monkeypatch):
-  """PRINTABLE_LUNCHBOX should create and persist a category PDF."""
+def test_joke_creation_process_handles_lunchbox_note_op_for_category(
+    monkeypatch):
+  """LUNCHBOX_NOTE should create and persist branded and unbranded PDFs."""
   monkeypatch.setattr(
     joke_creation_fns,
     'get_user_id',
@@ -732,15 +734,20 @@ def test_joke_creation_process_handles_printable_lunchbox_op(monkeypatch):
     joke_creation_fns.firestore, "get_joke_category",
     lambda category_id: category if category_id == "animals" else None)
 
-  captured: dict[str, object] = {}
+  captured: list[dict[str, object]] = []
 
-  def fake_ensure_joke_notes_sheet(jokes_arg, **_kwargs):
-    captured["jokes"] = jokes_arg
+  def fake_ensure_joke_notes_sheet(jokes_arg, **kwargs):
+    captured.append({
+      "jokes": jokes_arg,
+      "branded": kwargs.get("branded", True),
+    })
+    pdf_name = "sheet_branded.pdf" if kwargs.get(
+      "branded", True) else ("sheet_unbranded.pdf")
     return models.JokeSheet(
       key="sheet-lunchbox",
       joke_ids=[j.key for j in jokes_arg if j.key],
       image_gcs_uri="gs://bucket/sheet.png",
-      pdf_gcs_uri="gs://bucket/sheet.pdf",
+      pdf_gcs_uri=f"gs://bucket/{pdf_name}",
     )
 
   monkeypatch.setattr(
@@ -759,18 +766,34 @@ def test_joke_creation_process_handles_printable_lunchbox_op(monkeypatch):
   resp = joke_creation_fns.joke_creation_process(
     DummyReq(
       data={
-        "op": joke_creation_fns.JokeCreationOp.PRINTABLE_LUNCHBOX.value,
+        "op": joke_creation_fns.JokeCreationOp.LUNCHBOX_NOTE.value,
         "category_id": "animals",
       }))
 
   data = resp.get_json()["data"]
   assert data["category_id"] == "animals"
-  assert data["pdf_gcs_uri"] == "gs://bucket/sheet.pdf"
-  assert captured["jokes"] == category.jokes
+  assert data["lunchbox_notes_branded_pdf_gcs_uri"] == (
+    "gs://bucket/sheet_branded.pdf")
+  assert data["lunchbox_notes_unbranded_pdf_gcs_uri"] == (
+    "gs://bucket/sheet_unbranded.pdf")
+  assert captured == [
+    {
+      "jokes": category.jokes,
+      "branded": True,
+    },
+    {
+      "jokes": category.jokes,
+      "branded": False,
+    },
+  ]
   mock_db.collection.assert_called_with("joke_categories")
   mock_collection.document.assert_called_with("animals")
   mock_doc.set.assert_called_once_with(
-    {"lunchbox_notes_pdf_gcs_uri": "gs://bucket/sheet.pdf"},
+    {
+      "lunchbox_notes_branded_pdf_gcs_uri": "gs://bucket/sheet_branded.pdf",
+      "lunchbox_notes_unbranded_pdf_gcs_uri":
+      "gs://bucket/sheet_unbranded.pdf",
+    },
     merge=True,
   )
 

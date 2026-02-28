@@ -77,6 +77,7 @@ def test_create_and_update_export_files_use_joke_book_model(monkeypatch):
   book_ref.set.assert_called_once_with({
     'book_name': 'My Book',
     'jokes': ['j1'],
+    'associated_book_key': None,
     'belongs_to_page_gcs_uri': None,
     'zip_url': 'https://cdn/old.zip',
     'paperback_pdf_url': None,
@@ -111,6 +112,27 @@ def test_update_joke_book_belongs_to_page_updates_model(monkeypatch):
   })
   assert updated.belongs_to_page_gcs_uri == (
     'gs://images/_joke_assets/book/belongs.png')
+
+
+def test_update_joke_book_associated_book_key_updates_model(monkeypatch):
+  book_ref = MagicMock()
+  monkeypatch.setattr(joke_books_firestore, '_book_ref',
+                      lambda _book_id: book_ref)
+  monkeypatch.setattr(
+    joke_books_firestore,
+    'get_joke_book',
+    lambda book_id: models.JokeBook(id=book_id, book_name='My Book'),
+  )
+
+  updated = joke_books_firestore.update_joke_book_associated_book_key(
+    'book-1',
+    associated_book_key='animal-jokes',
+  )
+
+  book_ref.update.assert_called_once_with({
+    'associated_book_key': 'animal-jokes',
+  })
+  assert updated.associated_book_key == 'animal-jokes'
 
 
 def test_update_book_page_selection_updates_metadata(monkeypatch):

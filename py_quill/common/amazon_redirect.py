@@ -295,3 +295,39 @@ def _apply_attribution_tag(base_url: str,
   merged_query = urllib.parse.urlencode(merged_params)
   rebuilt = parsed._replace(query=merged_query)
   return urllib.parse.urlunparse(rebuilt)
+
+
+def get_review_url(
+  book_key: BookKey,
+  *,
+  book_format: BookFormat,
+  country_code: str | None = None,
+  source: str | AttributionSource | None = None,
+) -> str:
+  """Return the direct Amazon review URL for the requested book format."""
+  config = AmazonRedirectConfig(
+    book_key=book_key,
+    page_type=AmazonRedirectPageType.REVIEW,
+    format=book_format,
+    description='Generated review URL',
+  )
+  target_url, _resolved_country, _resolved_asin = config.resolve_target_url(
+    country_code,
+    source,
+  )
+  return target_url
+
+
+def get_paperback_review_url(
+  book_key: BookKey,
+  *,
+  country_code: str | None = None,
+  source: str | AttributionSource | None = None,
+) -> str:
+  """Return the direct Amazon paperback review URL for a book."""
+  return get_review_url(
+    book_key,
+    book_format=BookFormat.PAPERBACK,
+    country_code=country_code,
+    source=source,
+  )

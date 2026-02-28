@@ -403,8 +403,11 @@
           data-category-id="{{ category.id }}">
           Generate lunchbox notes
         </button>
-        {% if category.lunchbox_notes_pdf_gcs_uri %}
-        <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View PDF</a>
+        {% if category.lunchbox_notes_branded_pdf_gcs_uri %}
+        <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_branded_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View Branded PDF</a>
+        {% endif %}
+        {% if category.lunchbox_notes_unbranded_pdf_gcs_uri %}
+        <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_unbranded_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View Unbranded PDF</a>
         {% endif %}
       </div>
       <div class="joke-grid" aria-label="Category joke thumbnails">
@@ -607,7 +610,7 @@
             credentials: 'include',
             body: JSON.stringify({
               data: {
-                op: 'printable_lunchbox',
+                op: 'lunchbox_note',
                 category_id: categoryId,
               },
             }),

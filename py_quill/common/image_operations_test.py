@@ -1452,11 +1452,58 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_editor.enhance_image.assert_called_once()
     self.assertEqual(mock_editor.enhance_image.call_args.kwargs, {})
 
+  @patch('common.image_operations._add_page_number_to_image',
+         side_effect=lambda image, **_kwargs: image)
+  def test_convert_for_print_kdp_trims_inner_binding_edge(
+    self,
+    _mock_add_page_number,
+  ):
+    """Punchline pages trim right; setup pages trim left."""
+    source_image = Image.new('RGB', (32, 32), 'red')
+    mock_editor = MagicMock()
+    scaled_image = Image.new('RGB', (10, 10), 'white')
+    trimmed_punchline = Image.new('RGB',
+                                  (image_operations._BOOK_PAGE_FINAL_WIDTH,
+                                   image_operations._BOOK_PAGE_FINAL_HEIGHT),
+                                  'blue')
+    trimmed_setup = Image.new('RGB',
+                              (image_operations._BOOK_PAGE_FINAL_WIDTH,
+                               image_operations._BOOK_PAGE_FINAL_HEIGHT),
+                              'green')
+    mock_editor.scale_image.return_value = scaled_image
+    mock_editor.trim_edges.side_effect = [trimmed_punchline, trimmed_setup]
+
+    _ = image_operations._convert_for_print_kdp(
+      source_image,
+      is_left_page=True,
+      page_number=1,
+      total_pages=2,
+      color_mode='RGB',
+      image_editor_instance=mock_editor,
+    )
+    _ = image_operations._convert_for_print_kdp(
+      source_image,
+      is_left_page=False,
+      page_number=2,
+      total_pages=2,
+      color_mode='RGB',
+      image_editor_instance=mock_editor,
+    )
+
+    punchline_call = mock_editor.trim_edges.call_args_list[0]
+    self.assertEqual(punchline_call.kwargs['left'], 0)
+    self.assertEqual(punchline_call.kwargs['right'],
+                     image_operations._BOOK_PAGE_BLEED_PX)
+
+    setup_call = mock_editor.trim_edges.call_args_list[1]
+    self.assertEqual(setup_call.kwargs['left'],
+                     image_operations._BOOK_PAGE_BLEED_PX)
+    self.assertEqual(setup_call.kwargs['right'], 0)
+
   @patch('common.image_operations._enhance_kdp_export_page_bytes')
   @patch('common.image_operations._convert_for_print_kdp')
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
-  @patch('common.image_operations.cloud_storage.download_bytes_from_gcs')
   @patch('common.image_operations.cloud_storage.download_image_from_gcs')
   @patch('common.image_operations._build_joke_book_export_uris')
   @patch('common.image_operations.pdf_client.create_pdf')
@@ -1467,7 +1514,6 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_create_pdf,
     mock_build_export_uris,
     mock_download_image,
-    mock_download_bytes,
     mock_upload_bytes,
     mock_get_public_url,
     mock_convert_for_print,
@@ -1521,6 +1567,10 @@ class ExportJokePageFilesTest(unittest.TestCase):
     jokes_collection.document.side_effect = jokes_document_side_effect
 
     def download_side_effect(resource):
+      if resource == book.belongs_to_page_gcs_uri:
+        return Image.new('RGB', (10, 10), 'yellow')
+      if resource == image_operations._BOOK_PAGE_ABOUT_GCS_URI:
+        return Image.new('RGB', (10, 10), 'black')
       if resource == setup_url:
         return Image.new('RGB', (10, 10), 'red')
       if resource == punch_url:
@@ -1528,9 +1578,12 @@ class ExportJokePageFilesTest(unittest.TestCase):
       raise ValueError(f"Unexpected download request {resource}")
 
     mock_download_image.side_effect = download_side_effect
-    mock_download_bytes.side_effect = [b'belongs-to-page', b'about-page']
-
-    mock_convert_for_print.side_effect = [b'setup-kdp', b'punchline-kdp']
+    mock_convert_for_print.side_effect = [
+      b'belongs-to-page',
+      b'setup-kdp',
+      b'punchline-kdp',
+      b'about-page',
+    ]
     mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
     mock_create_pdf.return_value = b'%PDF-export'
     mock_build_export_uris.return_value = (
@@ -1600,16 +1653,24 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertIn('editor', enhance_calls[1].kwargs)
 
     convert_calls = mock_convert_for_print.call_args_list
-    self.assertEqual(len(convert_calls), 2)
-    setup_call = convert_calls[0]
+    self.assertEqual(len(convert_calls), 4)
+    belongs_to_call = convert_calls[0]
+    self.assertFalse(belongs_to_call.kwargs['is_left_page'])
+    self.assertFalse(belongs_to_call.kwargs['add_page_number'])
+
+    setup_call = convert_calls[1]
     self.assertEqual(setup_call.kwargs['page_number'], 1)
     self.assertEqual(setup_call.kwargs['total_pages'], 2)
-    self.assertFalse(setup_call.kwargs['is_punchline'])
+    self.assertFalse(setup_call.kwargs['is_left_page'])
 
-    punchline_call = convert_calls[1]
+    punchline_call = convert_calls[2]
     self.assertEqual(punchline_call.kwargs['page_number'], 2)
     self.assertEqual(punchline_call.kwargs['total_pages'], 2)
-    self.assertTrue(punchline_call.kwargs['is_punchline'])
+    self.assertTrue(punchline_call.kwargs['is_left_page'])
+
+    about_call = convert_calls[3]
+    self.assertFalse(about_call.kwargs['is_left_page'])
+    self.assertFalse(about_call.kwargs['add_page_number'])
 
     pdf_call = mock_create_pdf.call_args
     self.assertEqual(pdf_call.kwargs, {'dpi': 300, 'quality': 100})

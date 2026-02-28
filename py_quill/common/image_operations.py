@@ -154,8 +154,16 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
   current_page_number = 1
   editor = image_editor.ImageEditor()
 
-  belongs_to_bytes = cloud_storage.download_bytes_from_gcs(
+  belongs_to_image = cloud_storage.download_image_from_gcs(
     book.belongs_to_page_gcs_uri)
+  belongs_to_bytes = _convert_for_print_kdp(
+    belongs_to_image,
+    is_left_page=False,
+    page_number=1,
+    total_pages=1,
+    color_mode=_KDP_PRINT_COLOR_MODE,
+    add_page_number=False,
+  )
   belongs_to_file_name = _book_export_file_name(book.belongs_to_page_gcs_uri,
                                                 'belongs_to')
   files.append((f'001_{belongs_to_file_name}', belongs_to_bytes))
@@ -191,7 +199,7 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     setup_bytes = _enhance_kdp_export_page_bytes(
       _convert_for_print_kdp(
         setup_image,
-        is_punchline=False,
+        is_left_page=False,
         page_number=current_page_number,
         total_pages=total_pages,
         color_mode=_KDP_PRINT_COLOR_MODE,
@@ -202,7 +210,7 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     punchline_bytes = _enhance_kdp_export_page_bytes(
       _convert_for_print_kdp(
         punchline_image,
-        is_punchline=True,
+        is_left_page=True,
         page_number=current_page_number,
         total_pages=total_pages,
         color_mode=_KDP_PRINT_COLOR_MODE,
@@ -218,7 +226,15 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     files.append((setup_file_name, setup_bytes))
     files.append((punchline_file_name, punchline_bytes))
 
-  about_bytes = cloud_storage.download_bytes_from_gcs(_BOOK_PAGE_ABOUT_GCS_URI)
+  about_image = cloud_storage.download_image_from_gcs(_BOOK_PAGE_ABOUT_GCS_URI)
+  about_bytes = _convert_for_print_kdp(
+    about_image,
+    is_left_page=False,
+    page_number=1,
+    total_pages=1,
+    color_mode=_KDP_PRINT_COLOR_MODE,
+    add_page_number=False,
+  )
   about_file_name = _book_export_file_name(_BOOK_PAGE_ABOUT_GCS_URI, 'about')
   if about_file_name.startswith('999_'):
     files.append((about_file_name, about_bytes))
@@ -592,7 +608,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Âbackgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Âbackgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.
@@ -952,10 +968,11 @@ def _get_simple_book_page(
 def _convert_for_print_kdp(  # pylint: disable=too-many-arguments
   image: Image.Image,
   *,
-  is_punchline: bool,
+  is_left_page: bool,
   page_number: int,
   total_pages: int,
   color_mode: str,
+  add_page_number: bool = True,
   image_editor_instance: image_editor.ImageEditor | None = None,
 ) -> bytes:
   """Convert an image to be print-ready for Kindle Direct Publishing.
@@ -979,10 +996,10 @@ def _convert_for_print_kdp(  # pylint: disable=too-many-arguments
   # Remove inner bleed
   trim_left = 0
   trim_right = 0
-  if is_punchline:
-    trim_left = _BOOK_PAGE_BLEED_PX
-  else:
+  if is_left_page:
     trim_right = _BOOK_PAGE_BLEED_PX
+  else:
+    trim_left = _BOOK_PAGE_BLEED_PX
 
   trimmed_image = editor.trim_edges(
     image=scaled_image,
@@ -990,16 +1007,17 @@ def _convert_for_print_kdp(  # pylint: disable=too-many-arguments
     right=trim_right,
   )
 
-  if page_number <= 0:
-    raise ValueError('page_number must be positive')
-  if total_pages <= 0:
-    raise ValueError('total_pages must be positive')
-  _ = _add_page_number_to_image(
-    trimmed_image,
-    page_number=page_number,
-    total_pages=total_pages,
-    is_punchline=is_punchline,
-  )
+  if add_page_number:
+    if page_number <= 0:
+      raise ValueError('page_number must be positive')
+    if total_pages <= 0:
+      raise ValueError('total_pages must be positive')
+    _ = _add_page_number_to_image(
+      trimmed_image,
+      page_number=page_number,
+      total_pages=total_pages,
+      is_punchline=is_left_page,
+    )
 
   converted_image = trimmed_image.convert(color_mode)
 

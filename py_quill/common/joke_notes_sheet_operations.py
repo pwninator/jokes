@@ -11,9 +11,13 @@ from firebase_functions import logger
 from PIL import Image
 from services import cloud_storage, firestore, pdf_client
 
-_JOKE_NOTES_SHEET_VERSION = 1
+_JOKE_NOTES_SHEET_VERSION = 2
 
-_JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/joke_notes_overlay.png"
+_JOKE_NOTES_BRANDED5_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/joke_notes_overlay_branded5.png"
+_JOKE_NOTES_BRANDED6_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/joke_notes_overlay_branded6.png"
+
+_JOKE_NOTES_UNBRANDED5_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/joke_notes_overlay_unbranded5.png"
+_JOKE_NOTES_UNBRANDED6_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/joke_notes_overlay_unbranded6.png"
 
 _PDF_DIR_GCS_URI = f"gs://{config.PUBLIC_FILE_BUCKET_NAME}/joke_notes_sheets{_JOKE_NOTES_SHEET_VERSION}"
 _IMAGE_DIR_GCS_URI = f"gs://{config.IMAGE_BUCKET_NAME}/joke_notes_sheets{_JOKE_NOTES_SHEET_VERSION}"
@@ -38,25 +42,39 @@ def ensure_joke_notes_sheet(
   joke_ids = [joke.key for joke in jokes if joke.key]
   filename_base = _generate_file_stem(joke_ids, quality=quality)
   pdf_gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename_base}.pdf"
-  image_gcs_uri = f"{_IMAGE_DIR_GCS_URI}/{filename_base}.png"
+  page_image_gcs_uris = _build_page_image_gcs_uris(filename_base, len(jokes))
+  image_gcs_uri = page_image_gcs_uris[0]
 
   pdf_exists = cloud_storage.gcs_file_exists(pdf_gcs_uri)
-  image_exists = cloud_storage.gcs_file_exists(image_gcs_uri)
+  image_exists = [
+    cloud_storage.gcs_file_exists(image_gcs_uri)
+    for image_gcs_uri in page_image_gcs_uris
+  ]
+  all_images_exist = all(image_exists)
+  notes_images: list[Image.Image] | None = None
 
-  if not (pdf_exists and image_exists):
-    notes_image = _create_joke_notes_sheet_image(jokes)
+  if not (pdf_exists and all_images_exist):
+    if not all_images_exist:
+      notes_images = _create_joke_notes_sheet_images(jokes)
 
-    if not image_exists:
-      image_bytes = _encode_png(notes_image)
-      cloud_storage.upload_bytes_to_gcs(
-        content_bytes=image_bytes,
-        gcs_uri=image_gcs_uri,
-        content_type="image/png",
-      )
+      for page_index, page_image_gcs_uri in enumerate(page_image_gcs_uris):
+        if image_exists[page_index]:
+          continue
+        image_bytes = _encode_png(notes_images[page_index])
+        _ = cloud_storage.upload_bytes_to_gcs(
+          content_bytes=image_bytes,
+          gcs_uri=page_image_gcs_uri,
+          content_type="image/png",
+        )
 
     if not pdf_exists:
-      pdf_bytes = pdf_client.create_pdf([notes_image], quality=quality)
-      cloud_storage.upload_bytes_to_gcs(
+      pdf_source_images: list[Image.Image] | list[str]
+      if notes_images is not None:
+        pdf_source_images = notes_images
+      else:
+        pdf_source_images = page_image_gcs_uris
+      pdf_bytes = pdf_client.create_pdf(pdf_source_images, quality=quality)
+      _ = cloud_storage.upload_bytes_to_gcs(
         content_bytes=pdf_bytes,
         gcs_uri=pdf_gcs_uri,
         content_type="application/pdf",
@@ -68,6 +86,7 @@ def ensure_joke_notes_sheet(
     index=index,
     sheet_slug=sheet_slug,
     image_gcs_uri=image_gcs_uri,
+    image_gcs_uris=list(page_image_gcs_uris),
     pdf_gcs_uri=pdf_gcs_uri,
     avg_saved_users_fraction=average_saved_users_fraction(jokes),
   )
@@ -95,22 +114,85 @@ def _encode_png(image: Image.Image) -> bytes:
   return buf.getvalue()
 
 
+def _build_page_image_gcs_uris(filename_base: str,
+                               joke_count: int) -> list[str]:
+  """Build ordered page image URIs for a sheet, keeping page 1 unsuffixed."""
+  page_count = _get_joke_notes_sheet_page_count(joke_count)
+  page_uris = [f"{_IMAGE_DIR_GCS_URI}/{filename_base}.png"]
+  for page_index in range(2, page_count + 1):
+    page_uris.append(f"{_IMAGE_DIR_GCS_URI}/{filename_base}_{page_index}.png")
+  return page_uris
+
+
+def _get_joke_notes_sheet_page_count(joke_count: int) -> int:
+  """Return how many notes-sheet pages are needed for the given joke count."""
+  if joke_count <= 5:
+    return 1
+
+  remainder = joke_count % 6
+  jokes_for_six_pages = joke_count if remainder == 0 else joke_count - remainder
+  page_count = jokes_for_six_pages // 6
+  if remainder > 0:
+    page_count += 1
+  return page_count
+
+
+def _chunk_jokes_for_sheet(
+  jokes: list[models.PunnyJoke],
+) -> list[tuple[list[models.PunnyJoke], str, int]]:
+  """Split jokes into sheet pages using as many 6-card pages as possible."""
+  total_jokes = len(jokes)
+  if total_jokes == 0:
+    return [(list(jokes), _JOKE_NOTES_BRANDED5_URL, 5)]
+
+  if total_jokes <= 5:
+    return [(list(jokes), _JOKE_NOTES_BRANDED5_URL, 5)]
+
+  remainder = total_jokes % 6
+  jokes_for_six_pages = total_jokes if remainder == 0 else total_jokes - remainder
+
+  pages: list[tuple[list[models.PunnyJoke], str, int]] = []
+  for start in range(0, jokes_for_six_pages, 6):
+    pages.append((list(jokes[start:start + 6]), _JOKE_NOTES_BRANDED6_URL, 6))
+
+  if remainder > 0:
+    pages.append(
+      (list(jokes[jokes_for_six_pages:]), _JOKE_NOTES_BRANDED5_URL, 5))
+
+  return pages
+
+
+def _create_joke_notes_sheet_images(
+  jokes: list[models.PunnyJoke], ) -> list[Image.Image]:
+  """Create one or more sheet page images for the supplied jokes."""
+  return [
+    _create_joke_notes_sheet_image(page_jokes,
+                                   template_url=template_url,
+                                   max_jokes=max_jokes)
+    for page_jokes, template_url, max_jokes in _chunk_jokes_for_sheet(jokes)
+  ]
+
+
 def _create_joke_notes_sheet_image(
-  jokes: list[models.PunnyJoke], ) -> Image.Image:
+  jokes: list[models.PunnyJoke],
+  *,
+  template_url: str = _JOKE_NOTES_BRANDED5_URL,
+  max_jokes: int = 5,
+) -> Image.Image:
   """Creates a printable sheet of joke notes with setup and punchline images.
 
-  The output is a 3300x2550 image containing up to 5 jokes
+  The output is a 3300x2550 image containing up to `max_jokes` jokes
   arranged in a 2x3 grid. Each joke consists of the punchline image on the
   left and the setup image on the right.
 
   Args:
-    jokes: List of jokes to include (max 5).
+    jokes: List of jokes to include.
 
   Returns:
     PIL Image for the composed notes sheet.
   """
-  if len(jokes) > 5:
-    jokes = jokes[:5]
+  if len(jokes) > max_jokes:
+    jokes = jokes[:max_jokes]
 
   # Canvas dimensions
   canvas_width = 3300
@@ -162,7 +244,7 @@ def _create_joke_notes_sheet_image(
       continue
 
   try:
-    response = requests.get(_JOKE_NOTES_OVERLAY_URL, timeout=10)
+    response = requests.get(template_url, timeout=10)
     response.raise_for_status()
     template_image = Image.open(BytesIO(response.content)).convert('RGBA')
     if template_image.size != (canvas_width, canvas_height):

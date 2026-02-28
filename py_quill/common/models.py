@@ -756,8 +756,20 @@ class JokeSheet:
   index: int | None = None
   sheet_slug: str | None = None
   image_gcs_uri: str | None = None
+  image_gcs_uris: list[str] = field(default_factory=list)
   pdf_gcs_uri: str | None = None
   avg_saved_users_fraction: float = 0.0
+
+  def __post_init__(self):
+    """Normalize preview and page image fields for backward compatibility."""
+    normalized_image_uris = [uri for uri in self.image_gcs_uris if uri.strip()]
+    self.image_gcs_uris = normalized_image_uris
+
+    if self.image_gcs_uri and self.image_gcs_uri not in self.image_gcs_uris:
+      self.image_gcs_uris.insert(0, self.image_gcs_uri)
+
+    if not self.image_gcs_uri and self.image_gcs_uris:
+      self.image_gcs_uri = self.image_gcs_uris[0]
 
   @property
   def display_index(self) -> int | None:

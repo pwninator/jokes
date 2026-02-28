@@ -1629,7 +1629,7 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
     # 2 jokes * 2 images = 4 downloads
     self.assertEqual(mock_storage.download_image_from_gcs.call_count, 4)
     mock_requests_get.assert_called_once_with(
-      joke_notes_sheet_operations._JOKE_NOTES_OVERLAY_URL,
+      joke_notes_sheet_operations._JOKE_NOTES_BRANDED5_URL,
       timeout=10,
     )
 
@@ -1640,7 +1640,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
   @patch(
     'common.joke_notes_sheet_operations.cloud_storage.upload_bytes_to_gcs')
   @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
-  @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_image')
+  @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_images')
   @patch('common.joke_notes_sheet_operations.cloud_storage.gcs_file_exists')
   @patch('common.joke_notes_sheet_operations.firestore.upsert_joke_sheet')
   def test_get_joke_notes_sheet_uploads_when_missing(
@@ -1652,7 +1652,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     mock_upload_bytes,
   ):
     notes_image = Image.new('RGB', (100, 100), 'white')
-    mock_create_image.return_value = notes_image
+    mock_create_image.return_value = [notes_image]
     mock_create_pdf.return_value = b'pdf-bytes'
     mock_gcs_file_exists.return_value = False
 
@@ -1683,6 +1683,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
 
     self.assertEqual(result.pdf_gcs_uri, expected_pdf_gcs_uri)
     self.assertEqual(result.image_gcs_uri, expected_image_gcs_uri)
+    self.assertEqual(result.image_gcs_uris, [expected_image_gcs_uri])
     self.assertEqual(result.key, "sheet-1")
 
     # Two existence checks: PDF then PNG.
@@ -1697,6 +1698,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     self.assertIsNone(upserted_sheet.category_id)
     self.assertEqual(upserted_sheet.pdf_gcs_uri, expected_pdf_gcs_uri)
     self.assertEqual(upserted_sheet.image_gcs_uri, expected_image_gcs_uri)
+    self.assertEqual(upserted_sheet.image_gcs_uris, [expected_image_gcs_uri])
     self.assertAlmostEqual(upserted_sheet.avg_saved_users_fraction, 0.4)
 
     mock_create_image.assert_called_once_with(jokes)
@@ -1714,7 +1716,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
   @patch(
     'common.joke_notes_sheet_operations.cloud_storage.upload_bytes_to_gcs')
   @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
-  @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_image')
+  @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_images')
   @patch('common.joke_notes_sheet_operations.cloud_storage.gcs_file_exists')
   @patch('common.joke_notes_sheet_operations.firestore.upsert_joke_sheet')
   def test_get_joke_notes_sheet_returns_cached_uri_when_exists(
@@ -1762,6 +1764,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
       f"{joke_notes_sheet_operations._IMAGE_DIR_GCS_URI}/{expected_hash}.png")
     self.assertEqual(result.pdf_gcs_uri, expected_pdf_gcs_uri)
     self.assertEqual(result.image_gcs_uri, expected_image_gcs_uri)
+    self.assertEqual(result.image_gcs_uris, [expected_image_gcs_uri])
     self.assertEqual(result.key, "sheet-1")
     self.assertAlmostEqual(result.avg_saved_users_fraction, 0.4)
 

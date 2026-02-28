@@ -498,6 +498,20 @@ def test_jokesheet_parse_slug_rejects_invalid_slug():
   assert index is None
 
 
+def test_jokesheet_backfills_image_gcs_uris_from_preview_image():
+  sheet = models.JokeSheet(image_gcs_uri="gs://preview")
+
+  assert sheet.image_gcs_uri == "gs://preview"
+  assert sheet.image_gcs_uris == ["gs://preview"]
+
+
+def test_jokesheet_backfills_preview_image_from_image_gcs_uris():
+  sheet = models.JokeSheet(image_gcs_uris=["gs://page1", "gs://page2"])
+
+  assert sheet.image_gcs_uri == "gs://page1"
+  assert sheet.image_gcs_uris == ["gs://page1", "gs://page2"]
+
+
 def test_jokecategory_from_firestore_parses_negative_tags():
   data = {
     "display_name": "Cats",

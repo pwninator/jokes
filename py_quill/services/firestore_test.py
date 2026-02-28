@@ -1006,6 +1006,7 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
     "index": None,
     "sheet_slug": None,
     "image_gcs_uri": None,
+    "image_gcs_uris": [],
     "pdf_gcs_uri": None,
     "avg_saved_users_fraction": 0.0,
   }
@@ -1059,6 +1060,7 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
     "index": None,
     "sheet_slug": None,
     "image_gcs_uri": None,
+    "image_gcs_uris": [],
     "pdf_gcs_uri": None,
     "avg_saved_users_fraction": 0.0,
   }
@@ -1093,6 +1095,7 @@ def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
         "index": None,
         "sheet_slug": None,
         "image_gcs_uri": None,
+        "image_gcs_uris": [],
         "pdf_gcs_uri": None,
         "avg_saved_users_fraction": 0.0,
       }
@@ -1183,6 +1186,7 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
     joke_ids=["a", "b"],
     category_id="cats",
     image_gcs_uri="gs://tmp/joke_notes_sheets/abc.png",
+    image_gcs_uris=["gs://tmp/joke_notes_sheets/abc.png"],
     pdf_gcs_uri="gs://tmp/joke_notes_sheets/abc.pdf",
   )
   saved = fs.upsert_joke_sheet(sheet)
@@ -1200,6 +1204,7 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
     "index": None,
     "sheet_slug": None,
     "image_gcs_uri": "gs://tmp/joke_notes_sheets/abc.png",
+    "image_gcs_uris": ["gs://tmp/joke_notes_sheets/abc.png"],
     "pdf_gcs_uri": "gs://tmp/joke_notes_sheets/abc.pdf",
     "avg_saved_users_fraction": 0.0,
   }
@@ -1276,6 +1281,7 @@ def test_get_joke_sheet_by_slug_filters_sheet_slug(monkeypatch):
         "index": None,
         "sheet_slug": "my-custom-pack",
         "image_gcs_uri": "gs://img",
+        "image_gcs_uris": ["gs://img"],
         "pdf_gcs_uri": "gs://pdf",
         "avg_saved_users_fraction": 0.0,
       }

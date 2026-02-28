@@ -438,6 +438,8 @@ def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
                       lambda **_kwargs: [category])
   monkeypatch.setattr(categories_routes.firestore,
                       "get_uncategorized_public_jokes", lambda _cats: [])
+  monkeypatch.setattr(categories_routes.utils, "joke_creation_big_url",
+                      lambda: "https://bigapi.example.com")
   monkeypatch.setattr(
     categories_routes.cloud_storage, "get_public_cdn_url",
     lambda gcs_uri: f"https://cdn.example/{gcs_uri.split('/')[-1]}")
@@ -457,6 +459,8 @@ def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert "Generate lunchbox notes" in html
   assert 'href="https://cdn.example/animals_notes.pdf"' in html
+  assert '"https://bigapi.example.com"' in html
+  assert "printable_lunchbox" in html
 
 
 def test_admin_get_joke_category_live_returns_live_fields(monkeypatch):
@@ -506,80 +510,3 @@ def test_admin_get_joke_category_live_returns_live_fields(monkeypatch):
   assert data["image_url"] == "https://cdn/cat.png"
   assert data["image_description"] == "Cute animals"
   assert data["joke_id_order"] == ["joke-1", "joke-2"]
-
-
-def test_admin_generate_category_lunchbox_notes_persists_pdf_uri(monkeypatch):
-  """Generating lunchbox notes should persist the ensured PDF URI."""
-  _mock_admin_session(monkeypatch)
-
-  category = models.JokeCategory(
-    id="animals",
-    display_name="Animals",
-    joke_description_query="animals",
-    jokes=[
-      models.PunnyJoke(
-        key="joke-1",
-        setup_text="Setup",
-        punchline_text="Punchline",
-        setup_image_url="gs://images/setup.png",
-        punchline_image_url="gs://images/punchline.png",
-      )
-    ],
-  )
-  monkeypatch.setattr(
-    categories_routes.firestore, "get_joke_category",
-    lambda category_id: category if category_id == "animals" else None)
-
-  ensured_sheet = Mock(pdf_gcs_uri="gs://public/animals_notes.pdf")
-  mock_ensure = Mock(return_value=ensured_sheet)
-  monkeypatch.setattr(categories_routes.joke_notes_sheet_operations,
-                      "ensure_joke_notes_sheet", mock_ensure)
-
-  mock_doc = Mock()
-  mock_collection = Mock()
-  mock_collection.document.return_value = mock_doc
-  mock_db = Mock()
-  mock_db.collection.return_value = mock_collection
-  monkeypatch.setattr(categories_routes.firestore, "db", lambda: mock_db)
-
-  with app.test_client() as client:
-    resp = client.post(
-      '/admin/joke-categories/animals/generate-lunchbox-notes')
-
-  assert resp.status_code == 302
-  assert resp.headers["Location"].endswith(
-    '/admin/joke-categories?notes_generated=animals')
-  mock_ensure.assert_called_once_with(category.jokes)
-  mock_db.collection.assert_called_with('joke_categories')
-  mock_collection.document.assert_called_with('animals')
-  mock_doc.set.assert_called_once_with(
-    {'lunchbox_notes_pdf_gcs_uri': 'gs://public/animals_notes.pdf'},
-    merge=True,
-  )
-
-
-def test_admin_generate_category_lunchbox_notes_requires_category_jokes(
-    monkeypatch):
-  """Generating lunchbox notes should fail when the category has no jokes."""
-  _mock_admin_session(monkeypatch)
-
-  category = models.JokeCategory(
-    id="animals",
-    display_name="Animals",
-    joke_description_query="animals",
-    jokes=[],
-  )
-  monkeypatch.setattr(categories_routes.firestore, "get_joke_category",
-                      lambda _category_id: category)
-  mock_ensure = Mock()
-  monkeypatch.setattr(categories_routes.joke_notes_sheet_operations,
-                      "ensure_joke_notes_sheet", mock_ensure)
-
-  with app.test_client() as client:
-    resp = client.post(
-      '/admin/joke-categories/animals/generate-lunchbox-notes')
-
-  assert resp.status_code == 302
-  assert resp.headers["Location"].endswith(
-    '/admin/joke-categories?error=no_category_jokes')
-  mock_ensure.assert_not_called()

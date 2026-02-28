@@ -145,17 +145,12 @@ def create_joke_book(req: flask.Request) -> flask.Response:
       _ = image_operations.generate_and_populate_book_pages(joke_id,
                                                             overwrite=True)
 
-    # Generate ZIP + paperback PDF of all book pages and store in temp files bucket
-    export_files = image_operations.export_joke_page_files_for_kdp(joke_ids)
-
     doc_id = utils.create_timestamped_firestore_key(user_id)
     _ = joke_books_firestore.create_joke_book(
       models.JokeBook(
         id=doc_id,
         book_name=book_name,
         jokes=joke_ids,
-        zip_url=export_files.zip_url,
-        paperback_pdf_url=export_files.paperback_pdf_url,
       ))
 
     return success_response({'book_id': doc_id}, req=req)
@@ -193,13 +188,16 @@ def update_joke_book_files(req: flask.Request) -> flask.Response:
     if not book:
       return error_response('Joke book not found', req=req, status=404)
 
-    joke_ids = book.jokes
-    if not joke_ids:
+    if not book.jokes:
       return error_response('Joke book has no jokes to export',
                             req=req,
                             status=400)
+    if not book.belongs_to_page_gcs_uri:
+      return error_response('Joke book is missing belongs_to_page_gcs_uri',
+                            req=req,
+                            status=400)
 
-    export_files = image_operations.export_joke_page_files_for_kdp(joke_ids)
+    export_files = image_operations.export_joke_page_files_for_kdp(book)
     _ = joke_books_firestore.update_joke_book_export_files(
       joke_book_id,
       zip_url=export_files.zip_url,

@@ -124,6 +124,21 @@ def update_joke_book_export_files(
   return book
 
 
+def update_joke_book_belongs_to_page(
+  book_id: str,
+  *,
+  belongs_to_page_gcs_uri: str,
+) -> models.JokeBook:
+  """Update the belongs-to page image for a joke book."""
+  book = _get_required_book(book_id)
+  _ = _book_ref(book_id).update({
+    'belongs_to_page_gcs_uri':
+    belongs_to_page_gcs_uri,
+  })
+  book.belongs_to_page_gcs_uri = belongs_to_page_gcs_uri
+  return book
+
+
 def get_joke_book_detail_raw(
   book_id: str, ) -> tuple[models.JokeBook | None, list[dict[str, Any]]]:
   """Fetch a joke book plus ordered joke docs and metadata for admin rendering."""

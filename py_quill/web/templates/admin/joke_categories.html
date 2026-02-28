@@ -398,9 +398,11 @@
         </form>
       </div>
       <div class="category-download-actions">
-        <form method="post" action="{{ url_for('web.admin_generate_category_lunchbox_notes', category_id=category.id) }}">
-          <button class="text-button" type="submit">Generate lunchbox notes</button>
-        </form>
+        <button class="text-button" type="button"
+          data-generate-lunchbox-notes="true"
+          data-category-id="{{ category.id }}">
+          Generate lunchbox notes
+        </button>
         {% if category.lunchbox_notes_pdf_gcs_uri %}
         <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View PDF</a>
         {% endif %}
@@ -487,6 +489,8 @@
 
 <script>
   (function () {
+    const jokeCreationUrl = {{ joke_creation_url | tojson }};
+
     function hydrateImages(scope) {
       if (!scope) return;
       scope.querySelectorAll('img[data-src]').forEach((img) => {
@@ -581,6 +585,47 @@
         const panel = details.querySelector('[data-edit-panel="true"]');
         if (panel) panel.classList.add('hidden');
         updateDraggableState(details, false);
+      });
+    });
+
+    document.querySelectorAll('[data-generate-lunchbox-notes="true"]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const categoryId = button.dataset.categoryId || '';
+        if (!categoryId) {
+          alert('Missing category id.');
+          return;
+        }
+
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Generating...';
+
+        try {
+          const resp = await fetch(jokeCreationUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              data: {
+                op: 'printable_lunchbox',
+                category_id: categoryId,
+              },
+            }),
+          });
+
+          if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            const error = data?.data?.error || 'Failed to generate lunchbox notes';
+            throw new Error(error);
+          }
+
+          window.location.href = `/admin/joke-categories?notes_generated=${encodeURIComponent(categoryId)}`;
+        } catch (error) {
+          console.error('Failed to generate lunchbox notes:', error);
+          alert('Failed to generate lunchbox notes: ' + error.message);
+          button.disabled = false;
+          button.textContent = originalText;
+        }
       });
     });
 

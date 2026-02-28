@@ -7,10 +7,7 @@ from firebase_functions import logger
 from google.cloud.firestore import DELETE_FIELD
 from typing import Any, cast
 
-from common import config
-from common import joke_notes_sheet_operations
-from common import models
-from common import joke_category_operations
+from common import config, joke_category_operations, models, utils
 from functions import auth_helpers
 from services import cloud_storage
 from services import firestore
@@ -109,6 +106,7 @@ def admin_joke_categories():
     notes_generated=flask.request.args.get('notes_generated'),
     error=flask.request.args.get('error'),
     public_file_url_for_gcs=cloud_storage.get_public_cdn_url,
+    joke_creation_url=utils.joke_creation_big_url(),
   )
 
 
@@ -367,33 +365,3 @@ def admin_update_joke_category(category_id: str):
     return flask.redirect('/admin/joke-categories?error=update_failed')
 
   return flask.redirect(f'/admin/joke-categories?updated={category_id}')
-
-
-@web_bp.route('/admin/joke-categories/<category_id>/generate-lunchbox-notes',
-              methods=['POST'])
-@auth_helpers.require_admin
-def admin_generate_category_lunchbox_notes(category_id: str):
-  """Generate lunchbox notes PDF for all jokes in a category."""
-  category_id = (category_id or '').strip()
-  if not category_id:
-    return flask.redirect('/admin/joke-categories?error=missing_category_id')
-
-  try:
-    category = firestore.get_joke_category(category_id)
-    if not category:
-      return flask.redirect('/admin/joke-categories?error=category_not_found')
-
-    if not category.jokes:
-      return flask.redirect('/admin/joke-categories?error=no_category_jokes')
-
-    sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(category.jokes)
-    _ = firestore.db().collection('joke_categories').document(category_id).set(
-      {'lunchbox_notes_pdf_gcs_uri': sheet.pdf_gcs_uri},
-      merge=True,
-    )
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(f"Failed generating lunchbox notes for {category_id}: {exc}")
-    return flask.redirect('/admin/joke-categories?error=generate_notes_failed')
-
-  return flask.redirect(
-    f'/admin/joke-categories?notes_generated={category_id}')

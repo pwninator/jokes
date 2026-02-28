@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 from io import BytesIO
+from pathlib import Path
 from typing import cast
 
 import flask
@@ -133,6 +134,20 @@ def _format_joke_preview(image_url: str | None) -> str | None:
     )
   except ValueError:
     return image_url
+
+
+def _format_book_asset_preview(gcs_uri: str | None) -> str | None:
+  """Create a preview URL for a stored book-level asset."""
+  if not gcs_uri:
+    return None
+  try:
+    return cloud_storage.get_public_image_cdn_url(
+      gcs_uri,
+      width=800,
+      quality=75,
+    )
+  except ValueError:
+    return None
 
 
 def _extract_total_cost(joke_data: dict[str, object]) -> float | None:
@@ -295,11 +310,15 @@ def admin_joke_book_detail(book_id: str):
   return flask.render_template(
     'admin/joke_book_detail.html',
     book=book,
+    belongs_to_page_preview_url=_format_book_asset_preview(
+      book.belongs_to_page_gcs_uri),
     jokes=joke_rows,
     generate_book_page_url=generate_book_page_url,
     update_book_page_url=flask.url_for('web.admin_update_joke_book_page'),
     set_main_image_url=flask.url_for(
       'web.admin_set_main_joke_image_from_book_page'),
+    upload_belongs_to_page_url=flask.url_for(
+      'web.admin_joke_book_upload_belongs_to_page'),
     joke_creation_url=utils.joke_creation_url(),
     image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
     book_total_cost=total_book_cost if joke_rows else None,
@@ -571,3 +590,57 @@ def admin_joke_book_upload_image():
   )
 
   return flask.jsonify({'url': public_url})
+
+
+@web_bp.route('/admin/joke-books/upload-belongs-to-page', methods=['POST'])
+@auth_helpers.require_admin
+def admin_joke_book_upload_belongs_to_page():
+  """Upload and persist the belongs-to page image for a joke book."""
+  book_id = flask.request.form.get('joke_book_id')
+  file = flask.request.files.get('file')
+
+  if not book_id or not file:
+    return flask.Response('Missing required fields', 400)
+
+  book = joke_books_firestore.get_joke_book(book_id)
+  if not book:
+    return flask.Response('Joke book not found', 404)
+  if not file.filename:
+    return flask.Response('No filename', 400)
+
+  content_type = (file.mimetype or '').strip() or 'application/octet-stream'
+  if not content_type.startswith('image/'):
+    return flask.Response('Invalid image file', 400)
+
+  file_bytes = file.read()
+  if not file_bytes:
+    return flask.Response('Invalid image file', 400)
+
+  suffix = Path(file.filename).suffix.lower()
+  file_name = utils.create_timestamped_firestore_key(
+    'belongs_to',
+    book.book_name or book.id or 'book',
+  )
+  gcs_path = f'_joke_assets/book/{file_name}{suffix}'
+  gcs_uri = f'gs://{config.IMAGE_BUCKET_NAME}/{gcs_path}'
+
+  try:
+    _ = cloud_storage.upload_bytes_to_gcs(
+      file_bytes,
+      gcs_uri,
+      content_type,
+    )
+  except Exception as exc:
+    logger.error('Failed to upload belongs-to page', exc_info=exc)
+    return flask.Response('Upload failed', 500)
+
+  updated_book = joke_books_firestore.update_joke_book_belongs_to_page(
+    book_id,
+    belongs_to_page_gcs_uri=gcs_uri,
+  )
+  preview_url = _format_book_asset_preview(
+    updated_book.belongs_to_page_gcs_uri)
+  return flask.jsonify({
+    'belongs_to_page_gcs_uri': updated_book.belongs_to_page_gcs_uri,
+    'preview_url': preview_url,
+  })

@@ -69,6 +69,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
         id='book-42',
         book_name='Space Llamas',
         jokes=['joke-1', 'joke-2'],
+        belongs_to_page_gcs_uri='gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
         zip_url='https://example.com/book.zip',
         paperback_pdf_url='https://example.com/book_paperback.pdf',
       ),
@@ -120,6 +121,9 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   html = resp.get_data(as_text=True)
   assert "Space Llamas" in html
   assert 'class="book-id">book-42</code>' in html
+  assert 'Belongs-to Page' in html
+  assert '_joke_assets/book/belongs.png' in html
+  assert 'Upload image' in html
   assert "joke-1" in html and "joke-2" in html
   assert 'width="800"' in html and 'height="800"' in html
   assert "width=800" in html  # width parameter in formatted CDN URL
@@ -333,6 +337,70 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
     book_id='manual',
     target_field='punchline_image_url',
     public_url='https://cdn/main-image.png',
+  )
+
+
+def test_admin_joke_book_upload_belongs_to_page(monkeypatch):
+  """Book-level belongs-to upload stores a GCS URI and returns a preview."""
+  _mock_admin_session(monkeypatch)
+
+  monkeypatch.setattr(
+    books_routes.joke_books_firestore,
+    'get_joke_book',
+    lambda _book_id: books_routes.models.JokeBook(
+      id='book-456',
+      book_name='Space Llamas',
+    ),
+  )
+  mock_upload = Mock()
+  monkeypatch.setattr(books_routes.cloud_storage, 'upload_bytes_to_gcs',
+                      mock_upload)
+  monkeypatch.setattr(books_routes.cloud_storage, 'get_public_image_cdn_url',
+                      Mock(return_value='https://cdn/belongs.png'))
+  mock_update = Mock(
+    return_value=books_routes.models.JokeBook(
+      id='book-456',
+      book_name='Space Llamas',
+      belongs_to_page_gcs_uri=
+      'gs://images.quillsstorybook.com/_joke_assets/book/uploaded.png',
+    ))
+  monkeypatch.setattr(books_routes.joke_books_firestore,
+                      'update_joke_book_belongs_to_page', mock_update)
+  monkeypatch.setattr(
+    books_routes.utils,
+    'create_timestamped_firestore_key',
+    lambda *args: '20260228_120000__belongs_to__space_llamas',
+  )
+
+  data = {
+    'joke_book_id': 'book-456',
+    'file': (BytesIO(_make_image_bytes('PNG')), 'belongs.png'),
+  }
+
+  with app.test_client() as client:
+    resp = client.post('/admin/joke-books/upload-belongs-to-page',
+                       data=data,
+                       content_type='multipart/form-data')
+
+  assert resp.status_code == 200
+  payload = resp.get_json()
+  assert payload == {
+    'belongs_to_page_gcs_uri':
+    'gs://images.quillsstorybook.com/_joke_assets/book/uploaded.png',
+    'preview_url':
+    'https://cdn/belongs.png',
+  }
+  mock_upload.assert_called_once_with(
+    _make_image_bytes('PNG'),
+    ('gs://images.quillsstorybook.com/_joke_assets/book/'
+     '20260228_120000__belongs_to__space_llamas.png'),
+    'image/png',
+  )
+  mock_update.assert_called_once_with(
+    'book-456',
+    belongs_to_page_gcs_uri=
+    ('gs://images.quillsstorybook.com/_joke_assets/book/'
+     '20260228_120000__belongs_to__space_llamas.png'),
   )
 
 

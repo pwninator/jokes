@@ -709,6 +709,72 @@ def test_joke_creation_process_handles_printable_note_op(monkeypatch):
   assert len(captured["jokes"]) == 5
 
 
+def test_joke_creation_process_handles_printable_lunchbox_op(monkeypatch):
+  """PRINTABLE_LUNCHBOX should create and persist a category PDF."""
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
+
+  category = models.JokeCategory(
+    id="animals",
+    display_name="Animals",
+    joke_description_query="animals",
+    jokes=[
+      models.PunnyJoke(
+        key="j-1",
+        setup_text="setup 1",
+        punchline_text="punch 1",
+      )
+    ],
+  )
+  monkeypatch.setattr(
+    joke_creation_fns.firestore, "get_joke_category",
+    lambda category_id: category if category_id == "animals" else None)
+
+  captured: dict[str, object] = {}
+
+  def fake_ensure_joke_notes_sheet(jokes_arg, **_kwargs):
+    captured["jokes"] = jokes_arg
+    return models.JokeSheet(
+      key="sheet-lunchbox",
+      joke_ids=[j.key for j in jokes_arg if j.key],
+      image_gcs_uri="gs://bucket/sheet.png",
+      pdf_gcs_uri="gs://bucket/sheet.pdf",
+    )
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_notes_sheet_operations,
+    "ensure_joke_notes_sheet",
+    fake_ensure_joke_notes_sheet,
+  )
+
+  mock_doc = MagicMock()
+  mock_collection = MagicMock()
+  mock_collection.document.return_value = mock_doc
+  mock_db = MagicMock()
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(joke_creation_fns.firestore, "db", lambda: mock_db)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.PRINTABLE_LUNCHBOX.value,
+        "category_id": "animals",
+      }))
+
+  data = resp.get_json()["data"]
+  assert data["category_id"] == "animals"
+  assert data["pdf_gcs_uri"] == "gs://bucket/sheet.pdf"
+  assert captured["jokes"] == category.jokes
+  mock_db.collection.assert_called_with("joke_categories")
+  mock_collection.document.assert_called_with("animals")
+  mock_doc.set.assert_called_once_with(
+    {"lunchbox_notes_pdf_gcs_uri": "gs://bucket/sheet.pdf"},
+    merge=True,
+  )
+
+
 def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
   """JOKE_AUDIO should generate and return audio GCS URIs."""
   monkeypatch.setattr(

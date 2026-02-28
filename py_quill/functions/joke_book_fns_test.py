@@ -103,14 +103,12 @@ def test_get_joke_book_errors_when_book_pages_missing(
 
 @patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
 @patch(
-  'functions.joke_book_fns.image_operations.export_joke_page_files_for_kdp')
-@patch(
   'functions.joke_book_fns.image_operations.generate_and_populate_book_pages')
 @patch('functions.joke_book_fns.joke_books_firestore')
 @patch('functions.joke_book_fns.firestore')
 def test_create_book_uses_top_jokes_when_joke_ids_missing(
     mock_firestore, mock_joke_books_firestore, mock_generate_pages,
-    mock_export_files, mock_get_user_id):
+    mock_get_user_id):
   """create_book should use top jokes when joke_ids is not provided."""
   # Arrange
   top_joke1 = MagicMock()
@@ -118,10 +116,6 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   top_joke2 = MagicMock()
   top_joke2.key = "j2"
   mock_firestore.get_top_jokes.return_value = [top_joke1, top_joke2]
-  mock_export_files.return_value = MagicMock(
-    zip_url='https://cdn.example.com/book.zip',
-    paperback_pdf_url='https://cdn.example.com/book_paperback.pdf',
-  )
   # Provide a deterministic doc id
   joke_book_fns.utils.create_timestamped_firestore_key = lambda user_id: "book123"
 
@@ -139,14 +133,13 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
     'popularity_score_recent',
     joke_book_fns.NUM_TOP_JOKES_FOR_BOOKS,
   )
-  mock_export_files.assert_called_once_with(['j1', 'j2'])
   created_book = mock_joke_books_firestore.create_joke_book.call_args.args[0]
   assert created_book.id == 'book123'
   assert created_book.book_name == 'My Auto Book'
   assert created_book.jokes == ['j1', 'j2']
-  assert created_book.zip_url == 'https://cdn.example.com/book.zip'
-  assert created_book.paperback_pdf_url == (
-    'https://cdn.example.com/book_paperback.pdf')
+  assert created_book.belongs_to_page_gcs_uri is None
+  assert created_book.zip_url is None
+  assert created_book.paperback_pdf_url is None
   mock_generate_pages.assert_any_call('j1', overwrite=True)
   mock_generate_pages.assert_any_call('j2', overwrite=True)
   assert isinstance(resp, https_fn.Response)
@@ -210,6 +203,7 @@ def test_update_joke_book_files_regenerates_and_updates(
   mock_joke_books_firestore.get_joke_book.return_value = models.JokeBook(
     id=book_id,
     jokes=joke_ids,
+    belongs_to_page_gcs_uri='gs://images/_joke_assets/book/page.png',
   )
 
   req = DummyReq(
@@ -220,7 +214,8 @@ def test_update_joke_book_files_regenerates_and_updates(
 
   resp = joke_book_fns.update_joke_book_files(req)
 
-  mock_export_files.assert_called_once_with(joke_ids)
+  mock_export_files.assert_called_once_with(
+    mock_joke_books_firestore.get_joke_book.return_value)
   mock_joke_books_firestore.update_joke_book_export_files.assert_called_once_with(
     book_id,
     zip_url='https://cdn.example.com/new.zip',
@@ -260,6 +255,34 @@ def test_update_joke_book_files_errors_when_no_jokes(
   assert resp.status_code == 400
   payload = json.loads(resp.get_data(as_text=True))
   assert payload == {'data': {'error': 'Joke book has no jokes to export'}}
+
+
+@patch('functions.joke_book_fns.joke_books_firestore')
+def test_update_joke_book_files_errors_when_belongs_to_page_missing(
+    mock_joke_books_firestore):
+  """update_joke_book_files should error if belongs-to page is missing."""
+  book_id = 'book-missing-page'
+  mock_joke_books_firestore.get_joke_book.return_value = models.JokeBook(
+    id=book_id,
+    jokes=['j1'],
+  )
+
+  req = DummyReq(
+    path='/update_joke_book_files',
+    args={'joke_book_id': book_id},
+    method='POST',
+  )
+
+  resp = joke_book_fns.update_joke_book_files(req)
+
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 400
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload == {
+    'data': {
+      'error': 'Joke book is missing belongs_to_page_gcs_uri'
+    }
+  }
 
 
 @patch(

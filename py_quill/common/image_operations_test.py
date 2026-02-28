@@ -1456,6 +1456,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
   @patch('common.image_operations._convert_for_print_kdp')
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
+  @patch('common.image_operations.cloud_storage.download_bytes_from_gcs')
   @patch('common.image_operations.cloud_storage.download_image_from_gcs')
   @patch('common.image_operations._build_joke_book_export_uris')
   @patch('common.image_operations.pdf_client.create_pdf')
@@ -1466,13 +1467,20 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_create_pdf,
     mock_build_export_uris,
     mock_download_image,
+    mock_download_bytes,
     mock_upload_bytes,
     mock_get_public_url,
     mock_convert_for_print,
     mock_enhance_page_bytes,
   ):
     """export_joke_page_files_for_kdp should upload ZIP and PDF and return both URLs."""
-    joke_ids = ['joke1']
+    book = models.JokeBook(
+      id='book-1',
+      book_name='My Book',
+      jokes=['joke1'],
+      belongs_to_page_gcs_uri=
+      'gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
+    )
 
     # Firestore metadata for book pages
     mock_db = MagicMock()
@@ -1520,6 +1528,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
       raise ValueError(f"Unexpected download request {resource}")
 
     mock_download_image.side_effect = download_side_effect
+    mock_download_bytes.return_value = b'belongs-to-page'
 
     mock_convert_for_print.side_effect = [b'setup-kdp', b'punchline-kdp']
     mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
@@ -1534,7 +1543,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
     ]
 
     # Act
-    result = image_operations.export_joke_page_files_for_kdp(joke_ids)
+    result = image_operations.export_joke_page_files_for_kdp(book)
 
     # Assert URLs are returned
     self.assertEqual(result.zip_url, 'https://cdn.example.com/book.zip')
@@ -1563,10 +1572,13 @@ class ExportJokePageFilesTest(unittest.TestCase):
     with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
       names = sorted(zip_file.namelist())
       self.assertEqual(names, [
+        '001_belongs.png',
         '002_intro.jpg',
         '003_joke1_setup.jpg',
         '004_joke1_punchline.jpg',
       ])
+
+      self.assertEqual(zip_file.read('001_belongs.png'), b'belongs-to-page')
 
       # Intro page exists and is non-empty
       intro_bytes = zip_file.read('002_intro.jpg')
@@ -1599,8 +1611,9 @@ class ExportJokePageFilesTest(unittest.TestCase):
     pdf_call = mock_create_pdf.call_args
     self.assertEqual(pdf_call.kwargs, {'dpi': 300, 'quality': 100})
     pdf_images = pdf_call.args[0]
-    self.assertEqual(pdf_images[1:], [b'setup-kdp', b'punchline-kdp'])
-    self.assertIsInstance(pdf_images[0], (bytes, bytearray))
+    self.assertEqual(pdf_images[2:], [b'setup-kdp', b'punchline-kdp'])
+    self.assertEqual(pdf_images[0], b'belongs-to-page')
+    self.assertIsInstance(pdf_images[1], (bytes, bytearray))
 
 
 if __name__ == '__main__':

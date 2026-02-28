@@ -110,7 +110,7 @@ def _enhance_kdp_export_page_bytes(
 ) -> bytes:
   """Apply the default image-enhancement pass to a final KDP page image."""
   with Image.open(BytesIO(page_bytes)) as page_image:
-    _ = page_image.load()
+    page_image.load()  # pyright: ignore[reportUnusedCallResult]
     enhanced_page = editor.enhance_image(page_image)
 
   try:
@@ -130,22 +130,39 @@ def _enhance_kdp_export_page_bytes(
     enhanced_page.close()
 
 
-def _build_kdp_export_pages(joke_ids: list[str]) -> list[tuple[str, bytes]]:
+def _book_export_file_name(gcs_uri: str, fallback_stem: str) -> str:
+  """Return a ZIP-safe filename for a book export asset."""
+  object_path = cloud_storage.parse_gcs_uri(gcs_uri)[1]
+  filename = object_path.rsplit('/', 1)[-1]
+  if '.' in filename:
+    return filename
+  return f'{fallback_stem}.bin'
+
+
+def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
   """Build ordered print-ready page files for joke-book exports."""
-  if not joke_ids:
+  if not book.belongs_to_page_gcs_uri:
+    raise ValueError('Joke book is missing belongs_to_page_gcs_uri')
+  if not book.jokes:
     raise ValueError("Joke book has no jokes")
 
   files: list[tuple[str, bytes]] = []
   page_index = 3
-  total_pages = len(joke_ids) * 2
+  total_pages = len(book.jokes) * 2
   current_page_number = 1
   editor = image_editor.ImageEditor()
+
+  belongs_to_bytes = cloud_storage.download_bytes_from_gcs(
+    book.belongs_to_page_gcs_uri)
+  belongs_to_file_name = _book_export_file_name(book.belongs_to_page_gcs_uri,
+                                                'belongs_to')
+  files.append((f'001_{belongs_to_file_name}', belongs_to_bytes))
 
   # Add a blank intro page as page 002 before any joke pages.
   intro_bytes = create_blank_book_cover(color_mode=_KDP_PRINT_COLOR_MODE)
   files.append(("002_intro.jpg", intro_bytes))
 
-  for joke_id in joke_ids:
+  for joke_id in book.jokes:
     joke_ref = firestore.db().collection('jokes').document(joke_id)
     joke_doc = joke_ref.get()
     if not joke_doc.exists:
@@ -225,9 +242,10 @@ def _build_joke_book_export_uris() -> tuple[str, str]:
   return zip_gcs_uri, pdf_gcs_uri
 
 
-def export_joke_page_files_for_kdp(joke_ids: list[str]) -> JokeBookExportFiles:
+def export_joke_page_files_for_kdp(
+  book: models.JokeBook, ) -> JokeBookExportFiles:
   """Create and store the ZIP and paperback PDF for a joke-book export."""
-  files = _build_kdp_export_pages(joke_ids)
+  files = _build_kdp_export_pages(book)
   zip_bytes = _build_zip_bytes(files)
   pdf_bytes = pdf_client.create_pdf(
     [content for _, content in files],
@@ -565,7 +583,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneâ€”backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃ¢â‚¬â€backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.

@@ -29,6 +29,7 @@ class JokeCreationOp(str, Enum):
   JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
   PRINTABLE_NOTE = "printable_note"
+  PRINTABLE_LUNCHBOX = "printable_lunchbox"
   ANIMATION = "animation"
   ANIMATION_LAUGH = "animation_laugh"
   CHARACTER = "character"
@@ -106,6 +107,8 @@ def _route_joke_creation_op(req: flask.Request) -> flask.Response:
     return social_fns.run_social_post_creation_process(req)
   if op == JokeCreationOp.PRINTABLE_NOTE:
     return _run_printable_sheet_proc(req)
+  if op == JokeCreationOp.PRINTABLE_LUNCHBOX:
+    return _run_printable_lunchbox_proc(req)
   if op == JokeCreationOp.ANIMATION:
     return _run_character_animation_op(req)
   if op == JokeCreationOp.ANIMATION_LAUGH:
@@ -624,6 +627,47 @@ def _run_printable_sheet_proc(req: flask.Request) -> flask.Response:
     {
       "sheet_id": sheet.key,
       "sheet_slug": sheet.sheet_slug,
+      "pdf_gcs_uri": sheet.pdf_gcs_uri,
+      "image_gcs_uri": sheet.image_gcs_uri,
+    },
+    req=req,
+  )
+
+
+def _run_printable_lunchbox_proc(req: flask.Request) -> flask.Response:
+  """Create and persist a category lunchbox-notes PDF."""
+  if req.method != 'POST':
+    return error_response(f'Method not allowed: {req.method}',
+                          req=req,
+                          status=405)
+
+  category_id = (get_str_param(req, 'category_id') or '').strip()
+  if not category_id:
+    return error_response('category_id is required',
+                          error_type='invalid_request',
+                          status=400,
+                          req=req)
+
+  category = firestore.get_joke_category(category_id)
+  if not category:
+    return error_response('Category not found',
+                          error_type='invalid_request',
+                          status=404,
+                          req=req)
+  if not category.jokes:
+    return error_response('Category has no jokes',
+                          error_type='invalid_request',
+                          status=400,
+                          req=req)
+
+  sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(category.jokes)
+  _ = firestore.db().collection('joke_categories').document(category_id).set(
+    {'lunchbox_notes_pdf_gcs_uri': sheet.pdf_gcs_uri},
+    merge=True,
+  )
+  return success_response(
+    {
+      "category_id": category_id,
       "pdf_gcs_uri": sheet.pdf_gcs_uri,
       "image_gcs_uri": sheet.image_gcs_uri,
     },

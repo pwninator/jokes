@@ -1046,11 +1046,11 @@ class JokeCategory:
   all_image_urls: list[str] = field(default_factory=list)
   """All known image URLs for the category (used by the app image carousel)."""
 
-  lunchbox_notes_branded_pdf_gcs_uri: str | None = None
-  """Optional branded lunchbox notes PDF for the full category."""
+  joke_sheets_branded_id: str | None = None
+  """Optional branded lunchbox notes sheet id for the full category."""
 
-  lunchbox_notes_unbranded_pdf_gcs_uri: str | None = None
-  """Optional unbranded lunchbox notes PDF for the full category."""
+  joke_sheets_unbranded_id: str | None = None
+  """Optional unbranded lunchbox notes sheet id for the full category."""
 
   image_description: str | None = None
   joke_id_order: list[str] = field(default_factory=list)

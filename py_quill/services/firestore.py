@@ -745,6 +745,22 @@ def get_joke_sheet_by_slug(slug: str) -> models.JokeSheet | None:
   return models.JokeSheet.from_firestore_dict(data, key=doc.id)
 
 
+def get_joke_sheet(sheet_id: str) -> models.JokeSheet | None:
+  """Fetch a joke sheet by Firestore document id."""
+  sheet_id = (sheet_id or "").strip()
+  if not sheet_id:
+    return None
+
+  doc = db().collection("joke_sheets").document(sheet_id).get()
+  if not getattr(doc, "exists", False):
+    return None
+  data = doc.to_dict()
+  if data is None:
+    return None
+
+  return models.JokeSheet.from_firestore_dict(data, key=doc.id)
+
+
 def delete_joke_sheet(sheet_id: str) -> bool:
   """Delete a joke sheet by Firestore document id."""
   sheet_id = (sheet_id or "").strip()

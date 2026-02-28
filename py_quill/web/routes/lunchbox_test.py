@@ -14,7 +14,8 @@ from web.utils import analytics as analytics_utils
 
 
 def _expected_lunchbox_amazon_url(country_code: str | None = None) -> str:
-  redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
+  redirect_config = amazon_redirect.AMAZON_REDIRECTS_BY_SLUG[
+    'book-animal-jokes']
   expected_url, _, _ = redirect_config.resolve_target_url(
     requested_country_code=country_code,
     source=amazon_redirect.AttributionSource.LUNCHBOX_THANK_YOU,

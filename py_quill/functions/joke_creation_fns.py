@@ -662,14 +662,16 @@ def _run_lunchbox_note_proc(req: flask.Request) -> flask.Response:
   )
   _ = firestore.db().collection('joke_categories').document(category_id).set(
     {
-      'lunchbox_notes_branded_pdf_gcs_uri': branded_sheet.pdf_gcs_uri,
-      'lunchbox_notes_unbranded_pdf_gcs_uri': unbranded_sheet.pdf_gcs_uri,
+      'joke_sheets_branded_id': branded_sheet.key,
+      'joke_sheets_unbranded_id': unbranded_sheet.key,
     },
     merge=True,
   )
   return success_response(
     {
       "category_id": category_id,
+      "joke_sheets_branded_id": branded_sheet.key,
+      "joke_sheets_unbranded_id": unbranded_sheet.key,
       "lunchbox_notes_branded_pdf_gcs_uri": branded_sheet.pdf_gcs_uri,
       "lunchbox_notes_unbranded_pdf_gcs_uri": unbranded_sheet.pdf_gcs_uri,
       "image_gcs_uri": branded_sheet.image_gcs_uri,

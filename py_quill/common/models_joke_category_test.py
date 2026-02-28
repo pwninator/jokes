@@ -63,17 +63,15 @@ def test_joke_category_from_firestore_dict_sets_id_and_defaults():
   assert cat.all_image_urls == ['https://a.png']
 
 
-def test_joke_category_from_firestore_dict_reads_lunchbox_pdf_uris():
+def test_joke_category_from_firestore_dict_reads_lunchbox_sheet_ids():
   cat = models.JokeCategory.from_firestore_dict(
     {
       'display_name': 'Cats',
       'joke_description_query': 'cats',
-      'lunchbox_notes_branded_pdf_gcs_uri': 'gs://bucket/cats_branded.pdf',
-      'lunchbox_notes_unbranded_pdf_gcs_uri': 'gs://bucket/cats_unbranded.pdf',
+      'joke_sheets_branded_id': 'sheet-branded',
+      'joke_sheets_unbranded_id': 'sheet-unbranded',
     },
     key='cats',
   )
-  assert cat.lunchbox_notes_branded_pdf_gcs_uri == (
-    'gs://bucket/cats_branded.pdf')
-  assert cat.lunchbox_notes_unbranded_pdf_gcs_uri == (
-    'gs://bucket/cats_unbranded.pdf')
+  assert cat.joke_sheets_branded_id == 'sheet-branded'
+  assert cat.joke_sheets_unbranded_id == 'sheet-unbranded'

@@ -443,14 +443,30 @@ def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
   monkeypatch.setattr(
     categories_routes.cloud_storage, "get_public_cdn_url",
     lambda gcs_uri: f"https://cdn.example/{gcs_uri.split('/')[-1]}")
+  monkeypatch.setattr(
+    categories_routes.cloud_storage,
+    "get_public_image_cdn_url",
+    lambda gcs_uri, width=1024, image_format="jpg", quality=75:
+    f"https://img.example/{quality}/{width}/{image_format}/{gcs_uri.split('/')[-1]}"
+  )
+  monkeypatch.setattr(
+    categories_routes.firestore, "get_joke_sheet",
+    lambda sheet_id: models.JokeSheet(
+      key=sheet_id,
+      image_gcs_uri=f"gs://images/{sheet_id}_1.png",
+      image_gcs_uris=[
+        f"gs://images/{sheet_id}_1.png",
+        f"gs://images/{sheet_id}_2.png",
+      ],
+      pdf_gcs_uri=f"gs://pdfs/{sheet_id}.pdf",
+    ))
 
   live_doc = Mock()
   live_doc.exists = True
   live_doc.id = "animals"
   live_doc.to_dict.return_value = {
-    "lunchbox_notes_branded_pdf_gcs_uri": "gs://bucket/animals_branded.pdf",
-    "lunchbox_notes_unbranded_pdf_gcs_uri":
-    "gs://bucket/animals_unbranded.pdf",
+    "joke_sheets_branded_id": "animals-branded",
+    "joke_sheets_unbranded_id": "animals-unbranded",
   }
   _mock_category_doc_stream(monkeypatch, [live_doc])
 
@@ -460,8 +476,14 @@ def test_admin_joke_categories_renders_lunchbox_pdf_link(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert "Generate lunchbox notes" in html
-  assert 'href="https://cdn.example/animals_branded.pdf"' in html
-  assert 'href="https://cdn.example/animals_unbranded.pdf"' in html
+  assert 'href="https://cdn.example/animals-branded.pdf"' in html
+  assert 'href="https://cdn.example/animals-unbranded.pdf"' in html
+  assert "Branded PDF" in html
+  assert "Unbranded PDF" in html
+  assert 'data-target-id="branded-images-animals"' in html
+  assert 'data-target-id="unbranded-images-animals"' in html
+  assert 'data-src="https://img.example/75/1024/jpg/animals-branded_1.png"' in html
+  assert 'data-src="https://img.example/75/1024/jpg/animals-unbranded_2.png"' in html
   assert '"https://bigapi.example.com"' in html
   assert "lunchbox_note" in html
 

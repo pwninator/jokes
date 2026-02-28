@@ -14,8 +14,8 @@ from services import firestore
 from web.routes import web_bp
 
 
-def _get_category_lunchbox_pdf_gcs_uris() -> dict[str, dict[str, str]]:
-  """Fetch live lunchbox PDF URIs from the main category documents."""
+def _get_category_lunchbox_sheet_ids() -> dict[str, dict[str, str]]:
+  """Fetch live lunchbox sheet ids from the main category documents."""
   docs: Any = firestore.db().collection("joke_categories").stream()
   results: dict[str, dict[str, str]] = {}
   for doc in docs:
@@ -25,21 +25,32 @@ def _get_category_lunchbox_pdf_gcs_uris() -> dict[str, dict[str, str]]:
     if not isinstance(raw_data, dict):
       continue
     data = cast(dict[str, object], raw_data)
-    raw_branded_pdf_gcs_uri = data.get("lunchbox_notes_branded_pdf_gcs_uri")
-    branded_pdf_gcs_uri = (raw_branded_pdf_gcs_uri.strip() if isinstance(
-      raw_branded_pdf_gcs_uri, str) else "")
-    raw_unbranded_pdf_gcs_uri = data.get(
-      "lunchbox_notes_unbranded_pdf_gcs_uri")
-    unbranded_pdf_gcs_uri = (raw_unbranded_pdf_gcs_uri.strip() if isinstance(
-      raw_unbranded_pdf_gcs_uri, str) else "")
-    category_uris: dict[str, str] = {}
-    if branded_pdf_gcs_uri:
-      category_uris["branded"] = branded_pdf_gcs_uri
-    if unbranded_pdf_gcs_uri:
-      category_uris["unbranded"] = unbranded_pdf_gcs_uri
-    if category_uris:
-      results[doc.id] = category_uris
+    raw_branded_sheet_id = data.get("joke_sheets_branded_id")
+    branded_sheet_id = (raw_branded_sheet_id.strip() if isinstance(
+      raw_branded_sheet_id, str) else "")
+    raw_unbranded_sheet_id = data.get("joke_sheets_unbranded_id")
+    unbranded_sheet_id = (raw_unbranded_sheet_id.strip() if isinstance(
+      raw_unbranded_sheet_id, str) else "")
+    category_sheet_ids: dict[str, str] = {}
+    if branded_sheet_id:
+      category_sheet_ids["branded"] = branded_sheet_id
+    if unbranded_sheet_id:
+      category_sheet_ids["unbranded"] = unbranded_sheet_id
+    if category_sheet_ids:
+      results[doc.id] = category_sheet_ids
   return results
+
+
+def _get_sheet_preview_image_urls(sheet: models.JokeSheet) -> list[str]:
+  """Return transformed preview URLs for every page image in a sheet."""
+  return [
+    cloud_storage.get_public_image_cdn_url(
+      gcs_uri,
+      width=1024,
+      image_format="jpg",
+      quality=75,
+    ) for gcs_uri in sheet.image_gcs_uris
+  ]
 
 
 @web_bp.route('/admin/joke-categories')
@@ -50,15 +61,29 @@ def admin_joke_categories():
     fetch_cached_jokes=True,
     use_cache=True,
   )
-  lunchbox_pdf_gcs_uris = _get_category_lunchbox_pdf_gcs_uris()
+  lunchbox_sheet_ids = _get_category_lunchbox_sheet_ids()
   for category in categories:
     category_id = getattr(category, "id", None)
-    if isinstance(category_id, str) and category_id in lunchbox_pdf_gcs_uris:
-      category_uris = lunchbox_pdf_gcs_uris[category_id]
-      category.lunchbox_notes_branded_pdf_gcs_uri = category_uris.get(
-        "branded")
-      category.lunchbox_notes_unbranded_pdf_gcs_uri = category_uris.get(
-        "unbranded")
+    if not isinstance(category_id,
+                      str) or category_id not in lunchbox_sheet_ids:
+      continue
+    category_sheet_ids = lunchbox_sheet_ids[category_id]
+    branded_sheet_id = category_sheet_ids.get("branded")
+    if branded_sheet_id:
+      category.joke_sheets_branded_id = branded_sheet_id
+      branded_sheet = firestore.get_joke_sheet(branded_sheet_id)
+      if branded_sheet:
+        setattr(category, "lunchbox_notes_branded_sheet", branded_sheet)
+        setattr(category, "lunchbox_notes_branded_image_urls",
+                _get_sheet_preview_image_urls(branded_sheet))
+    unbranded_sheet_id = category_sheet_ids.get("unbranded")
+    if unbranded_sheet_id:
+      category.joke_sheets_unbranded_id = unbranded_sheet_id
+      unbranded_sheet = firestore.get_joke_sheet(unbranded_sheet_id)
+      if unbranded_sheet:
+        setattr(category, "lunchbox_notes_unbranded_sheet", unbranded_sheet)
+        setattr(category, "lunchbox_notes_unbranded_image_urls",
+                _get_sheet_preview_image_urls(unbranded_sheet))
 
   def _state_key(category: models.JokeCategory) -> str:
     return (category.state or "").upper()

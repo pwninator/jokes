@@ -1342,6 +1342,53 @@ def test_get_joke_sheet_by_slug_filters_sheet_slug(monkeypatch):
   assert getattr(captured_filters[0], "value", None) == "my-custom-pack"
 
 
+def test_get_joke_sheet_fetches_doc_by_id(monkeypatch):
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self):
+      self.id = "sheet-123"
+
+    @property
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {
+        "joke_str_hash": "hash-ab",
+        "joke_ids": ["a", "b"],
+        "image_gcs_uri": "gs://img",
+        "image_gcs_uris": ["gs://img"],
+        "pdf_gcs_uri": "gs://pdf",
+      }
+
+  class DummyDocRef:
+
+    def get(self):
+      return DummyDoc()
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      assert doc_id == "sheet-123"
+      return DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB())
+
+  sheet = fs.get_joke_sheet("sheet-123")
+
+  assert sheet is not None
+  assert sheet.key == "sheet-123"
+  assert sheet.joke_ids == ["a", "b"]
+
+
 def test_update_joke_sheets_cache_writes_payload(monkeypatch):
   from services import firestore as fs
 

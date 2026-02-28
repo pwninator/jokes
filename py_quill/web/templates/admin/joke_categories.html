@@ -182,6 +182,35 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+  .sheet-preview-link-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .sheet-preview-panel {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-accent-surface);
+  }
+  .sheet-preview-panel h4 {
+    margin: 0 0 10px;
+  }
+  .sheet-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .sheet-preview-grid img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
   .edit-flex {
     display: flex;
     flex-wrap: wrap;
@@ -403,13 +432,57 @@
           data-category-id="{{ category.id }}">
           Generate lunchbox notes
         </button>
-        {% if category.lunchbox_notes_branded_pdf_gcs_uri %}
-        <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_branded_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View Branded PDF</a>
+        {% set branded_sheet = category.lunchbox_notes_branded_sheet %}
+        {% if branded_sheet %}
+        <span class="sheet-preview-link-group">
+          <a class="text-button" href="{{ public_file_url_for_gcs(branded_sheet.pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">Branded PDF</a>
+          <button class="text-button" type="button"
+            data-toggle-sheet-images="true"
+            data-target-id="branded-images-{{ category.id }}">
+            images
+          </button>
+        </span>
         {% endif %}
-        {% if category.lunchbox_notes_unbranded_pdf_gcs_uri %}
-        <a class="text-button" href="{{ public_file_url_for_gcs(category.lunchbox_notes_unbranded_pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">View Unbranded PDF</a>
+        {% set unbranded_sheet = category.lunchbox_notes_unbranded_sheet %}
+        {% if unbranded_sheet %}
+        <span class="sheet-preview-link-group">
+          <a class="text-button" href="{{ public_file_url_for_gcs(unbranded_sheet.pdf_gcs_uri) }}" target="_blank" rel="noopener noreferrer">Unbranded PDF</a>
+          <button class="text-button" type="button"
+            data-toggle-sheet-images="true"
+            data-target-id="unbranded-images-{{ category.id }}">
+            images
+          </button>
+        </span>
         {% endif %}
       </div>
+      {% if branded_sheet %}
+      <section id="branded-images-{{ category.id }}" class="sheet-preview-panel hidden" data-sheet-images-panel="true">
+        <h4 class="text-button">Branded Images</h4>
+        <div class="sheet-preview-grid">
+          {% for image_url in category.lunchbox_notes_branded_image_urls %}
+          <img
+            width="1024"
+            loading="lazy"
+            data-src="{{ image_url }}"
+            alt="Branded lunchbox notes preview page {{ loop.index }} for {{ category.display_name }}">
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+      {% if unbranded_sheet %}
+      <section id="unbranded-images-{{ category.id }}" class="sheet-preview-panel hidden" data-sheet-images-panel="true">
+        <h4 class="text-button">Unbranded Images</h4>
+        <div class="sheet-preview-grid">
+          {% for image_url in category.lunchbox_notes_unbranded_image_urls %}
+          <img
+            width="1024"
+            loading="lazy"
+            data-src="{{ image_url }}"
+            alt="Unbranded lunchbox notes preview page {{ loop.index }} for {{ category.display_name }}">
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
       <div class="joke-grid" aria-label="Category joke thumbnails">
         {% for joke in category.jokes %}
         <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}" data-joke-id="{{ joke.key }}" draggable="false">
@@ -628,6 +701,19 @@
           alert('Failed to generate lunchbox notes: ' + error.message);
           button.disabled = false;
           button.textContent = originalText;
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-toggle-sheet-images="true"]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const targetId = button.dataset.targetId || '';
+        if (!targetId) return;
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) {
+          hydrateImages(panel);
         }
       });
     });

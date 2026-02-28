@@ -741,10 +741,11 @@ def test_joke_creation_process_handles_lunchbox_note_op_for_category(
       "jokes": jokes_arg,
       "branded": kwargs.get("branded", True),
     })
-    pdf_name = "sheet_branded.pdf" if kwargs.get(
-      "branded", True) else ("sheet_unbranded.pdf")
+    is_branded = kwargs.get("branded", True)
+    pdf_name = "sheet_branded.pdf" if is_branded else ("sheet_unbranded.pdf")
+    sheet_key = "sheet-branded" if is_branded else "sheet-unbranded"
     return models.JokeSheet(
-      key="sheet-lunchbox",
+      key=sheet_key,
       joke_ids=[j.key for j in jokes_arg if j.key],
       image_gcs_uri="gs://bucket/sheet.png",
       pdf_gcs_uri=f"gs://bucket/{pdf_name}",
@@ -772,6 +773,8 @@ def test_joke_creation_process_handles_lunchbox_note_op_for_category(
 
   data = resp.get_json()["data"]
   assert data["category_id"] == "animals"
+  assert data["joke_sheets_branded_id"] == "sheet-branded"
+  assert data["joke_sheets_unbranded_id"] == "sheet-unbranded"
   assert data["lunchbox_notes_branded_pdf_gcs_uri"] == (
     "gs://bucket/sheet_branded.pdf")
   assert data["lunchbox_notes_unbranded_pdf_gcs_uri"] == (
@@ -790,9 +793,8 @@ def test_joke_creation_process_handles_lunchbox_note_op_for_category(
   mock_collection.document.assert_called_with("animals")
   mock_doc.set.assert_called_once_with(
     {
-      "lunchbox_notes_branded_pdf_gcs_uri": "gs://bucket/sheet_branded.pdf",
-      "lunchbox_notes_unbranded_pdf_gcs_uri":
-      "gs://bucket/sheet_unbranded.pdf",
+      "joke_sheets_branded_id": "sheet-branded",
+      "joke_sheets_unbranded_id": "sheet-unbranded",
     },
     merge=True,
   )

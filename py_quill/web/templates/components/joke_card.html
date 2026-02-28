@@ -1,4 +1,8 @@
 {% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, is_future_daily=None, edit_payload=None, selectable=false) -%}
+{% macro multiline_title_attr(text) -%}
+{%- set newline = '&#10;' | safe -%}
+{{- text | e | replace('\n', newline) -}}
+{%- endmacro %}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
 {% set state_value = joke.state.value if joke.state is not none else '' %}
 {% set is_daily = state_value == 'DAILY' %}
@@ -73,7 +77,8 @@
       {% set shared = joke.num_shared_users|default(0) %}
       <div class="joke-admin-footer">
         {% if admin_stats_enabled %}
-        <div class="joke-admin-stats" aria-label="Joke stats">
+        <div class="joke-admin-stats" aria-label="Joke stats"
+          title="{{ multiline_title_attr(joke.generation_metadata | format_generation_metadata_tooltip) | safe }}">
           <div class="joke-admin-stat joke-admin-stat--views{% if viewed == 0 %} is-muted{% endif %}">
             <span class="joke-admin-stat-icon" aria-hidden="true">👁</span>
             <span class="joke-admin-stat-value">{{ viewed }}</span>

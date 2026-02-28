@@ -189,6 +189,16 @@ def test_admin_jokes_load_more(monkeypatch):
   joke.num_viewed_users = 12
   joke.num_saved_users = 3
   joke.num_shared_users = 1
+  joke.generation_metadata.add_generation(
+    models.SingleGenerationMetadata(
+      label="setup_image",
+      model_name="gemini-2.5-flash-image",
+      token_counts={
+        "input": 42,
+      },
+      generation_time_sec=1.23,
+      cost=0.25,
+    ))
   joke.setup_image_url = "setup-url"
   joke.punchline_image_url = "punch-url"
   joke.all_setup_image_urls = ["setup-url"]
@@ -211,11 +221,53 @@ def test_admin_jokes_load_more(monkeypatch):
   assert "joke-admin-stats" in body["html"]
   assert "joke-state-badge" in body["html"]
   assert "joke-edit-button" in body["html"]
+  assert 'title="SUMMARY&#10;Total Cost: $0.2500' in body["html"]
+  assert '&#10;setup_image&#10;  gemini-2.5-flash-image: $0.2500 (1)' in body[
+    "html"]
 
   _, kwargs = mock_get.call_args
   assert kwargs["cursor"] == "joke-0"
   assert kwargs["states"] == [models.JokeState.DRAFT]
   assert kwargs["category_id"] == "cats"
+
+
+def test_admin_jokes_initial_render_includes_generation_metadata_tooltip(
+    monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  joke = models.PunnyJoke(setup_text="setup", punchline_text="punch")
+  joke.key = "joke-1"
+  joke.state = models.JokeState.DRAFT
+  joke.generation_metadata.add_generation(
+    models.SingleGenerationMetadata(
+      label="setup_image",
+      model_name="gemini-2.5-flash-image",
+      cost=0.15,
+    ))
+  joke.setup_image_url = "https://images.quillsstorybook.com/path/setup.png"
+  joke.punchline_image_url = "https://images.quillsstorybook.com/path/punch.png"
+  joke.all_setup_image_urls = [joke.setup_image_url]
+  joke.all_punchline_image_urls = [joke.punchline_image_url]
+
+  monkeypatch.setattr(
+    admin_jokes_routes.firestore,
+    "get_joke_by_state",
+    Mock(return_value=([(joke, "joke-1")], None)),
+  )
+  monkeypatch.setattr(
+    admin_jokes_routes.firestore,
+    "get_all_joke_categories",
+    Mock(return_value=[]),
+  )
+
+  with app.test_client() as client:
+    resp = client.get("/admin/jokes")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'title="SUMMARY&#10;Total Cost: $0.1500' in html
+  assert '&#10;DETAILS&#10;setup_image&#10;  model_name: gemini-2.5-flash-image' in html
 
 
 def test_admin_jokes_future_daily_badge_uses_future_class(monkeypatch):

@@ -34,6 +34,7 @@ import web.routes.redirects as _redirects
 from common import utils
 from firebase_functions import logger
 from web.routes import web_bp
+from web.utils import generation_metadata as generation_metadata_utils
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
@@ -77,6 +78,12 @@ def _format_image_url_filter(image_url: str, **kwargs: dict[str, Any]) -> str:
   """Jinja filter for formatting image CDN URLs."""
   return utils.format_image_url(
     image_url, **kwargs)  # pyright: ignore[reportArgumentType]
+
+
+@app.template_filter('format_generation_metadata_tooltip')
+def _format_generation_metadata_tooltip_filter(metadata: Any) -> str:
+  """Jinja filter for admin generation metadata tooltips."""
+  return generation_metadata_utils.format_generation_metadata_tooltip(metadata)
 
 
 @app.context_processor

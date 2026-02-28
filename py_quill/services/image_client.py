@@ -288,6 +288,20 @@ class ImageModel(Enum):
       "vertexai": False,
     },
   )
+  GEMINI_NANO_BANANA_2_FLASH = (
+    "gemini-3.1-flash-image-preview",
+    {
+      "input_tokens": 0.25 / 1_000_000,
+      "output_text_tokens": 1.50 / 1_000_000,
+      # $0.067 per image
+      "output_image_tokens": 60.00 / 1_000_000,
+    },
+    ImageProvider.GEMINI,
+    {
+      "thinking": True,
+      "vertexai": False,
+    },
+  )
 
   # Dummy outpainter that just adds black margins around the image
   DUMMY_OUTPAINTER = (

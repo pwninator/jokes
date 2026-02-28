@@ -78,6 +78,15 @@ class JokeBookExportFiles:
   paperback_pdf_url: str
 
 
+@dataclass(frozen=True)
+class BookPage:
+  """One exported book page plus its optional PDF hyperlink."""
+
+  file_name: str
+  image_bytes: bytes
+  hyperlink: pdf_client.HyperlinkSpec | None = None
+
+
 def create_blank_book_cover(*, color_mode: str) -> bytes:
   """Create a blank JPEG cover image matching book page dimensions.
 
@@ -204,40 +213,58 @@ def _overlay_image_bytes(
 
 
 def _add_paperback_review_qr_to_page(
-  page_bytes: bytes,
+  page: BookPage,
   *,
   associated_book_key: str,
-) -> bytes:
-  """Overlay a paperback-review QR code onto a converted page image."""
-  review_url = amazon_redirect.get_amazon_redirect_bridge_url(
-    book_defs.BookKey(associated_book_key),
-    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
-    book_format=book_defs.BookFormat.PAPERBACK,
-    source=book_defs.AttributionSource.BOOK_ABOUT_PAGE,
-  )
+  page_index: int,
+) -> BookPage:
+  """Overlay a paperback-review QR code and matching link onto a page."""
+  review_url = _get_about_page_review_bridge_url(associated_book_key)
   qr_image = _create_qr_code_image(
     review_url,
     size_px=_BOOK_REVIEW_QR_SIZE_PX,
   )
   try:
-    return _overlay_image_bytes(
-      page_bytes,
+    image_bytes = _overlay_image_bytes(
+      page.image_bytes,
       overlay_image=qr_image,
       x=_BOOK_REVIEW_QR_X,
       y=_BOOK_REVIEW_QR_Y,
+    )
+    return BookPage(
+      file_name=page.file_name,
+      image_bytes=image_bytes,
+      hyperlink=pdf_client.HyperlinkSpec(
+        page_index=page_index,
+        url=review_url,
+        x1=_BOOK_REVIEW_QR_X,
+        y1=_BOOK_REVIEW_QR_Y,
+        x2=_BOOK_REVIEW_QR_X + _BOOK_REVIEW_QR_SIZE_PX,
+        y2=_BOOK_REVIEW_QR_Y + _BOOK_REVIEW_QR_SIZE_PX,
+      ),
     )
   finally:
     qr_image.close()
 
 
-def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
+def _get_about_page_review_bridge_url(associated_book_key: str) -> str:
+  """Return the public review redirect URL for the about-page QR/link."""
+  return amazon_redirect.get_amazon_redirect_bridge_url(
+    book_defs.BookKey(associated_book_key),
+    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
+    book_format=book_defs.BookFormat.PAPERBACK,
+    source=book_defs.AttributionSource.BOOK_ABOUT_PAGE,
+  )
+
+
+def _build_kdp_export_pages(book: models.JokeBook) -> list[BookPage]:
   """Build ordered print-ready page files for joke-book exports."""
   if not book.belongs_to_page_gcs_uri:
     raise ValueError('Joke book is missing belongs_to_page_gcs_uri')
   if not book.jokes:
     raise ValueError("Joke book has no jokes")
 
-  files: list[tuple[str, bytes]] = []
+  files: list[BookPage] = []
   page_index = 3
   total_pages = len(book.jokes) * 2
   current_page_number = 1
@@ -255,11 +282,15 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
   )
   belongs_to_file_name = _book_export_file_name(book.belongs_to_page_gcs_uri,
                                                 'belongs_to')
-  files.append((f'001_{belongs_to_file_name}', belongs_to_bytes))
+  files.append(
+    BookPage(
+      file_name=f'001_{belongs_to_file_name}',
+      image_bytes=belongs_to_bytes,
+    ))
 
   # Add a blank intro page as page 002 before any joke pages.
   intro_bytes = create_blank_book_cover(color_mode=_KDP_PRINT_COLOR_MODE)
-  files.append(("002_intro.jpg", intro_bytes))
+  files.append(BookPage(file_name='002_intro.jpg', image_bytes=intro_bytes))
 
   for joke_id in book.jokes:
     joke_ref = firestore.db().collection('jokes').document(joke_id)
@@ -312,8 +343,9 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     page_index += 1
     punchline_file_name = f"{page_index:03d}_{joke_id}_punchline.jpg"
     page_index += 1
-    files.append((setup_file_name, setup_bytes))
-    files.append((punchline_file_name, punchline_bytes))
+    files.append(BookPage(file_name=setup_file_name, image_bytes=setup_bytes))
+    files.append(
+      BookPage(file_name=punchline_file_name, image_bytes=punchline_bytes))
 
   about_image = cloud_storage.download_image_from_gcs(_BOOK_PAGE_ABOUT_GCS_URI)
   about_bytes = _convert_for_print_kdp(
@@ -324,21 +356,25 @@ def _build_kdp_export_pages(book: models.JokeBook) -> list[tuple[str, bytes]]:
     color_mode=_KDP_PRINT_COLOR_MODE,
     add_page_number=False,
   )
-  if book.associated_book_key:
-    about_bytes = _add_paperback_review_qr_to_page(
-      about_bytes,
-      associated_book_key=book.associated_book_key,
-    )
   about_file_name = _book_export_file_name(_BOOK_PAGE_ABOUT_GCS_URI, 'about')
-  if about_file_name.startswith('999_'):
-    files.append((about_file_name, about_bytes))
-  else:
-    files.append((f'999_{about_file_name}', about_bytes))
+  if not about_file_name.startswith('999_'):
+    about_file_name = f'999_{about_file_name}'
+  about_page = BookPage(
+    file_name=about_file_name,
+    image_bytes=about_bytes,
+  )
+  if book.associated_book_key:
+    about_page = _add_paperback_review_qr_to_page(
+      about_page,
+      associated_book_key=book.associated_book_key,
+      page_index=len(files),
+    )
+  files.append(about_page)
 
   return files
 
 
-def _build_zip_bytes(files: list[tuple[str, bytes]]) -> bytes:
+def _build_zip_bytes(files: list[BookPage]) -> bytes:
   """Build a ZIP archive from the provided file list."""
   zip_buffer = BytesIO()
   with zipfile.ZipFile(
@@ -346,8 +382,8 @@ def _build_zip_bytes(files: list[tuple[str, bytes]]) -> bytes:
       mode='w',
       compression=zipfile.ZIP_DEFLATED,
   ) as zip_file:
-    for filename, content in files:
-      zip_file.writestr(filename, content)
+    for page in files:
+      zip_file.writestr(page.file_name, page.image_bytes)
   return zip_buffer.getvalue()
 
 
@@ -367,9 +403,10 @@ def export_joke_page_files_for_kdp(
   files = _build_kdp_export_pages(book)
   zip_bytes = _build_zip_bytes(files)
   pdf_bytes = pdf_client.create_pdf(
-    [content for _, content in files],
+    [page.image_bytes for page in files],
     dpi=300,
     quality=100,
+    hyperlinks=[page.hyperlink for page in files if page.hyperlink is not None],
   )
   zip_gcs_uri, pdf_gcs_uri = _build_joke_book_export_uris()
   _ = cloud_storage.upload_bytes_to_gcs(
@@ -702,7 +739,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Âbackgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âbackgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.

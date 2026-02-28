@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 from common import amazon_redirect, image_operations, joke_notes_sheet_operations, models
 from PIL import Image, ImageFont
-from services import image_editor
+from services import image_editor, pdf_client
 
 _TEST_LANDSCAPE_PANEL_WIDTH = image_operations._AD_LANDSCAPE_CANVAS_WIDTH // 2
 _TEST_LANDSCAPE_PANEL_HEIGHT = image_operations._AD_LANDSCAPE_CANVAS_HEIGHT
@@ -1526,9 +1526,13 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_get_review_url.return_value = 'https://example.com/review'
     mock_create_qr_code_image.return_value = qr_image
 
-    updated_bytes = image_operations._add_paperback_review_qr_to_page(
-      buffer.getvalue(),
+    updated_page = image_operations._add_paperback_review_qr_to_page(
+      image_operations.BookPage(
+        file_name='999_about.jpg',
+        image_bytes=buffer.getvalue(),
+      ),
       associated_book_key='animal-jokes',
+      page_index=4,
     )
 
     mock_get_review_url.assert_called_once()
@@ -1543,13 +1547,45 @@ class ExportJokePageFilesTest(unittest.TestCase):
       'https://example.com/review',
       size_px=image_operations._BOOK_REVIEW_QR_SIZE_PX,
     )
-    updated_image = Image.open(BytesIO(updated_bytes))
+    self.assertEqual(updated_page.file_name, '999_about.jpg')
+    self.assertEqual(
+      updated_page.hyperlink,
+      pdf_client.HyperlinkSpec(
+        page_index=4,
+        url='https://example.com/review',
+        x1=image_operations._BOOK_REVIEW_QR_X,
+        y1=image_operations._BOOK_REVIEW_QR_Y,
+        x2=image_operations._BOOK_REVIEW_QR_X +
+        image_operations._BOOK_REVIEW_QR_SIZE_PX,
+        y2=image_operations._BOOK_REVIEW_QR_Y +
+        image_operations._BOOK_REVIEW_QR_SIZE_PX,
+      ),
+    )
+    updated_image = Image.open(BytesIO(updated_page.image_bytes))
     self.assertEqual(
       updated_image.getpixel((image_operations._BOOK_REVIEW_QR_X + 10,
                               image_operations._BOOK_REVIEW_QR_Y + 10)),
       (0, 0, 0),
     )
 
+  @patch('common.image_operations.amazon_redirect.get_amazon_redirect_bridge_url')
+  def test_get_about_page_review_bridge_url_uses_book_about_source(
+    self,
+    mock_get_bridge_url,
+  ):
+    mock_get_bridge_url.return_value = 'https://example.com/review-bridge'
+
+    result = image_operations._get_about_page_review_bridge_url('animal-jokes')
+
+    self.assertEqual(result, 'https://example.com/review-bridge')
+    mock_get_bridge_url.assert_called_once_with(
+      amazon_redirect.BookKey.ANIMAL_JOKES,
+      page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
+      book_format=amazon_redirect.BookFormat.PAPERBACK,
+      source=amazon_redirect.AttributionSource.BOOK_ABOUT_PAGE,
+    )
+
+  @patch('common.image_operations._get_about_page_review_bridge_url')
   @patch('common.image_operations._add_paperback_review_qr_to_page')
   @patch('common.image_operations._enhance_kdp_export_page_bytes')
   @patch('common.image_operations._convert_for_print_kdp')
@@ -1570,6 +1606,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
     mock_convert_for_print,
     mock_enhance_page_bytes,
     mock_add_review_qr,
+    mock_get_about_page_review_bridge_url,
   ):
     """export_joke_page_files_for_kdp should upload ZIP and PDF and return both URLs."""
     book = models.JokeBook(
@@ -1637,7 +1674,22 @@ class ExportJokePageFilesTest(unittest.TestCase):
       b'punchline-kdp',
       b'about-page',
     ]
-    mock_add_review_qr.return_value = b'about-page-with-qr'
+    mock_add_review_qr.return_value = image_operations.BookPage(
+      file_name='999_about_page_template.png',
+      image_bytes=b'about-page-with-qr',
+      hyperlink=pdf_client.HyperlinkSpec(
+        page_index=4,
+        url='https://example.com/review-bridge',
+        x1=image_operations._BOOK_REVIEW_QR_X,
+        y1=image_operations._BOOK_REVIEW_QR_Y,
+        x2=image_operations._BOOK_REVIEW_QR_X +
+        image_operations._BOOK_REVIEW_QR_SIZE_PX,
+        y2=image_operations._BOOK_REVIEW_QR_Y +
+        image_operations._BOOK_REVIEW_QR_SIZE_PX,
+      ),
+    )
+    mock_get_about_page_review_bridge_url.return_value = (
+      'https://example.com/review-bridge')
     mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
     mock_create_pdf.return_value = b'%PDF-export'
     mock_build_export_uris.return_value = (
@@ -1726,12 +1778,33 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertFalse(about_call.kwargs['is_left_page'])
     self.assertFalse(about_call.kwargs['add_page_number'])
     mock_add_review_qr.assert_called_once_with(
-      b'about-page',
+      image_operations.BookPage(
+        file_name='999_about_page_template.png',
+        image_bytes=b'about-page',
+      ),
       associated_book_key='animal-jokes',
+      page_index=4,
     )
 
     pdf_call = mock_create_pdf.call_args
-    self.assertEqual(pdf_call.kwargs, {'dpi': 300, 'quality': 100})
+    self.assertEqual(pdf_call.kwargs, {
+      'dpi':
+      300,
+      'quality':
+      100,
+      'hyperlinks': [
+        pdf_client.HyperlinkSpec(
+          page_index=4,
+          url='https://example.com/review-bridge',
+          x1=image_operations._BOOK_REVIEW_QR_X,
+          y1=image_operations._BOOK_REVIEW_QR_Y,
+          x2=image_operations._BOOK_REVIEW_QR_X +
+          image_operations._BOOK_REVIEW_QR_SIZE_PX,
+          y2=image_operations._BOOK_REVIEW_QR_Y +
+          image_operations._BOOK_REVIEW_QR_SIZE_PX,
+        )
+      ],
+    })
     pdf_images = pdf_call.args[0]
     self.assertEqual(pdf_images[2:4], [b'setup-kdp', b'punchline-kdp'])
     self.assertEqual(pdf_images[0], b'belongs-to-page')

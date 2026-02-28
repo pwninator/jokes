@@ -66,9 +66,9 @@ _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
 _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/999_about_page_template.png"
-_BOOK_REVIEW_QR_SIZE_PX = 350
-_BOOK_REVIEW_QR_X = 486
-_BOOK_REVIEW_QR_Y = 1554
+_BOOK_REVIEW_QR_SIZE_PX = 300
+_BOOK_REVIEW_QR_X = 423
+_BOOK_REVIEW_QR_Y = 1415
 
 
 @dataclass(frozen=True)

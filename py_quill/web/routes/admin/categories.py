@@ -47,8 +47,8 @@ def _get_sheet_preview_image_urls(sheet: models.JokeSheet) -> list[str]:
     cloud_storage.get_public_image_cdn_url(
       gcs_uri,
       width=1024,
-      image_format="jpg",
-      quality=75,
+      image_format="png",
+      quality=100,
     ) for gcs_uri in sheet.image_gcs_uris
   ]
 

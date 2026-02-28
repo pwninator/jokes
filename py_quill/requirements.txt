@@ -30,6 +30,7 @@ openai
 openpyxl
 pandas
 Pillow
+pypdf
 praat-parselmouth
 pytest
 pytest-cov

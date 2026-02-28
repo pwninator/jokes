@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 from common import models
 from PIL import Image
+from pypdf import PdfReader
 from services import pdf_client
 
 
@@ -105,3 +106,60 @@ def test_create_pdf_download_failure(mock_download_image):
   mock_download_image.side_effect = Exception("Download failed")
   with pytest.raises(Exception, match="Download failed"):
     pdf_client.create_pdf(['gs://bucket/fail.png'])
+
+
+def test_create_pdf_adds_hyperlink_annotation():
+  img = create_test_image('red', width=1838, height=1876)
+
+  pdf_bytes = pdf_client.create_pdf(
+    [img],
+    dpi=300,
+    hyperlinks=[
+      pdf_client.HyperlinkSpec(
+        page_index=0,
+        url='https://example.com/review',
+        x1=486,
+        y1=1554,
+        x2=836,
+        y2=1800,
+      )
+    ],
+  )
+
+  reader = PdfReader(BytesIO(pdf_bytes))
+  page = reader.pages[0]
+  annots = page.get('/Annots')
+  assert annots is not None
+  assert len(annots) == 1
+
+  annotation = annots[0].get_object()
+  assert annotation['/Subtype'] == '/Link'
+  assert annotation['/A']['/URI'] == 'https://example.com/review'
+
+  rect = [float(value) for value in annotation['/Rect']]
+  points_per_pixel = 72 / 300
+  assert rect == pytest.approx([
+    486 * points_per_pixel,
+    (1876 - 1800) * points_per_pixel,
+    836 * points_per_pixel,
+    (1876 - 1554) * points_per_pixel,
+  ])
+
+
+def test_create_pdf_rejects_invalid_hyperlink_page_index():
+  img = create_test_image('red', width=100, height=100)
+
+  with pytest.raises(ValueError, match='Invalid hyperlink page_index'):
+    pdf_client.create_pdf(
+      [img],
+      hyperlinks=[
+        pdf_client.HyperlinkSpec(
+          page_index=1,
+          url='https://example.com/review',
+          x1=0,
+          y1=0,
+          x2=10,
+          y2=10,
+        )
+      ],
+    )

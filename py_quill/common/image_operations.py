@@ -29,13 +29,6 @@ _AD_LANDSCAPE_CANVAS_WIDTH = 2048
 _AD_LANDSCAPE_CANVAS_HEIGHT = 1024
 _AD_SQUARE_JOKE_IMAGE_SIZE_PX = 584
 
-_STYLE_UPDATE_CANVAS_URL = constants.STYLE_REFERENCE_CANVAS_IMAGE_URL
-_STYLE_REFERENCE_IMAGE_URLS = constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS
-_BOOK_PAGE_BASE_SIZE = 1800
-_BOOK_PAGE_BLEED_PX = 38
-_BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
-_BOOK_PAGE_FINAL_HEIGHT = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
-
 # KDP seems to print better in RGB mode than CMYK.
 _KDP_PRINT_COLOR_MODE = 'RGB'
 
@@ -43,8 +36,6 @@ _PAGE_NUMBER_FONT_URLS = (
   'https://github.com/googlefonts/nunito/raw/4be812cf4761b3ddc3b0ae894ef40ea21dcf6ff3/fonts/TTF/Nunito-Regular.ttf',
   'https://github.com/googlefonts/nunito/raw/refs/heads/main/fonts/variable/Nunito%5Bwght%5D.ttf',
 )
-_QR_CODE_CTA_FONT_SIZE = 60
-_PAGE_NUMBER_FONT_SIZE = 60
 _PAGE_NUMBER_STROKE_RATIO = 0.14
 _PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
 _PAGE_NUMBER_STROKE_COLOR = (255, 255, 255)
@@ -68,19 +59,16 @@ _SOCIAL_4X5_CANVAS_SIZE_PX = (1024, 1280)
 _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
 _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/999_about_page_template.png"
-_BOOK_REVIEW_QR_SIZE_PX = 300
-_BOOK_REVIEW_QR_X = 425
-_BOOK_REVIEW_QR_Y = 1400
-_BOOK_REVIEW_QR_LABEL_PAPERBACK = 'Scan me!'
-_BOOK_REVIEW_QR_LABEL_EBOOK = 'Tap me!'
-_BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX = 4
 
-
-@dataclass(frozen=True)
-class JokeBookExportFiles:
-  """Public URLs for generated joke-book export files."""
-  zip_url: str
-  paperback_pdf_url: str
+# Calculate position/size ratios based on inches on a paperback book page
+_PAPERBACK_SIZE_INCHES = 6.0
+_PAGE_NUMBER_FONT_SIZE_RATIO = 0.2 / _PAPERBACK_SIZE_INCHES
+_QR_CODE_CTA_FONT_SIZE_RATIO = 0.2 / _PAPERBACK_SIZE_INCHES
+_PAGE_NUMBER_EDGE_OFFSET_RATIO = 0.4375 / _PAPERBACK_SIZE_INCHES
+_BOOK_REVIEW_QR_X_RATIO = 1.35 / _PAPERBACK_SIZE_INCHES
+_BOOK_REVIEW_QR_Y_RATIO = 4.45 / _PAPERBACK_SIZE_INCHES
+_BOOK_REVIEW_QR_SIZE_RATIO = 1.0 / _PAPERBACK_SIZE_INCHES
+_BOOK_REVIEW_QR_LABEL_MARGIN_TOP_RATIO = 0.01 / _PAPERBACK_SIZE_INCHES
 
 
 @dataclass(frozen=True)
@@ -92,100 +80,113 @@ class BookPage:
   hyperlink: pdf_client.HyperlinkSpec | None = None
 
 
-def create_blank_book_cover(*, color_mode: str) -> bytes:
-  """Create a blank JPEG cover image matching book page dimensions.
-
-  The final book page images are _BOOK_PAGE_FINAL_WIDTH
-  by _BOOK_PAGE_FINAL_HEIGHT pixels (after bleed cropping on the inner edge),
-  so the cover uses the same size to align with the printed pages.
-  """
-  width = _BOOK_PAGE_FINAL_WIDTH
-  height = _BOOK_PAGE_FINAL_HEIGHT
-  if color_mode == 'RGB':
-    cover_color = (255, 255, 255)
-  elif color_mode == 'CMYK':
-    # CMYK white is (0, 0, 0, 0)
-    cover_color = (0, 0, 0, 0)
-  else:
-    raise ValueError(
-      f'Unsupported color_mode for create_blank_book_cover: {color_mode}')
-
-  cover = Image.new(color_mode, (width, height), cover_color)
-
-  buffer = BytesIO()
-  cover.save(
-    buffer,
-    format='JPEG',
-    quality=100,
-    subsampling=0,
-    dpi=(300, 300),
-  )
-  return buffer.getvalue()
+@dataclass(frozen=True)
+class JokeBookExportFiles:
+  """Public URLs for generated joke-book export files."""
+  zip_url: str | None
+  paperback_pdf_url: str
+  ebook_pdf_url: str
 
 
-def _enhance_kdp_export_page_bytes(
-  page_bytes: bytes,
-  *,
-  editor: image_editor.ImageEditor,
-) -> bytes:
-  """Apply the default image-enhancement pass to a final KDP page image."""
-  with Image.open(BytesIO(page_bytes)) as page_image:
-    page_image.load()  # pyright: ignore[reportUnusedCallResult]
-    enhanced_page = editor.enhance_image(page_image)
+@dataclass(frozen=True)
+class BookExportProfile:
+  """Rendering configuration for one joke-book export format."""
 
-  try:
-    if enhanced_page.mode != 'RGB':
-      enhanced_page = enhanced_page.convert('RGB')
+  name: str
+  output_base_size_px: tuple[int, int]
+  output_bleed_size_px: int
+  jpeg_quality: int
+  review_book_format: book_defs.BookFormat
+  qr_label: str
 
-    buffer = BytesIO()
-    enhanced_page.save(
-      buffer,
-      format='JPEG',
-      quality=100,
-      subsampling=0,
-      dpi=(300, 300),
+  @property
+  def pre_trim_width_px(self) -> int:
+    """Return the scaled square width before inner-edge trimming."""
+    return self.output_base_size_px[0] + (self.output_bleed_size_px * 2)
+
+  @property
+  def pre_trim_height_px(self) -> int:
+    """Return the scaled square height before inner-edge trimming."""
+    return self.output_base_size_px[1] + (self.output_bleed_size_px * 2)
+
+  @property
+  def final_width_px(self) -> int:
+    """Return the final page width after inner-edge trimming."""
+    return self.output_base_size_px[0] + self.output_bleed_size_px
+
+  @property
+  def final_height_px(self) -> int:
+    """Return the final page height after trimming."""
+    return self.output_base_size_px[1] + (self.output_bleed_size_px * 2)
+
+  @property
+  def page_number_font_size_px(self) -> int:
+    """Return the profile-scaled page-number font size."""
+    return max(
+      1, int(round(self.pre_trim_width_px * _PAGE_NUMBER_FONT_SIZE_RATIO)))
+
+  @property
+  def qr_label_font_size_px(self) -> int:
+    """Return the profile-scaled QR CTA font size."""
+    return max(
+      1, int(round(self.pre_trim_width_px * _QR_CODE_CTA_FONT_SIZE_RATIO)))
+
+  @property
+  def page_number_offset_px(self) -> int:
+    """Return the offset from the page edge for page numbers."""
+    return max(
+      1,
+      int(round(self.pre_trim_width_px * _PAGE_NUMBER_EDGE_OFFSET_RATIO)),
     )
-    return buffer.getvalue()
-  finally:
-    enhanced_page.close()
+
+  @property
+  def qr_x_px(self) -> int:
+    """Return the QR left position in pre-trim pixels."""
+    return int(round(self.pre_trim_width_px * _BOOK_REVIEW_QR_X_RATIO))
+
+  @property
+  def qr_y_px(self) -> int:
+    """Return the QR top position in pre-trim pixels."""
+    return int(round(self.pre_trim_height_px * _BOOK_REVIEW_QR_Y_RATIO))
+
+  @property
+  def qr_size_px(self) -> int:
+    """Return the square QR size in pixels for this profile."""
+    return max(
+      1,
+      int(
+        round(
+          min(self.pre_trim_width_px, self.pre_trim_height_px) *
+          _BOOK_REVIEW_QR_SIZE_RATIO)),
+    )
+
+  @property
+  def qr_label_margin_top_px(self) -> int:
+    """Return the vertical gap between the QR and CTA label."""
+    return max(
+      1,
+      int(
+        round(self.pre_trim_height_px *
+              _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_RATIO)),
+    )
 
 
-def _book_export_file_name(gcs_uri: str, fallback_stem: str) -> str:
-  """Return a ZIP-safe filename for a book export asset."""
-  object_path = cloud_storage.parse_gcs_uri(gcs_uri)[1]
-  filename = object_path.rsplit('/', 1)[-1]
-  if '.' in filename:
-    return filename
-  return f'{fallback_stem}.bin'
-
-
-def _create_qr_code_image(
-  content: str,
-  *,
-  size_px: int,
-) -> Image.Image:
-  """Create a square QR code image for the provided content."""
-  try:
-    qr_module: Any = importlib.import_module('qrcode')
-  except ImportError as exc:  # pragma: no cover - dependency error path
-    raise RuntimeError(
-      'qrcode dependency is required for book review QR codes') from exc
-
-  qr = qr_module.QRCode(
-    version=None,
-    error_correction=qr_module.constants.ERROR_CORRECT_M,
-    box_size=10,
-    border=4,
-  )
-  qr.add_data(content)
-  qr.make(fit=True)
-  raw_qr_image: Any = qr.make_image(fill_color='black', back_color='white')
-  if hasattr(raw_qr_image, 'get_image'):
-    raw_qr_image = raw_qr_image.get_image()
-  qr_image = cast(Image.Image, raw_qr_image).convert('RGB')
-  if qr_image.size != (size_px, size_px):
-    qr_image = qr_image.resize((size_px, size_px), Image.Resampling.NEAREST)
-  return qr_image
+_PAPERBACK_EXPORT_PROFILE = BookExportProfile(
+  name='paperback',
+  output_base_size_px=(1800, 1800),
+  output_bleed_size_px=38,
+  jpeg_quality=100,
+  review_book_format=book_defs.BookFormat.PAPERBACK,
+  qr_label="Scan me!",
+)
+_EBOOK_EXPORT_PROFILE = BookExportProfile(
+  name='ebook',
+  output_base_size_px=(700, 700),
+  output_bleed_size_px=0,
+  jpeg_quality=50,
+  review_book_format=book_defs.BookFormat.EBOOK,
+  qr_label="Tap me!",
+)
 
 
 class _BookPageTextDrawer:
@@ -196,7 +197,7 @@ class _BookPageTextDrawer:
     image: Image.Image,
     *,
     text: str,
-    font_size: int = _PAGE_NUMBER_FONT_SIZE,
+    font_size: int,
   ):
     self._draw: ImageDraw.ImageDraw = ImageDraw.Draw(image)
     self.text: str = text
@@ -246,249 +247,60 @@ class _BookPageTextDrawer:
     )
 
 
-def _add_paperback_review_qr_to_page(
-  page: BookPage,
+def export_joke_book_files(
+  book: models.JokeBook,
   *,
-  associated_book_key: str,
-  page_index: int,
-) -> BookPage:
-  """Overlay a paperback-review QR code and matching link onto a page."""
-  review_url = _get_about_page_review_bridge_url(associated_book_key)
-  qr_image = _create_qr_code_image(
-    review_url,
-    size_px=_BOOK_REVIEW_QR_SIZE_PX,
+  export_zip_paperback: bool = False,
+) -> JokeBookExportFiles:
+  """Create and store the paperback/ebook PDF exports for a joke book."""
+  paperback_pages = _build_book_export_pages(
+    book,
+    profile=_PAPERBACK_EXPORT_PROFILE,
   )
-  try:
-    with Image.open(BytesIO(page.image_bytes)) as base_image:
-      base_image.load()  # pyright: ignore[reportUnusedCallResult]
-      composed_image = base_image.convert('RGB')
-    overlay_rgb = qr_image.convert('RGB')
-
-    try:
-      composed_image.paste(overlay_rgb, (_BOOK_REVIEW_QR_X, _BOOK_REVIEW_QR_Y))
-      label_drawer = _BookPageTextDrawer(
-        composed_image,
-        text=_BOOK_REVIEW_QR_LABEL_PAPERBACK,
-        font_size=_QR_CODE_CTA_FONT_SIZE,
-      )
-      label_x = (_BOOK_REVIEW_QR_X +
-                 ((_BOOK_REVIEW_QR_SIZE_PX - label_drawer.width) / 2))
-      label_y = (_BOOK_REVIEW_QR_Y + _BOOK_REVIEW_QR_SIZE_PX +
-                 _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX)
-      label_drawer.draw_text(x=label_x, y=label_y)
-      buffer = BytesIO()
-      composed_image.save(
-        buffer,
-        format='JPEG',
-        quality=100,
-        subsampling=0,
-        dpi=(300, 300),
-      )
-      image_bytes = buffer.getvalue()
-    finally:
-      overlay_rgb.close()
-      composed_image.close()
-
-    hyperlink_x1 = min(_BOOK_REVIEW_QR_X, int(label_x))
-    hyperlink_y1 = _BOOK_REVIEW_QR_Y
-    hyperlink_x2 = max(
-      _BOOK_REVIEW_QR_X + _BOOK_REVIEW_QR_SIZE_PX,
-      int(label_x + label_drawer.width),
-    )
-    hyperlink_y2 = int(label_y + label_drawer.height)
-    return BookPage(
-      file_name=page.file_name,
-      image_bytes=image_bytes,
-      hyperlink=pdf_client.HyperlinkSpec(
-        page_index=page_index,
-        url=review_url,
-        x1=hyperlink_x1,
-        y1=hyperlink_y1,
-        x2=hyperlink_x2,
-        y2=hyperlink_y2,
-      ),
-    )
-  finally:
-    qr_image.close()
-
-
-def _get_about_page_review_bridge_url(associated_book_key: str) -> str:
-  """Return the public review redirect URL for the about-page QR/link."""
-  return amazon_redirect.get_amazon_redirect_bridge_url(
-    book_defs.BookKey(associated_book_key),
-    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
-    book_format=book_defs.BookFormat.PAPERBACK,
-    source=book_defs.AttributionSource.BOOK_ABOUT_PAGE,
+  ebook_pages = _build_book_export_pages(
+    book,
+    profile=_EBOOK_EXPORT_PROFILE,
   )
-
-
-def _build_kdp_export_pages(book: models.JokeBook) -> list[BookPage]:
-  """Build ordered print-ready page files for joke-book exports."""
-  if not book.belongs_to_page_gcs_uri:
-    raise ValueError('Joke book is missing belongs_to_page_gcs_uri')
-  if not book.jokes:
-    raise ValueError("Joke book has no jokes")
-
-  files: list[BookPage] = []
-  page_index = 3
-  total_pages = len(book.jokes) * 2
-  current_page_number = 1
-  editor = image_editor.ImageEditor()
-
-  belongs_to_image = cloud_storage.download_image_from_gcs(
-    book.belongs_to_page_gcs_uri)
-  belongs_to_bytes = _convert_for_print_kdp(
-    belongs_to_image,
-    is_left_page=False,
-    page_number=1,
-    total_pages=1,
-    color_mode=_KDP_PRINT_COLOR_MODE,
-    add_page_number=False,
-  )
-  belongs_to_file_name = _book_export_file_name(book.belongs_to_page_gcs_uri,
-                                                'belongs_to')
-  files.append(
-    BookPage(
-      file_name=f'001_{belongs_to_file_name}',
-      image_bytes=belongs_to_bytes,
-    ))
-
-  # Add a blank intro page as page 002 before any joke pages.
-  intro_bytes = create_blank_book_cover(color_mode=_KDP_PRINT_COLOR_MODE)
-  files.append(BookPage(file_name='002_intro.jpg', image_bytes=intro_bytes))
-
-  for joke_id in book.jokes:
-    joke_ref = firestore.db().collection('jokes').document(joke_id)
-    joke_doc = joke_ref.get()
-    if not joke_doc.exists:
-      raise ValueError(f"Joke {joke_id} not found")
-
-    metadata_ref = cast(
-      DocumentReference,
-      joke_ref.collection('metadata').document('metadata'),
-    )
-    metadata_doc: DocumentSnapshot = metadata_ref.get()
-    if not metadata_doc.exists:
-      raise ValueError(f"Joke {joke_id} does not have book page metadata")
-
-    metadata = cast(dict[str, object], metadata_doc.to_dict() or {})
-    setup_img_url = metadata.get('book_page_setup_image_url')
-    punchline_img_url = metadata.get('book_page_punchline_image_url')
-    if not isinstance(setup_img_url, str) or not isinstance(
-        punchline_img_url, str) or not setup_img_url or not punchline_img_url:
-      raise ValueError(f"Joke {joke_id} does not have book page images")
-
-    setup_image = cloud_storage.download_image_from_gcs(setup_img_url)
-    punchline_image = cloud_storage.download_image_from_gcs(punchline_img_url)
-
-    setup_bytes = _enhance_kdp_export_page_bytes(
-      _convert_for_print_kdp(
-        setup_image,
-        is_left_page=False,
-        page_number=current_page_number,
-        total_pages=total_pages,
-        color_mode=_KDP_PRINT_COLOR_MODE,
-      ),
-      editor=editor,
-    )
-    current_page_number += 1
-    punchline_bytes = _enhance_kdp_export_page_bytes(
-      _convert_for_print_kdp(
-        punchline_image,
-        is_left_page=True,
-        page_number=current_page_number,
-        total_pages=total_pages,
-        color_mode=_KDP_PRINT_COLOR_MODE,
-      ),
-      editor=editor,
-    )
-    current_page_number += 1
-
-    setup_file_name = f"{page_index:03d}_{joke_id}_setup.jpg"
-    page_index += 1
-    punchline_file_name = f"{page_index:03d}_{joke_id}_punchline.jpg"
-    page_index += 1
-    files.append(BookPage(file_name=setup_file_name, image_bytes=setup_bytes))
-    files.append(
-      BookPage(file_name=punchline_file_name, image_bytes=punchline_bytes))
-
-  about_image = cloud_storage.download_image_from_gcs(_BOOK_PAGE_ABOUT_GCS_URI)
-  about_bytes = _convert_for_print_kdp(
-    about_image,
-    is_left_page=False,
-    page_number=1,
-    total_pages=1,
-    color_mode=_KDP_PRINT_COLOR_MODE,
-    add_page_number=False,
-  )
-  about_file_name = _book_export_file_name(_BOOK_PAGE_ABOUT_GCS_URI, 'about')
-  if not about_file_name.startswith('999_'):
-    about_file_name = f'999_{about_file_name}'
-  about_page = BookPage(
-    file_name=about_file_name,
-    image_bytes=about_bytes,
-  )
-  if book.associated_book_key:
-    about_page = _add_paperback_review_qr_to_page(
-      about_page,
-      associated_book_key=book.associated_book_key,
-      page_index=len(files),
-    )
-  files.append(about_page)
-
-  return files
-
-
-def _build_zip_bytes(files: list[BookPage]) -> bytes:
-  """Build a ZIP archive from the provided file list."""
-  zip_buffer = BytesIO()
-  with zipfile.ZipFile(
-      zip_buffer,
-      mode='w',
-      compression=zipfile.ZIP_DEFLATED,
-  ) as zip_file:
-    for page in files:
-      zip_file.writestr(page.file_name, page.image_bytes)
-  return zip_buffer.getvalue()
-
-
-def _build_joke_book_export_uris() -> tuple[str, str]:
-  """Return paired GCS URIs for the ZIP and paperback PDF exports."""
-  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-  bucket_name = 'snickerdoodle_temp_files'
-  base_name = f'joke_book_pages_{timestamp}'
-  zip_gcs_uri = f'gs://{bucket_name}/{base_name}.zip'
-  pdf_gcs_uri = f'gs://{bucket_name}/{base_name}_paperback.pdf'
-  return zip_gcs_uri, pdf_gcs_uri
-
-
-def export_joke_page_files_for_kdp(
-  book: models.JokeBook, ) -> JokeBookExportFiles:
-  """Create and store the ZIP and paperback PDF for a joke-book export."""
-  files = _build_kdp_export_pages(book)
-  zip_bytes = _build_zip_bytes(files)
-  pdf_bytes = pdf_client.create_pdf(
-    [page.image_bytes for page in files],
+  paperback_pdf_bytes = pdf_client.create_pdf(
+    [page.image_bytes for page in paperback_pages],
     dpi=300,
-    quality=100,
+    quality=_PAPERBACK_EXPORT_PROFILE.jpeg_quality,
     hyperlinks=[
-      page.hyperlink for page in files if page.hyperlink is not None
+      page.hyperlink for page in paperback_pages if page.hyperlink is not None
     ],
   )
-  zip_gcs_uri, pdf_gcs_uri = _build_joke_book_export_uris()
+  ebook_pdf_bytes = pdf_client.create_pdf(
+    [page.image_bytes for page in ebook_pages],
+    dpi=300,
+    quality=_EBOOK_EXPORT_PROFILE.jpeg_quality,
+    hyperlinks=[
+      page.hyperlink for page in ebook_pages if page.hyperlink is not None
+    ],
+  )
+  zip_gcs_uri, paperback_pdf_gcs_uri, ebook_pdf_gcs_uri = (
+    _build_joke_book_export_uris())
+  zip_url: str | None = None
+  if export_zip_paperback:
+    _ = cloud_storage.upload_bytes_to_gcs(
+      _build_zip_bytes(paperback_pages),
+      zip_gcs_uri,
+      'application/zip',
+    )
+    zip_url = cloud_storage.get_public_url(zip_gcs_uri)
   _ = cloud_storage.upload_bytes_to_gcs(
-    zip_bytes,
-    zip_gcs_uri,
-    'application/zip',
+    paperback_pdf_bytes,
+    paperback_pdf_gcs_uri,
+    'application/pdf',
   )
   _ = cloud_storage.upload_bytes_to_gcs(
-    pdf_bytes,
-    pdf_gcs_uri,
+    ebook_pdf_bytes,
+    ebook_pdf_gcs_uri,
     'application/pdf',
   )
   return JokeBookExportFiles(
-    zip_url=cloud_storage.get_public_url(zip_gcs_uri),
-    paperback_pdf_url=cloud_storage.get_public_url(pdf_gcs_uri),
+    zip_url=zip_url,
+    paperback_pdf_url=cloud_storage.get_public_url(paperback_pdf_gcs_uri),
+    ebook_pdf_url=cloud_storage.get_public_url(ebook_pdf_gcs_uri),
   )
 
 
@@ -611,7 +423,7 @@ def generate_and_populate_book_pages(
       models.Image(
         url=image_url,
         gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(image_url))
-      for image_url in _STYLE_REFERENCE_IMAGE_URLS
+      for image_url in constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS
     ]
 
     generation_result = generate_book_pages_with_nano_banana_pro(
@@ -787,6 +599,386 @@ def create_ad_assets(
     )
 
   return final_urls
+
+
+def _create_blank_export_page_bytes(
+  *,
+  profile: BookExportProfile,
+  color_mode: str,
+) -> bytes:
+  """Create a blank JPEG page sized for the target export profile."""
+  if color_mode == 'RGB':
+    page_color = (255, 255, 255)
+  elif color_mode == 'CMYK':
+    page_color = (0, 0, 0, 0)
+  else:
+    raise ValueError(
+      f'Unsupported color_mode for _create_blank_export_page_bytes: {color_mode}'
+    )
+
+  page = Image.new(
+    color_mode,
+    (profile.final_width_px, profile.final_height_px),
+    page_color,
+  )
+  buffer = BytesIO()
+  page.save(
+    buffer,
+    format='JPEG',
+    quality=profile.jpeg_quality,
+    subsampling=0,
+    dpi=(300, 300),
+  )
+  return buffer.getvalue()
+
+
+def _enhance_kdp_export_page_bytes(
+  page_bytes: bytes,
+  *,
+  editor: image_editor.ImageEditor,
+) -> bytes:
+  """Apply the default image-enhancement pass to a final KDP page image."""
+  with Image.open(BytesIO(page_bytes)) as page_image:
+    page_image.load()  # pyright: ignore[reportUnusedCallResult]
+    enhanced_page = editor.enhance_image(page_image)
+
+  try:
+    if enhanced_page.mode != 'RGB':
+      enhanced_page = enhanced_page.convert('RGB')
+
+    buffer = BytesIO()
+    enhanced_page.save(
+      buffer,
+      format='JPEG',
+      quality=100,
+      subsampling=0,
+      dpi=(300, 300),
+    )
+    return buffer.getvalue()
+  finally:
+    enhanced_page.close()
+
+
+def _book_export_file_name(gcs_uri: str, fallback_stem: str) -> str:
+  """Return a ZIP-safe filename for a book export asset."""
+  object_path = cloud_storage.parse_gcs_uri(gcs_uri)[1]
+  filename = object_path.rsplit('/', 1)[-1]
+  if '.' in filename:
+    return filename
+  return f'{fallback_stem}.bin'
+
+
+def _create_qr_code_image(
+  content: str,
+  *,
+  size_px: int,
+) -> Image.Image:
+  """Create a square QR code image for the provided content."""
+  try:
+    qr_module: Any = importlib.import_module('qrcode')
+  except ImportError as exc:  # pragma: no cover - dependency error path
+    raise RuntimeError(
+      'qrcode dependency is required for book review QR codes') from exc
+
+  qr = qr_module.QRCode(
+    version=None,
+    error_correction=qr_module.constants.ERROR_CORRECT_M,
+    box_size=10,
+    border=4,
+  )
+  qr.add_data(content)
+  qr.make(fit=True)
+  raw_qr_image: Any = qr.make_image(fill_color='black', back_color='white')
+  if hasattr(raw_qr_image, 'get_image'):
+    raw_qr_image = raw_qr_image.get_image()
+  qr_image = cast(Image.Image, raw_qr_image).convert('RGB')
+  if qr_image.size != (size_px, size_px):
+    qr_image = qr_image.resize((size_px, size_px), Image.Resampling.NEAREST)
+  return qr_image
+
+
+def _save_jpeg_bytes(
+  image: Image.Image,
+  *,
+  quality: int,
+  color_mode: str,
+) -> bytes:
+  """Encode an image as JPEG bytes."""
+  converted_image = image.convert(color_mode)
+  buffer = BytesIO()
+  converted_image.save(
+    buffer,
+    format='JPEG',
+    quality=quality,
+    subsampling=0,
+    dpi=(300, 300),
+  )
+  return buffer.getvalue()
+
+
+def _add_review_qr_to_page(
+  page: BookPage,
+  *,
+  profile: BookExportProfile,
+  associated_book_key: str,
+  page_index: int,
+  trim_left_px: int = 0,
+) -> BookPage:
+  """Overlay a review QR code and matching link onto a page."""
+  review_url = _get_about_page_review_bridge_url(
+    associated_book_key,
+    book_format=profile.review_book_format,
+  )
+  qr_image = _create_qr_code_image(
+    review_url,
+    size_px=profile.qr_size_px,
+  )
+  try:
+    with Image.open(BytesIO(page.image_bytes)) as base_image:
+      base_image.load()  # pyright: ignore[reportUnusedCallResult]
+      composed_image = base_image.convert('RGB')
+    overlay_rgb = qr_image.convert('RGB')
+
+    try:
+      composed_image.paste(overlay_rgb, (profile.qr_x_px, profile.qr_y_px))
+      label_drawer = _BookPageTextDrawer(
+        composed_image,
+        text=profile.qr_label,
+        font_size=profile.qr_label_font_size_px,
+      )
+      label_x = (profile.qr_x_px +
+                 ((profile.qr_size_px - label_drawer.width) / 2))
+      label_y = (profile.qr_y_px + profile.qr_size_px +
+                 profile.qr_label_margin_top_px)
+      label_drawer.draw_text(x=label_x, y=label_y)
+      image_bytes = _save_jpeg_bytes(
+        composed_image,
+        quality=profile.jpeg_quality,
+        color_mode=_KDP_PRINT_COLOR_MODE,
+      )
+    finally:
+      overlay_rgb.close()
+      composed_image.close()
+
+    hyperlink_x1 = min(profile.qr_x_px, int(label_x)) - trim_left_px
+    hyperlink_y1 = profile.qr_y_px
+    hyperlink_x2 = max(
+      profile.qr_x_px + profile.qr_size_px,
+      int(label_x + label_drawer.width),
+    ) - trim_left_px
+    hyperlink_y2 = int(label_y + label_drawer.height)
+    return BookPage(
+      file_name=page.file_name,
+      image_bytes=image_bytes,
+      hyperlink=pdf_client.HyperlinkSpec(
+        page_index=page_index,
+        url=review_url,
+        x1=max(0, hyperlink_x1),
+        y1=hyperlink_y1,
+        x2=hyperlink_x2,
+        y2=hyperlink_y2,
+      ),
+    )
+  finally:
+    qr_image.close()
+
+
+def _get_about_page_review_bridge_url(
+  associated_book_key: str,
+  *,
+  book_format: book_defs.BookFormat,
+) -> str:
+  """Return the public review redirect URL for the about-page QR/link."""
+  return amazon_redirect.get_amazon_redirect_bridge_url(
+    book_defs.BookKey(associated_book_key),
+    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
+    book_format=book_format,
+    source=book_defs.AttributionSource.BOOK_ABOUT_PAGE,
+  )
+
+
+def _build_book_export_pages(
+  book: models.JokeBook,
+  *,
+  profile: BookExportProfile,
+) -> list[BookPage]:
+  """Build ordered rendered pages for one export profile."""
+  if not book.belongs_to_page_gcs_uri:
+    raise ValueError('Joke book is missing belongs_to_page_gcs_uri')
+  if not book.jokes:
+    raise ValueError("Joke book has no jokes")
+
+  files: list[BookPage] = []
+  page_index = 3
+  total_pages = len(book.jokes) * 2
+  current_page_number = 1
+  editor = image_editor.ImageEditor()
+
+  belongs_to_image = cloud_storage.download_image_from_gcs(
+    book.belongs_to_page_gcs_uri)
+  belongs_to_bytes = _convert_for_book_export(
+    belongs_to_image,
+    is_left_page=False,
+    page_number=1,
+    total_pages=1,
+    color_mode=_KDP_PRINT_COLOR_MODE,
+    profile=profile,
+    add_page_number=False,
+  )
+  belongs_to_file_name = _book_export_file_name(book.belongs_to_page_gcs_uri,
+                                                'belongs_to')
+  files.append(
+    BookPage(
+      file_name=f'001_{belongs_to_file_name}',
+      image_bytes=belongs_to_bytes,
+    ))
+
+  # Add a blank intro page as page 002 before any joke pages.
+  intro_bytes = _create_blank_export_page_bytes(
+    profile=profile,
+    color_mode=_KDP_PRINT_COLOR_MODE,
+  )
+  files.append(BookPage(file_name='002_intro.jpg', image_bytes=intro_bytes))
+
+  for joke_id in book.jokes:
+    joke_ref = firestore.db().collection('jokes').document(joke_id)
+    joke_doc = joke_ref.get()
+    if not joke_doc.exists:
+      raise ValueError(f"Joke {joke_id} not found")
+
+    metadata_ref = cast(
+      DocumentReference,
+      joke_ref.collection('metadata').document('metadata'),
+    )
+    metadata_doc: DocumentSnapshot = metadata_ref.get()
+    if not metadata_doc.exists:
+      raise ValueError(f"Joke {joke_id} does not have book page metadata")
+
+    metadata = cast(dict[str, object], metadata_doc.to_dict() or {})
+    setup_img_url = metadata.get('book_page_setup_image_url')
+    punchline_img_url = metadata.get('book_page_punchline_image_url')
+    if not isinstance(setup_img_url, str) or not isinstance(
+        punchline_img_url, str) or not setup_img_url or not punchline_img_url:
+      raise ValueError(f"Joke {joke_id} does not have book page images")
+
+    setup_image = cloud_storage.download_image_from_gcs(setup_img_url)
+    punchline_image = cloud_storage.download_image_from_gcs(punchline_img_url)
+
+    setup_bytes = _enhance_kdp_export_page_bytes(
+      _convert_for_book_export(
+        setup_image,
+        is_left_page=False,
+        page_number=current_page_number,
+        total_pages=total_pages,
+        color_mode=_KDP_PRINT_COLOR_MODE,
+        profile=profile,
+      ),
+      editor=editor,
+    )
+    current_page_number += 1
+    punchline_bytes = _enhance_kdp_export_page_bytes(
+      _convert_for_book_export(
+        punchline_image,
+        is_left_page=True,
+        page_number=current_page_number,
+        total_pages=total_pages,
+        color_mode=_KDP_PRINT_COLOR_MODE,
+        profile=profile,
+      ),
+      editor=editor,
+    )
+    current_page_number += 1
+
+    setup_file_name = f"{page_index:03d}_{joke_id}_setup.jpg"
+    page_index += 1
+    punchline_file_name = f"{page_index:03d}_{joke_id}_punchline.jpg"
+    page_index += 1
+    files.append(BookPage(file_name=setup_file_name, image_bytes=setup_bytes))
+    files.append(
+      BookPage(file_name=punchline_file_name, image_bytes=punchline_bytes))
+
+  about_image = cloud_storage.download_image_from_gcs(_BOOK_PAGE_ABOUT_GCS_URI)
+  about_file_name = _book_export_file_name(_BOOK_PAGE_ABOUT_GCS_URI, 'about')
+  if not about_file_name.startswith('999_'):
+    about_file_name = f'999_{about_file_name}'
+  about_page: BookPage
+  if book.associated_book_key:
+    scaled_about_image = _scale_book_export_image(
+      about_image,
+      profile=profile,
+      editor=editor,
+    )
+    about_page = _add_review_qr_to_page(
+      BookPage(
+        file_name=about_file_name,
+        image_bytes=_save_jpeg_bytes(
+          scaled_about_image,
+          quality=profile.jpeg_quality,
+          color_mode=_KDP_PRINT_COLOR_MODE,
+        ),
+      ),
+      profile=profile,
+      associated_book_key=book.associated_book_key,
+      page_index=len(files),
+      trim_left_px=profile.output_bleed_size_px,
+    )
+    with Image.open(BytesIO(about_page.image_bytes)) as qr_about_image:
+      qr_about_image.load()  # pyright: ignore[reportUnusedCallResult]
+      trimmed_about_image = _trim_book_export_image(
+        qr_about_image,
+        profile=profile,
+        is_left_page=False,
+        editor=editor,
+      )
+      about_page = BookPage(
+        file_name=about_file_name,
+        image_bytes=_save_book_export_image_bytes(
+          trimmed_about_image,
+          profile=profile,
+          color_mode=_KDP_PRINT_COLOR_MODE,
+        ),
+        hyperlink=about_page.hyperlink,
+      )
+  else:
+    about_page = BookPage(
+      file_name=about_file_name,
+      image_bytes=_convert_for_book_export(
+        about_image,
+        is_left_page=False,
+        page_number=1,
+        total_pages=1,
+        color_mode=_KDP_PRINT_COLOR_MODE,
+        profile=profile,
+        add_page_number=False,
+      ),
+    )
+  files.append(about_page)
+
+  return files
+
+
+def _build_zip_bytes(files: list[BookPage]) -> bytes:
+  """Build a ZIP archive from the provided file list."""
+  zip_buffer = BytesIO()
+  with zipfile.ZipFile(
+      zip_buffer,
+      mode='w',
+      compression=zipfile.ZIP_DEFLATED,
+  ) as zip_file:
+    for page in files:
+      zip_file.writestr(page.file_name, page.image_bytes)
+  return zip_buffer.getvalue()
+
+
+def _build_joke_book_export_uris() -> tuple[str, str, str]:
+  """Return paired GCS URIs for the export files."""
+  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+  bucket_name = 'snickerdoodle_temp_files'
+  base_name = f'joke_book_pages_{timestamp}'
+  zip_gcs_uri = f'gs://{bucket_name}/{base_name}.zip'
+  paperback_pdf_gcs_uri = f'gs://{bucket_name}/{base_name}_paperback.pdf'
+  ebook_pdf_gcs_uri = f'gs://{bucket_name}/{base_name}_ebook.pdf'
+  return zip_gcs_uri, paperback_pdf_gcs_uri, ebook_pdf_gcs_uri
 
 
 _BOOK_PAGE_SIMPLE_PROMPT_TEMPLATE = """
@@ -1009,19 +1201,19 @@ def _build_style_update_prompt(
 def _get_style_update_reference_images(
 ) -> tuple[models.Image, models.Image, models.Image]:
   canvas = models.Image(
-    url=_STYLE_UPDATE_CANVAS_URL,
+    url=constants.STYLE_REFERENCE_CANVAS_IMAGE_URL,
     gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
-      _STYLE_UPDATE_CANVAS_URL),
+      constants.STYLE_REFERENCE_CANVAS_IMAGE_URL),
   )
   ref1 = models.Image(
-    url=_STYLE_REFERENCE_IMAGE_URLS[0],
+    url=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0],
     gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
-      _STYLE_REFERENCE_IMAGE_URLS[0]),
+      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0]),
   )
   ref2 = models.Image(
-    url=_STYLE_REFERENCE_IMAGE_URLS[1],
+    url=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1],
     gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
-      _STYLE_REFERENCE_IMAGE_URLS[1]),
+      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1]),
   )
   return canvas, ref1, ref2
 
@@ -1163,46 +1355,82 @@ def _get_simple_book_page(
   )
 
 
-def _convert_for_print_kdp(  # pylint: disable=too-many-arguments
+def _scale_book_export_image(
+  image: Image.Image,
+  *,
+  profile: BookExportProfile,
+  editor: image_editor.ImageEditor,
+) -> Image.Image:
+  """Scale an image to the pre-trim dimensions for an export profile."""
+  return editor.scale_image(
+    image,
+    new_width=profile.pre_trim_width_px,
+    new_height=profile.pre_trim_height_px,
+  )
+
+
+def _trim_book_export_image(
+  image: Image.Image,
+  *,
+  profile: BookExportProfile,
+  is_left_page: bool,
+  editor: image_editor.ImageEditor,
+) -> Image.Image:
+  """Trim the inner bleed edge for the export profile."""
+  trim_left = profile.output_bleed_size_px if not is_left_page else 0
+  trim_right = profile.output_bleed_size_px if is_left_page else 0
+  return editor.trim_edges(
+    image=image,
+    left=trim_left,
+    right=trim_right,
+  )
+
+
+def _save_book_export_image_bytes(
+  image: Image.Image,
+  *,
+  profile: BookExportProfile,
+  color_mode: str,
+) -> bytes:
+  """Encode a rendered export page as JPEG bytes."""
+  converted_image = image.convert(color_mode)
+  if abs(converted_image.width -
+         profile.final_width_px) > 2 or abs(converted_image.height -
+                                            profile.final_height_px) > 2:
+    raise ValueError(
+      f"Expected image size {profile.final_width_px}x{profile.final_height_px}, got {converted_image.width}x{converted_image.height}"
+    )
+
+  return _save_jpeg_bytes(
+    converted_image,
+    quality=profile.jpeg_quality,
+    color_mode=color_mode,
+  )
+
+
+def _convert_for_book_export(  # pylint: disable=too-many-arguments
   image: Image.Image,
   *,
   is_left_page: bool,
   page_number: int,
   total_pages: int,
   color_mode: str,
+  profile: BookExportProfile,
   add_page_number: bool = True,
   image_editor_instance: image_editor.ImageEditor | None = None,
 ) -> bytes:
-  """Convert an image to be print-ready for Kindle Direct Publishing.
-  
-  Conversion includes:
-    1. Scale image to correct size at desired DPI.
-    2. Trim the bleed area off of the inner edge.
-    3. Convert to the target print color mode.
-    4. Convert to JPEG.
-  """
+  """Convert an image to the final rendered bytes for an export profile."""
   editor = image_editor_instance or image_editor.ImageEditor()
-
-  # Scale
-  pre_trim_dimensions = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
-  scaled_image = editor.scale_image(
+  scaled_image = _scale_book_export_image(
     image,
-    new_width=pre_trim_dimensions,
-    new_height=pre_trim_dimensions,
+    profile=profile,
+    editor=editor,
   )
-
-  # Remove inner bleed
-  trim_left = 0
-  trim_right = 0
-  if is_left_page:
-    trim_right = _BOOK_PAGE_BLEED_PX
-  else:
-    trim_left = _BOOK_PAGE_BLEED_PX
-
-  trimmed_image = editor.trim_edges(
-    image=scaled_image,
-    left=trim_left,
-    right=trim_right,
+  trimmed_image = _trim_book_export_image(
+    scaled_image,
+    profile=profile,
+    is_left_page=is_left_page,
+    editor=editor,
   )
 
   if add_page_number:
@@ -1215,26 +1443,14 @@ def _convert_for_print_kdp(  # pylint: disable=too-many-arguments
       page_number=page_number,
       total_pages=total_pages,
       is_punchline=is_left_page,
+      font_size=profile.page_number_font_size_px,
+      offset_from_edge=profile.page_number_offset_px,
     )
-
-  converted_image = trimmed_image.convert(color_mode)
-
-  if abs(converted_image.width -
-         _BOOK_PAGE_FINAL_WIDTH) > 2 or abs(converted_image.height -
-                                            _BOOK_PAGE_FINAL_HEIGHT) > 2:
-    raise ValueError(
-      f"Expected image size {_BOOK_PAGE_FINAL_WIDTH}x{_BOOK_PAGE_FINAL_HEIGHT}, got {converted_image.width}x{converted_image.height}"
-    )
-
-  buffer = BytesIO()
-  converted_image.save(
-    buffer,
-    format='JPEG',
-    quality=100,
-    subsampling=0,
-    dpi=(300, 300),
+  return _save_book_export_image_bytes(
+    trimmed_image,
+    profile=profile,
+    color_mode=color_mode,
   )
-  return buffer.getvalue()
 
 
 @lru_cache(maxsize=len(_PAGE_NUMBER_FONT_URLS))
@@ -1717,6 +1933,8 @@ def _add_page_number_to_image(
   page_number: int,
   total_pages: int,
   is_punchline: bool,
+  font_size: int,
+  offset_from_edge: int,
 ) -> Image.Image:
   """Render the page number text near the page corner."""
   if page_number <= 0 or total_pages <= 0:
@@ -1726,9 +1944,11 @@ def _add_page_number_to_image(
   if width == 0 or height == 0:
     return image
 
-  text_drawer = _BookPageTextDrawer(image, text=str(page_number))
-
-  offset_from_edge = int(round(_BOOK_PAGE_BLEED_PX * 3.5))
+  text_drawer = _BookPageTextDrawer(
+    image,
+    text=str(page_number),
+    font_size=font_size,
+  )
   text_x: float
   if is_punchline:
     text_x = offset_from_edge

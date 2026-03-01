@@ -45,6 +45,7 @@ def test_get_joke_book_returns_html(mock_joke_books_firestore):
       jokes=["joke1", "joke2"],
       zip_url="https://cdn.example.com/book.zip",
       paperback_pdf_url="https://cdn.example.com/book_paperback.pdf",
+      ebook_pdf_url="https://cdn.example.com/book_ebook.pdf",
     ),
     [
       "http://example.com/page_setup1.tif",
@@ -73,6 +74,7 @@ def test_get_joke_book_returns_html(mock_joke_books_firestore):
   # Download link should point to the stored zip_url
   assert 'href="https://cdn.example.com/book.zip"' in html_content
   assert 'href="https://cdn.example.com/book_paperback.pdf"' in html_content
+  assert 'href="https://cdn.example.com/book_ebook.pdf"' in html_content
   assert '<img src="http://example.com/page_setup1.tif"' in html_content
   assert '<img src="http://example.com/page_punchline1.tif"' in html_content
   assert '<img src="http://example.com/page_setup2.tif"' in html_content
@@ -141,6 +143,7 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   assert created_book.belongs_to_page_gcs_uri is None
   assert created_book.zip_url is None
   assert created_book.paperback_pdf_url is None
+  assert created_book.ebook_pdf_url is None
   mock_generate_pages.assert_any_call('j1', overwrite=True)
   mock_generate_pages.assert_any_call('j2', overwrite=True)
   assert isinstance(resp, https_fn.Response)
@@ -188,7 +191,7 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
 
 
 @patch(
-  'functions.joke_book_fns.image_operations.export_joke_page_files_for_kdp')
+  'functions.joke_book_fns.image_operations.export_joke_book_files')
 @patch('functions.joke_book_fns.joke_books_firestore')
 def test_update_joke_book_files_regenerates_and_updates(
     mock_joke_books_firestore, mock_export_files):
@@ -197,8 +200,9 @@ def test_update_joke_book_files_regenerates_and_updates(
   joke_ids = ['j1', 'j2']
 
   mock_export_files.return_value = MagicMock(
-    zip_url='https://cdn.example.com/new.zip',
+    zip_url=None,
     paperback_pdf_url='https://cdn.example.com/new_paperback.pdf',
+    ebook_pdf_url='https://cdn.example.com/new_ebook.pdf',
   )
 
   mock_joke_books_firestore.get_joke_book.return_value = models.JokeBook(
@@ -219,8 +223,9 @@ def test_update_joke_book_files_regenerates_and_updates(
     mock_joke_books_firestore.get_joke_book.return_value)
   mock_joke_books_firestore.update_joke_book_export_files.assert_called_once_with(
     book_id,
-    zip_url='https://cdn.example.com/new.zip',
+    zip_url=None,
     paperback_pdf_url='https://cdn.example.com/new_paperback.pdf',
+    ebook_pdf_url='https://cdn.example.com/new_ebook.pdf',
   )
   assert isinstance(resp, https_fn.Response)
   assert resp.status_code == 200
@@ -228,8 +233,9 @@ def test_update_joke_book_files_regenerates_and_updates(
   assert payload == {
     'data': {
       'book_id': book_id,
-      'zip_url': 'https://cdn.example.com/new.zip',
+      'zip_url': None,
       'paperback_pdf_url': 'https://cdn.example.com/new_paperback.pdf',
+      'ebook_pdf_url': 'https://cdn.example.com/new_ebook.pdf',
     }
   }
 

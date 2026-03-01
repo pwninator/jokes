@@ -851,6 +851,7 @@ class JokeBook:
   belongs_to_page_gcs_uri: str | None = None
   zip_url: str | None = None
   paperback_pdf_url: str | None = None
+  ebook_pdf_url: str | None = None
 
   @property
   def joke_count(self) -> int:

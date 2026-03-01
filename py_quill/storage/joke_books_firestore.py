@@ -110,17 +110,20 @@ def create_joke_book(book: models.JokeBook) -> models.JokeBook:
 def update_joke_book_export_files(
   book_id: str,
   *,
-  zip_url: str,
+  zip_url: str | None,
   paperback_pdf_url: str,
+  ebook_pdf_url: str,
 ) -> models.JokeBook:
   """Update stored export file URLs for a joke book."""
   book = _get_required_book(book_id)
   _ = _book_ref(book_id).update({
     'zip_url': zip_url,
     'paperback_pdf_url': paperback_pdf_url,
+    'ebook_pdf_url': ebook_pdf_url,
   })
   book.zip_url = zip_url
   book.paperback_pdf_url = paperback_pdf_url
+  book.ebook_pdf_url = ebook_pdf_url
   return book
 
 

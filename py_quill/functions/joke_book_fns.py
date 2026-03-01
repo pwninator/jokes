@@ -167,7 +167,7 @@ def create_joke_book(req: flask.Request) -> flask.Response:
   timeout_sec=1200,
 )
 def update_joke_book_files(req: flask.Request) -> flask.Response:
-  """Regenerate the ZIP and paperback PDF for a joke book."""
+  """Regenerate the joke-book export files."""
   try:
     if response := handle_cors_preflight(req):
       return response
@@ -197,11 +197,12 @@ def update_joke_book_files(req: flask.Request) -> flask.Response:
                             req=req,
                             status=400)
 
-    export_files = image_operations.export_joke_page_files_for_kdp(book)
+    export_files = image_operations.export_joke_book_files(book)
     _ = joke_books_firestore.update_joke_book_export_files(
       joke_book_id,
       zip_url=export_files.zip_url,
       paperback_pdf_url=export_files.paperback_pdf_url,
+      ebook_pdf_url=export_files.ebook_pdf_url,
     )
 
     return success_response(
@@ -209,6 +210,7 @@ def update_joke_book_files(req: flask.Request) -> flask.Response:
         'book_id': joke_book_id,
         'zip_url': export_files.zip_url,
         'paperback_pdf_url': export_files.paperback_pdf_url,
+        'ebook_pdf_url': export_files.ebook_pdf_url,
       },
       req=req)
 
@@ -261,6 +263,7 @@ def get_joke_book(req: flask.Request) -> flask.Response:
     book_title = book.book_name or 'My Joke Book'
     zip_url = book.zip_url
     paperback_pdf_url = book.paperback_pdf_url
+    ebook_pdf_url = book.ebook_pdf_url
 
     download_link_html = ""
     if zip_url:
@@ -270,6 +273,9 @@ def get_joke_book(req: flask.Request) -> flask.Response:
       download_link_html += (
         f'<p><a href="{paperback_pdf_url}" download>Download Paperback PDF</a></p>'
       )
+    if ebook_pdf_url:
+      download_link_html += (
+        f'<p><a href="{ebook_pdf_url}" download>Download Ebook PDF</a></p>')
 
     html_content = f"""
     <!DOCTYPE html>

@@ -652,12 +652,15 @@
   <a class="back-link site-footer__link text-button" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
   <div class="page-actions-right">
     <div class="zip-action-group">
-      {% if book.zip_url or book.paperback_pdf_url %}
+      {% if book.zip_url or book.paperback_pdf_url or book.ebook_pdf_url %}
       {% if book.zip_url %}
       <a class="back-link site-footer__link text-button download-zip-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
       {% endif %}
       {% if book.paperback_pdf_url %}
       <a class="back-link site-footer__link text-button download-paperback-pdf-link" href="{{ book.paperback_pdf_url }}" target="_blank" rel="noopener noreferrer">Download paperback PDF</a>
+      {% endif %}
+      {% if book.ebook_pdf_url %}
+      <a class="back-link site-footer__link text-button download-ebook-pdf-link" href="{{ book.ebook_pdf_url }}" target="_blank" rel="noopener noreferrer">Download ebook PDF</a>
       {% endif %}
       {% else %}
       <span class="muted download-files-missing">Files not generated</span>
@@ -666,7 +669,7 @@
         class="cta-btn nav-cta text-button book-files-regenerate"
         type="button"
         data-book-id="{{ book.id }}">
-        {% if book.zip_url or book.paperback_pdf_url %}Regenerate Files{% else %}Generate Files{% endif %}
+        {% if book.zip_url or book.paperback_pdf_url or book.ebook_pdf_url %}Regenerate Files{% else %}Generate Files{% endif %}
       </button>
     </div>
     <button class="cta-btn nav-cta text-button book-page-filter-toggle" type="button">All pages</button>
@@ -1168,35 +1171,48 @@
           }
 
           const payload = await resp.json();
-          const newZipUrl = payload?.data?.zip_url;
-          const newPdfUrl = payload?.data?.paperback_pdf_url;
-          if (!newZipUrl || !newPdfUrl) {
+          const newZipUrl = payload?.data?.zip_url ?? null;
+          const newPaperbackPdfUrl = payload?.data?.paperback_pdf_url ?? null;
+          const newEbookPdfUrl = payload?.data?.ebook_pdf_url ?? null;
+          if (!newPaperbackPdfUrl || !newEbookPdfUrl) {
             throw new Error('export file URLs missing from response');
           }
 
-          let zipLink = container.querySelector('.download-zip-link');
-          if (!zipLink) {
-            zipLink = document.createElement('a');
-            zipLink.className =
-              'back-link site-footer__link text-button download-zip-link';
-            zipLink.target = '_blank';
-            zipLink.rel = 'noopener noreferrer';
-            zipLink.textContent = 'Download all pages (ZIP)';
-            container.insertBefore(zipLink, button);
-          }
-          zipLink.href = newZipUrl;
+          const syncLink = (selector, className, text, href) => {
+            let link = container.querySelector(selector);
+            if (!href) {
+              link?.remove();
+              return;
+            }
+            if (!link) {
+              link = document.createElement('a');
+              link.className = className;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.textContent = text;
+              container.insertBefore(link, button);
+            }
+            link.href = href;
+          };
 
-          let pdfLink = container.querySelector('.download-paperback-pdf-link');
-          if (!pdfLink) {
-            pdfLink = document.createElement('a');
-            pdfLink.className =
-              'back-link site-footer__link text-button download-paperback-pdf-link';
-            pdfLink.target = '_blank';
-            pdfLink.rel = 'noopener noreferrer';
-            pdfLink.textContent = 'Download paperback PDF';
-            container.insertBefore(pdfLink, button);
-          }
-          pdfLink.href = newPdfUrl;
+          syncLink(
+            '.download-zip-link',
+            'back-link site-footer__link text-button download-zip-link',
+            'Download all pages (ZIP)',
+            newZipUrl,
+          );
+          syncLink(
+            '.download-paperback-pdf-link',
+            'back-link site-footer__link text-button download-paperback-pdf-link',
+            'Download paperback PDF',
+            newPaperbackPdfUrl,
+          );
+          syncLink(
+            '.download-ebook-pdf-link',
+            'back-link site-footer__link text-button download-ebook-pdf-link',
+            'Download ebook PDF',
+            newEbookPdfUrl,
+          );
 
           const missingLabel = container.querySelector('.download-files-missing');
           if (missingLabel) {

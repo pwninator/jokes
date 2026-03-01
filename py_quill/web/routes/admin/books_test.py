@@ -73,6 +73,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
         belongs_to_page_gcs_uri='gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
         zip_url='https://example.com/book.zip',
         paperback_pdf_url='https://example.com/book_paperback.pdf',
+        ebook_pdf_url='https://example.com/book_ebook.pdf',
       ),
       [
         {
@@ -136,6 +137,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "No punchline image" in html
   assert "Download all pages" in html
   assert "Download paperback PDF" in html
+  assert "Download ebook PDF" in html
   assert "Set as main joke image" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
   assert "$0.1234" in html

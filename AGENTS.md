@@ -8,6 +8,7 @@ This document contains everything AI agents need to work effectively on this cod
 - Besides correctness and performance, your code must be simple, elegant, well designed, DRY, readable, and intuitive. Before creating new code, always read existing nearby code to check if similar functionality already exists. If you encounter any hacks, code smells, etc., immediately stop your work and flag them to the user.
 - Other users are modifying the code in parallel. If you encounter test failures due to mismatched names, update the test to match the code, not the other way around.
 - When migrating/refactoring code, always ask the user if backward compatibility is needed. Generally, prefer NO backward compatibility unless there is a risk of user visible production breakage. Aim for zero tech debt.
+- Within a code file, put constants at the top, the class definitions, then public functions, then private functions
 
 ## 1. Project Overview
 

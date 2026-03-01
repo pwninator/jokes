@@ -70,8 +70,9 @@ def test_create_and_update_export_files_use_joke_book_model(monkeypatch):
     ))
   updated = joke_books_firestore.update_joke_book_export_files(
     'book-1',
-    zip_url='https://cdn/new.zip',
+    zip_url=None,
     paperback_pdf_url='https://cdn/new.pdf',
+    ebook_pdf_url='https://cdn/new-ebook.pdf',
   )
 
   book_ref.set.assert_called_once_with({
@@ -81,15 +82,19 @@ def test_create_and_update_export_files_use_joke_book_model(monkeypatch):
     'belongs_to_page_gcs_uri': None,
     'zip_url': 'https://cdn/old.zip',
     'paperback_pdf_url': None,
+    'ebook_pdf_url': None,
   })
   book_ref.update.assert_called_once_with({
     'zip_url':
-    'https://cdn/new.zip',
+    None,
     'paperback_pdf_url':
     'https://cdn/new.pdf',
+    'ebook_pdf_url':
+    'https://cdn/new-ebook.pdf',
   })
   assert created.id == 'book-1'
   assert updated.paperback_pdf_url == 'https://cdn/new.pdf'
+  assert updated.ebook_pdf_url == 'https://cdn/new-ebook.pdf'
 
 
 def test_update_joke_book_belongs_to_page_updates_model(monkeypatch):

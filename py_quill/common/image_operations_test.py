@@ -11,6 +11,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, call, patch
 
+from agents import constants
 from common import amazon_redirect, image_operations, joke_notes_sheet_operations, models
 from PIL import Image, ImageFont
 from services import image_editor, pdf_client
@@ -314,19 +315,6 @@ class CreateAdAssetsTest(unittest.TestCase):
     mock_editor.paste_image.assert_not_called()
     mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
 
-
-class CreateBlankBookCoverTest(unittest.TestCase):
-  """Tests for create_blank_book_cover."""
-
-  def test_create_blank_book_cover_is_rgb_jpeg(self):
-    cover_bytes = image_operations.create_blank_book_cover(
-      color_mode=image_operations._KDP_PRINT_COLOR_MODE)
-
-    image = Image.open(BytesIO(cover_bytes))
-    self.assertEqual(image.format, 'JPEG')
-    self.assertEqual(image.mode, image_operations._KDP_PRINT_COLOR_MODE)
-
-
 class ComposePortraitDrawingTest(unittest.TestCase):
 
   @patch('common.image_operations.cloud_storage')
@@ -522,7 +510,7 @@ class CreateBookPagesTest(unittest.TestCase):
       if uri == 'https://cdn.example.com/punchline.png':
         return 'gs://bucket/punchline.png'
       # Handle style reference images which might be passed in
-      if uri in image_operations._STYLE_REFERENCE_IMAGE_URLS:
+      if uri in constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS:
         return f'gs://bucket/{uri.split("/")[-1]}'
       raise AssertionError(f'Unexpected URI: {uri}')
 
@@ -548,11 +536,11 @@ class CreateBookPagesTest(unittest.TestCase):
 
       style_refs = kwargs['style_reference_images']
       self.assertEqual(len(style_refs),
-                       len(image_operations._STYLE_REFERENCE_IMAGE_URLS))
+                       len(constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS))
       for idx, img in enumerate(style_refs):
         self.assertIsInstance(img, models.Image)
         self.assertEqual(img.url,
-                         image_operations._STYLE_REFERENCE_IMAGE_URLS[idx])
+                         constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[idx])
 
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
@@ -732,7 +720,7 @@ class CreateBookPagesTest(unittest.TestCase):
         return 'gs://bucket/setup.png'
       if uri == 'https://cdn.example.com/punchline.png':
         return 'gs://bucket/punchline.png'
-      if uri in image_operations._STYLE_REFERENCE_IMAGE_URLS:
+      if uri in constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS:
         return f'gs://bucket/{uri.split("/")[-1]}'
       raise AssertionError(f'Unexpected URI: {uri}')
 
@@ -755,7 +743,7 @@ class CreateBookPagesTest(unittest.TestCase):
 
       style_refs = kwargs['style_reference_images']
       self.assertEqual(len(style_refs),
-                       len(image_operations._STYLE_REFERENCE_IMAGE_URLS))
+                       len(constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS))
 
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
@@ -998,10 +986,10 @@ class CreateBookPagesTest(unittest.TestCase):
 
     # We can check URLs of style refs
     style_ref_urls = [r.url for r in punch_refs if isinstance(r, models.Image)]
-    self.assertIn(image_operations._STYLE_UPDATE_CANVAS_URL, style_ref_urls)
-    self.assertIn(image_operations._STYLE_REFERENCE_IMAGE_URLS[0],
+    self.assertIn(constants.STYLE_REFERENCE_CANVAS_IMAGE_URL, style_ref_urls)
+    self.assertIn(constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[0],
                   style_ref_urls)
-    self.assertIn(image_operations._STYLE_REFERENCE_IMAGE_URLS[1],
+    self.assertIn(constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS[1],
                   style_ref_urls)
 
   @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
@@ -1334,6 +1322,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
   """Tests for rendering page numbers onto book pages."""
 
   def test_setup_page_positions_and_stroke(self):
+    profile = image_operations._PAPERBACK_EXPORT_PROFILE
     image = Image.new('RGB', (200, 200), color='grey')
     draw_mock = MagicMock()
     draw_mock.textbbox.return_value = (0, 0, 20, 30)
@@ -1347,15 +1336,17 @@ class AddPageNumberToImageTest(unittest.TestCase):
           page_number=3,
           total_pages=12,
           is_punchline=False,
+          font_size=profile.page_number_font_size_px,
+          offset_from_edge=profile.page_number_offset_px,
         )
 
     mock_get_font.assert_called_once_with(
-      image_operations._PAGE_NUMBER_FONT_SIZE)
-    offset = int(round(image_operations._BOOK_PAGE_BLEED_PX * 3.5))
+      profile.page_number_font_size_px)
+    offset = profile.page_number_offset_px
     stroke_width = max(
       1,
       int(
-        round(image_operations._PAGE_NUMBER_FONT_SIZE *
+        round(profile.page_number_font_size_px *
               image_operations._PAGE_NUMBER_STROKE_RATIO)))
     draw_mock.textbbox.assert_called_once_with(
       (0, 0),
@@ -1371,6 +1362,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
                      image_operations._PAGE_NUMBER_STROKE_COLOR)
 
   def test_punchline_page_positions_use_left_margin(self):
+    profile = image_operations._PAPERBACK_EXPORT_PROFILE
     image = Image.new('RGB', (200, 200), color='grey')
     draw_mock = MagicMock()
     draw_mock.textbbox.return_value = (0, 0, 14, 20)
@@ -1384,15 +1376,17 @@ class AddPageNumberToImageTest(unittest.TestCase):
           page_number=1,
           total_pages=5,
           is_punchline=True,
+          font_size=profile.page_number_font_size_px,
+          offset_from_edge=profile.page_number_offset_px,
         )
 
     mock_get_font.assert_called_once_with(
-      image_operations._PAGE_NUMBER_FONT_SIZE)
-    offset = int(round(image_operations._BOOK_PAGE_BLEED_PX * 3.5))
+      profile.page_number_font_size_px)
+    offset = profile.page_number_offset_px
     stroke_width = max(
       1,
       int(
-        round(image_operations._PAGE_NUMBER_FONT_SIZE *
+        round(profile.page_number_font_size_px *
               image_operations._PAGE_NUMBER_STROKE_RATIO)))
     text_call = draw_mock.text.call_args
     self.assertEqual(text_call[0][0], (offset, 200 - offset - 20))
@@ -1400,6 +1394,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
     self.assertEqual(text_call[1]['stroke_width'], stroke_width)
 
   def test_font_size_static_value(self):
+    profile = image_operations._PAPERBACK_EXPORT_PROFILE
     image = Image.new('RGB', (200, 200), color='grey')
     draw_mock = MagicMock()
     draw_mock.textbbox.return_value = (0, 0, 10, 10)
@@ -1413,20 +1408,24 @@ class AddPageNumberToImageTest(unittest.TestCase):
           page_number=1,
           total_pages=99,
           is_punchline=False,
+          font_size=profile.page_number_font_size_px,
+          offset_from_edge=profile.page_number_offset_px,
         )
         image_operations._add_page_number_to_image(
           image,
           page_number=10,
           total_pages=2,
           is_punchline=False,
+          font_size=profile.page_number_font_size_px,
+          offset_from_edge=profile.page_number_offset_px,
         )
 
     requested_sizes = [entry[0][0] for entry in mock_get_font.call_args_list]
     self.assertEqual(
       requested_sizes,
       [
-        image_operations._PAGE_NUMBER_FONT_SIZE,
-        image_operations._PAGE_NUMBER_FONT_SIZE
+        profile.page_number_font_size_px,
+        profile.page_number_font_size_px
       ],
     )
 
@@ -1454,64 +1453,67 @@ class ExportJokePageFilesTest(unittest.TestCase):
 
   @patch('common.image_operations._add_page_number_to_image',
          side_effect=lambda image, **_kwargs: image)
-  def test_convert_for_print_kdp_trims_inner_binding_edge(
+  def test_convert_for_book_export_trims_inner_binding_edge(
     self,
     _mock_add_page_number,
   ):
     """Punchline pages trim right; setup pages trim left."""
+    profile = image_operations._PAPERBACK_EXPORT_PROFILE
     source_image = Image.new('RGB', (32, 32), 'red')
     mock_editor = MagicMock()
     scaled_image = Image.new('RGB', (10, 10), 'white')
     trimmed_punchline = Image.new('RGB',
-                                  (image_operations._BOOK_PAGE_FINAL_WIDTH,
-                                   image_operations._BOOK_PAGE_FINAL_HEIGHT),
+                                  (profile.final_width_px,
+                                   profile.final_height_px),
                                   'blue')
     trimmed_setup = Image.new('RGB',
-                              (image_operations._BOOK_PAGE_FINAL_WIDTH,
-                               image_operations._BOOK_PAGE_FINAL_HEIGHT),
+                              (profile.final_width_px,
+                               profile.final_height_px),
                               'green')
     mock_editor.scale_image.return_value = scaled_image
     mock_editor.trim_edges.side_effect = [trimmed_punchline, trimmed_setup]
 
-    _ = image_operations._convert_for_print_kdp(
+    _ = image_operations._convert_for_book_export(
       source_image,
       is_left_page=True,
       page_number=1,
       total_pages=2,
       color_mode='RGB',
+      profile=profile,
       image_editor_instance=mock_editor,
     )
-    _ = image_operations._convert_for_print_kdp(
+    _ = image_operations._convert_for_book_export(
       source_image,
       is_left_page=False,
       page_number=2,
       total_pages=2,
       color_mode='RGB',
+      profile=profile,
       image_editor_instance=mock_editor,
     )
 
     punchline_call = mock_editor.trim_edges.call_args_list[0]
     self.assertEqual(punchline_call.kwargs['left'], 0)
     self.assertEqual(punchline_call.kwargs['right'],
-                     image_operations._BOOK_PAGE_BLEED_PX)
+                     profile.output_bleed_size_px)
 
     setup_call = mock_editor.trim_edges.call_args_list[1]
     self.assertEqual(setup_call.kwargs['left'],
-                     image_operations._BOOK_PAGE_BLEED_PX)
+                     profile.output_bleed_size_px)
     self.assertEqual(setup_call.kwargs['right'], 0)
 
   @patch('common.image_operations._create_qr_code_image')
   @patch('common.image_operations.amazon_redirect.get_amazon_redirect_bridge_url')
-  def test_add_paperback_review_qr_to_page_overlays_qr(
+  def test_add_review_qr_to_page_overlays_qr(
     self,
     mock_get_review_url,
     mock_create_qr_code_image,
   ):
-    """Paperback review QR overlay should paste the generated QR at 50,50."""
+    """Review QR overlay should paste the generated QR at the profile location."""
+    profile = image_operations._PAPERBACK_EXPORT_PROFILE
     base_image = Image.new(
       'RGB',
-      (image_operations._BOOK_PAGE_FINAL_WIDTH,
-       image_operations._BOOK_PAGE_FINAL_HEIGHT),
+      (profile.pre_trim_width_px, profile.pre_trim_height_px),
       'white',
     )
     buffer = BytesIO()
@@ -1519,20 +1521,21 @@ class ExportJokePageFilesTest(unittest.TestCase):
 
     qr_image = Image.new(
       'RGB',
-      (image_operations._BOOK_REVIEW_QR_SIZE_PX,
-       image_operations._BOOK_REVIEW_QR_SIZE_PX),
+      (profile.qr_size_px, profile.qr_size_px),
       'black',
     )
     mock_get_review_url.return_value = 'https://example.com/review'
     mock_create_qr_code_image.return_value = qr_image
 
-    updated_page = image_operations._add_paperback_review_qr_to_page(
+    updated_page = image_operations._add_review_qr_to_page(
       image_operations.BookPage(
         file_name='999_about.jpg',
         image_bytes=buffer.getvalue(),
       ),
+      profile=profile,
       associated_book_key='animal-jokes',
       page_index=4,
+      trim_left_px=profile.output_bleed_size_px,
     )
 
     mock_get_review_url.assert_called_once()
@@ -1545,60 +1548,61 @@ class ExportJokePageFilesTest(unittest.TestCase):
     })
     mock_create_qr_code_image.assert_called_once_with(
       'https://example.com/review',
-      size_px=image_operations._BOOK_REVIEW_QR_SIZE_PX,
+      size_px=profile.qr_size_px,
     )
     self.assertEqual(updated_page.file_name, '999_about.jpg')
     self.assertIsNotNone(updated_page.hyperlink)
     assert updated_page.hyperlink is not None
     self.assertEqual(updated_page.hyperlink.page_index, 4)
     self.assertEqual(updated_page.hyperlink.url, 'https://example.com/review')
-    self.assertEqual(updated_page.hyperlink.x1, image_operations._BOOK_REVIEW_QR_X)
-    self.assertEqual(updated_page.hyperlink.y1, image_operations._BOOK_REVIEW_QR_Y)
+    self.assertEqual(updated_page.hyperlink.x1,
+                     profile.qr_x_px - profile.output_bleed_size_px)
+    self.assertEqual(updated_page.hyperlink.y1, profile.qr_y_px)
     self.assertEqual(
       updated_page.hyperlink.x2,
-      image_operations._BOOK_REVIEW_QR_X +
-      image_operations._BOOK_REVIEW_QR_SIZE_PX,
+      profile.qr_x_px + profile.qr_size_px - profile.output_bleed_size_px,
     )
     self.assertGreater(
       updated_page.hyperlink.y2,
-      image_operations._BOOK_REVIEW_QR_Y +
-      image_operations._BOOK_REVIEW_QR_SIZE_PX,
+      profile.qr_y_px + profile.qr_size_px,
     )
     updated_image = Image.open(BytesIO(updated_page.image_bytes))
     self.assertEqual(
-      updated_image.getpixel((image_operations._BOOK_REVIEW_QR_X + 10,
-                              image_operations._BOOK_REVIEW_QR_Y + 10)),
+      updated_image.getpixel((profile.qr_x_px + 10, profile.qr_y_px + 10)),
       (0, 0, 0),
     )
 
   @patch('common.image_operations._BookPageTextDrawer')
   @patch('common.image_operations._create_qr_code_image')
   @patch('common.image_operations.amazon_redirect.get_amazon_redirect_bridge_url')
-  def test_add_paperback_review_qr_to_page_adds_scan_me_caption(
+  def test_add_review_qr_to_page_adds_cta_caption(
     self,
     mock_get_review_url,
     mock_create_qr_code_image,
     mock_text_drawer,
   ):
+    profile = image_operations._PAPERBACK_EXPORT_PROFILE
     mock_get_review_url.return_value = 'https://example.com/review'
     mock_create_qr_code_image.return_value = Image.new('RGB', (10, 10), 'black')
     text_drawer = mock_text_drawer.return_value
     text_drawer.width = 120
     text_drawer.height = 40
 
-    updated_page = image_operations._add_paperback_review_qr_to_page(
+    updated_page = image_operations._add_review_qr_to_page(
       image_operations.BookPage(
         file_name='999_about.jpg',
         image_bytes=_create_image_bytes(
           'white',
           size=(
-            image_operations._BOOK_PAGE_FINAL_WIDTH,
-            image_operations._BOOK_PAGE_FINAL_HEIGHT,
+            profile.pre_trim_width_px,
+            profile.pre_trim_height_px,
           ),
         ),
       ),
+      profile=profile,
       associated_book_key='animal-jokes',
       page_index=4,
+      trim_left_px=profile.output_bleed_size_px,
     )
 
     self.assertIsInstance(updated_page.image_bytes, (bytes, bytearray))
@@ -1606,28 +1610,24 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertEqual(len(mock_text_drawer.call_args.args), 1)
     self.assertIsInstance(mock_text_drawer.call_args.args[0], Image.Image)
     self.assertEqual(mock_text_drawer.call_args.kwargs, {
-      'text': 'Scan me!',
-      'font_size': image_operations._QR_CODE_CTA_FONT_SIZE,
+      'text': profile.qr_label,
+      'font_size': profile.qr_label_font_size_px,
     })
     text_drawer.draw_text.assert_called_once_with(
-      x=image_operations._BOOK_REVIEW_QR_X +
-      ((image_operations._BOOK_REVIEW_QR_SIZE_PX - 120) / 2),
-      y=image_operations._BOOK_REVIEW_QR_Y +
-      image_operations._BOOK_REVIEW_QR_SIZE_PX +
-      image_operations._BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX,
+      x=profile.qr_x_px + ((profile.qr_size_px - 120) / 2),
+      y=profile.qr_y_px + profile.qr_size_px + profile.qr_label_margin_top_px,
     )
     self.assertEqual(
       updated_page.hyperlink,
       pdf_client.HyperlinkSpec(
         page_index=4,
         url='https://example.com/review',
-        x1=image_operations._BOOK_REVIEW_QR_X,
-        y1=image_operations._BOOK_REVIEW_QR_Y,
-        x2=image_operations._BOOK_REVIEW_QR_X +
-        image_operations._BOOK_REVIEW_QR_SIZE_PX,
-        y2=image_operations._BOOK_REVIEW_QR_Y +
-        image_operations._BOOK_REVIEW_QR_SIZE_PX +
-        image_operations._BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX + 40,
+        x1=profile.qr_x_px - profile.output_bleed_size_px,
+        y1=profile.qr_y_px,
+        x2=profile.qr_x_px + profile.qr_size_px -
+        profile.output_bleed_size_px,
+        y2=profile.qr_y_px + profile.qr_size_px +
+        profile.qr_label_margin_top_px + 40,
       ),
     )
 
@@ -1638,241 +1638,165 @@ class ExportJokePageFilesTest(unittest.TestCase):
   ):
     mock_get_bridge_url.return_value = 'https://example.com/review-bridge'
 
-    result = image_operations._get_about_page_review_bridge_url('animal-jokes')
+    result = image_operations._get_about_page_review_bridge_url(
+      'animal-jokes',
+      book_format=amazon_redirect.BookFormat.EBOOK,
+    )
 
     self.assertEqual(result, 'https://example.com/review-bridge')
     mock_get_bridge_url.assert_called_once_with(
       amazon_redirect.BookKey.ANIMAL_JOKES,
       page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
-      book_format=amazon_redirect.BookFormat.PAPERBACK,
+      book_format=amazon_redirect.BookFormat.EBOOK,
       source=amazon_redirect.AttributionSource.BOOK_ABOUT_PAGE,
     )
 
-  @patch('common.image_operations._get_about_page_review_bridge_url')
-  @patch('common.image_operations._add_paperback_review_qr_to_page')
-  @patch('common.image_operations._enhance_kdp_export_page_bytes')
-  @patch('common.image_operations._convert_for_print_kdp')
+  @patch('common.image_operations._build_book_export_pages')
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
-  @patch('common.image_operations.cloud_storage.download_image_from_gcs')
   @patch('common.image_operations._build_joke_book_export_uris')
   @patch('common.image_operations.pdf_client.create_pdf')
-  @patch('common.image_operations.firestore')
-  def test_export_joke_page_files_builds_zip_and_pdf_and_uploads(
+  def test_export_joke_book_files_builds_two_pdfs_without_zip(
     self,
-    mock_firestore,
     mock_create_pdf,
     mock_build_export_uris,
-    mock_download_image,
     mock_upload_bytes,
     mock_get_public_url,
-    mock_convert_for_print,
-    mock_enhance_page_bytes,
-    mock_add_review_qr,
-    mock_get_about_page_review_bridge_url,
+    mock_build_pages,
   ):
-    """export_joke_page_files_for_kdp should upload ZIP and PDF and return both URLs."""
+    """export_joke_book_files should upload paperback and ebook PDFs by default."""
     book = models.JokeBook(
       id='book-1',
       book_name='My Book',
       jokes=['joke1'],
-      associated_book_key='animal-jokes',
-      belongs_to_page_gcs_uri=
-      'gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
+      belongs_to_page_gcs_uri='gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
     )
 
-    # Firestore metadata for book pages
-    mock_db = MagicMock()
-    mock_firestore.db.return_value = mock_db
-
-    jokes_collection = MagicMock()
-
-    def collection_side_effect(name):
-      if name == "jokes":
-        return jokes_collection
-      return MagicMock()
-
-    mock_db.collection.side_effect = collection_side_effect
-
-    mock_joke_doc = MagicMock()
-    mock_joke_doc.exists = True
-
-    metadata_doc = MagicMock()
-    metadata_snapshot = MagicMock()
-    metadata_snapshot.exists = True
-    setup_url = "http://example.com/setup1.jpg"
-    punch_url = "http://example.com/punch1.png"
-    metadata_snapshot.to_dict.return_value = {
-      "book_page_setup_image_url": setup_url,
-      "book_page_punchline_image_url": punch_url,
-    }
-    metadata_doc.get.return_value = metadata_snapshot
-
-    def jokes_document_side_effect(doc_id):
-      joke_ref = MagicMock()
-      if doc_id == "joke1":
-        joke_ref.get.return_value = mock_joke_doc
-        metadata_collection = MagicMock()
-        metadata_collection.document.return_value = metadata_doc
-        joke_ref.collection.return_value = metadata_collection
-      return joke_ref
-
-    jokes_collection.document.side_effect = jokes_document_side_effect
-
-    def download_side_effect(resource):
-      if resource == book.belongs_to_page_gcs_uri:
-        return Image.new('RGB', (10, 10), 'yellow')
-      if resource == image_operations._BOOK_PAGE_ABOUT_GCS_URI:
-        return Image.new('RGB', (10, 10), 'black')
-      if resource == setup_url:
-        return Image.new('RGB', (10, 10), 'red')
-      if resource == punch_url:
-        return Image.new('RGB', (10, 10), 'blue')
-      raise ValueError(f"Unexpected download request {resource}")
-
-    mock_download_image.side_effect = download_side_effect
-    mock_convert_for_print.side_effect = [
-      b'belongs-to-page',
-      b'setup-kdp',
-      b'punchline-kdp',
-      b'about-page',
-    ]
-    mock_add_review_qr.return_value = image_operations.BookPage(
-      file_name='999_about_page_template.png',
-      image_bytes=b'about-page-with-qr',
-      hyperlink=pdf_client.HyperlinkSpec(
-        page_index=4,
-        url='https://example.com/review-bridge',
-        x1=image_operations._BOOK_REVIEW_QR_X,
-        y1=image_operations._BOOK_REVIEW_QR_Y,
-        x2=image_operations._BOOK_REVIEW_QR_X +
-        image_operations._BOOK_REVIEW_QR_SIZE_PX,
-        y2=image_operations._BOOK_REVIEW_QR_Y +
-        image_operations._BOOK_REVIEW_QR_SIZE_PX,
+    paperback_pages = [
+      image_operations.BookPage(file_name='001_belongs.jpg', image_bytes=b'pb-1'),
+      image_operations.BookPage(
+        file_name='999_about.jpg',
+        image_bytes=b'pb-2',
+        hyperlink=pdf_client.HyperlinkSpec(
+          page_index=1,
+          url='https://example.com/paperback-review',
+          x1=10,
+          y1=20,
+          x2=30,
+          y2=40,
+        ),
       ),
-    )
-    mock_get_about_page_review_bridge_url.return_value = (
-      'https://example.com/review-bridge')
-    mock_enhance_page_bytes.side_effect = lambda page_bytes, **_kwargs: page_bytes
-    mock_create_pdf.return_value = b'%PDF-export'
+    ]
+    ebook_pages = [
+      image_operations.BookPage(file_name='001_belongs.jpg', image_bytes=b'eb-1'),
+      image_operations.BookPage(
+        file_name='999_about.jpg',
+        image_bytes=b'eb-2',
+        hyperlink=pdf_client.HyperlinkSpec(
+          page_index=1,
+          url='https://example.com/ebook-review',
+          x1=11,
+          y1=21,
+          x2=31,
+          y2=41,
+        ),
+      ),
+    ]
+    mock_build_pages.side_effect = [paperback_pages, ebook_pages]
+    mock_create_pdf.side_effect = [b'%PDF-paperback', b'%PDF-ebook']
     mock_build_export_uris.return_value = (
       'gs://snickerdoodle_temp_files/joke_book_pages.zip',
       'gs://snickerdoodle_temp_files/joke_book_pages_paperback.pdf',
+      'gs://snickerdoodle_temp_files/joke_book_pages_ebook.pdf',
+    )
+    mock_get_public_url.side_effect = [
+      'https://cdn.example.com/book_paperback.pdf',
+      'https://cdn.example.com/book_ebook.pdf',
+    ]
+
+    result = image_operations.export_joke_book_files(book)
+
+    self.assertIsNone(result.zip_url)
+    self.assertEqual(result.paperback_pdf_url,
+                     'https://cdn.example.com/book_paperback.pdf')
+    self.assertEqual(result.ebook_pdf_url, 'https://cdn.example.com/book_ebook.pdf')
+    self.assertEqual(mock_upload_bytes.call_count, 2)
+    self.assertEqual(mock_upload_bytes.call_args_list[0].args, (
+      b'%PDF-paperback',
+      'gs://snickerdoodle_temp_files/joke_book_pages_paperback.pdf',
+      'application/pdf',
+    ))
+    self.assertEqual(mock_upload_bytes.call_args_list[1].args, (
+      b'%PDF-ebook',
+      'gs://snickerdoodle_temp_files/joke_book_pages_ebook.pdf',
+      'application/pdf',
+    ))
+    self.assertEqual(mock_build_pages.call_args_list[0].kwargs['profile'],
+                     image_operations._PAPERBACK_EXPORT_PROFILE)
+    self.assertEqual(mock_build_pages.call_args_list[1].kwargs['profile'],
+                     image_operations._EBOOK_EXPORT_PROFILE)
+    self.assertEqual(mock_create_pdf.call_args_list[0].kwargs['quality'],
+                     image_operations._PAPERBACK_EXPORT_PROFILE.jpeg_quality)
+    self.assertEqual(mock_create_pdf.call_args_list[1].kwargs['quality'],
+                     image_operations._EBOOK_EXPORT_PROFILE.jpeg_quality)
+    self.assertEqual(
+      mock_create_pdf.call_args_list[0].kwargs['hyperlinks'],
+      [paperback_pages[1].hyperlink],
+    )
+    self.assertEqual(
+      mock_create_pdf.call_args_list[1].kwargs['hyperlinks'],
+      [ebook_pages[1].hyperlink],
+    )
+
+  @patch('common.image_operations._build_book_export_pages')
+  @patch('common.image_operations.cloud_storage.get_public_url')
+  @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
+  @patch('common.image_operations._build_joke_book_export_uris')
+  @patch('common.image_operations.pdf_client.create_pdf')
+  def test_export_joke_book_files_optionally_uploads_paperback_zip(
+    self,
+    mock_create_pdf,
+    mock_build_export_uris,
+    mock_upload_bytes,
+    mock_get_public_url,
+    mock_build_pages,
+  ):
+    book = models.JokeBook(
+      id='book-1',
+      book_name='My Book',
+      jokes=['joke1'],
+      belongs_to_page_gcs_uri='gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
+    )
+    paperback_pages = [
+      image_operations.BookPage(file_name='001.jpg', image_bytes=b'pb-1'),
+    ]
+    ebook_pages = [
+      image_operations.BookPage(file_name='001.jpg', image_bytes=b'eb-1'),
+    ]
+    mock_build_pages.side_effect = [paperback_pages, ebook_pages]
+    mock_create_pdf.side_effect = [b'%PDF-paperback', b'%PDF-ebook']
+    mock_build_export_uris.return_value = (
+      'gs://snickerdoodle_temp_files/joke_book_pages.zip',
+      'gs://snickerdoodle_temp_files/joke_book_pages_paperback.pdf',
+      'gs://snickerdoodle_temp_files/joke_book_pages_ebook.pdf',
     )
     mock_get_public_url.side_effect = [
       'https://cdn.example.com/book.zip',
       'https://cdn.example.com/book_paperback.pdf',
+      'https://cdn.example.com/book_ebook.pdf',
     ]
 
-    # Act
-    result = image_operations.export_joke_page_files_for_kdp(book)
+    result = image_operations.export_joke_book_files(
+      book,
+      export_zip_paperback=True,
+    )
 
-    # Assert URLs are returned
     self.assertEqual(result.zip_url, 'https://cdn.example.com/book.zip')
-    self.assertEqual(result.paperback_pdf_url,
-                     'https://cdn.example.com/book_paperback.pdf')
-
-    self.assertEqual(mock_upload_bytes.call_count, 2)
-    zip_upload_args, zip_upload_kwargs = mock_upload_bytes.call_args_list[0]
-    self.assertIsInstance(zip_upload_args[0], (bytes, bytearray))
+    self.assertEqual(mock_upload_bytes.call_count, 3)
+    zip_upload_args = mock_upload_bytes.call_args_list[0].args
     self.assertEqual(zip_upload_args[1],
                      'gs://snickerdoodle_temp_files/joke_book_pages.zip')
     self.assertEqual(zip_upload_args[2], 'application/zip')
-    self.assertEqual(zip_upload_kwargs, {})
-
-    pdf_upload_args, pdf_upload_kwargs = mock_upload_bytes.call_args_list[1]
-    self.assertEqual(pdf_upload_args[0], b'%PDF-export')
-    self.assertEqual(
-      pdf_upload_args[1],
-      'gs://snickerdoodle_temp_files/joke_book_pages_paperback.pdf',
-    )
-    self.assertEqual(pdf_upload_args[2], 'application/pdf')
-    self.assertEqual(pdf_upload_kwargs, {})
-
-    # Inspect ZIP structure
-    zip_bytes = zip_upload_args[0]
-    with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
-      names = sorted(zip_file.namelist())
-      self.assertEqual(names, [
-        '001_belongs.png',
-        '002_intro.jpg',
-        '003_joke1_setup.jpg',
-        '004_joke1_punchline.jpg',
-        '999_about_page_template.png',
-      ])
-
-      self.assertEqual(zip_file.read('001_belongs.png'), b'belongs-to-page')
-
-      # Intro page exists and is non-empty
-      intro_bytes = zip_file.read('002_intro.jpg')
-      self.assertIsInstance(intro_bytes, (bytes, bytearray))
-      self.assertGreater(len(intro_bytes), 0)
-
-      self.assertEqual(zip_file.read('003_joke1_setup.jpg'), b'setup-kdp')
-      self.assertEqual(zip_file.read('004_joke1_punchline.jpg'),
-                       b'punchline-kdp')
-      self.assertEqual(zip_file.read('999_about_page_template.png'),
-                       b'about-page-with-qr')
-
-    enhance_calls = mock_enhance_page_bytes.call_args_list
-    self.assertEqual(len(enhance_calls), 2)
-    self.assertEqual(enhance_calls[0].args[0], b'setup-kdp')
-    self.assertEqual(enhance_calls[1].args[0], b'punchline-kdp')
-    self.assertIn('editor', enhance_calls[0].kwargs)
-    self.assertIn('editor', enhance_calls[1].kwargs)
-
-    convert_calls = mock_convert_for_print.call_args_list
-    self.assertEqual(len(convert_calls), 4)
-    belongs_to_call = convert_calls[0]
-    self.assertFalse(belongs_to_call.kwargs['is_left_page'])
-    self.assertFalse(belongs_to_call.kwargs['add_page_number'])
-
-    setup_call = convert_calls[1]
-    self.assertEqual(setup_call.kwargs['page_number'], 1)
-    self.assertEqual(setup_call.kwargs['total_pages'], 2)
-    self.assertFalse(setup_call.kwargs['is_left_page'])
-
-    punchline_call = convert_calls[2]
-    self.assertEqual(punchline_call.kwargs['page_number'], 2)
-    self.assertEqual(punchline_call.kwargs['total_pages'], 2)
-    self.assertTrue(punchline_call.kwargs['is_left_page'])
-
-    about_call = convert_calls[3]
-    self.assertFalse(about_call.kwargs['is_left_page'])
-    self.assertFalse(about_call.kwargs['add_page_number'])
-    mock_add_review_qr.assert_called_once_with(
-      image_operations.BookPage(
-        file_name='999_about_page_template.png',
-        image_bytes=b'about-page',
-      ),
-      associated_book_key='animal-jokes',
-      page_index=4,
-    )
-
-    pdf_call = mock_create_pdf.call_args
-    self.assertEqual(pdf_call.kwargs, {
-      'dpi':
-      300,
-      'quality':
-      100,
-      'hyperlinks': [
-        pdf_client.HyperlinkSpec(
-          page_index=4,
-          url='https://example.com/review-bridge',
-          x1=image_operations._BOOK_REVIEW_QR_X,
-          y1=image_operations._BOOK_REVIEW_QR_Y,
-          x2=image_operations._BOOK_REVIEW_QR_X +
-          image_operations._BOOK_REVIEW_QR_SIZE_PX,
-          y2=image_operations._BOOK_REVIEW_QR_Y +
-          image_operations._BOOK_REVIEW_QR_SIZE_PX,
-        )
-      ],
-    })
-    pdf_images = pdf_call.args[0]
-    self.assertEqual(pdf_images[2:4], [b'setup-kdp', b'punchline-kdp'])
-    self.assertEqual(pdf_images[0], b'belongs-to-page')
-    self.assertIsInstance(pdf_images[1], (bytes, bytearray))
-    self.assertEqual(pdf_images[4], b'about-page-with-qr')
 
 
 if __name__ == '__main__':

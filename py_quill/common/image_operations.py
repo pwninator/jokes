@@ -43,7 +43,7 @@ _PAGE_NUMBER_FONT_URLS = (
   'https://github.com/googlefonts/nunito/raw/4be812cf4761b3ddc3b0ae894ef40ea21dcf6ff3/fonts/TTF/Nunito-Regular.ttf',
   'https://github.com/googlefonts/nunito/raw/refs/heads/main/fonts/variable/Nunito%5Bwght%5D.ttf',
 )
-_QR_CODE_CTA_FONT_SIZE = 40
+_QR_CODE_CTA_FONT_SIZE = 60
 _PAGE_NUMBER_FONT_SIZE = 60
 _PAGE_NUMBER_STROKE_RATIO = 0.14
 _PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
@@ -71,8 +71,9 @@ _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/99
 _BOOK_REVIEW_QR_SIZE_PX = 300
 _BOOK_REVIEW_QR_X = 425
 _BOOK_REVIEW_QR_Y = 1400
-_BOOK_REVIEW_QR_LABEL = 'Scan me!'
-_BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX = 12
+_BOOK_REVIEW_QR_LABEL_PAPERBACK = 'Scan me!'
+_BOOK_REVIEW_QR_LABEL_EBOOK = 'Tap me!'
+_BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX = 4
 
 
 @dataclass(frozen=True)
@@ -267,7 +268,7 @@ def _add_paperback_review_qr_to_page(
       composed_image.paste(overlay_rgb, (_BOOK_REVIEW_QR_X, _BOOK_REVIEW_QR_Y))
       label_drawer = _BookPageTextDrawer(
         composed_image,
-        text=_BOOK_REVIEW_QR_LABEL,
+        text=_BOOK_REVIEW_QR_LABEL_PAPERBACK,
         font_size=_QR_CODE_CTA_FONT_SIZE,
       )
       label_x = (_BOOK_REVIEW_QR_X +

@@ -657,6 +657,94 @@ def test_joke_creation_process_handles_joke_image_op(monkeypatch):
   assert second_call.kwargs["save_to_firestore"] is False
 
 
+def test_joke_creation_process_handles_joke_image_modify_op(monkeypatch):
+  """JOKE_IMAGE_MODIFY should edit and persist existing joke images."""
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
+
+  joke = models.PunnyJoke(
+    key="j-modify",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_image_url="https://storage.googleapis.com/example/setup.png",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, "get_punny_joke",
+                      lambda joke_id: joke if joke_id == "j-modify" else None)
+  monkeypatch.setattr(
+    joke_creation_fns.cloud_storage,
+    "extract_gcs_uri_from_image_url",
+    lambda url: f"gs://converted/{url.rsplit('/', 1)[-1]}",
+  )
+
+  captured = {}
+
+  def fake_modify_image(image, instruction):
+    captured["image"] = image
+    captured["instruction"] = instruction
+    return models.Image(
+      url="https://storage.googleapis.com/example/setup-modified.png",
+      gcs_uri="gs://example/setup-modified.png",
+    )
+
+  monkeypatch.setattr(joke_creation_fns.image_generation, "modify_image",
+                      fake_modify_image)
+
+  def fake_upsert(joke_to_save, *, operation=None, update_metadata=None):
+    captured["operation"] = operation
+    return joke_to_save
+
+  monkeypatch.setattr(joke_creation_fns.firestore, "upsert_punny_joke",
+                      fake_upsert)
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "to_response_joke",
+    lambda saved_joke: {
+      "key": saved_joke.key,
+      "setup_image_url": saved_joke.setup_image_url,
+    },
+  )
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_IMAGE_MODIFY.value,
+        "joke_id": "j-modify",
+        "setup_instruction": "make it sunnier",
+      }))
+
+  payload = resp.get_json()["data"]["joke_data"]
+  assert payload["key"] == "j-modify"
+  assert payload[
+    "setup_image_url"] == "https://storage.googleapis.com/example/setup-modified.png"
+  assert captured["instruction"] == "make it sunnier"
+  assert captured["image"].url == (
+    "https://storage.googleapis.com/example/setup.png")
+  assert captured["image"].gcs_uri == "gs://converted/setup.png"
+  assert captured["operation"] == "MODIFY_IMAGES"
+
+
+def test_joke_creation_process_joke_image_modify_requires_instruction(
+    monkeypatch):
+  """JOKE_IMAGE_MODIFY should reject requests without edit instructions."""
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_IMAGE_MODIFY.value,
+        "joke_id": "j-modify",
+      }))
+
+  data = resp.get_json()["data"]
+  assert "error" in data
+  assert "At least one instruction" in data["error"]
+
+
 def test_joke_creation_process_handles_lunchbox_note_op_for_manual_sheet(
     monkeypatch):
   """LUNCHBOX_NOTE should create a manual notes sheet from selected jokes."""

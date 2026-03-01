@@ -1,13 +1,12 @@
 """Joke cloud functions."""
 
-import functools
 import json
 import traceback
 from typing import Any
 
 from agents import agents_common, constants
 from agents.endpoints import all_agents
-from common import config, image_generation, joke_operations, models, utils
+from common import config, models, utils
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import (AuthError, error_response,
                                       get_bool_param, get_float_param,
@@ -449,102 +448,6 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
 )
-def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
-  """Modify a joke's images using instructions."""
-
-  try:
-    if response := handle_cors_preflight(req):
-      return response
-
-    if response := handle_health_check(req):
-      return response
-
-    if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}',
-                            req=req,
-                            status=405)
-
-    # Get the joke ID and instructions from request body or args
-    joke_id = get_param(req, 'joke_id')
-    setup_instruction = get_param(req, 'setup_instruction')
-    punchline_instruction = get_param(req, 'punchline_instruction')
-
-    if not joke_id:
-      return error_response('Joke ID is required', req=req, status=400)
-
-    if not setup_instruction and not punchline_instruction:
-      return error_response(
-        'At least one instruction (setup_instruction or punchline_instruction) is required',
-        req=req,
-        status=400)
-
-    # Load the joke from firestore
-    joke = firestore.get_punny_joke(joke_id)
-    if not joke:
-      return error_response(f'Joke not found: {joke_id}', req=req, status=404)
-
-    if setup_instruction:
-      error = _modify_and_set_image(
-        image_url=joke.setup_image_url,
-        instruction=setup_instruction,
-        image_setter=functools.partial(joke.set_setup_image,
-                                       update_text=False),
-        error_message='Joke has no setup image to modify')
-      if error:
-        return error_response(error, req=req, status=400)
-
-    if punchline_instruction:
-      error = _modify_and_set_image(
-        image_url=joke.punchline_image_url,
-        instruction=punchline_instruction,
-        image_setter=functools.partial(joke.set_punchline_image,
-                                       update_text=False),
-        error_message='Joke has no punchline image to modify')
-      if error:
-        return error_response(error, req=req, status=400)
-
-    # Save the updated joke back to firestore
-    saved_joke = firestore.upsert_punny_joke(joke)
-    if not saved_joke:
-      return error_response('Failed to save modified joke',
-                            req=req,
-                            status=500)
-
-    return success_response(
-      {"joke_data": joke_operations.to_response_joke(saved_joke)}, req=req)
-
-  except Exception as e:
-    stacktrace = traceback.format_exc()
-    print(f"Error modifying joke image: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to modify joke image: {str(e)}',
-                          req=req,
-                          status=500)
-
-
-def _modify_and_set_image(
-    image_url: str | None, instruction: str, image_setter: callable,
-    error_message: str) -> str | None:  # Return error string or None
-  if not image_url:
-    return error_message
-
-  image_to_modify = models.Image(
-    url=image_url,
-    gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(image_url),
-  )
-
-  new_image = image_generation.modify_image(
-    image_to_modify,
-    instruction,
-  )
-
-  image_setter(new_image)
-  return None
-
-
-@https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
-)
 def critique_jokes(req: https_fn.Request) -> https_fn.Response:
   """Critique a list of jokes using the joke critic agent."""
 
@@ -622,53 +525,5 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
     stacktrace = traceback.format_exc()
     print(f"Error critiquing jokes: {e}\nStacktrace:\n{stacktrace}")
     return error_response(f'Failed to critique jokes: {str(e)}',
-                          req=req,
-                          status=500)
-
-
-@https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
-)
-def upscale_joke(req: https_fn.Request) -> https_fn.Response:
-  """Upscale a joke's images."""
-  try:
-    if response := handle_cors_preflight(req):
-      return response
-
-    if response := handle_health_check(req):
-      return response
-
-    if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}',
-                            req=req,
-                            status=405)
-
-    joke_id = get_param(req, 'joke_id')
-    if not joke_id:
-      return error_response('joke_id is required', req=req, status=400)
-
-    mime_type = get_param(req, 'mime_type', 'image/png')
-    compression_quality = get_int_param(req, 'compression_quality', 0)
-    if not compression_quality:
-      compression_quality = None
-
-    try:
-      joke = joke_operations.upscale_joke(
-        joke_id,
-        mime_type=mime_type,
-        compression_quality=compression_quality,
-      )
-    except Exception as e:
-      return error_response(f'Failed to upscale joke: {str(e)}',
-                            req=req,
-                            status=500)
-
-    return success_response(
-      {"joke_data": joke_operations.to_response_joke(joke)}, req=req)
-  except Exception as e:
-    stacktrace = traceback.format_exc()
-    print(f"Error upscaling joke: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to upscale joke: {str(e)}',
                           req=req,
                           status=500)

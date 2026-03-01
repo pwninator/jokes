@@ -458,16 +458,19 @@ class JokeCloudFunctionService {
   }) async {
     try {
       final result = await _traceCf(
-        functionName: 'modify_joke_image',
+        functionName: 'joke_creation_process',
         action: () async {
           final callable = _fns.httpsCallable(
-            'modify_joke_image',
+            'joke_creation_process',
             options: HttpsCallableOptions(
               timeout: const Duration(seconds: 300),
             ),
           );
 
-          final requestData = <String, dynamic>{'joke_id': jokeId};
+          final requestData = <String, dynamic>{
+            'op': 'joke_image_modify',
+            'joke_id': jokeId,
+          };
 
           if (setupInstructions != null && setupInstructions.isNotEmpty) {
             requestData['setup_instruction'] = setupInstructions;

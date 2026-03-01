@@ -52,8 +52,6 @@ initialize_user_http = user_fns.initialize_user_http
 
 # Export the joke functions
 # critique_jokes = joke_fns.critique_jokes
-# modify_joke_image = joke_fns.modify_joke_image
-# upscale_joke = joke_fns.upscale_joke
 search_jokes = joke_fns.search_jokes
 # joke_manual_tag = joke_fns.joke_manual_tag
 get_joke_bundle = joke_fns.get_joke_bundle

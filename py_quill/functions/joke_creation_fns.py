@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from collections.abc import Callable
 from enum import Enum
 from typing import cast
 
@@ -25,6 +26,7 @@ class JokeCreationOp(str, Enum):
   """Supported joke creation operations."""
   PROC = "proc"
   JOKE_IMAGE = "joke_image"
+  JOKE_IMAGE_MODIFY = "joke_image_modify"
   JOKE_AUDIO = "joke_audio"
   JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
@@ -98,6 +100,8 @@ def _route_joke_creation_op(req: flask.Request) -> flask.Response:
     return _run_joke_creation_proc(req)
   if op == JokeCreationOp.JOKE_IMAGE:
     return _run_joke_image_tuner(req)
+  if op == JokeCreationOp.JOKE_IMAGE_MODIFY:
+    return _run_joke_image_modify_op(req)
   if op == JokeCreationOp.JOKE_AUDIO:
     return _run_joke_audio_tuner(req)
   if op == JokeCreationOp.JOKE_VIDEO:
@@ -378,6 +382,106 @@ def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string, error_type='internal_error', req=req)
+
+
+def _run_joke_image_modify_op(req: flask.Request) -> flask.Response:
+  """Modify a joke's existing images using edit instructions."""
+  joke_id = get_str_param(req, 'joke_id')
+  setup_instruction = get_str_param(req, 'setup_instruction')
+  punchline_instruction = get_str_param(req, 'punchline_instruction')
+
+  if not joke_id:
+    return error_response(
+      'Joke ID is required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  if not setup_instruction and not punchline_instruction:
+    return error_response(
+      'At least one instruction (setup_instruction or '
+      'punchline_instruction) is required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  joke = firestore.get_punny_joke(joke_id)
+  if not joke:
+    return error_response(
+      f'Joke not found: {joke_id}',
+      error_type='not_found',
+      status=404,
+      req=req,
+    )
+
+  if setup_instruction:
+    error = _modify_joke_image_part(
+      image_url=joke.setup_image_url,
+      instruction=setup_instruction,
+      image_setter=lambda image: joke.set_setup_image(image, update_text=False
+                                                      ),
+      error_message='Joke has no setup image to modify',
+    )
+    if error:
+      return error_response(
+        error,
+        error_type='invalid_request',
+        status=400,
+        req=req,
+      )
+
+  if punchline_instruction:
+    error = _modify_joke_image_part(
+      image_url=joke.punchline_image_url,
+      instruction=punchline_instruction,
+      image_setter=lambda image: joke.set_punchline_image(
+        image,
+        update_text=False,
+      ),
+      error_message='Joke has no punchline image to modify',
+    )
+    if error:
+      return error_response(
+        error,
+        error_type='invalid_request',
+        status=400,
+        req=req,
+      )
+
+  saved_joke = firestore.upsert_punny_joke(joke, operation='MODIFY_IMAGES')
+  if not saved_joke:
+    return error_response(
+      'Failed to save modified joke',
+      error_type='internal_error',
+      status=500,
+      req=req,
+    )
+
+  return success_response(
+    {"joke_data": joke_operations.to_response_joke(saved_joke)},
+    req=req,
+  )
+
+
+def _modify_joke_image_part(
+  image_url: str | None,
+  instruction: str,
+  image_setter: Callable[[models.Image], None],
+  error_message: str,
+) -> str | None:
+  """Modify one joke image in place, returning an error string when invalid."""
+  if not image_url:
+    return error_message
+
+  image_to_modify = models.Image(
+    url=image_url,
+    gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(image_url),
+  )
+  new_image = image_generation.modify_image(image_to_modify, instruction)
+  image_setter(new_image)
+  return None
 
 
 def _run_joke_video_tuner(req: flask.Request) -> flask.Response:

@@ -71,15 +71,9 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
   ),
 }
 
-_MODIFY_IMAGE_CLIENT_LOW = image_client.get_client(
-  label="pun_image_gemini_low",
-  model=image_client.ImageModel.GEMINI_NANO_BANANA,
-  file_name_base=_IMAGE_FILE_NAME_BASE,
-)
-
 _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
-  label="pun_image_gemini_high",
-  model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
+  label="pun_image_gemini",
+  model=image_client.ImageModel.GEMINI_NANO_BANANA_2_FLASH,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 

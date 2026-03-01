@@ -757,6 +757,57 @@ def test_admin_ads_reports_page_shows_request_button_when_all_processed(
   assert "/static/js/ads_reports.js" in html
 
 
+def test_admin_ads_reports_page_ignores_older_unprocessed_reports(monkeypatch):
+  """Ads reports page should key off only the latest report set."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_reports",
+    lambda *, created_on_or_after: [
+      _make_ads_report(
+        report_id="r-latest",
+        report_name="latest_processed_report",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        created_at=datetime.datetime(
+          2026, 2, 28, 12, 0, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 2, 28, 12, 1, tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=True,
+        raw_report_text='[{"date":"2026-02-28","campaignId":"1"}]',
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 28),
+      ),
+      _make_ads_report(
+        report_id="r-older",
+        report_name="older_unprocessed_report",
+        status="COMPLETED",
+        report_type_id="spCampaigns",
+        created_at=datetime.datetime(
+          2026, 2, 27, 12, 0, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 2, 27, 12, 1, tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=False,
+        raw_report_text='[{"date":"2026-02-27","campaignId":"2"}]',
+        start_date=datetime.date(2026, 1, 28),
+        end_date=datetime.date(2026, 2, 27),
+      ),
+    ],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-reports')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Request Reports" in html
+  assert 'action="/admin/ads-reports/request"' in html
+
+
 def test_admin_ads_stats_page_omits_refresh_button(monkeypatch):
   """Ads stats page should no longer expose report refresh controls."""
   _mock_admin_session(monkeypatch)
@@ -1262,6 +1313,126 @@ def test_admin_ads_reports_request_requests_when_all_processed(monkeypatch):
     resp = client.post(
       '/admin/ads-reports/request',
       json={"selected_report_name": "processed_report"},
+    )
+
+  assert resp.status_code == 200
+  payload = resp.get_json()
+  assert payload["action"] == "request"
+  assert payload["performed"] is True
+  assert payload["has_unprocessed_reports"] is True
+  assert "Requested 1 report set." in payload["content_html"]
+  assert "Process Reports" in payload["content_html"]
+  request_mock.assert_called_once()
+
+
+def test_admin_ads_reports_request_ignores_older_unprocessed_reports(
+    monkeypatch):
+  """Request route should allow a new request when only older report sets are unprocessed."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+
+  request_mock = Mock(
+    return_value=dashboard_routes.amazon.AdsStatsRequestResult(
+      selected_profiles=[],
+      reports_by_expected_key={},
+      report_requests=[{
+        "profile_id": "p1"
+      }],
+      report_end_date=datetime.date(2026, 2, 28),
+      report_start_date=datetime.date(2026, 1, 29),
+      profiles_considered=1,
+    ))
+  call_count = {"count": 0}
+
+  def _fake_list_reports(*, created_on_or_after):
+    call_count["count"] += 1
+    if call_count["count"] == 1:
+      return [
+        _make_ads_report(
+          report_id="r-latest",
+          report_name="latest_processed_report",
+          status="COMPLETED",
+          report_type_id="spCampaigns",
+          created_at=datetime.datetime(2026,
+                                       2,
+                                       28,
+                                       12,
+                                       0,
+                                       tzinfo=datetime.timezone.utc),
+          updated_at=datetime.datetime(2026,
+                                       2,
+                                       28,
+                                       12,
+                                       1,
+                                       tzinfo=datetime.timezone.utc),
+          profile_id="p-us",
+          profile_country="US",
+          processed=True,
+          raw_report_text='[{"date":"2026-02-28","campaignId":"1"}]',
+          start_date=datetime.date(2026, 1, 29),
+          end_date=datetime.date(2026, 2, 28),
+        ),
+        _make_ads_report(
+          report_id="r-older",
+          report_name="older_unprocessed_report",
+          status="COMPLETED",
+          report_type_id="spCampaigns",
+          created_at=datetime.datetime(2026,
+                                       2,
+                                       27,
+                                       12,
+                                       0,
+                                       tzinfo=datetime.timezone.utc),
+          updated_at=datetime.datetime(2026,
+                                       2,
+                                       27,
+                                       12,
+                                       1,
+                                       tzinfo=datetime.timezone.utc),
+          profile_id="p-us",
+          profile_country="US",
+          processed=False,
+          raw_report_text='[{"date":"2026-02-27","campaignId":"2"}]',
+          start_date=datetime.date(2026, 1, 28),
+          end_date=datetime.date(2026, 2, 27),
+        ),
+      ]
+    return [
+      _make_ads_report(
+        report_id="r-new",
+        report_name="new_pending_report",
+        status="PROCESSING",
+        report_type_id="spCampaigns",
+        created_at=datetime.datetime(2026,
+                                     2,
+                                     28,
+                                     13,
+                                     0,
+                                     tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026,
+                                     2,
+                                     28,
+                                     13,
+                                     1,
+                                     tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=False,
+        raw_report_text=None,
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 28),
+      ),
+    ]
+
+  monkeypatch.setattr(firestore_service, "list_amazon_ads_reports",
+                      _fake_list_reports)
+  monkeypatch.setattr(dashboard_routes.amazon, "request_ads_stats_reports",
+                      request_mock)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/ads-reports/request',
+      json={"selected_report_name": "latest_processed_report"},
     )
 
   assert resp.status_code == 200

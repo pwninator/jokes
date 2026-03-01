@@ -441,7 +441,8 @@ def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
   assert by_asin["B0G9765J19"].units_sold == 1
   assert by_asin["B0G9765J19"].total_sales_usd == pytest.approx(2.99, rel=1e-6)
   assert by_asin["B0GNHFKQ8W"].units_sold == 1
-  assert by_asin["B0GNHFKQ8W"].total_sales_usd == pytest.approx(11.99, rel=1e-6)
+  assert by_asin["B0GNHFKQ8W"].total_sales_usd == pytest.approx(11.99,
+                                                                rel=1e-6)
 
 
 def test_get_daily_campaign_stats_from_reports_converts_cad_to_usd(
@@ -1015,3 +1016,187 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
     20,
   )
   assert captured_reconciliation[0]["run_time_utc"] == run_time_utc
+
+
+def test_get_latest_ads_reports_by_profile_type_picks_latest_window_and_rows():
+  reports = [
+    _report_status(
+      report_id="old-campaigns",
+      report_name="old-campaigns",
+      status="COMPLETED",
+      report_type_id="spCampaigns",
+      start_date=datetime.date(2026, 1, 28),
+      end_date=datetime.date(2026, 2, 27),
+      created_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   20,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   2,
+                                   27,
+                                   20,
+                                   2,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
+    _report_status(
+      report_id="older-window-campaigns",
+      report_name="older-window-campaigns",
+      status="COMPLETED",
+      report_type_id="spCampaigns",
+      start_date=datetime.date(2026, 1, 29),
+      end_date=datetime.date(2026, 2, 28),
+      created_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   5,
+                                   30,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   5,
+                                   31,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
+    _report_status(
+      report_id="older-window-advertised",
+      report_name="older-window-advertised",
+      status="COMPLETED",
+      report_type_id="spAdvertisedProduct",
+      start_date=datetime.date(2026, 1, 29),
+      end_date=datetime.date(2026, 2, 28),
+      created_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   5,
+                                   30,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   5,
+                                   31,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
+    _report_status(
+      report_id="latest-window-campaigns",
+      report_name="latest-window-campaigns",
+      status="PENDING",
+      report_type_id="spCampaigns",
+      start_date=datetime.date(2026, 1, 29),
+      end_date=datetime.date(2026, 2, 28),
+      created_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   7,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   7,
+                                   2,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
+    _report_status(
+      report_id="latest-window-advertised",
+      report_name="latest-window-advertised",
+      status="PENDING",
+      report_type_id="spAdvertisedProduct",
+      start_date=datetime.date(2026, 1, 29),
+      end_date=datetime.date(2026, 2, 28),
+      created_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   7,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   7,
+                                   2,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
+  ]
+
+  selected = amazon.get_latest_ads_reports_by_profile_type(reports=reports)
+
+  assert set(selected.keys()) == {
+    ("profile-1", "spCampaigns"),
+    ("profile-1", "spAdvertisedProduct"),
+  }
+  assert selected[("profile-1",
+                   "spCampaigns")].report_id == ("latest-window-campaigns")
+  assert selected[("profile-1", "spAdvertisedProduct")].report_id == (
+    "latest-window-advertised")
+
+
+def test_get_ads_stats_context_uses_latest_available_reports(monkeypatch):
+  run_time_utc = datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   8,
+                                   30,
+                                   tzinfo=datetime.timezone.utc)
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="US",
+  )
+  monkeypatch.setattr(amazon,
+                      "get_profiles",
+                      lambda *, region="all": [profile])
+  monkeypatch.setattr(
+    amazon.firestore,
+    "list_amazon_ads_reports",
+    lambda *, created_on_or_after: [
+      _report_status(
+        report_id="campaigns-id",
+        report_name="campaigns-report",
+        status="PENDING",
+        report_type_id="spCampaigns",
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 28),
+        created_at=datetime.datetime(
+          2026, 3, 1, 4, 1, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 3, 1, 4, 2, tzinfo=datetime.timezone.utc),
+        profile_id="profile-1",
+      ),
+      _report_status(
+        report_id="advertised-id",
+        report_name="advertised-report",
+        status="PENDING",
+        report_type_id="spAdvertisedProduct",
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 28),
+        created_at=datetime.datetime(
+          2026, 3, 1, 4, 1, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 3, 1, 4, 2, tzinfo=datetime.timezone.utc),
+        profile_id="profile-1",
+      ),
+    ],
+  )
+
+  context = amazon.get_ads_stats_context(run_time_utc)
+
+  assert context.report_end_date == datetime.date(2026, 3, 1)
+  assert context.report_start_date == datetime.date(2026, 1, 30)
+  assert context.reports_by_expected_key[(
+    "profile-1",
+    "spCampaigns",
+  )].report_id == "campaigns-id"
+  assert context.reports_by_expected_key[(
+    "profile-1",
+    "spAdvertisedProduct",
+  )].report_id == "advertised-id"

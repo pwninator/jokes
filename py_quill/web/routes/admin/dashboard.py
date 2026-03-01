@@ -398,8 +398,10 @@ def _list_recent_amazon_ads_reports(
 
 def _has_unprocessed_amazon_ads_reports(
   reports: list[models.AmazonAdsReport], ) -> bool:
-  """Return whether any recent ads reports still need processing."""
-  return any(not report.processed for report in reports)
+  """Return whether the latest available report set still needs processing."""
+  latest_reports = amazon.get_latest_ads_reports_by_profile_type(
+    reports=reports).values()
+  return any(not report.processed for report in latest_reports)
 
 
 def _get_ads_reports_action(has_unprocessed_reports: bool) -> dict[str, str]:

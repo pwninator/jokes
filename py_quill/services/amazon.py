@@ -318,12 +318,8 @@ def get_ads_stats_context(run_time_utc: datetime.datetime) -> AdsStatsContext:
     (profile.country_code, profile.region, profile.profile_id),
   )
 
-  reports_by_expected_key = _select_today_reports_for_window(
-    reports=existing_reports,
-    today_utc=today_utc,
-    report_start_date=report_start_date,
-    report_end_date=report_end_date,
-  )
+  reports_by_expected_key = get_latest_ads_reports_by_profile_type(
+    reports=existing_reports)
 
   return AdsStatsContext(
     selected_profiles=selected_profiles,
@@ -503,14 +499,26 @@ def fetch_ads_stats_reports(
   return report_metadata, daily_campaign_stats_rows
 
 
-def _select_today_reports_for_window(
+def get_latest_ads_reports_by_profile_type(
   *,
   reports: list[models.AmazonAdsReport],
-  today_utc: datetime.date,
-  report_start_date: datetime.date,
-  report_end_date: datetime.date,
 ) -> dict[tuple[str, str], models.AmazonAdsReport]:
-  """Pick most recent report per profile/type created today for the target window."""
+  """Pick the latest available report window and latest report per profile/type."""
+  latest_window_key: tuple[datetime.date, datetime.date] | None = None
+  for report in reports:
+    profile_id = report.profile_id or ""
+    if not profile_id:
+      continue
+    if report.report_type_id not in ADS_STATS_REQUIRED_REPORT_TYPES:
+      continue
+
+    window_key = (report.end_date, report.start_date)
+    if latest_window_key is None or window_key > latest_window_key:
+      latest_window_key = window_key
+
+  if latest_window_key is None:
+    return {}
+
   selected: dict[tuple[str, str], models.AmazonAdsReport] = {}
   for report in reports:
     profile_id = report.profile_id or ""
@@ -518,10 +526,7 @@ def _select_today_reports_for_window(
       continue
     if report.report_type_id not in ADS_STATS_REQUIRED_REPORT_TYPES:
       continue
-    if (report.start_date != report_start_date
-        or report.end_date != report_end_date):
-      continue
-    if report.created_at.date() != today_utc:
+    if (report.end_date, report.start_date) != latest_window_key:
       continue
 
     key = (profile_id, report.report_type_id)

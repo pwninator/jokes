@@ -67,8 +67,8 @@ _SOCIAL_4X5_JOKE_IMAGE_SIZE_PX = (1024, 1024)
 
 _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/999_about_page_template.png"
 _BOOK_REVIEW_QR_SIZE_PX = 300
-_BOOK_REVIEW_QR_X = 423
-_BOOK_REVIEW_QR_Y = 1415
+_BOOK_REVIEW_QR_X = 425
+_BOOK_REVIEW_QR_Y = 1400
 
 
 @dataclass(frozen=True)
@@ -406,7 +406,9 @@ def export_joke_page_files_for_kdp(
     [page.image_bytes for page in files],
     dpi=300,
     quality=100,
-    hyperlinks=[page.hyperlink for page in files if page.hyperlink is not None],
+    hyperlinks=[
+      page.hyperlink for page in files if page.hyperlink is not None
+    ],
   )
   zip_gcs_uri, pdf_gcs_uri = _build_joke_book_export_uris()
   _ = cloud_storage.upload_bytes_to_gcs(

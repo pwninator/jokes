@@ -646,18 +646,19 @@ def _run_lunchbox_note_proc(req: flask.Request) -> flask.Response:
                           error_type='invalid_request',
                           status=404,
                           req=req)
-  if not category.jokes:
-    return error_response('Category has no jokes',
+  if len(category.jokes) < 5:
+    return error_response('Category must have at least 5 jokes',
                           error_type='invalid_request',
                           status=400,
                           req=req)
+  jokes_for_sheet = _get_full_sheet_jokes(category.jokes)
 
   branded_sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
-    category.jokes,
+    jokes_for_sheet,
     branded=True,
   )
   unbranded_sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(
-    category.jokes,
+    jokes_for_sheet,
     branded=False,
   )
   _ = firestore.db().collection('joke_categories').document(category_id).set(
@@ -678,6 +679,15 @@ def _run_lunchbox_note_proc(req: flask.Request) -> flask.Response:
     },
     req=req,
   )
+
+
+def _get_full_sheet_jokes(
+  jokes: list[models.PunnyJoke], ) -> list[models.PunnyJoke]:
+  """Trim category jokes to the largest full-sheet count (5 + 6n)."""
+  if len(jokes) < 5:
+    return []
+  full_sheet_joke_count = 5 + (6 * ((len(jokes) - 5) // 6))
+  return list(jokes[:full_sheet_joke_count])
 
 
 def _run_character_animation_op(req: flask.Request) -> flask.Response:

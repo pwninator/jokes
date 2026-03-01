@@ -724,10 +724,10 @@ def test_joke_creation_process_handles_lunchbox_note_op_for_category(
     joke_description_query="animals",
     jokes=[
       models.PunnyJoke(
-        key="j-1",
-        setup_text="setup 1",
-        punchline_text="punch 1",
-      )
+        key=f"j-{i}",
+        setup_text=f"setup {i}",
+        punchline_text=f"punch {i}",
+      ) for i in range(5)
     ],
   )
   monkeypatch.setattr(
@@ -798,6 +798,98 @@ def test_joke_creation_process_handles_lunchbox_note_op_for_category(
     },
     merge=True,
   )
+
+
+def test_joke_creation_process_lunchbox_note_category_rejects_under_five_jokes(
+    monkeypatch):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
+  monkeypatch.setattr(
+    joke_creation_fns.firestore, "get_joke_category",
+    lambda _category_id: models.JokeCategory(
+      id="animals",
+      display_name="Animals",
+      joke_description_query="animals",
+      jokes=[
+        models.PunnyJoke(
+          key=f"j-{i}", setup_text="setup", punchline_text="punch")
+        for i in range(4)
+      ],
+    ))
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.LUNCHBOX_NOTE.value,
+        "category_id": "animals",
+      }))
+
+  assert resp.status_code == 400
+  assert "at least 5 jokes" in resp.get_json()["data"]["error"]
+
+
+def test_joke_creation_process_lunchbox_note_category_trims_to_full_sheets(
+    monkeypatch):
+  monkeypatch.setattr(
+    joke_creation_fns,
+    'get_user_id',
+    lambda req, allow_unauthenticated=False, require_admin=False: "admin-user")
+
+  jokes = [
+    models.PunnyJoke(
+      key=f"j-{i}",
+      setup_text=f"setup {i}",
+      punchline_text=f"punch {i}",
+    ) for i in range(16)
+  ]
+  monkeypatch.setattr(
+    joke_creation_fns.firestore, "get_joke_category",
+    lambda category_id: models.JokeCategory(
+      id=category_id,
+      display_name="Animals",
+      joke_description_query="animals",
+      jokes=jokes,
+    ))
+
+  captured: list[list[str]] = []
+
+  def fake_ensure_joke_notes_sheet(jokes_arg, **kwargs):
+    del kwargs
+    captured.append([j.key for j in jokes_arg if j.key])
+    return models.JokeSheet(
+      key="sheet-id",
+      joke_ids=[j.key for j in jokes_arg if j.key],
+      image_gcs_uri="gs://bucket/sheet.png",
+      pdf_gcs_uri="gs://bucket/sheet.pdf",
+    )
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_notes_sheet_operations,
+    "ensure_joke_notes_sheet",
+    fake_ensure_joke_notes_sheet,
+  )
+
+  mock_doc = MagicMock()
+  mock_collection = MagicMock()
+  mock_collection.document.return_value = mock_doc
+  mock_db = MagicMock()
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(joke_creation_fns.firestore, "db", lambda: mock_db)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.LUNCHBOX_NOTE.value,
+        "category_id": "animals",
+      }))
+
+  assert resp.status_code == 200
+  assert captured == [
+    [f"j-{i}" for i in range(11)],
+    [f"j-{i}" for i in range(11)],
+  ]
 
 
 def test_joke_creation_process_handles_joke_audio_op(monkeypatch):

@@ -1433,23 +1433,39 @@ class AddPageNumberToImageTest(unittest.TestCase):
 class ExportJokePageFilesTest(unittest.TestCase):
   """Tests for joke-book ZIP/PDF export."""
 
-  def test_enhance_kdp_export_page_bytes_uses_default_editor_args(self):
-    """KDP export enhancement should call enhance_image with default args."""
+  @patch('common.image_operations._save_jpeg_bytes', return_value=b'enhanced')
+  def test_enhance_kdp_export_page_bytes_uses_profile_encoder_settings(
+    self,
+    mock_save_jpeg_bytes,
+  ):
+    """KDP export enhancement should use the active profile JPEG settings."""
     page_image = Image.new('RGB', (32, 32), 'red')
     buffer = BytesIO()
     page_image.save(buffer, format='JPEG', quality=100)
 
     mock_editor = MagicMock()
     mock_editor.enhance_image.return_value = Image.new('RGB', (32, 32), 'blue')
+    profile = image_operations._EBOOK_EXPORT_PROFILE
 
     enhanced_bytes = image_operations._enhance_kdp_export_page_bytes(
       buffer.getvalue(),
+      profile=profile,
       editor=mock_editor,
     )
 
-    self.assertIsInstance(enhanced_bytes, (bytes, bytearray))
+    self.assertEqual(enhanced_bytes, b'enhanced')
     mock_editor.enhance_image.assert_called_once()
     self.assertEqual(mock_editor.enhance_image.call_args.kwargs, {})
+    mock_save_jpeg_bytes.assert_called_once()
+    self.assertEqual(
+      mock_save_jpeg_bytes.call_args.kwargs,
+      dict(
+        quality=profile.jpeg_quality,
+        subsampling=profile.jpeg_subsampling,
+        progressive=profile.jpeg_progressive,
+        color_mode='RGB',
+      ),
+    )
 
   @patch('common.image_operations._add_page_number_to_image',
          side_effect=lambda image, **_kwargs: image)

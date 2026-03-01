@@ -96,6 +96,8 @@ class BookExportProfile:
   output_base_size_px: tuple[int, int]
   output_bleed_size_px: int
   jpeg_quality: int
+  jpeg_subsampling: int
+  jpeg_progressive: bool
   review_book_format: book_defs.BookFormat
   qr_label: str
 
@@ -176,14 +178,18 @@ _PAPERBACK_EXPORT_PROFILE = BookExportProfile(
   output_base_size_px=(1800, 1800),
   output_bleed_size_px=38,
   jpeg_quality=100,
+  jpeg_subsampling=0,
+  jpeg_progressive=True,
   review_book_format=book_defs.BookFormat.PAPERBACK,
   qr_label="Scan me!",
 )
 _EBOOK_EXPORT_PROFILE = BookExportProfile(
   name='ebook',
-  output_base_size_px=(700, 700),
+  output_base_size_px=(600, 600),
   output_bleed_size_px=0,
   jpeg_quality=50,
+  jpeg_subsampling=2,
+  jpeg_progressive=True,
   review_book_format=book_defs.BookFormat.EBOOK,
   qr_label="Tap me!",
 )
@@ -621,20 +627,19 @@ def _create_blank_export_page_bytes(
     (profile.final_width_px, profile.final_height_px),
     page_color,
   )
-  buffer = BytesIO()
-  page.save(
-    buffer,
-    format='JPEG',
+  return _save_jpeg_bytes(
+    page,
     quality=profile.jpeg_quality,
-    subsampling=0,
-    dpi=(300, 300),
+    subsampling=profile.jpeg_subsampling,
+    progressive=profile.jpeg_progressive,
+    color_mode=color_mode,
   )
-  return buffer.getvalue()
 
 
 def _enhance_kdp_export_page_bytes(
   page_bytes: bytes,
   *,
+  profile: BookExportProfile,
   editor: image_editor.ImageEditor,
 ) -> bytes:
   """Apply the default image-enhancement pass to a final KDP page image."""
@@ -643,18 +648,13 @@ def _enhance_kdp_export_page_bytes(
     enhanced_page = editor.enhance_image(page_image)
 
   try:
-    if enhanced_page.mode != 'RGB':
-      enhanced_page = enhanced_page.convert('RGB')
-
-    buffer = BytesIO()
-    enhanced_page.save(
-      buffer,
-      format='JPEG',
-      quality=100,
-      subsampling=0,
-      dpi=(300, 300),
+    return _save_jpeg_bytes(
+      enhanced_page,
+      quality=profile.jpeg_quality,
+      subsampling=profile.jpeg_subsampling,
+      progressive=profile.jpeg_progressive,
+      color_mode=_KDP_PRINT_COLOR_MODE,
     )
-    return buffer.getvalue()
   finally:
     enhanced_page.close()
 
@@ -701,6 +701,8 @@ def _save_jpeg_bytes(
   image: Image.Image,
   *,
   quality: int,
+  subsampling: int,
+  progressive: bool,
   color_mode: str,
 ) -> bytes:
   """Encode an image as JPEG bytes."""
@@ -710,7 +712,8 @@ def _save_jpeg_bytes(
     buffer,
     format='JPEG',
     quality=quality,
-    subsampling=0,
+    subsampling=subsampling,
+    progressive=progressive,
     dpi=(300, 300),
   )
   return buffer.getvalue()
@@ -754,6 +757,8 @@ def _add_review_qr_to_page(
       image_bytes = _save_jpeg_bytes(
         composed_image,
         quality=profile.jpeg_quality,
+        subsampling=profile.jpeg_subsampling,
+        progressive=profile.jpeg_progressive,
         color_mode=_KDP_PRINT_COLOR_MODE,
       )
     finally:
@@ -873,6 +878,7 @@ def _build_book_export_pages(
         color_mode=_KDP_PRINT_COLOR_MODE,
         profile=profile,
       ),
+      profile=profile,
       editor=editor,
     )
     current_page_number += 1
@@ -885,6 +891,7 @@ def _build_book_export_pages(
         color_mode=_KDP_PRINT_COLOR_MODE,
         profile=profile,
       ),
+      profile=profile,
       editor=editor,
     )
     current_page_number += 1
@@ -914,6 +921,8 @@ def _build_book_export_pages(
         image_bytes=_save_jpeg_bytes(
           scaled_about_image,
           quality=profile.jpeg_quality,
+          subsampling=profile.jpeg_subsampling,
+          progressive=profile.jpeg_progressive,
           color_mode=_KDP_PRINT_COLOR_MODE,
         ),
       ),
@@ -1404,6 +1413,8 @@ def _save_book_export_image_bytes(
   return _save_jpeg_bytes(
     converted_image,
     quality=profile.jpeg_quality,
+    subsampling=profile.jpeg_subsampling,
+    progressive=profile.jpeg_progressive,
     color_mode=color_mode,
   )
 

@@ -15,6 +15,10 @@
   const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const RESERVED_RIGHT_GUTTER_PX = 56;
 
+  function getChartTypeForMode(mode) {
+    return mode === DAYS_OF_WEEK_MODE ? 'bar' : 'line';
+  }
+
   function isIsoDateString(value) {
     return ISO_DATE_RE.test(String(value || ''));
   }
@@ -959,6 +963,7 @@
           return;
         }
         const ctx = canvas.getContext('2d');
+        const chartType = getChartTypeForMode(mode);
         const hasVisibleRightAxis = Boolean(
           scales
           && Object.values(scales).some((scale) => {
@@ -971,7 +976,7 @@
         }
 
         charts[canvasId] = new chartCtor(ctx, {
-          type: 'line',
+          type: chartType,
           data: {
             labels: labels,
             datasets: datasets,
@@ -1007,28 +1012,37 @@
         });
       }
 
-      function createLineDataset(config) {
+      function createLineDataset(config, mode) {
+        const datasetType = config.type || getChartTypeForMode(mode);
+        const isBarDataset = datasetType === 'bar';
         const dataset = {
+          type: datasetType,
           label: config.label,
           data: config.data,
           borderColor: config.borderColor,
-          backgroundColor: config.backgroundColor || `${config.borderColor}22`,
-          fill: config.fill || false,
-          tension: config.tension == null ? 0.2 : config.tension,
-          pointRadius: config.pointRadius == null ? 3 : config.pointRadius,
+          backgroundColor: config.backgroundColor
+            || (isBarDataset ? `${config.borderColor}cc` : `${config.borderColor}22`),
+          fill: isBarDataset ? false : (config.fill || false),
+          tension: isBarDataset ? 0 : (config.tension == null ? 0.2 : config.tension),
+          pointRadius: isBarDataset ? 0 : (config.pointRadius == null ? 3 : config.pointRadius),
           yAxisID: config.yAxisID || 'y',
           formatType: config.formatType || 'number',
         };
         if (config.borderWidth != null) {
           dataset.borderWidth = config.borderWidth;
         }
+        if (isBarDataset) {
+          dataset.borderRadius = config.borderRadius == null ? 4 : config.borderRadius;
+          dataset.maxBarThickness = config.maxBarThickness == null ? 36 : config.maxBarThickness;
+        }
         return dataset;
       }
 
-      function createThresholdDataset(labels) {
+      function createThresholdDataset(labels, mode) {
         return createLineDataset({
           label: 'POAS Threshold (1.0)',
           data: labels.map(() => 1.0),
+          type: mode === DAYS_OF_WEEK_MODE ? 'line' : undefined,
           borderColor: '#c62828',
           fill: false,
           tension: 0,
@@ -1036,7 +1050,7 @@
           borderWidth: 1,
           yAxisID: 'y',
           formatType: 'ratio',
-        });
+        }, mode);
       }
 
       function buildSingleAxis(formatType, suggestedMax) {
@@ -1090,26 +1104,26 @@
             data: series.cost,
             borderColor: '#c62828',
             formatType: 'currency',
-          }),
+          }, mode),
           createLineDataset({
             label: 'Profit Before Ads (ads)',
             data: series.ads_profit_before_ads_usd,
             borderColor: '#ef6c00',
             formatType: 'currency',
-          }),
+          }, mode),
           createLineDataset({
             label: 'Profit Before Ads (reconciled)',
             data: series.reconciled_profit_before_ads_usd,
             borderColor: '#2e7d32',
             formatType: 'currency',
-          }),
+          }, mode),
           createLineDataset({
             label: 'Gross Profit',
             data: series.gross_profit_usd,
             borderColor: '#6a1b9a',
             fill: 'origin',
             formatType: 'currency',
-          }),
+          }, mode),
         ];
         createMultiLineChart(
           'reconciledProfitTimelineChart',
@@ -1129,7 +1143,7 @@
             data: series.poas,
             borderColor: poasColor,
             formatType: 'ratio',
-          }),
+          }, mode),
         ];
         if (tpoasLabel) {
           datasets.push(createLineDataset({
@@ -1137,9 +1151,9 @@
             data: series.tpoas,
             borderColor: tpoasColor,
             formatType: 'ratio',
-          }));
+          }, mode));
         }
-        datasets.push(createThresholdDataset(series.labels));
+        datasets.push(createThresholdDataset(series.labels, mode));
         createMultiLineChart(
           canvasId,
           series.labels,
@@ -1160,14 +1174,14 @@
               borderColor: '#d81b60',
               yAxisID: 'y',
               formatType: 'currency',
-            }),
+            }, mode),
             createLineDataset({
               label: 'Conversion Rate',
               data: series.conversion_rate,
               borderColor: '#00838f',
               yAxisID: 'y1',
               formatType: 'percent',
-            }),
+            }, mode),
           ],
           buildDualAxis('currency', 'percent'),
           mode,
@@ -1184,7 +1198,7 @@
               data: series.ctr,
               borderColor: '#ef6c00',
               formatType: 'percent',
-            }),
+            }, mode),
           ],
           buildSingleAxis('percent'),
           mode,
@@ -1202,14 +1216,14 @@
               borderColor: '#2e7d32',
               yAxisID: 'y',
               formatType: 'number',
-            }),
+            }, mode),
             createLineDataset({
               label: 'Clicks',
               data: series.clicks,
               borderColor: '#1565c0',
               yAxisID: 'y1',
               formatType: 'number',
-            }),
+            }, mode),
           ],
           buildDualAxis('number', 'number'),
           mode,
@@ -1226,19 +1240,19 @@
               data: series.ads_profit_before_ads_usd,
               borderColor: '#ef6c00',
               formatType: 'currency',
-            }),
+            }, mode),
             createLineDataset({
               label: 'Matched Ads Profit',
               data: series.matched_ads_profit_before_ads_usd,
               borderColor: '#2e7d32',
               formatType: 'currency',
-            }),
+            }, mode),
             createLineDataset({
               label: 'Unmatched Ad Profit',
               data: series.unmatched_pre_ad_profit_usd,
               borderColor: '#c62828',
               formatType: 'currency',
-            }),
+            }, mode),
           ],
           buildSingleAxis('currency'),
           mode,

@@ -90,6 +90,9 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert '"states": "UNKNOWN,DRAFT,UNREVIEWED,APPROVED"' in html
   assert '"category": null' in html
   assert 'id="admin-new-joke-button"' in html
+  assert 'id="admin-jokes-calendar-toggle-button"' in html
+  assert 'id="admin-jokes-calendar-panel"' in html
+  assert 'id="admin-jokes-calendar-month-picker"' in html
   assert 'id="admin-edit-joke-modal"' in html
   assert 'id="admin-edit-joke-setup-scene-idea"' not in html
   assert 'id="admin-edit-joke-punchline-scene-idea"' not in html
@@ -108,7 +111,11 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'punchline_text' in html
   assert 'punch' in html
   assert 'joke_admin_actions.js' in html
+  assert 'admin_jokes_calendar.js' in html
   assert 'initJokeAdminActions' in html
+  assert 'initAdminJokesCalendar' in html
+  assert '/admin/jokes/calendar-data' in html
+  assert '/admin/jokes/calendar-move' in html
 
   # New joke modal: tabbing from Punchline should focus Submit before Cancel.
   submit_index = html.find('id="admin-new-joke-submit-button"')
@@ -296,3 +303,89 @@ def test_admin_jokes_future_daily_badge_uses_future_class(monkeypatch):
   html = resp.get_data(as_text=True)
   assert "joke-state-future-daily" in html
   assert "joke-state-daily joke-state-future-daily" not in html
+
+
+def test_admin_jokes_calendar_data(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  captured = {}
+
+  def _mock_window(*, start_month, end_month):
+    captured["start_month"] = start_month
+    captured["end_month"] = end_month
+    return Mock(
+      to_dict=lambda: {
+        "months": [{
+          "month_id": "2026-03",
+        }],
+        "earliest_month_id": "2026-01",
+        "latest_month_id": "2027-03",
+        "initial_month_id": "2026-03",
+        "today_iso_date": "2026-03-01",
+      })
+
+  monkeypatch.setattr(admin_jokes_routes.joke_state_operations,
+                      "get_daily_calendar_window", _mock_window)
+
+  with app.test_client() as client:
+    resp = client.get(
+      "/admin/jokes/calendar-data?start_month=2026-02&end_month=2026-04")
+
+  assert resp.status_code == 200
+  assert resp.headers["Cache-Control"] == "no-store"
+  assert captured["start_month"] == datetime.date(2026, 2, 1)
+  assert captured["end_month"] == datetime.date(2026, 4, 1)
+  assert resp.get_json()["initial_month_id"] == "2026-03"
+  assert resp.get_json()["today_iso_date"] == "2026-03-01"
+
+
+def test_admin_jokes_calendar_move(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  captured = {}
+
+  def _mock_move(*, joke_id, source_date, target_date):
+    captured["joke_id"] = joke_id
+    captured["source_date"] = source_date
+    captured["target_date"] = target_date
+    return Mock(
+      to_dict=lambda: {
+        "joke_id": joke_id,
+        "source_date": source_date.isoformat(),
+        "target_date": target_date.isoformat(),
+      })
+
+  monkeypatch.setattr(admin_jokes_routes.joke_state_operations,
+                      "move_daily_joke", _mock_move)
+
+  with app.test_client() as client:
+    resp = client.post("/admin/jokes/calendar-move",
+                       json={
+                         "joke_id": "joke-1",
+                         "source_date": "2026-03-05",
+                         "target_date": "2026-04-07",
+                       })
+
+  assert resp.status_code == 200
+  assert captured["joke_id"] == "joke-1"
+  assert captured["source_date"] == datetime.date(2026, 3, 5)
+  assert captured["target_date"] == datetime.date(2026, 4, 7)
+  assert resp.get_json()["target_date"] == "2026-04-07"
+
+
+def test_admin_jokes_calendar_move_rejects_bad_payload(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  with app.test_client() as client:
+    resp = client.post("/admin/jokes/calendar-move",
+                       json={
+                         "joke_id": "joke-1",
+                         "source_date": "not-a-date",
+                         "target_date": "2026-04-07",
+                       })
+
+  assert resp.status_code == 400
+  assert resp.get_json()["error"] == "source_date must use YYYY-MM-DD format"

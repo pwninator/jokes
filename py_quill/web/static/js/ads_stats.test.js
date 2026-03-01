@@ -4,6 +4,7 @@ const test = require('node:test');
 const {
   DAYS_OF_WEEK_MODE,
   DAYS_OF_WEEK_LABELS,
+  TIMELINE_MODE,
   buildDaysOfWeekSeries,
   buildReconciledChartStats,
   buildChartStats,
@@ -14,6 +15,7 @@ const {
   groupAdsEventsByDate,
   getAdsEventTooltipLines,
   getDailyStatsForCampaign,
+  initAdsStatsPage,
   reserveScaleWidth,
   showCopyFeedback,
 } = require('./ads_stats.js');
@@ -37,6 +39,112 @@ function createFakePopup() {
     },
     setAttribute: (name, value) => attributes.set(name, value),
     getAttribute: (name) => attributes.get(name),
+  };
+}
+
+function createFakeElement(overrides = {}) {
+  const listeners = {};
+  const attributes = new Map();
+  return {
+    value: '',
+    textContent: '',
+    children: [],
+    style: {},
+    hidden: false,
+    classList: {
+      add: () => {},
+      remove: () => {},
+      contains: () => false,
+    },
+    appendChild(child) {
+      this.children.push(child);
+      return child;
+    },
+    addEventListener(type, handler) {
+      listeners[type] = handler;
+    },
+    dispatch(type, event = {}) {
+      if (listeners[type]) {
+        listeners[type](event);
+      }
+    },
+    setAttribute(name, value) {
+      attributes.set(name, value);
+    },
+    getAttribute(name) {
+      return attributes.get(name);
+    },
+    ...overrides,
+  };
+}
+
+function createFakeCanvas(id) {
+  const canvas = createFakeElement({ id });
+  const ctx = { canvas };
+  canvas.getContext = () => ctx;
+  return canvas;
+}
+
+function createFakeAdsStatsDom(initialMode) {
+  const elements = {
+    campaignSelector: createFakeElement({ id: 'campaignSelector', value: 'All' }),
+    modeSelector: createFakeElement({ id: 'modeSelector', value: initialMode }),
+    'stat-impressions': createFakeElement({ id: 'stat-impressions' }),
+    'stat-clicks': createFakeElement({ id: 'stat-clicks' }),
+    'stat-cost': createFakeElement({ id: 'stat-cost' }),
+    'stat-profit-before-ads-ads': createFakeElement({ id: 'stat-profit-before-ads-ads' }),
+    'stat-profit-before-ads-reconciled': createFakeElement({
+      id: 'stat-profit-before-ads-reconciled',
+    }),
+    'stat-gross-profit': createFakeElement({ id: 'stat-gross-profit' }),
+    'stat-ctr': createFakeElement({ id: 'stat-ctr' }),
+    'stat-cpc': createFakeElement({ id: 'stat-cpc' }),
+    'stat-conversion-rate': createFakeElement({ id: 'stat-conversion-rate' }),
+    reconciledProfitTimelineChart: createFakeCanvas('reconciledProfitTimelineChart'),
+    reconciledPoasTimelineChart: createFakeCanvas('reconciledPoasTimelineChart'),
+    cpcAndConversionRateChart: createFakeCanvas('cpcAndConversionRateChart'),
+    ctrChart: createFakeCanvas('ctrChart'),
+    impressionsAndClicksChart: createFakeCanvas('impressionsAndClicksChart'),
+    adsProfitBreakdownChart: createFakeCanvas('adsProfitBreakdownChart'),
+  };
+
+  const document = {
+    readyState: 'complete',
+    body: createFakeElement({ id: 'body' }),
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    createElement(tagName) {
+      return createFakeElement({ tagName: String(tagName).toUpperCase() });
+    },
+    addEventListener: () => {},
+  };
+
+  return { document, elements };
+}
+
+function createFakeChartData() {
+  return {
+    labels: ['2026-02-22', '2026-02-23'],
+    impressions: [100, 120],
+    clicks: [10, 12],
+    cost: [20, 24],
+    sales_usd: [50, 60],
+    units_sold: [2, 3],
+    gross_profit_before_ads_usd: [40, 48],
+    gross_profit_usd: [20, 24],
+    daily_campaigns: {
+      '2026-02-22': [],
+      '2026-02-23': [],
+    },
+  };
+}
+
+function createFakeReconciledChartData() {
+  return {
+    labels: ['2026-02-22', '2026-02-23'],
+    gross_profit_before_ads_usd: [35, 45],
+    organic_profit_usd: [5, 7],
   };
 }
 
@@ -467,4 +575,56 @@ test('showCopyFeedback keeps confirmation visible, then fades and hides it', asy
   assert.equal(popup.classList.contains('is-visible'), false);
   assert.equal(popup.classList.contains('is-fading'), false);
   assert.equal(popup.getAttribute('aria-hidden'), 'true');
+});
+
+test('initAdsStatsPage switches chart configs from line to bar in Days of Week mode', () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const chartCalls = [];
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+  };
+
+  try {
+    initAdsStatsPage({
+      chartData: createFakeChartData(),
+      reconciledClickDateChartData: createFakeReconciledChartData(),
+      adsEvents: [],
+    });
+
+    assert.equal(chartCalls.length, 6);
+    assert.deepEqual(
+      chartCalls.map((call) => call.config.type),
+      Array(6).fill('line'),
+    );
+
+    elements.modeSelector.value = DAYS_OF_WEEK_MODE;
+    elements.modeSelector.dispatch('change');
+
+    assert.equal(chartCalls.length, 12);
+    assert.deepEqual(
+      chartCalls.slice(-6).map((call) => call.config.type),
+      Array(6).fill('bar'),
+    );
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
 });

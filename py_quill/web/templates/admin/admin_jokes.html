@@ -6,6 +6,7 @@
 {% block head_extra %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/joke_admin_modals.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_jokes_calendar.css') }}">
 <style>
   .admin-jokes-header {
     display: flex;
@@ -51,12 +52,19 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/joke_admin_actions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_jokes_calendar.js') }}"></script>
 <script>
   (function () {
     const jokeCreationUrl = {{ joke_creation_url | tojson }};
     if (window.initJokeAdminActions) {
       window.initJokeAdminActions({
         jokeCreationUrl,
+      });
+    }
+    if (window.initAdminJokesCalendar) {
+      window.initAdminJokesCalendar({
+        calendarDataUrl: {{ admin_jokes_calendar_data_url | tojson }},
+        calendarMoveUrl: {{ admin_jokes_calendar_move_url | tojson }},
       });
     }
 
@@ -296,10 +304,35 @@
       <button type="button" class="button-primary text-button" id="admin-new-joke-button">
         New Joke
       </button>
+      <button type="button" class="button-secondary text-button" id="admin-jokes-calendar-toggle-button"
+        aria-expanded="false" aria-controls="admin-jokes-calendar-panel">
+        Calendar
+      </button>
       <span id="admin-new-joke-inflight" class="admin-inflight-count admin-inflight-count--idle"
         aria-label="In-flight joke creations" aria-live="polite">0</span>
     </div>
   </header>
+
+  <section id="admin-jokes-calendar-panel" class="admin-jokes-calendar-panel" hidden
+    aria-label="Daily jokes calendar">
+    <div class="admin-jokes-calendar-toolbar">
+      <div>
+        <h3 class="admin-jokes-calendar-title">Daily Joke Calendar</h3>
+        <p class="muted admin-jokes-calendar-subtitle">Drag future jokes onto empty future dates.</p>
+      </div>
+      <label class="admin-jokes-calendar-picker-label" for="admin-jokes-calendar-month-picker">
+        Month
+      </label>
+      <input id="admin-jokes-calendar-month-picker" class="admin-jokes-calendar-month-picker" type="month">
+    </div>
+    <div id="admin-jokes-calendar-error" class="admin-jokes-calendar-error" hidden role="alert"></div>
+    <div id="admin-jokes-calendar-loading" class="admin-jokes-calendar-loading" hidden aria-live="polite">
+      Loading calendar…
+    </div>
+    <div id="admin-jokes-calendar-scroll" class="admin-jokes-calendar-scroll" hidden>
+      <div id="admin-jokes-calendar-months" class="admin-jokes-calendar-months"></div>
+    </div>
+  </section>
 
   <div id="admin-new-joke-modal" class="admin-modal" aria-hidden="true">
     <div class="admin-modal__backdrop" data-admin-new-joke-backdrop></div>

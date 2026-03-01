@@ -18,7 +18,8 @@ from firebase_functions import logger
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from google.cloud.firestore_v1.document import DocumentReference
 from PIL import Image, ImageDraw, ImageFont
-from services import cloud_storage, firestore, image_client, image_editor, pdf_client
+from services import (cloud_storage, firestore, image_client, image_editor,
+                      pdf_client)
 
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
@@ -42,6 +43,7 @@ _PAGE_NUMBER_FONT_URLS = (
   'https://github.com/googlefonts/nunito/raw/4be812cf4761b3ddc3b0ae894ef40ea21dcf6ff3/fonts/TTF/Nunito-Regular.ttf',
   'https://github.com/googlefonts/nunito/raw/refs/heads/main/fonts/variable/Nunito%5Bwght%5D.ttf',
 )
+_QR_CODE_CTA_FONT_SIZE = 40
 _PAGE_NUMBER_FONT_SIZE = 60
 _PAGE_NUMBER_STROKE_RATIO = 0.14
 _PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
@@ -69,6 +71,8 @@ _BOOK_PAGE_ABOUT_GCS_URI = "gs://images.quillsstorybook.com/_joke_assets/book/99
 _BOOK_REVIEW_QR_SIZE_PX = 300
 _BOOK_REVIEW_QR_X = 425
 _BOOK_REVIEW_QR_Y = 1400
+_BOOK_REVIEW_QR_LABEL = 'Scan me!'
+_BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX = 12
 
 
 @dataclass(frozen=True)
@@ -212,6 +216,91 @@ def _overlay_image_bytes(
     composed_image.close()
 
 
+def _get_book_page_text_style(
+  font_size: int = _PAGE_NUMBER_FONT_SIZE,
+) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, int]:
+  """Return the shared font and stroke settings for book-page text."""
+  font = get_text_font(font_size)
+  stroke_width = max(1, int(round(font_size * _PAGE_NUMBER_STROKE_RATIO)))
+  return font, stroke_width
+
+
+def _measure_book_page_text(text: str) -> tuple[int, int]:
+  """Return the rendered size of book-page text in pixels."""
+  image = Image.new('RGB', (1, 1), color='white')
+  try:
+    draw = ImageDraw.Draw(image)
+    font, stroke_width = _get_book_page_text_style(
+      font_size=_QR_CODE_CTA_FONT_SIZE)
+    text_bbox = draw.textbbox(
+      (0, 0),
+      text,
+      font=font,
+      stroke_width=stroke_width,
+    )
+    return (
+      int(text_bbox[2] - text_bbox[0]),
+      int(text_bbox[3] - text_bbox[1]),
+    )
+  finally:
+    image.close()
+
+
+def _draw_book_page_text(
+  image: Image.Image,
+  *,
+  text: str,
+  x: float,
+  y: float,
+  font: ImageFont.FreeTypeFont | ImageFont.ImageFont | None = None,
+  stroke_width: int | None = None,
+) -> None:
+  """Draw book-page text using the shared page-number font and halo."""
+  draw = ImageDraw.Draw(image)
+  if font is None or stroke_width is None:
+    font, stroke_width = _get_book_page_text_style()
+  draw.text(
+    (x, y),
+    text,
+    fill=_PAGE_NUMBER_TEXT_COLOR,
+    font=font,
+    stroke_width=stroke_width,
+    stroke_fill=_PAGE_NUMBER_STROKE_COLOR,
+  )
+
+
+def _overlay_book_page_text_bytes(
+  base_bytes: bytes,
+  *,
+  text: str,
+  x: float,
+  y: float,
+) -> bytes:
+  """Draw shared-style book-page text onto a JPEG page and return bytes."""
+  with Image.open(BytesIO(base_bytes)) as base_image:
+    base_image.load()  # pyright: ignore[reportUnusedCallResult]
+    composed_image = base_image.convert('RGB')
+
+  try:
+    _draw_book_page_text(
+      composed_image,
+      text=text,
+      x=x,
+      y=y,
+    )
+    buffer = BytesIO()
+    composed_image.save(
+      buffer,
+      format='JPEG',
+      quality=100,
+      subsampling=0,
+      dpi=(300, 300),
+    )
+    return buffer.getvalue()
+  finally:
+    composed_image.close()
+
+
 def _add_paperback_review_qr_to_page(
   page: BookPage,
   *,
@@ -231,16 +320,33 @@ def _add_paperback_review_qr_to_page(
       x=_BOOK_REVIEW_QR_X,
       y=_BOOK_REVIEW_QR_Y,
     )
+    label_width, label_height = _measure_book_page_text(_BOOK_REVIEW_QR_LABEL)
+    label_x = _BOOK_REVIEW_QR_X + ((_BOOK_REVIEW_QR_SIZE_PX - label_width) / 2)
+    label_y = (_BOOK_REVIEW_QR_Y + _BOOK_REVIEW_QR_SIZE_PX +
+               _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX)
+    image_bytes = _overlay_book_page_text_bytes(
+      image_bytes,
+      text=_BOOK_REVIEW_QR_LABEL,
+      x=label_x,
+      y=label_y,
+    )
+    hyperlink_x1 = min(_BOOK_REVIEW_QR_X, int(label_x))
+    hyperlink_y1 = _BOOK_REVIEW_QR_Y
+    hyperlink_x2 = max(
+      _BOOK_REVIEW_QR_X + _BOOK_REVIEW_QR_SIZE_PX,
+      int(label_x + label_width),
+    )
+    hyperlink_y2 = int(label_y + label_height)
     return BookPage(
       file_name=page.file_name,
       image_bytes=image_bytes,
       hyperlink=pdf_client.HyperlinkSpec(
         page_index=page_index,
         url=review_url,
-        x1=_BOOK_REVIEW_QR_X,
-        y1=_BOOK_REVIEW_QR_Y,
-        x2=_BOOK_REVIEW_QR_X + _BOOK_REVIEW_QR_SIZE_PX,
-        y2=_BOOK_REVIEW_QR_Y + _BOOK_REVIEW_QR_SIZE_PX,
+        x1=hyperlink_x1,
+        y1=hyperlink_y1,
+        x2=hyperlink_x2,
+        y2=hyperlink_y2,
       ),
     )
   finally:
@@ -741,7 +847,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire sceneÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âbackgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire scene, backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.
@@ -1662,9 +1768,7 @@ def _add_page_number_to_image(
     return image
 
   draw = ImageDraw.Draw(image)
-  font = get_text_font(_PAGE_NUMBER_FONT_SIZE)
-  stroke_width = max(
-    1, int(round(_PAGE_NUMBER_FONT_SIZE * _PAGE_NUMBER_STROKE_RATIO)))
+  font, stroke_width = _get_book_page_text_style()
   text = str(page_number)
   text_bbox = draw.textbbox(
     (0, 0),
@@ -1686,13 +1790,13 @@ def _add_page_number_to_image(
   text_x = max(0, text_x)
   text_y = max(0, text_y)
 
-  draw.text(
-    (text_x, text_y),
-    text,
-    fill=_PAGE_NUMBER_TEXT_COLOR,
+  _draw_book_page_text(
+    image,
+    text=text,
+    x=text_x,
+    y=text_y,
     font=font,
     stroke_width=stroke_width,
-    stroke_fill=_PAGE_NUMBER_STROKE_COLOR,
   )
   return image
 

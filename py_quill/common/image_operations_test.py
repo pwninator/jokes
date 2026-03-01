@@ -1571,39 +1571,45 @@ class ExportJokePageFilesTest(unittest.TestCase):
       (0, 0, 0),
     )
 
-  @patch('common.image_operations._overlay_book_page_text_bytes')
-  @patch('common.image_operations._measure_book_page_text')
-  @patch('common.image_operations._overlay_image_bytes')
+  @patch('common.image_operations._BookPageTextDrawer')
   @patch('common.image_operations._create_qr_code_image')
   @patch('common.image_operations.amazon_redirect.get_amazon_redirect_bridge_url')
   def test_add_paperback_review_qr_to_page_adds_scan_me_caption(
     self,
     mock_get_review_url,
     mock_create_qr_code_image,
-    mock_overlay_image_bytes,
-    mock_measure_book_page_text,
-    mock_overlay_book_page_text_bytes,
+    mock_text_drawer,
   ):
     mock_get_review_url.return_value = 'https://example.com/review'
     mock_create_qr_code_image.return_value = Image.new('RGB', (10, 10), 'black')
-    mock_overlay_image_bytes.return_value = b'with-qr'
-    mock_measure_book_page_text.return_value = (120, 40)
-    mock_overlay_book_page_text_bytes.return_value = b'with-qr-and-caption'
+    text_drawer = mock_text_drawer.return_value
+    text_drawer.width = 120
+    text_drawer.height = 40
 
     updated_page = image_operations._add_paperback_review_qr_to_page(
       image_operations.BookPage(
         file_name='999_about.jpg',
-        image_bytes=b'page-bytes',
+        image_bytes=_create_image_bytes(
+          'white',
+          size=(
+            image_operations._BOOK_PAGE_FINAL_WIDTH,
+            image_operations._BOOK_PAGE_FINAL_HEIGHT,
+          ),
+        ),
       ),
       associated_book_key='animal-jokes',
       page_index=4,
     )
 
-    self.assertEqual(updated_page.image_bytes, b'with-qr-and-caption')
-    mock_measure_book_page_text.assert_called_once_with('Scan me!')
-    mock_overlay_book_page_text_bytes.assert_called_once_with(
-      b'with-qr',
-      text='Scan me!',
+    self.assertIsInstance(updated_page.image_bytes, (bytes, bytearray))
+    mock_text_drawer.assert_called_once()
+    self.assertEqual(len(mock_text_drawer.call_args.args), 1)
+    self.assertIsInstance(mock_text_drawer.call_args.args[0], Image.Image)
+    self.assertEqual(mock_text_drawer.call_args.kwargs, {
+      'text': 'Scan me!',
+      'font_size': image_operations._QR_CODE_CTA_FONT_SIZE,
+    })
+    text_drawer.draw_text.assert_called_once_with(
       x=image_operations._BOOK_REVIEW_QR_X +
       ((image_operations._BOOK_REVIEW_QR_SIZE_PX - 120) / 2),
       y=image_operations._BOOK_REVIEW_QR_Y +

@@ -187,118 +187,62 @@ def _create_qr_code_image(
   return qr_image
 
 
-def _overlay_image_bytes(
-  base_bytes: bytes,
-  *,
-  overlay_image: Image.Image,
-  x: int,
-  y: int,
-) -> bytes:
-  """Paste an overlay image onto a JPEG page and return JPEG bytes."""
-  with Image.open(BytesIO(base_bytes)) as base_image:
-    base_image.load()  # pyright: ignore[reportUnusedCallResult]
-    composed_image = base_image.convert('RGB')
-  overlay_rgb = overlay_image.convert('RGB')
+class _BookPageTextDrawer:
+  """Measures and draws styled text onto a single book page image."""
 
-  try:
-    composed_image.paste(overlay_rgb, (x, y))
-    buffer = BytesIO()
-    composed_image.save(
-      buffer,
-      format='JPEG',
-      quality=100,
-      subsampling=0,
-      dpi=(300, 300),
+  def __init__(
+    self,
+    image: Image.Image,
+    *,
+    text: str,
+    font_size: int = _PAGE_NUMBER_FONT_SIZE,
+  ):
+    self._draw: ImageDraw.ImageDraw = ImageDraw.Draw(image)
+    self.text: str = text
+    self.font: ImageFont.FreeTypeFont | ImageFont.ImageFont = get_text_font(
+      font_size)
+    self.stroke_width: int = max(
+      1, int(round(font_size * _PAGE_NUMBER_STROKE_RATIO)))
+    self._bbox: tuple[int, int, int, int] | None = None
+
+  @property
+  def bbox(self) -> tuple[int, int, int, int]:
+    """Return the cached text bounding box."""
+    if self._bbox is None:
+      text_bbox = self._draw.textbbox(
+        (0, 0),
+        self.text,
+        font=self.font,
+        stroke_width=self.stroke_width,
+      )
+      self._bbox = (
+        int(text_bbox[0]),
+        int(text_bbox[1]),
+        int(text_bbox[2]),
+        int(text_bbox[3]),
+      )
+    return self._bbox
+
+  @property
+  def width(self) -> int:
+    """Return the rendered text width in pixels."""
+    return self.bbox[2] - self.bbox[0]
+
+  @property
+  def height(self) -> int:
+    """Return the rendered text height in pixels."""
+    return self.bbox[3] - self.bbox[1]
+
+  def draw_text(self, *, x: float, y: float) -> None:
+    """Draw the text at the provided coordinates."""
+    self._draw.text(
+      (x, y),
+      self.text,
+      fill=_PAGE_NUMBER_TEXT_COLOR,
+      font=self.font,
+      stroke_width=self.stroke_width,
+      stroke_fill=_PAGE_NUMBER_STROKE_COLOR,
     )
-    return buffer.getvalue()
-  finally:
-    overlay_rgb.close()
-    composed_image.close()
-
-
-def _get_book_page_text_style(
-  font_size: int = _PAGE_NUMBER_FONT_SIZE,
-) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, int]:
-  """Return the shared font and stroke settings for book-page text."""
-  font = get_text_font(font_size)
-  stroke_width = max(1, int(round(font_size * _PAGE_NUMBER_STROKE_RATIO)))
-  return font, stroke_width
-
-
-def _measure_book_page_text(text: str) -> tuple[int, int]:
-  """Return the rendered size of book-page text in pixels."""
-  image = Image.new('RGB', (1, 1), color='white')
-  try:
-    draw = ImageDraw.Draw(image)
-    font, stroke_width = _get_book_page_text_style(
-      font_size=_QR_CODE_CTA_FONT_SIZE)
-    text_bbox = draw.textbbox(
-      (0, 0),
-      text,
-      font=font,
-      stroke_width=stroke_width,
-    )
-    return (
-      int(text_bbox[2] - text_bbox[0]),
-      int(text_bbox[3] - text_bbox[1]),
-    )
-  finally:
-    image.close()
-
-
-def _draw_book_page_text(
-  image: Image.Image,
-  *,
-  text: str,
-  x: float,
-  y: float,
-  font: ImageFont.FreeTypeFont | ImageFont.ImageFont | None = None,
-  stroke_width: int | None = None,
-) -> None:
-  """Draw book-page text using the shared page-number font and halo."""
-  draw = ImageDraw.Draw(image)
-  if font is None or stroke_width is None:
-    font, stroke_width = _get_book_page_text_style()
-  draw.text(
-    (x, y),
-    text,
-    fill=_PAGE_NUMBER_TEXT_COLOR,
-    font=font,
-    stroke_width=stroke_width,
-    stroke_fill=_PAGE_NUMBER_STROKE_COLOR,
-  )
-
-
-def _overlay_book_page_text_bytes(
-  base_bytes: bytes,
-  *,
-  text: str,
-  x: float,
-  y: float,
-) -> bytes:
-  """Draw shared-style book-page text onto a JPEG page and return bytes."""
-  with Image.open(BytesIO(base_bytes)) as base_image:
-    base_image.load()  # pyright: ignore[reportUnusedCallResult]
-    composed_image = base_image.convert('RGB')
-
-  try:
-    _draw_book_page_text(
-      composed_image,
-      text=text,
-      x=x,
-      y=y,
-    )
-    buffer = BytesIO()
-    composed_image.save(
-      buffer,
-      format='JPEG',
-      quality=100,
-      subsampling=0,
-      dpi=(300, 300),
-    )
-    return buffer.getvalue()
-  finally:
-    composed_image.close()
 
 
 def _add_paperback_review_qr_to_page(
@@ -314,29 +258,43 @@ def _add_paperback_review_qr_to_page(
     size_px=_BOOK_REVIEW_QR_SIZE_PX,
   )
   try:
-    image_bytes = _overlay_image_bytes(
-      page.image_bytes,
-      overlay_image=qr_image,
-      x=_BOOK_REVIEW_QR_X,
-      y=_BOOK_REVIEW_QR_Y,
-    )
-    label_width, label_height = _measure_book_page_text(_BOOK_REVIEW_QR_LABEL)
-    label_x = _BOOK_REVIEW_QR_X + ((_BOOK_REVIEW_QR_SIZE_PX - label_width) / 2)
-    label_y = (_BOOK_REVIEW_QR_Y + _BOOK_REVIEW_QR_SIZE_PX +
-               _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX)
-    image_bytes = _overlay_book_page_text_bytes(
-      image_bytes,
-      text=_BOOK_REVIEW_QR_LABEL,
-      x=label_x,
-      y=label_y,
-    )
+    with Image.open(BytesIO(page.image_bytes)) as base_image:
+      base_image.load()  # pyright: ignore[reportUnusedCallResult]
+      composed_image = base_image.convert('RGB')
+    overlay_rgb = qr_image.convert('RGB')
+
+    try:
+      composed_image.paste(overlay_rgb, (_BOOK_REVIEW_QR_X, _BOOK_REVIEW_QR_Y))
+      label_drawer = _BookPageTextDrawer(
+        composed_image,
+        text=_BOOK_REVIEW_QR_LABEL,
+        font_size=_QR_CODE_CTA_FONT_SIZE,
+      )
+      label_x = (_BOOK_REVIEW_QR_X +
+                 ((_BOOK_REVIEW_QR_SIZE_PX - label_drawer.width) / 2))
+      label_y = (_BOOK_REVIEW_QR_Y + _BOOK_REVIEW_QR_SIZE_PX +
+                 _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_PX)
+      label_drawer.draw_text(x=label_x, y=label_y)
+      buffer = BytesIO()
+      composed_image.save(
+        buffer,
+        format='JPEG',
+        quality=100,
+        subsampling=0,
+        dpi=(300, 300),
+      )
+      image_bytes = buffer.getvalue()
+    finally:
+      overlay_rgb.close()
+      composed_image.close()
+
     hyperlink_x1 = min(_BOOK_REVIEW_QR_X, int(label_x))
     hyperlink_y1 = _BOOK_REVIEW_QR_Y
     hyperlink_x2 = max(
       _BOOK_REVIEW_QR_X + _BOOK_REVIEW_QR_SIZE_PX,
-      int(label_x + label_width),
+      int(label_x + label_drawer.width),
     )
-    hyperlink_y2 = int(label_y + label_height)
+    hyperlink_y2 = int(label_y + label_drawer.height)
     return BookPage(
       file_name=page.file_name,
       image_bytes=image_bytes,
@@ -1767,37 +1725,20 @@ def _add_page_number_to_image(
   if width == 0 or height == 0:
     return image
 
-  draw = ImageDraw.Draw(image)
-  font, stroke_width = _get_book_page_text_style()
-  text = str(page_number)
-  text_bbox = draw.textbbox(
-    (0, 0),
-    text,
-    font=font,
-    stroke_width=stroke_width,
-  )
-  text_width = text_bbox[2] - text_bbox[0]
-  text_height = text_bbox[3] - text_bbox[1]
+  text_drawer = _BookPageTextDrawer(image, text=str(page_number))
 
   offset_from_edge = int(round(_BOOK_PAGE_BLEED_PX * 3.5))
   text_x: float
   if is_punchline:
     text_x = offset_from_edge
   else:
-    text_x = width - offset_from_edge - text_width
-  text_y = height - offset_from_edge - text_height
+    text_x = width - offset_from_edge - text_drawer.width
+  text_y = height - offset_from_edge - text_drawer.height
 
   text_x = max(0, text_x)
   text_y = max(0, text_y)
 
-  _draw_book_page_text(
-    image,
-    text=text,
-    x=text_x,
-    y=text_y,
-    font=font,
-    stroke_width=stroke_width,
-  )
+  text_drawer.draw_text(x=text_x, y=text_y)
   return image
 
 

@@ -63,16 +63,16 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_5_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
-  "gemini":
+  "nano_banana_2_flash":
   image_client.get_client(
-    label="pun_image_gemini",
-    model=image_client.ImageModel.GEMINI_NANO_BANANA,
+    label="pun_image_nano_banana_2_flash",
+    model=image_client.ImageModel.GEMINI_NANO_BANANA_2_FLASH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
 }
 
-_MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
-  label="pun_image_gemini",
+_MODIFY_IMAGE_CLIENT = image_client.get_client(
+  label="pun_image_modify_nano_banana_2_flash",
   model=image_client.ImageModel.GEMINI_NANO_BANANA_2_FLASH,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
@@ -166,7 +166,7 @@ def generate_pun_image(
   *,
   previous_image: Any | None = None,
   style_reference_images: list[Any] | None = None,
-  image_client_override: image_client.ImageClient | None = None,
+  image_client_override: image_client.ImageClient[Any] | None = None,
 ) -> models.Image:
   """Generate a pun image.
   Args:
@@ -235,7 +235,7 @@ def generate_pun_image(
 def modify_image(
   image: models.Image,
   instruction: str,
-  client: image_client.ImageClient = _MODIFY_IMAGE_CLIENT_HIGH,
+  client: image_client.ImageClient[Any] = _MODIFY_IMAGE_CLIENT,
 ) -> models.Image:
   """Modify an image using an instruction.
   Args:

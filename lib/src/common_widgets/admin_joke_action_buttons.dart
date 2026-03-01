@@ -155,6 +155,7 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       'low_15',
       'medium_15',
       'high_15',
+      'nano_banana_2_flash',
     ];
 
     showDialog(

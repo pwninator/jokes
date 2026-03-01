@@ -154,18 +154,18 @@ def amazon_redirect_view_models() -> list[dict[str, str | list[str]]]:
   return items
 
 
-@web_bp.route('/review-<path:slug>')
-def amazon_review_redirect(slug: str):
-  """Redirect to an Amazon review page for supported slugs."""
-  return _handle_amazon_redirect(f'review-{slug}')
-
-
 def _books_url_with_source(source: str | None) -> str:
   """Build /books URL with s param if source is present. Denormalizes to s."""
   base = flask.url_for('web.books')
   if not source:
     return base
   return f"{base}?{urlencode({'s': source})}"
+
+
+@web_bp.route('/review-<path:slug>')
+def amazon_review_redirect(slug: str):
+  """Redirect to an Amazon review page for supported slugs."""
+  return _handle_amazon_redirect(f'review-{slug}')
 
 
 @web_bp.route('/book-<path:slug>')

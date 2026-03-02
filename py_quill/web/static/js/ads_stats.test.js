@@ -2,6 +2,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
+  FakeDocument,
+  FakeElement,
+  append,
+  createFakeClock,
+} = require('./test_utils.js');
+const {
   DAYS_OF_WEEK_MODE,
   DAYS_OF_WEEK_LABELS,
   TIMELINE_MODE,
@@ -28,78 +34,32 @@ function assertClose(actual, expected, tolerance = 1e-9) {
 }
 
 function createFakePopup() {
-  const classes = new Set();
-  const attributes = new Map();
-  return {
-    textContent: '',
-    classList: {
-      add: (...tokens) => tokens.forEach((token) => classes.add(token)),
-      remove: (...tokens) => tokens.forEach((token) => classes.delete(token)),
-      contains: (token) => classes.has(token),
-    },
-    setAttribute: (name, value) => attributes.set(name, value),
-    getAttribute: (name) => attributes.get(name),
-  };
-}
-
-function createFakeElement(overrides = {}) {
-  const listeners = {};
-  const attributes = new Map();
-  return {
-    value: '',
-    textContent: '',
-    children: [],
-    style: {},
-    hidden: false,
-    classList: {
-      add: () => {},
-      remove: () => {},
-      contains: () => false,
-    },
-    appendChild(child) {
-      this.children.push(child);
-      return child;
-    },
-    addEventListener(type, handler) {
-      listeners[type] = handler;
-    },
-    dispatch(type, event = {}) {
-      if (listeners[type]) {
-        listeners[type](event);
-      }
-    },
-    setAttribute(name, value) {
-      attributes.set(name, value);
-    },
-    getAttribute(name) {
-      return attributes.get(name);
-    },
-    ...overrides,
-  };
+  return new FakeElement();
 }
 
 function createFakeCanvas(id) {
-  const canvas = createFakeElement({ id });
+  const canvas = new FakeElement({ id, tagName: 'canvas' });
   const ctx = { canvas };
   canvas.getContext = () => ctx;
   return canvas;
 }
 
 function createFakeAdsStatsDom(initialMode) {
+  const body = new FakeElement({ tagName: 'body' });
   const elements = {
-    campaignSelector: createFakeElement({ id: 'campaignSelector', value: 'All' }),
-    modeSelector: createFakeElement({ id: 'modeSelector', value: initialMode }),
-    'stat-impressions': createFakeElement({ id: 'stat-impressions' }),
-    'stat-clicks': createFakeElement({ id: 'stat-clicks' }),
-    'stat-cost': createFakeElement({ id: 'stat-cost' }),
-    'stat-profit-before-ads-ads': createFakeElement({ id: 'stat-profit-before-ads-ads' }),
-    'stat-profit-before-ads-reconciled': createFakeElement({
+    campaignSelector: new FakeElement({ id: 'campaignSelector' }),
+    modeSelector: new FakeElement({ id: 'modeSelector' }),
+    'stat-impressions': new FakeElement({ id: 'stat-impressions' }),
+    'stat-clicks': new FakeElement({ id: 'stat-clicks' }),
+    'stat-cost': new FakeElement({ id: 'stat-cost' }),
+    'stat-profit-before-ads-ads': new FakeElement({ id: 'stat-profit-before-ads-ads' }),
+    'stat-profit-before-ads-reconciled': new FakeElement({
       id: 'stat-profit-before-ads-reconciled',
     }),
-    'stat-gross-profit': createFakeElement({ id: 'stat-gross-profit' }),
-    'stat-ctr': createFakeElement({ id: 'stat-ctr' }),
-    'stat-cpc': createFakeElement({ id: 'stat-cpc' }),
-    'stat-conversion-rate': createFakeElement({ id: 'stat-conversion-rate' }),
+    'stat-gross-profit': new FakeElement({ id: 'stat-gross-profit' }),
+    'stat-ctr': new FakeElement({ id: 'stat-ctr' }),
+    'stat-cpc': new FakeElement({ id: 'stat-cpc' }),
+    'stat-conversion-rate': new FakeElement({ id: 'stat-conversion-rate' }),
     reconciledProfitTimelineChart: createFakeCanvas('reconciledProfitTimelineChart'),
     reconciledPoasTimelineChart: createFakeCanvas('reconciledPoasTimelineChart'),
     cpcAndConversionRateChart: createFakeCanvas('cpcAndConversionRateChart'),
@@ -107,19 +67,12 @@ function createFakeAdsStatsDom(initialMode) {
     impressionsAndClicksChart: createFakeCanvas('impressionsAndClicksChart'),
     adsProfitBreakdownChart: createFakeCanvas('adsProfitBreakdownChart'),
   };
+  elements.campaignSelector.value = 'All';
+  elements.modeSelector.value = initialMode;
 
-  const document = {
-    readyState: 'complete',
-    body: createFakeElement({ id: 'body' }),
-    getElementById(id) {
-      return elements[id] || null;
-    },
-    createElement(tagName) {
-      return createFakeElement({ tagName: String(tagName).toUpperCase() });
-    },
-    addEventListener: () => {},
-  };
+  Object.values(elements).forEach((element) => append(body, element));
 
+  const document = new FakeDocument(body);
   return { document, elements };
 }
 
@@ -554,27 +507,38 @@ test('copyTextToClipboard uses navigator clipboard when available', async () => 
   }
 });
 
-test('showCopyFeedback keeps confirmation visible, then fades and hides it', async () => {
+test('showCopyFeedback keeps confirmation visible, then fades and hides it', () => {
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  const clock = createFakeClock();
   const popup = createFakePopup();
 
-  showCopyFeedback(popup, {
-    visibleDurationMs: 40,
-    fadeDurationMs: 30,
-  });
+  global.setTimeout = clock.setTimeout;
+  global.clearTimeout = clock.clearTimeout;
 
-  assert.equal(popup.textContent, 'Copied to clipboard!');
-  assert.equal(popup.getAttribute('aria-hidden'), 'false');
-  assert.equal(popup.classList.contains('is-visible'), true);
-  assert.equal(popup.classList.contains('is-fading'), false);
+  try {
+    showCopyFeedback(popup, {
+      visibleDurationMs: 40,
+      fadeDurationMs: 30,
+    });
 
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.equal(popup.classList.contains('is-visible'), true);
-  assert.equal(popup.classList.contains('is-fading'), true);
+    assert.equal(popup.textContent, 'Copied to clipboard!');
+    assert.equal(popup.getAttribute('aria-hidden'), 'false');
+    assert.equal(popup.classList.contains('is-visible'), true);
+    assert.equal(popup.classList.contains('is-fading'), false);
 
-  await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.equal(popup.classList.contains('is-visible'), false);
-  assert.equal(popup.classList.contains('is-fading'), false);
-  assert.equal(popup.getAttribute('aria-hidden'), 'true');
+    clock.tick(50);
+    assert.equal(popup.classList.contains('is-visible'), true);
+    assert.equal(popup.classList.contains('is-fading'), true);
+
+    clock.tick(40);
+    assert.equal(popup.classList.contains('is-visible'), false);
+    assert.equal(popup.classList.contains('is-fading'), false);
+    assert.equal(popup.getAttribute('aria-hidden'), 'true');
+  } finally {
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+  }
 });
 
 test('initAdsStatsPage switches chart configs from line to bar in Days of Week mode', () => {

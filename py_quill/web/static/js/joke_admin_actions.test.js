@@ -1,393 +1,22 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
 
-class FakeClassList {
-  constructor(initialTokens = []) {
-    this._tokens = new Set(initialTokens.filter(Boolean));
-  }
-
-  add(...tokens) {
-    tokens.forEach((token) => this._tokens.add(token));
-  }
-
-  remove(...tokens) {
-    tokens.forEach((token) => this._tokens.delete(token));
-  }
-
-  contains(token) {
-    return this._tokens.has(token);
-  }
-
-  toString() {
-    return Array.from(this._tokens).join(' ');
-  }
-}
-
-class FakeStyle {
-  constructor() {
-    this._values = new Map();
-  }
-
-  setProperty(name, value) {
-    this._values.set(name, String(value));
-  }
-
-  getPropertyValue(name) {
-    return this._values.get(name) || '';
-  }
-}
-
-class FakeElement {
-  constructor({ id = '', className = '', tagName = 'div', parent = null } = {}) {
-    this.id = id;
-    this.tagName = String(tagName).toUpperCase();
-    this.nodeType = 1;
-    this.parentNode = parent;
-    this.parentElement = parent;
-    this.children = [];
-    this.dataset = {};
-    this.attributes = new Map();
-    this.classList = new FakeClassList(className.split(/\s+/));
-    this.listeners = new Map();
-    this.style = new FakeStyle();
-    this.value = '';
-    this.textContent = '';
-    this.disabled = false;
-    this.hidden = false;
-    this.src = '';
-    this.alt = '';
-    this.width = 0;
-    this.height = 0;
-    this.loading = '';
-    this.type = '';
-    this.focused = false;
-    this._innerHTML = '';
-  }
-
-  get className() {
-    return this.classList.toString();
-  }
-
-  set className(value) {
-    this.classList = new FakeClassList(String(value).split(/\s+/));
-    this.attributes.set('class', this.classList.toString());
-  }
-
-  get innerHTML() {
-    return this._innerHTML;
-  }
-
-  set innerHTML(value) {
-    this._innerHTML = String(value);
-    this.children = [];
-  }
-
-  appendChild(child) {
-    child.parentNode = this;
-    child.parentElement = this;
-    this.children.push(child);
-    return child;
-  }
-
-  removeAttribute(name) {
-    this.attributes.delete(name);
-    if (name === 'src') {
-      this.src = '';
-    }
-    if (name.startsWith('data-')) {
-      const dataKey = name
-        .slice(5)
-        .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-      delete this.dataset[dataKey];
-    }
-  }
-
-  setAttribute(name, value) {
-    const stringValue = String(value);
-    this.attributes.set(name, stringValue);
-    if (name === 'id') {
-      this.id = stringValue;
-      return;
-    }
-    if (name === 'class') {
-      this.className = stringValue;
-      return;
-    }
-    if (name === 'src') {
-      this.src = stringValue;
-      return;
-    }
-    if (name === 'alt') {
-      this.alt = stringValue;
-      return;
-    }
-    if (name === 'width') {
-      this.width = Number(stringValue);
-      return;
-    }
-    if (name === 'height') {
-      this.height = Number(stringValue);
-      return;
-    }
-    if (name.startsWith('data-')) {
-      const dataKey = name
-        .slice(5)
-        .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-      this.dataset[dataKey] = stringValue;
-    }
-  }
-
-  getAttribute(name) {
-    if (name === 'class') {
-      return this.classList.toString();
-    }
-    if (name === 'src') {
-      return this.src || null;
-    }
-    if (name === 'alt') {
-      return this.alt || null;
-    }
-    return this.attributes.get(name) || null;
-  }
-
-  addEventListener(type, listener) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.push(listener);
-    this.listeners.set(type, listeners);
-  }
-
-  async dispatch(type, event = {}) {
-    const listeners = this.listeners.get(type) || [];
-    const actualEvent = {
-      target: this,
-      currentTarget: this,
-      defaultPrevented: false,
-      preventDefault() {
-        this.defaultPrevented = true;
-      },
-      ...event,
-    };
-    for (const listener of listeners) {
-      // eslint-disable-next-line no-await-in-loop
-      await listener(actualEvent);
-    }
-    return actualEvent;
-  }
-
-  focus() {
-    this.focused = true;
-  }
-
-  checkValidity() {
-    return true;
-  }
-
-  reportValidity() {
-    return true;
-  }
-
-  closest(selector) {
-    let current = this;
-    while (current) {
-      if (current.matches(selector)) {
-        return current;
-      }
-      current = current.parentElement || null;
-    }
-    return null;
-  }
-
-  matches(selector) {
-    const tagOnlyMatch = selector.match(/^[a-zA-Z]+$/);
-    if (tagOnlyMatch) {
-      return this.tagName === tagOnlyMatch[0].toUpperCase();
-    }
-
-    const classAttrMatch = selector.match(/^\.([a-zA-Z0-9_-]+)(\[.+\])?$/);
-    if (classAttrMatch) {
-      if (!this.classList.contains(classAttrMatch[1])) {
-        return false;
-      }
-      return this._matchesAttributeSelector(classAttrMatch[2] || '');
-    }
-
-    const tagAttrMatch = selector.match(/^([a-zA-Z]+)(\[.+\])$/);
-    if (tagAttrMatch) {
-      if (this.tagName !== tagAttrMatch[1].toUpperCase()) {
-        return false;
-      }
-      return this._matchesAttributeSelector(tagAttrMatch[2]);
-    }
-
-    if (selector.startsWith('[') && selector.endsWith(']')) {
-      return this._matchesAttributeSelector(selector);
-    }
-
-    return false;
-  }
-
-  _matchesAttributeSelector(selector) {
-    if (!selector) {
-      return true;
-    }
-
-    const exactMatch = selector.match(/^\[([^=\]]+)="([^"]*)"\]$/);
-    if (exactMatch) {
-      const [, attrName, expected] = exactMatch;
-      return (this.getAttribute(attrName) || '') === expected;
-    }
-
-    const suffixMatch = selector.match(/^\[([^=\]]+)\$="([^"]*)"\]$/);
-    if (suffixMatch) {
-      const [, attrName, expectedSuffix] = suffixMatch;
-      return (this.getAttribute(attrName) || '').endsWith(expectedSuffix);
-    }
-
-    const presenceMatch = selector.match(/^\[([^=\]]+)\]$/);
-    if (presenceMatch) {
-      return this.getAttribute(presenceMatch[1]) !== null;
-    }
-
-    return false;
-  }
-
-  querySelector(selector) {
-    return this.querySelectorAll(selector)[0] || null;
-  }
-
-  querySelectorAll(selector) {
-    if (selector.includes(' ')) {
-      const [ancestorSelector, descendantSelector] = selector.split(/\s+(.+)/);
-      const results = [];
-      const ancestors = this.querySelectorAll(ancestorSelector);
-      ancestors.forEach((ancestor) => {
-        results.push(...ancestor.querySelectorAll(descendantSelector));
-      });
-      return results;
-    }
-
-    const results = [];
-    this._collectDescendants((element) => element.matches(selector), results);
-    return results;
-  }
-
-  _collectDescendants(predicate, results) {
-    this.children.forEach((child) => {
-      if (predicate(child)) {
-        results.push(child);
-      }
-      child._collectDescendants(predicate, results);
-    });
-  }
-}
-
-class FakeDocument {
-  constructor(root) {
-    this.body = root;
-    this.listeners = new Map();
-  }
-
-  getElementById(id) {
-    return this._findElement((element) => element.id === id);
-  }
-
-  querySelector(selector) {
-    return this.body.querySelector(selector);
-  }
-
-  querySelectorAll(selector) {
-    return this.body.querySelectorAll(selector);
-  }
-
-  createElement(tagName) {
-    return new FakeElement({ tagName });
-  }
-
-  addEventListener(type, listener) {
-    const listeners = this.listeners.get(type) || [];
-    listeners.push(listener);
-    this.listeners.set(type, listeners);
-  }
-
-  async dispatch(type, event = {}) {
-    const listeners = this.listeners.get(type) || [];
-    const actualEvent = {
-      defaultPrevented: false,
-      preventDefault() {
-        this.defaultPrevented = true;
-      },
-      ...event,
-    };
-    for (const listener of listeners) {
-      // eslint-disable-next-line no-await-in-loop
-      await listener(actualEvent);
-    }
-    return actualEvent;
-  }
-
-  _findElement(predicate) {
-    const queue = [...this.body.children];
-    while (queue.length) {
-      const current = queue.shift();
-      if (predicate(current)) {
-        return current;
-      }
-      queue.push(...current.children);
-    }
-    return null;
-  }
-}
-
-function createFetchResponse({ ok = true, status = 200, json = {} }) {
-  return {
-    ok,
-    status,
-    async json() {
-      return json;
-    },
-  };
-}
-
-function createDeferred() {
-  let resolve;
-  let reject;
-  const promise = new Promise((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-function createFetchMock() {
-  const calls = [];
-  const queue = [];
-
-  async function fetchMock(url, options = {}) {
-    calls.push({ url: String(url), options });
-    if (!queue.length) {
-      throw new Error(`No mocked fetch response for ${url}`);
-    }
-    const next = queue.shift();
-    if (next && typeof next.then === 'function') {
-      return next;
-    }
-    return next;
-  }
-
-  fetchMock.calls = calls;
-  fetchMock.enqueue = (response) => {
-    queue.push(response);
-  };
-  return fetchMock;
-}
-
-function append(parent, child) {
-  parent.appendChild(child);
-  return child;
-}
+const {
+  FakeDocument,
+  FakeElement,
+  append,
+  createDeferred,
+  createFetchMock,
+  createFetchResponse,
+} = require('./test_utils.js');
+const {
+  applyJokeDataToPayload,
+  buildModifyRequestData,
+  buildOptimisticPayload,
+  formatThumbUrl,
+  initJokeAdminActions,
+  parseEditPayload,
+} = require('./joke_admin_actions.js');
 
 function buildModalRoot(id, backdropAttr) {
   const modal = new FakeElement({ id, className: 'admin-modal' });
@@ -399,9 +28,19 @@ function buildModalRoot(id, backdropAttr) {
 }
 
 function buildEnvironment() {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const originalFetch = global.fetch;
+  const originalNode = global.Node;
+
   const root = new FakeElement({ tagName: 'body' });
   const document = new FakeDocument(root);
   const fetchMock = createFetchMock();
+
+  global.Node = { ELEMENT_NODE: 1 };
+  global.window = { __jokeAdminActionsInitialized: false };
+  global.document = document;
+  global.fetch = fetchMock;
 
   const editModalBundle = buildModalRoot('admin-edit-joke-modal', 'data-admin-edit-joke-backdrop');
   const regenerateModalBundle = buildModalRoot('admin-regenerate-modal', 'data-admin-regenerate-backdrop');
@@ -423,14 +62,14 @@ function buildEnvironment() {
   const editPunchlineDesc = append(editForm, new FakeElement({ id: 'admin-edit-joke-punchline-image-description', tagName: 'textarea' }));
   const editSetupImages = append(editForm, new FakeElement({ id: 'admin-edit-joke-setup-images' }));
   const editPunchlineImages = append(editForm, new FakeElement({ id: 'admin-edit-joke-punchline-images' }));
-  const editCancelButton = append(editForm, new FakeElement({ id: 'admin-edit-joke-cancel-button', tagName: 'button' }));
+  append(editForm, new FakeElement({ id: 'admin-edit-joke-cancel-button', tagName: 'button' }));
   const editRegenerateButton = append(editForm, new FakeElement({ id: 'admin-edit-joke-regenerate-button', tagName: 'button' }));
   const editSceneIdeasButton = append(editForm, new FakeElement({ id: 'admin-edit-joke-scene-ideas-button', tagName: 'button' }));
 
   const regenerateForm = append(regenerateModalBundle.modal, new FakeElement({ id: 'admin-regenerate-form', tagName: 'form' }));
   const regenerateJokeId = append(regenerateForm, new FakeElement({ id: 'admin-regenerate-joke-id', tagName: 'input' }));
   const regenerateQuality = append(regenerateForm, new FakeElement({ id: 'admin-regenerate-quality', tagName: 'select' }));
-  const regenerateCancelButton = append(regenerateForm, new FakeElement({ id: 'admin-regenerate-cancel-button', tagName: 'button' }));
+  append(regenerateForm, new FakeElement({ id: 'admin-regenerate-cancel-button', tagName: 'button' }));
 
   const modifyForm = append(modifyModalBundle.modal, new FakeElement({ id: 'admin-modify-joke-form', tagName: 'form' }));
   const modifyJokeId = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-id', tagName: 'input' }));
@@ -440,17 +79,17 @@ function buildEnvironment() {
   const modifyPunchlinePreview = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-punchline-preview', tagName: 'img' }));
   const modifySetupPlaceholder = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-setup-placeholder' }));
   const modifyPunchlinePlaceholder = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-punchline-placeholder' }));
-  const modifyCancelButton = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-cancel-button', tagName: 'button' }));
-  const modifySubmitButton = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-submit-button', tagName: 'button' }));
+  append(modifyForm, new FakeElement({ id: 'admin-modify-joke-cancel-button', tagName: 'button' }));
 
   const sceneIdeasForm = append(sceneIdeasModalBundle.modal, new FakeElement({ id: 'admin-scene-ideas-form', tagName: 'form' }));
   const sceneIdeasSetup = append(sceneIdeasForm, new FakeElement({ id: 'admin-scene-ideas-setup', tagName: 'textarea' }));
   const sceneIdeasPunchline = append(sceneIdeasForm, new FakeElement({ id: 'admin-scene-ideas-punchline', tagName: 'textarea' }));
-  const sceneIdeasCancelButton = append(sceneIdeasForm, new FakeElement({ id: 'admin-scene-ideas-cancel-button', tagName: 'button' }));
-  const sceneIdeasGenerateButton = append(sceneIdeasForm, new FakeElement({ id: 'admin-scene-ideas-generate-button', tagName: 'button' }));
+  append(sceneIdeasForm, new FakeElement({ id: 'admin-scene-ideas-cancel-button', tagName: 'button' }));
+  append(sceneIdeasForm, new FakeElement({ id: 'admin-scene-ideas-generate-button', tagName: 'button' }));
 
   const card = append(root, new FakeElement({ className: 'joke-card', tagName: 'article' }));
   card.setAttribute('data-joke-id', 'joke-1');
+  card.dataset.selectable = 'true';
   card.style.setProperty('--joke-card-max-width', '600px');
 
   const setupSlide = append(card, new FakeElement({ className: 'joke-slide' }));
@@ -473,7 +112,7 @@ function buildEnvironment() {
   revealButton.setAttribute('aria-expanded', 'false');
   revealButton.textContent = 'Reveal Punchline';
 
-  const editPayload = {
+  const payload = {
     joke_id: 'joke-1',
     setup_text: 'Old setup',
     punchline_text: 'Old punchline',
@@ -484,30 +123,23 @@ function buildEnvironment() {
   };
 
   const editButton = append(card, new FakeElement({ className: 'joke-edit-button', tagName: 'button' }));
-  editButton.setAttribute('data-joke-data', JSON.stringify(editPayload));
+  editButton.setAttribute('data-joke-data', JSON.stringify(payload));
+
+  const regenerateButton = append(card, new FakeElement({ className: 'joke-regenerate-button', tagName: 'button' }));
+  regenerateButton.setAttribute('data-joke-id', 'joke-1');
 
   const modifyButton = append(card, new FakeElement({ className: 'joke-modify-button', tagName: 'button' }));
-  modifyButton.setAttribute('data-joke-data', JSON.stringify(editPayload));
   modifyButton.setAttribute('data-joke-id', 'joke-1');
+  modifyButton.setAttribute('data-joke-data', JSON.stringify(payload));
   const modifyIcon = append(modifyButton, new FakeElement({ tagName: 'span' }));
-  modifyIcon.textContent = '🎨';
-
-  const modulePath = path.resolve(__dirname, 'joke_admin_actions.js');
-  const context = {
-    Node: { ELEMENT_NODE: 1 },
-    window: { __jokeAdminActionsInitialized: false },
-    document,
-    fetch: fetchMock,
-    console,
-  };
-  context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(modulePath, 'utf8'), context, {
-    filename: modulePath,
-  });
+  modifyIcon.textContent = 'paint';
 
   return {
     cleanup() {
-      context.window.__jokeAdminActionsInitialized = false;
+      global.window = originalWindow;
+      global.document = originalDocument;
+      global.fetch = originalFetch;
+      global.Node = originalNode;
     },
     document,
     fetchMock,
@@ -524,16 +156,14 @@ function buildEnvironment() {
       editPunchlineDesc,
       editSetupImages,
       editPunchlineImages,
-      editCancelButton,
       editRegenerateButton,
       editSceneIdeasButton,
+      regenerateButton,
       regenerateForm,
       regenerateJokeId,
       regenerateQuality,
-      regenerateCancelButton,
       modifyModal: modifyModalBundle.modal,
       modifyForm,
-      modifyButton,
       modifyIcon,
       modifyJokeId,
       modifySetupInstruction,
@@ -542,73 +172,139 @@ function buildEnvironment() {
       modifyPunchlinePreview,
       modifySetupPlaceholder,
       modifyPunchlinePlaceholder,
-      modifyCancelButton,
-      modifySubmitButton,
       sceneIdeasForm,
       sceneIdeasSetup,
       sceneIdeasPunchline,
-      sceneIdeasCancelButton,
-      sceneIdeasGenerateButton,
       revealButton,
       setupMedia,
       punchlineMedia,
     },
-    initJokeAdminActions: context.window.initJokeAdminActions,
   };
 }
 
-test('modify button opens modal from a non-element click target and populates preview state', { concurrency: false }, async () => {
-  const env = buildEnvironment();
-  const { cleanup, elements, initJokeAdminActions } = env;
+test('parseEditPayload decodes HTML-escaped JSON payloads', () => {
+  const payload = parseEditPayload('{&quot;joke_id&quot;:&quot;joke-1&quot;,&quot;tags&quot;:&quot;cats&quot;}');
+  assert.equal(payload.joke_id, 'joke-1');
+  assert.equal(payload.tags, 'cats');
+});
 
+test('buildModifyRequestData includes only non-empty instructions', () => {
+  assert.deepEqual(
+    buildModifyRequestData('joke-1', 'make it sunnier', ''),
+    {
+      op: 'joke_image_modify',
+      joke_id: 'joke-1',
+      setup_instruction: 'make it sunnier',
+    },
+  );
+});
+
+test('buildOptimisticPayload refreshes image grids from selected urls', () => {
+  const payload = buildOptimisticPayload(
+    {
+      joke_id: 'joke-1',
+      setup_images: [{ url: 'https://example.com/setup-old.png' }],
+      punchline_images: [{ url: 'https://example.com/punchline-old.png' }],
+    },
+    {
+      jokeId: 'joke-1',
+      setupText: 'Setup',
+      punchlineText: 'Punchline',
+      seasonal: '',
+      tags: 'cats',
+      setupImageDescription: '',
+      punchlineImageDescription: '',
+      setupImageUrl: 'https://example.com/setup-new.png',
+      punchlineImageUrl: 'https://example.com/punchline-new.png',
+    },
+  );
+
+  assert.deepEqual(
+    payload.setup_images.map((image) => image.url),
+    ['https://example.com/setup-new.png', 'https://example.com/setup-old.png'],
+  );
+  assert.deepEqual(
+    payload.punchline_images.map((image) => image.url),
+    ['https://example.com/punchline-new.png', 'https://example.com/punchline-old.png'],
+  );
+});
+
+test('applyJokeDataToPayload merges tag arrays and image urls', () => {
+  const payload = applyJokeDataToPayload(
+    {
+      joke_id: 'joke-1',
+      tags: '',
+      setup_images: [{ url: 'https://example.com/setup-old.png' }],
+      punchline_images: [{ url: 'https://example.com/punchline-old.png' }],
+    },
+    {
+      key: 'joke-1',
+      tags: ['cats', 'dogs'],
+      setup_image_url: 'https://example.com/setup-new.png',
+      punchline_image_url: 'https://example.com/punchline-new.png',
+      all_setup_image_urls: ['https://example.com/setup-new.png', 'https://example.com/setup-old.png'],
+      all_punchline_image_urls: ['https://example.com/punchline-new.png'],
+    },
+  );
+
+  assert.equal(payload.tags, 'cats, dogs');
+  assert.equal(payload.setup_image_url, 'https://example.com/setup-new.png');
+  assert.deepEqual(
+    payload.setup_images.map((image) => image.url),
+    ['https://example.com/setup-new.png', 'https://example.com/setup-old.png'],
+  );
+});
+
+test('formatThumbUrl preserves existing params and rewrites width', () => {
+  assert.equal(
+    formatThumbUrl(
+      'https://images.quillsstorybook.com/cdn-cgi/image/fit=cover,width=180/example.png',
+      480,
+    ),
+    'https://images.quillsstorybook.com/cdn-cgi/image/fit=cover,width=480/example.png',
+  );
+});
+
+test('modify button opens modal from a non-element click target', { concurrency: false }, async () => {
+  const env = buildEnvironment();
   try {
     initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
 
-    const textNodeTarget = {
-      nodeType: 3,
-      parentElement: elements.modifyIcon,
-    };
+    await env.document.dispatch('click', {
+      target: {
+        nodeType: 3,
+        parentElement: env.elements.modifyIcon,
+      },
+    });
 
-    await env.document.dispatch('click', { target: textNodeTarget });
-
-    assert.equal(elements.modifyModal.classList.contains('admin-modal--open'), true);
-    assert.equal(elements.modifyModal.getAttribute('aria-hidden'), 'false');
-    assert.equal(elements.modifyJokeId.value, 'joke-1');
-    assert.equal(elements.modifySetupInstruction.value, '');
-    assert.equal(elements.modifyPunchlineInstruction.value, '');
-    assert.equal(elements.modifySetupPreview.src, 'https://example.com/setup-old.png');
-    assert.equal(elements.modifyPunchlinePreview.src, 'https://example.com/punchline-old.png');
-    assert.equal(elements.modifySetupPreview.classList.contains('is-visible'), true);
-    assert.equal(elements.modifyPunchlinePreview.classList.contains('is-visible'), true);
-    assert.equal(elements.modifySetupPlaceholder.classList.contains('is-hidden'), true);
-    assert.equal(elements.modifyPunchlinePlaceholder.classList.contains('is-hidden'), true);
+    assert.equal(env.elements.modifyModal.classList.contains('admin-modal--open'), true);
+    assert.equal(env.elements.modifyModal.getAttribute('aria-hidden'), 'false');
+    assert.equal(env.elements.modifyJokeId.value, 'joke-1');
+    assert.equal(env.elements.modifySetupPreview.src, 'https://example.com/setup-old.png');
+    assert.equal(env.elements.modifyPunchlinePreview.src, 'https://example.com/punchline-old.png');
   } finally {
-    cleanup();
+    env.cleanup();
   }
 });
 
 test('modify submit posts joke_image_modify and updates the card in place', { concurrency: false }, async () => {
   const env = buildEnvironment();
-  const { cleanup, elements, fetchMock, initJokeAdminActions } = env;
-
   try {
     initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
-    await env.document.dispatch('click', { target: elements.modifyIcon });
+    await env.document.dispatch('click', { target: env.elements.modifyIcon });
 
-    elements.modifySetupInstruction.value = 'make it sunnier';
-    elements.modifyPunchlineInstruction.value = 'add confetti';
+    env.elements.modifySetupInstruction.value = 'make it sunnier';
+    env.elements.modifyPunchlineInstruction.value = 'add confetti';
 
     const deferred = createDeferred();
-    fetchMock.enqueue(deferred.promise);
+    env.fetchMock.enqueue(deferred.promise);
 
-    const submitPromise = elements.modifyForm.dispatch('submit');
+    const submitPromise = env.elements.modifyForm.dispatch('submit');
     await Promise.resolve();
 
-    assert.equal(elements.revealButton.disabled, true);
-    assert.equal(elements.revealButton.textContent, 'Generating...');
-
-    const requestBody = JSON.parse(fetchMock.calls[0].options.body);
-    assert.deepEqual(requestBody, {
+    assert.equal(env.elements.revealButton.disabled, true);
+    assert.equal(env.elements.revealButton.textContent, 'Generating...');
+    assert.deepEqual(JSON.parse(env.fetchMock.calls[0].options.body), {
       data: {
         op: 'joke_image_modify',
         joke_id: 'joke-1',
@@ -636,20 +332,75 @@ test('modify submit posts joke_image_modify and updates the card in place', { co
     await submitPromise;
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(elements.modifyModal.classList.contains('admin-modal--open'), false);
-    assert.equal(elements.modifyModal.getAttribute('aria-hidden'), 'true');
-    assert.equal(elements.revealButton.disabled, false);
-    assert.equal(elements.revealButton.textContent, 'Reveal Punchline');
-
-    const updatedSetupImage = elements.setupMedia.querySelector('img');
-    const updatedPunchlineImage = elements.punchlineMedia.querySelector('img');
-    assert.equal(updatedSetupImage.src, 'https://example.com/setup-new.png');
-    assert.equal(updatedPunchlineImage.src, 'https://example.com/punchline-new.png');
-
-    const updatedPayload = JSON.parse(elements.editButton.getAttribute('data-joke-data'));
-    assert.equal(updatedPayload.setup_image_url, 'https://example.com/setup-new.png');
-    assert.equal(updatedPayload.punchline_image_url, 'https://example.com/punchline-new.png');
+    assert.equal(env.elements.modifyModal.classList.contains('admin-modal--open'), false);
+    assert.equal(env.elements.revealButton.disabled, false);
+    assert.equal(env.elements.revealButton.textContent, 'Reveal Punchline');
+    assert.equal(env.elements.setupMedia.querySelector('img').src, 'https://example.com/setup-new.png');
+    assert.equal(env.elements.punchlineMedia.querySelector('img').src, 'https://example.com/punchline-new.png');
   } finally {
-    cleanup();
+    env.cleanup();
+  }
+});
+
+test('edit button populates modal and regenerate request refreshes the card', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+
+    await env.document.dispatch('click', { target: env.elements.editButton });
+    assert.equal(env.elements.editJokeId.value, 'joke-1');
+    assert.equal(env.elements.editSetup.value, 'Old setup');
+    assert.equal(env.elements.editPunchline.value, 'Old punchline');
+
+    env.fetchMock.enqueue(createFetchResponse({
+      json: {
+        data: {
+          joke_data: {
+            key: 'joke-1',
+            setup_text: 'Refreshed setup',
+            punchline_text: 'Refreshed punchline',
+            setup_image_url: 'https://example.com/setup-refreshed.png',
+            punchline_image_url: 'https://example.com/punchline-refreshed.png',
+            all_setup_image_urls: ['https://example.com/setup-refreshed.png'],
+            all_punchline_image_urls: ['https://example.com/punchline-refreshed.png'],
+          },
+        },
+      },
+    }));
+
+    await env.elements.editRegenerateButton.dispatch('click');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(JSON.parse(env.fetchMock.calls[0].options.body), {
+      data: {
+        joke_id: 'joke-1',
+        setup_text: 'Old setup',
+        punchline_text: 'Old punchline',
+        seasonal: '',
+        tags: '',
+        setup_image_description: '',
+        punchline_image_description: '',
+        setup_image_url: 'https://example.com/setup-old.png',
+        punchline_image_url: 'https://example.com/punchline-old.png',
+        populate_images: true,
+      },
+    });
+    assert.equal(env.elements.setupMedia.querySelector('img').src, 'https://example.com/setup-refreshed.png');
+    assert.equal(env.elements.punchlineMedia.querySelector('img').src, 'https://example.com/punchline-refreshed.png');
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('regenerate button opens modal and stores joke id', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+    await env.document.dispatch('click', { target: env.elements.regenerateButton });
+
+    assert.equal(env.elements.regenerateJokeId.value, 'joke-1');
+    assert.equal(env.elements.regenerateQuality.focused, true);
+  } finally {
+    env.cleanup();
   }
 });

@@ -101,7 +101,7 @@ test/
 
 - Make **correct, verifiable, minimal** changes
 - Tests are **mandatory** for changed behavior, and you must **add or update tests** to cover the change.
-- **Always run the relevant test suites** (e.g., `flutter test`, `flutter analyze`, `pytest py_quill`) and ensure they **all pass** before delivery.
+- **Always run the relevant test suites** (e.g., `flutter test`, `flutter analyze`, `pytest py_quill`, `pytest py_quill/web/static/web_static_js_test.py`) and ensure they **all pass** before delivery.
 - Target **near 100% coverage** for new code
 - Do **NOT** run `flutter run` for verification (use tests)
 - **Continuously check that your solution is the cleanest and simplest way** to achieve the desired behavior; refactor during the change if a simpler correct approach exists.
@@ -240,7 +240,23 @@ void main() {
   - Caching headers
   - Image attributes (`loading="lazy"`, width, height)
 
-### 4.5. Test Design Guidelines
+### 4.5. JavaScript Testing
+
+- JavaScript tests in `py_quill/web/static/js/` use Node's built-in `node:test` runner and `node:assert/strict`. Do **not** add Jest, Vitest, jsdom, or other JS test dependencies unless the user explicitly asks for them.
+- Prefer testing **pure exported helpers directly**. If a browser-facing file contains significant logic, extract that logic into small exported functions and test those functions without DOM involvement.
+- DOM-heavy controllers should have only a **small number of smoke/integration tests**. Keep event wiring thin and move branching/data transformation into pure helpers.
+- Reuse the shared zero-dependency test harness in `py_quill/web/static/js/test_utils.js` instead of building one-off fake browser implementations in each test file.
+- Keep fake DOM helpers **minimal and intentional**. Only implement the DOM surface the tests actually need; do not grow a second browser inside the test suite.
+- Prefer deterministic tests:
+  - stub `fetch` with queued fake responses
+  - use explicit deferred promises for async coordination
+  - use the shared fake clock instead of real timer waits where possible
+- Write one behavior per test with clear Arrange-Act-Assert structure. Test names should describe behavior, not implementation details.
+- Do not add test-only branches to production JS. Refactor production code to be naturally testable instead.
+- For browser modules, preserve the production entrypoint on `window` when needed, but also export helpers with `module.exports` so Node tests can import them directly.
+- The canonical pytest bridge for the JS suite is `py_quill/web/static/web_static_js_test.py`. If JS behavior changes, update the JS tests and keep that bridge passing.
+
+### 4.6. Test Design Guidelines
 
 - **One Behavior Per Test**: Each test verifies a single, well-defined behavior
 - **Focused**: Not too broad (workflows) or too trivial (getters/setters)
@@ -294,6 +310,20 @@ basedpyright py_quill
 # Formatter
 python -m yapf -i -r py_quill
 ```
+
+### 5.3. JavaScript (No Additional Dependencies)
+
+```bash
+# Run the JS suite through pytest (preferred, cross-platform)
+pytest py_quill/web/static/web_static_js_test.py
+
+# Run the JS test files directly with Node when needed
+node --test py_quill/web/static/js/*.test.js
+```
+
+**Important**:
+- On shells without glob expansion (for example some PowerShell setups), pass an explicit file list to `node --test`.
+- Reuse `py_quill/web/static/js/test_utils.js` for DOM/network/time helpers instead of adding new test infrastructure or new packages.
 
 **Important**: Python imports inside `py_quill/` must be relative to `py_quill` root:
 ```python
@@ -410,6 +440,15 @@ Environment is pre-configured. No setup needed.
 - [ ] `python -m yapf -i -r py_quill`
 - [ ] `pytest py_quill` (all pass)
 - [ ] Verify headers/SEO (web layer changes)
+
+### JavaScript Change
+- [ ] Tests under `py_quill/web/static/js/*.test.js`
+- [ ] Prefer pure helper tests; keep DOM-controller tests thin
+- [ ] Reuse `py_quill/web/static/js/test_utils.js`
+- [ ] Preserve `window` entrypoints where production needs them
+- [ ] Export JS helpers with `module.exports` when direct Node testing adds clarity
+- [ ] `pytest py_quill/web/static/web_static_js_test.py` (pass)
+- [ ] If running JS tests directly, `node --test ...` (pass)
 
 ## 13. Common Patterns
 

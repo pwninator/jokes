@@ -209,27 +209,21 @@
   order: 2;
 }
 
-.joke-admin-button {
-  padding: 6px 12px;
-}
-
 .joke-admin-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
 
 .joke-admin-footer .joke-admin-stats {
   justify-content: flex-start;
-}
-
-.joke-admin-footer .joke-edit-button {
   margin-left: auto;
 }
 
-.joke-admin-button.joke-modify-button {
-  min-width: 88px;
+.joke-admin-footer .joke-regenerate-button,
+.joke-admin-footer .joke-edit-button,
+.joke-admin-footer .joke-modify-button {
+  padding: 6px 12px;
 }
 
 .admin-modal__image-grid {
@@ -292,7 +286,4 @@
 }
 
 @media (max-width: 640px) {
-  .joke-admin-button.joke-modify-button {
-    min-width: 0;
-  }
 }

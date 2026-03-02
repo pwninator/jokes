@@ -1,10 +1,307 @@
-(function () {
+(function (factory) {
+  const exports = factory();
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = exports;
+  }
+  if (typeof window !== 'undefined') {
+    window.initAdminJokesCalendar = exports.initAdminJokesCalendar;
+  }
+}(function () {
   'use strict';
 
-  const WEEKDAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const EDGE_LOAD_THRESHOLD_PX = 180;
-  const EDGE_SCROLL_THRESHOLD_PX = 90;
   const EDGE_SCROLL_STEP_PX = 28;
+  const EDGE_SCROLL_THRESHOLD_PX = 90;
+  const WEEKDAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  function formatMonthId(year, month) {
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+  }
+
+  function parseMonthId(monthId) {
+    const parts = String(monthId || '').split('-');
+    if (parts.length !== 2) {
+      return null;
+    }
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    if (Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) {
+      return null;
+    }
+    return { year, month };
+  }
+
+  function monthIdFromDate(date) {
+    return formatMonthId(date.getFullYear(), date.getMonth() + 1);
+  }
+
+  function compareMonthIds(left, right) {
+    if (left === right) {
+      return 0;
+    }
+    return left < right ? -1 : 1;
+  }
+
+  function addMonths(monthId, delta) {
+    const parsed = parseMonthId(monthId);
+    if (!parsed) {
+      return monthId;
+    }
+    const totalMonths = (parsed.year * 12) + (parsed.month - 1) + delta;
+    const year = Math.floor(totalMonths / 12);
+    const month = (totalMonths % 12) + 1;
+    return formatMonthId(year, month);
+  }
+
+  function isMonthIdWithinBounds(bounds, monthId) {
+    if (bounds.earliestMonthId && compareMonthIds(monthId, bounds.earliestMonthId) < 0) {
+      return false;
+    }
+    if (bounds.latestMonthId && compareMonthIds(monthId, bounds.latestMonthId) > 0) {
+      return false;
+    }
+    return true;
+  }
+
+  function normalizeMonth(month) {
+    return {
+      month_id: month.month_id,
+      year: month.year,
+      month: month.month,
+      days_in_month: month.days_in_month,
+      first_weekday: month.first_weekday,
+      entries: { ...(month.entries || {}) },
+      movable_day_keys: Array.isArray(month.movable_day_keys)
+        ? month.movable_day_keys.slice()
+        : [],
+    };
+  }
+
+  function dayKey(dayNumber) {
+    return String(dayNumber).padStart(2, '0');
+  }
+
+  function isMovableDay(month, key) {
+    return Array.isArray(month && month.movable_day_keys)
+      && month.movable_day_keys.indexOf(key) !== -1;
+  }
+
+  function sortedMonthIds(monthsById) {
+    return Array.from(monthsById.keys()).sort(compareMonthIds);
+  }
+
+  function buildMonthFetchPlan(state, startMonthId, endMonthId) {
+    if (!startMonthId || !endMonthId) {
+      return [];
+    }
+    const monthsToFetch = [];
+    let current = startMonthId;
+    while (compareMonthIds(current, endMonthId) <= 0) {
+      if (isMonthIdWithinBounds(state.bounds, current)
+          && !state.monthsById.has(current)
+          && !state.loadingMonthIds.has(current)) {
+        monthsToFetch.push(current);
+      }
+      current = addMonths(current, 1);
+    }
+    return monthsToFetch;
+  }
+
+  function mergeMonthsById(monthsById, months) {
+    const merged = new Map(monthsById);
+    (months || []).forEach((month) => {
+      merged.set(month.month_id, normalizeMonth(month));
+    });
+    return merged;
+  }
+
+  function findCenteredMonthId(monthCards, scrollLeft, clientWidth) {
+    if (!monthCards.length) {
+      return null;
+    }
+    const viewportCenter = scrollLeft + (clientWidth / 2);
+    let bestId = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    monthCards.forEach((card) => {
+      const center = card.offsetLeft + (card.clientWidth / 2);
+      const distance = Math.abs(center - viewportCenter);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = card.getAttribute('data-month-id');
+      }
+    });
+    return bestId;
+  }
+
+  function isValidDropTargetForMonth(month, key) {
+    if (!month || !key || month.entries[key]) {
+      return false;
+    }
+    return isMovableDay(month, key);
+  }
+
+  function applyOptimisticMoveToMonths(
+    monthsById,
+    sourceMonthId,
+    sourceDayKey,
+    targetMonthId,
+    targetDayKey,
+  ) {
+    const sourceMonth = monthsById.get(sourceMonthId);
+    const targetMonth = monthsById.get(targetMonthId);
+    if (!sourceMonth || !targetMonth) {
+      return null;
+    }
+
+    const sourceEntry = sourceMonth.entries[sourceDayKey];
+    if (!sourceEntry) {
+      return null;
+    }
+
+    const snapshot = {
+      sourceSnapshot: {
+        monthId: sourceMonthId,
+        dayKey: sourceDayKey,
+        entry: sourceEntry,
+      },
+      targetSnapshot: {
+        monthId: targetMonthId,
+        dayKey: targetDayKey,
+        entry: targetMonth.entries[targetDayKey] || null,
+      },
+    };
+
+    const nextMonthsById = new Map(monthsById);
+    const nextSourceEntries = { ...sourceMonth.entries };
+    const nextTargetEntries = sourceMonthId === targetMonthId
+      ? nextSourceEntries
+      : { ...targetMonth.entries };
+    delete nextSourceEntries[sourceDayKey];
+    nextTargetEntries[targetDayKey] = sourceEntry;
+
+    nextMonthsById.set(sourceMonthId, {
+      ...sourceMonth,
+      entries: nextSourceEntries,
+    });
+    nextMonthsById.set(targetMonthId, {
+      ...targetMonth,
+      entries: nextTargetEntries,
+    });
+
+    return { monthsById: nextMonthsById, snapshot };
+  }
+
+  function revertOptimisticMoveInMonths(monthsById, snapshot) {
+    if (!snapshot) {
+      return monthsById;
+    }
+    const sourceMonth = monthsById.get(snapshot.sourceSnapshot.monthId);
+    const targetMonth = monthsById.get(snapshot.targetSnapshot.monthId);
+    if (!sourceMonth || !targetMonth) {
+      return monthsById;
+    }
+
+    const nextMonthsById = new Map(monthsById);
+    const nextSourceEntries = { ...sourceMonth.entries };
+    const nextTargetEntries = snapshot.sourceSnapshot.monthId === snapshot.targetSnapshot.monthId
+      ? nextSourceEntries
+      : { ...targetMonth.entries };
+
+    nextSourceEntries[snapshot.sourceSnapshot.dayKey] = snapshot.sourceSnapshot.entry;
+    if (snapshot.targetSnapshot.entry) {
+      nextTargetEntries[snapshot.targetSnapshot.dayKey] = snapshot.targetSnapshot.entry;
+    } else {
+      delete nextTargetEntries[snapshot.targetSnapshot.dayKey];
+    }
+
+    nextMonthsById.set(snapshot.sourceSnapshot.monthId, {
+      ...sourceMonth,
+      entries: nextSourceEntries,
+    });
+    nextMonthsById.set(snapshot.targetSnapshot.monthId, {
+      ...targetMonth,
+      entries: nextTargetEntries,
+    });
+    return nextMonthsById;
+  }
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll('\'', '&#39;');
+  }
+
+  function monthLabel(month) {
+    const date = new Date(month.year, month.month - 1, 1);
+    return date.toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  function renderDayHtml(month, dayNumber, todayIsoDate) {
+    const key = dayKey(dayNumber);
+    const isoDate = `${month.month_id}-${key}`;
+    const entry = month.entries[key] || null;
+    const isMovable = entry && isMovableDay(month, key);
+    const dayClasses = ['admin-jokes-calendar-day'];
+    if (isoDate === todayIsoDate) {
+      dayClasses.push('admin-jokes-calendar-day--today');
+    }
+    if (entry) {
+      dayClasses.push('admin-jokes-calendar-day--occupied');
+    }
+    if (entry && !isMovable) {
+      dayClasses.push('admin-jokes-calendar-day--locked');
+    }
+
+    const imageHtml = entry && entry.thumbnail_url
+      ? `<img class="admin-jokes-calendar-day-image" src="${escapeHtml(entry.thumbnail_url)}" alt="" loading="lazy">`
+      : '<div class="admin-jokes-calendar-day-fill"></div>';
+    const shadeHtml = entry ? '<div class="admin-jokes-calendar-day-shade"></div>' : '';
+
+    return `
+      <div class="${dayClasses.join(' ')}" data-month-id="${month.month_id}" data-day-key="${key}" data-date="${isoDate}">
+        <div class="admin-jokes-calendar-day-button"
+          ${entry ? `data-joke-id="${escapeHtml(entry.joke_id)}"` : ''}
+          draggable="${isMovable ? 'true' : 'false'}">
+          ${imageHtml}
+          ${shadeHtml}
+          <div class="admin-jokes-calendar-day-number">${dayNumber}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMonthHtml(month, todayIsoDate) {
+    const totalCells = month.first_weekday + month.days_in_month;
+    const rowCount = Math.ceil(totalCells / 7);
+    const cellCount = rowCount * 7;
+    const weekdayHtml = WEEKDAY_HEADERS.map((label) =>
+      `<div class="admin-jokes-calendar-weekday">${label}</div>`).join('');
+    const dayCells = [];
+    for (let index = 0; index < cellCount; index += 1) {
+      const dayNumber = index - month.first_weekday + 1;
+      if (dayNumber < 1 || dayNumber > month.days_in_month) {
+        dayCells.push('<div class="admin-jokes-calendar-day admin-jokes-calendar-day--out-of-month"></div>');
+        continue;
+      }
+      dayCells.push(renderDayHtml(month, dayNumber, todayIsoDate));
+    }
+
+    return `
+      <section class="admin-jokes-calendar-month" data-month-id="${month.month_id}">
+        <div class="admin-jokes-calendar-month-header">
+          <h4 class="admin-jokes-calendar-month-name">${escapeHtml(monthLabel(month))}</h4>
+        </div>
+        <div class="admin-jokes-calendar-weekdays">${weekdayHtml}</div>
+        <div class="admin-jokes-calendar-grid">${dayCells.join('')}</div>
+      </section>
+    `;
+  }
 
   function initAdminJokesCalendar(options) {
     if (window.__adminJokesCalendarInitialized) {
@@ -15,7 +312,6 @@
     if (!config.calendarDataUrl || !config.calendarMoveUrl) {
       throw new Error('calendarDataUrl and calendarMoveUrl are required');
     }
-
     const toggleButton = document.getElementById('admin-jokes-calendar-toggle-button');
     const panel = document.getElementById('admin-jokes-calendar-panel');
     const picker = document.getElementById('admin-jokes-calendar-month-picker');
@@ -45,16 +341,6 @@
       dragPayload: null,
     };
 
-    function incrementLoading() {
-      state.loadingCount += 1;
-      loadingBox.hidden = false;
-    }
-
-    function decrementLoading() {
-      state.loadingCount = Math.max(0, state.loadingCount - 1);
-      loadingBox.hidden = state.loadingCount === 0;
-    }
-
     function setError(message) {
       if (!message) {
         errorBox.hidden = true;
@@ -65,82 +351,26 @@
       errorBox.textContent = message;
     }
 
-    function formatMonthId(year, month) {
-      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+    function incrementLoading() {
+      state.loadingCount += 1;
+      loadingBox.hidden = false;
     }
 
-    function parseMonthId(monthId) {
-      const parts = String(monthId || '').split('-');
-      if (parts.length !== 2) {
-        return null;
+    function decrementLoading() {
+      state.loadingCount = Math.max(0, state.loadingCount - 1);
+      loadingBox.hidden = state.loadingCount === 0;
+    }
+
+    function render() {
+      const monthIds = sortedMonthIds(state.monthsById);
+      if (!monthIds.length) {
+        monthsContainer.innerHTML = '';
+        scrollContainer.hidden = true;
+        return;
       }
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10);
-      if (Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) {
-        return null;
-      }
-      return { year, month };
-    }
-
-    function monthIdFromDate(date) {
-      return formatMonthId(date.getFullYear(), date.getMonth() + 1);
-    }
-
-    function compareMonthIds(left, right) {
-      if (left === right) {
-        return 0;
-      }
-      return left < right ? -1 : 1;
-    }
-
-    function addMonths(monthId, delta) {
-      const parsed = parseMonthId(monthId);
-      if (!parsed) {
-        return monthId;
-      }
-      const totalMonths = (parsed.year * 12) + (parsed.month - 1) + delta;
-      const year = Math.floor(totalMonths / 12);
-      const month = (totalMonths % 12) + 1;
-      return formatMonthId(year, month);
-    }
-
-    function isWithinBounds(monthId) {
-      const earliest = state.bounds.earliestMonthId;
-      const latest = state.bounds.latestMonthId;
-      if (earliest && compareMonthIds(monthId, earliest) < 0) {
-        return false;
-      }
-      if (latest && compareMonthIds(monthId, latest) > 0) {
-        return false;
-      }
-      return true;
-    }
-
-    function sortedMonthIds() {
-      return Array.from(state.monthsById.keys()).sort(compareMonthIds);
-    }
-
-    function normalizeMonth(month) {
-      return {
-        month_id: month.month_id,
-        year: month.year,
-        month: month.month,
-        days_in_month: month.days_in_month,
-        first_weekday: month.first_weekday,
-        entries: { ...(month.entries || {}) },
-        movable_day_keys: Array.isArray(month.movable_day_keys)
-          ? month.movable_day_keys.slice()
-          : [],
-      };
-    }
-
-    function dayKey(dayNumber) {
-      return String(dayNumber).padStart(2, '0');
-    }
-
-    function isMovableDay(month, key) {
-      return Array.isArray(month.movable_day_keys)
-        && month.movable_day_keys.indexOf(key) !== -1;
+      monthsContainer.innerHTML = monthIds.map((monthId) =>
+        renderMonthHtml(state.monthsById.get(monthId), state.todayIsoDate)).join('');
+      scrollContainer.hidden = false;
     }
 
     function updatePickerBounds() {
@@ -153,98 +383,6 @@
       if (!picker.value && state.bounds.initialMonthId) {
         picker.value = state.bounds.initialMonthId;
       }
-    }
-
-    function monthLabel(month) {
-      const date = new Date(month.year, month.month - 1, 1);
-      return date.toLocaleDateString(undefined, {
-        month: 'long',
-        year: 'numeric',
-      });
-    }
-
-    function escapeHtml(text) {
-      return String(text || '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
-
-    function render() {
-      const monthIds = sortedMonthIds();
-      if (!monthIds.length) {
-        monthsContainer.innerHTML = '';
-        scrollContainer.hidden = true;
-        return;
-      }
-
-      const html = monthIds.map((monthId) => renderMonth(state.monthsById.get(monthId))).join('');
-      monthsContainer.innerHTML = html;
-      scrollContainer.hidden = false;
-    }
-
-    function renderMonth(month) {
-      const totalCells = month.first_weekday + month.days_in_month;
-      const rowCount = Math.ceil(totalCells / 7);
-      const cellCount = rowCount * 7;
-      const weekdayHtml = WEEKDAY_HEADERS.map((label) =>
-        `<div class="admin-jokes-calendar-weekday">${label}</div>`).join('');
-      const dayCells = [];
-      for (let index = 0; index < cellCount; index += 1) {
-        const dayNumber = index - month.first_weekday + 1;
-        if (dayNumber < 1 || dayNumber > month.days_in_month) {
-          dayCells.push('<div class="admin-jokes-calendar-day admin-jokes-calendar-day--out-of-month"></div>');
-          continue;
-        }
-        dayCells.push(renderDay(month, dayNumber));
-      }
-
-      return `
-        <section class="admin-jokes-calendar-month" data-month-id="${month.month_id}">
-          <div class="admin-jokes-calendar-month-header">
-            <h4 class="admin-jokes-calendar-month-name">${escapeHtml(monthLabel(month))}</h4>
-          </div>
-          <div class="admin-jokes-calendar-weekdays">${weekdayHtml}</div>
-          <div class="admin-jokes-calendar-grid">${dayCells.join('')}</div>
-        </section>
-      `;
-    }
-
-    function renderDay(month, dayNumber) {
-      const key = dayKey(dayNumber);
-      const isoDate = `${month.month_id}-${key}`;
-      const entry = month.entries[key] || null;
-      const isMovable = entry && isMovableDay(month, key);
-      const dayClasses = ['admin-jokes-calendar-day'];
-      if (isoDate === state.todayIsoDate) {
-        dayClasses.push('admin-jokes-calendar-day--today');
-      }
-      if (entry) {
-        dayClasses.push('admin-jokes-calendar-day--occupied');
-      }
-      if (entry && !isMovable) {
-        dayClasses.push('admin-jokes-calendar-day--locked');
-      }
-
-      const contentClasses = ['admin-jokes-calendar-day-button'];
-      const imageHtml = entry && entry.thumbnail_url
-        ? `<img class="admin-jokes-calendar-day-image" src="${escapeHtml(entry.thumbnail_url)}" alt="" loading="lazy">`
-        : `<div class="admin-jokes-calendar-day-fill"></div>`;
-      const shadeHtml = entry ? '<div class="admin-jokes-calendar-day-shade"></div>' : '';
-
-      return `
-        <div class="${dayClasses.join(' ')}" data-month-id="${month.month_id}" data-day-key="${key}" data-date="${isoDate}">
-          <div class="${contentClasses.join(' ')}"
-            ${entry ? `data-joke-id="${escapeHtml(entry.joke_id)}"` : ''}
-            draggable="${isMovable ? 'true' : 'false'}">
-            ${imageHtml}
-            ${shadeHtml}
-            <div class="admin-jokes-calendar-day-number">${dayNumber}</div>
-          </div>
-        </div>
-      `;
     }
 
     function scrollToMonth(monthId) {
@@ -265,21 +403,7 @@
     }
 
     async function fetchRange(startMonthId, endMonthId, preferredScrollMonthId) {
-      if (!startMonthId || !endMonthId) {
-        return;
-      }
-
-      const monthsToFetch = [];
-      let current = startMonthId;
-      while (compareMonthIds(current, endMonthId) <= 0) {
-        if (isWithinBounds(current)
-            && !state.monthsById.has(current)
-            && !state.loadingMonthIds.has(current)) {
-          monthsToFetch.push(current);
-          state.loadingMonthIds.add(current);
-        }
-        current = addMonths(current, 1);
-      }
+      const monthsToFetch = buildMonthFetchPlan(state, startMonthId, endMonthId);
       if (!monthsToFetch.length) {
         if (preferredScrollMonthId) {
           scrollToMonth(preferredScrollMonthId);
@@ -287,6 +411,7 @@
         return;
       }
 
+      monthsToFetch.forEach((monthId) => state.loadingMonthIds.add(monthId));
       incrementLoading();
       setError('');
 
@@ -311,11 +436,8 @@
         state.bounds.latestMonthId = payload.latest_month_id || state.bounds.latestMonthId;
         state.bounds.initialMonthId = payload.initial_month_id || state.bounds.initialMonthId;
         state.todayIsoDate = payload.today_iso_date || state.todayIsoDate;
+        state.monthsById = mergeMonthsById(state.monthsById, payload.months);
         updatePickerBounds();
-
-        (payload.months || []).forEach((month) => {
-          state.monthsById.set(month.month_id, normalizeMonth(month));
-        });
 
         if (!(payload.months || []).length
             && payload.initial_month_id
@@ -358,43 +480,32 @@
     }
 
     async function ensureMonthVisible(monthId) {
-      if (!monthId || !isWithinBounds(monthId)) {
+      if (!monthId || !isMonthIdWithinBounds(state.bounds, monthId)) {
         return;
       }
       await fetchRange(addMonths(monthId, -1), addMonths(monthId, 1), monthId);
     }
 
     function updatePickerToVisibleMonth() {
-      const monthCards = Array.from(monthsContainer.querySelectorAll('.admin-jokes-calendar-month'));
-      if (!monthCards.length) {
-        return;
-      }
-      const viewportCenter = scrollContainer.scrollLeft + (scrollContainer.clientWidth / 2);
-      let bestId = null;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      monthCards.forEach((card) => {
-        const left = card.offsetLeft;
-        const center = left + (card.clientWidth / 2);
-        const distance = Math.abs(center - viewportCenter);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestId = card.getAttribute('data-month-id');
-        }
-      });
+      const bestId = findCenteredMonthId(
+        Array.from(monthsContainer.querySelectorAll('.admin-jokes-calendar-month')),
+        scrollContainer.scrollLeft,
+        scrollContainer.clientWidth,
+      );
       if (bestId) {
         picker.value = bestId;
       }
     }
 
     async function maybeLoadMoreMonths() {
-      const ids = sortedMonthIds();
+      const ids = sortedMonthIds(state.monthsById);
       if (!ids.length) {
         return;
       }
 
       if (scrollContainer.scrollLeft <= EDGE_LOAD_THRESHOLD_PX) {
         const previousMonthId = addMonths(ids[0], -1);
-        if (isWithinBounds(previousMonthId)) {
+        if (isMonthIdWithinBounds(state.bounds, previousMonthId)) {
           await fetchRange(previousMonthId, previousMonthId, null);
         }
       }
@@ -404,7 +515,7 @@
         - scrollContainer.scrollLeft;
       if (remainingRight <= EDGE_LOAD_THRESHOLD_PX) {
         const nextMonthId = addMonths(ids[ids.length - 1], 1);
-        if (isWithinBounds(nextMonthId)) {
+        if (isMonthIdWithinBounds(state.bounds, nextMonthId)) {
           await fetchRange(nextMonthId, nextMonthId, null);
         }
       }
@@ -422,92 +533,13 @@
     }
 
     function isValidDropTarget(cell) {
-      const month = getMonthForCell(cell);
-      if (!month) {
+      if (!cell) {
         return false;
       }
-      const key = cell.getAttribute('data-day-key');
-      if (!key || month.entries[key]) {
-        return false;
-      }
-      return isMovableDay(month, key);
-    }
-
-    function applyOptimisticMove(sourceMonthId, sourceDayKey, targetMonthId, targetDayKey) {
-      const sourceMonth = state.monthsById.get(sourceMonthId);
-      const targetMonth = state.monthsById.get(targetMonthId);
-      if (!sourceMonth || !targetMonth) {
-        return null;
-      }
-
-      const sourceEntry = sourceMonth.entries[sourceDayKey];
-      if (!sourceEntry) {
-        return null;
-      }
-
-      const sourceSnapshot = {
-        monthId: sourceMonthId,
-        dayKey: sourceDayKey,
-        entry: sourceEntry,
-      };
-      const targetSnapshot = {
-        monthId: targetMonthId,
-        dayKey: targetDayKey,
-        entry: targetMonth.entries[targetDayKey] || null,
-      };
-
-      const nextSourceEntries = { ...sourceMonth.entries };
-      const nextTargetEntries = sourceMonthId === targetMonthId
-        ? nextSourceEntries
-        : { ...targetMonth.entries };
-
-      delete nextSourceEntries[sourceDayKey];
-      nextTargetEntries[targetDayKey] = sourceEntry;
-
-      state.monthsById.set(sourceMonthId, {
-        ...sourceMonth,
-        entries: nextSourceEntries,
-      });
-      state.monthsById.set(targetMonthId, {
-        ...targetMonth,
-        entries: nextTargetEntries,
-      });
-
-      render();
-      return { sourceSnapshot, targetSnapshot };
-    }
-
-    function revertOptimisticMove(snapshot) {
-      if (!snapshot) {
-        return;
-      }
-      const sourceMonth = state.monthsById.get(snapshot.sourceSnapshot.monthId);
-      const targetMonth = state.monthsById.get(snapshot.targetSnapshot.monthId);
-      if (!sourceMonth || !targetMonth) {
-        return;
-      }
-
-      const nextSourceEntries = { ...sourceMonth.entries };
-      const nextTargetEntries = snapshot.sourceSnapshot.monthId === snapshot.targetSnapshot.monthId
-        ? nextSourceEntries
-        : { ...targetMonth.entries };
-
-      nextSourceEntries[snapshot.sourceSnapshot.dayKey] = snapshot.sourceSnapshot.entry;
-      if (snapshot.targetSnapshot.entry) {
-        nextTargetEntries[snapshot.targetSnapshot.dayKey] = snapshot.targetSnapshot.entry;
-      } else {
-        delete nextTargetEntries[snapshot.targetSnapshot.dayKey];
-      }
-
-      state.monthsById.set(snapshot.sourceSnapshot.monthId, {
-        ...sourceMonth,
-        entries: nextSourceEntries,
-      });
-      state.monthsById.set(snapshot.targetSnapshot.monthId, {
-        ...targetMonth,
-        entries: nextTargetEntries,
-      });
-      render();
+      return isValidDropTargetForMonth(
+        getMonthForCell(cell),
+        cell.getAttribute('data-day-key'),
+      );
     }
 
     async function persistMove(payload) {
@@ -631,15 +663,19 @@
         return;
       }
 
-      const snapshot = applyOptimisticMove(
+      const moveResult = applyOptimisticMoveToMonths(
+        state.monthsById,
         state.dragPayload.sourceMonthId,
         state.dragPayload.sourceDayKey,
         targetMonthId,
         targetDayKey,
       );
-      if (!snapshot) {
+      if (!moveResult) {
         return;
       }
+
+      state.monthsById = moveResult.monthsById;
+      render();
 
       try {
         setError('');
@@ -649,7 +685,8 @@
           target_date: targetDate,
         });
       } catch (error) {
-        revertOptimisticMove(snapshot);
+        state.monthsById = revertOptimisticMoveInMonths(state.monthsById, moveResult.snapshot);
+        render();
         setError(error instanceof Error ? error.message : 'Failed to move joke');
       } finally {
         state.dragPayload = null;
@@ -657,13 +694,23 @@
     });
   }
 
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-      initAdminJokesCalendar,
-    };
-  }
-
-  if (typeof window !== 'undefined') {
-    window.initAdminJokesCalendar = initAdminJokesCalendar;
-  }
-})();
+  return {
+    addMonths,
+    applyOptimisticMoveToMonths,
+    buildMonthFetchPlan,
+    compareMonthIds,
+    dayKey,
+    findCenteredMonthId,
+    formatMonthId,
+    initAdminJokesCalendar,
+    isMonthIdWithinBounds,
+    isMovableDay,
+    isValidDropTargetForMonth,
+    mergeMonthsById,
+    monthIdFromDate,
+    normalizeMonth,
+    parseMonthId,
+    renderMonthHtml,
+    revertOptimisticMoveInMonths,
+  };
+}));

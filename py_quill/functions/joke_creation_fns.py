@@ -105,7 +105,7 @@ def _route_joke_creation_op(req: flask.Request) -> flask.Response:
   if op == JokeCreationOp.JOKE_AUDIO:
     return _run_joke_audio_tuner(req)
   if op == JokeCreationOp.JOKE_VIDEO:
-    return _run_joke_video_tuner(req)
+    return _run_joke_video_generation(req)
   if op == JokeCreationOp.SOCIAL:
     return social_fns.run_social_post_creation_process(req)
   if op == JokeCreationOp.LUNCHBOX_NOTE:
@@ -219,7 +219,7 @@ def _parse_tuner_audio_options(
     except ValueError as exc:
       raise ValueError(f"Invalid audio_model: {audio_model_value}") from exc
   allow_partial = get_bool_param(req, "allow_partial", False)
-  use_audio_cache = get_bool_param(req, "use_audio_cache", True)
+  use_audio_cache = get_bool_param(req, "use_audio_cache", False)
   return script_template, audio_model, allow_partial, use_audio_cache
 
 
@@ -484,7 +484,7 @@ def _modify_joke_image_part(
   return None
 
 
-def _run_joke_video_tuner(req: flask.Request) -> flask.Response:
+def _run_joke_video_generation(req: flask.Request) -> flask.Response:
   """Generate joke video for prompt tuning."""
   if req.method != 'POST':
     return error_response(f'Method not allowed: {req.method}',

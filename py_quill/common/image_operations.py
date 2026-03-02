@@ -185,9 +185,9 @@ _PAPERBACK_EXPORT_PROFILE = BookExportProfile(
 )
 _EBOOK_EXPORT_PROFILE = BookExportProfile(
   name='ebook',
-  output_base_size_px=(600, 600),
+  output_base_size_px=(700, 700),
   output_bleed_size_px=0,
-  jpeg_quality=50,
+  jpeg_quality=70,
   jpeg_subsampling=2,
   jpeg_progressive=True,
   review_book_format=book_defs.BookFormat.EBOOK,

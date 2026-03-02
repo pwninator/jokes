@@ -90,6 +90,57 @@
   </div>
 </div>
 
+<div id="admin-modify-joke-modal" class="admin-modal" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-admin-modify-joke-backdrop></div>
+  <div class="admin-modal__dialog admin-modal__dialog--modify" role="dialog" aria-modal="true"
+    aria-labelledby="admin-modify-joke-title">
+    <h3 id="admin-modify-joke-title" class="admin-modal__title text-section-heading">Modify joke images</h3>
+    <div class="admin-modal__content">
+      <form id="admin-modify-joke-form">
+        <input type="hidden" id="admin-modify-joke-id" name="joke_id" value="">
+        <div class="admin-modal__modify-layout">
+          <section class="admin-modal__modify-panel" aria-labelledby="admin-modify-joke-setup-title">
+            <h4 id="admin-modify-joke-setup-title" class="admin-modal__section-title">Setup image</h4>
+            <div class="admin-modal__preview-frame">
+              <img id="admin-modify-joke-setup-preview" class="admin-modal__preview-image" src="" alt=""
+                loading="lazy">
+              <div id="admin-modify-joke-setup-placeholder"
+                class="admin-modal__preview-placeholder text-button">No setup image</div>
+            </div>
+            <div class="admin-modal__field">
+              <label class="admin-modal__label" for="admin-modify-joke-setup-instruction">Setup instructions</label>
+              <textarea class="admin-modal__textarea admin-modal__textarea--modify"
+                id="admin-modify-joke-setup-instruction" name="setup_instruction"
+                placeholder="Describe how Gemini should modify the setup image."></textarea>
+            </div>
+          </section>
+          <section class="admin-modal__modify-panel" aria-labelledby="admin-modify-joke-punchline-title">
+            <h4 id="admin-modify-joke-punchline-title" class="admin-modal__section-title">Punchline image</h4>
+            <div class="admin-modal__preview-frame">
+              <img id="admin-modify-joke-punchline-preview" class="admin-modal__preview-image" src="" alt=""
+                loading="lazy">
+              <div id="admin-modify-joke-punchline-placeholder"
+                class="admin-modal__preview-placeholder text-button">No punchline image</div>
+            </div>
+            <div class="admin-modal__field">
+              <label class="admin-modal__label" for="admin-modify-joke-punchline-instruction">Punchline
+                instructions</label>
+              <textarea class="admin-modal__textarea admin-modal__textarea--modify"
+                id="admin-modify-joke-punchline-instruction" name="punchline_instruction"
+                placeholder="Describe how Gemini should modify the punchline image."></textarea>
+            </div>
+          </section>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button"
+            id="admin-modify-joke-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button" id="admin-modify-joke-submit-button">Modify</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div id="admin-scene-ideas-modal" class="admin-modal admin-modal--overlay" aria-hidden="true">
   <div class="admin-modal__backdrop" data-admin-scene-ideas-backdrop></div>
   <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-scene-ideas-title">

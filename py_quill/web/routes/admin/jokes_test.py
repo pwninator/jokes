@@ -94,6 +94,7 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'id="admin-jokes-calendar-panel"' in html
   assert 'id="admin-jokes-calendar-month-picker"' in html
   assert 'id="admin-edit-joke-modal"' in html
+  assert 'id="admin-modify-joke-modal"' in html
   assert 'id="admin-edit-joke-setup-scene-idea"' not in html
   assert 'id="admin-edit-joke-punchline-scene-idea"' not in html
   assert 'id="admin-edit-joke-scene-ideas-button"' in html
@@ -102,7 +103,10 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert f"https://{config.JOKE_CREATION_API_HOST}" in html
   assert 'data-joke-id="joke-1"' in html
   assert 'joke-edit-button' in html
+  assert 'joke-modify-button' in html
   assert 'data-joke-data=' in html
+  assert 'id="admin-modify-joke-setup-instruction"' in html
+  assert 'id="admin-modify-joke-punchline-instruction"' in html
   # Spot check a few edit payload fields (HTML-escaped JSON).
   assert 'joke_id' in html
   assert 'joke-1' in html
@@ -228,6 +232,7 @@ def test_admin_jokes_load_more(monkeypatch):
   assert "joke-admin-stats" in body["html"]
   assert "joke-state-badge" in body["html"]
   assert "joke-edit-button" in body["html"]
+  assert "joke-modify-button" in body["html"]
   assert 'title="SUMMARY&#10;Total Cost: $0.2500' in body["html"]
   assert '&#10;setup_image&#10;  gemini-2.5-flash-image: $0.2500 (1)' in body[
     "html"]

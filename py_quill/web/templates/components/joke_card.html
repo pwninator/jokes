@@ -107,6 +107,13 @@
           title="Edit">
           <span aria-hidden="true">&#9998;</span>
         </button>
+        <button type="button" class="button-secondary text-button joke-admin-button joke-modify-button"
+          data-joke-id="{{ unique_id }}"
+          data-joke-data='{{ edit_payload_value | tojson }}'
+          aria-label="Modify joke images"
+          title="Modify images">
+          <span aria-hidden="true">&#x1f3a8;</span>
+        </button>
         {% endif %}
       </div>
     {% endif %}

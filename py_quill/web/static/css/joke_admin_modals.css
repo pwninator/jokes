@@ -39,6 +39,13 @@
   margin: 0 0 12px;
 }
 
+.admin-modal__section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
 .admin-modal__content {
   flex: 1 1 auto;
   min-height: 0;
@@ -137,6 +144,62 @@
   margin-top: 6px;
 }
 
+.admin-modal__dialog--modify {
+  width: min(1080px, calc(100vw - 40px));
+}
+
+.admin-modal__modify-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-modal__modify-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-modal__preview-frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-form-surface);
+}
+
+.admin-modal__preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.admin-modal__preview-image.is-visible {
+  display: block;
+}
+
+.admin-modal__preview-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 20px;
+  color: var(--color-text-muted);
+}
+
+.admin-modal__preview-placeholder.is-hidden {
+  display: none;
+}
+
+.admin-modal__textarea--modify {
+  min-height: 220px;
+}
+
 /* Keep tab order = Submit then Cancel, while rendering Cancel left of Submit. */
 .admin-modal__actions #admin-new-joke-cancel-button {
   order: 1;
@@ -163,6 +226,10 @@
 
 .joke-admin-footer .joke-edit-button {
   margin-left: auto;
+}
+
+.joke-admin-button.joke-modify-button {
+  min-width: 88px;
 }
 
 .admin-modal__image-grid {
@@ -212,4 +279,20 @@
   border-color: var(--color-border);
   color: var(--color-text-muted);
   cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .admin-modal__modify-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-modal__textarea--modify {
+    min-height: 170px;
+  }
+}
+
+@media (max-width: 640px) {
+  .joke-admin-button.joke-modify-button {
+    min-width: 0;
+  }
 }

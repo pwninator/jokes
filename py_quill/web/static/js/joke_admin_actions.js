@@ -33,6 +33,18 @@
     const regenerateJokeIdInput = document.getElementById('admin-regenerate-joke-id');
     const regenerateQualityInput = document.getElementById('admin-regenerate-quality');
 
+    const modifyModal = document.getElementById('admin-modify-joke-modal');
+    const modifyModalBackdrop = document.querySelector('[data-admin-modify-joke-backdrop]');
+    const modifyForm = document.getElementById('admin-modify-joke-form');
+    const modifyCancelButton = document.getElementById('admin-modify-joke-cancel-button');
+    const modifyJokeIdInput = document.getElementById('admin-modify-joke-id');
+    const modifySetupInstructionInput = document.getElementById('admin-modify-joke-setup-instruction');
+    const modifyPunchlineInstructionInput = document.getElementById('admin-modify-joke-punchline-instruction');
+    const modifySetupPreview = document.getElementById('admin-modify-joke-setup-preview');
+    const modifyPunchlinePreview = document.getElementById('admin-modify-joke-punchline-preview');
+    const modifySetupPlaceholder = document.getElementById('admin-modify-joke-setup-placeholder');
+    const modifyPunchlinePlaceholder = document.getElementById('admin-modify-joke-punchline-placeholder');
+
     const sceneIdeasModal = document.getElementById('admin-scene-ideas-modal');
     const sceneIdeasModalBackdrop = document.querySelector('[data-admin-scene-ideas-backdrop]');
     const sceneIdeasForm = document.getElementById('admin-scene-ideas-form');
@@ -41,7 +53,7 @@
     const sceneIdeasPunchlineInput = document.getElementById('admin-scene-ideas-punchline');
     const sceneIdeasGenerateButton = document.getElementById('admin-scene-ideas-generate-button');
 
-    if (!editModal || !regenerateModal || !sceneIdeasModal) {
+    if (!editModal || !regenerateModal || !modifyModal || !sceneIdeasModal) {
       return;
     }
 
@@ -51,6 +63,8 @@
     let selectedSetupImageUrl = null;
     let selectedPunchlineImageUrl = null;
     let activeEditPayload = null;
+    let activeModifyCard = null;
+    let activeModifyPayload = null;
 
     function isEditModalOpen() {
       return Boolean(editModal && editModal.classList.contains('admin-modal--open'));
@@ -62,6 +76,10 @@
 
     function isRegenerateModalOpen() {
       return Boolean(regenerateModal && regenerateModal.classList.contains('admin-modal--open'));
+    }
+
+    function isModifyModalOpen() {
+      return Boolean(modifyModal && modifyModal.classList.contains('admin-modal--open'));
     }
 
     function openRegenerateModal() {
@@ -81,6 +99,25 @@
       }
       regenerateModal.classList.remove('admin-modal--open');
       regenerateModal.setAttribute('aria-hidden', 'true');
+    }
+
+    function openModifyModal() {
+      if (!modifyModal) {
+        return;
+      }
+      modifyModal.classList.add('admin-modal--open');
+      modifyModal.setAttribute('aria-hidden', 'false');
+      if (modifySetupInstructionInput) {
+        modifySetupInstructionInput.focus();
+      }
+    }
+
+    function closeModifyModal() {
+      if (!modifyModal) {
+        return;
+      }
+      modifyModal.classList.remove('admin-modal--open');
+      modifyModal.setAttribute('aria-hidden', 'true');
     }
 
     function openEditModal() {
@@ -184,11 +221,73 @@
       activeEditPayload = null;
     }
 
+    function handleModifyCancel() {
+      closeModifyModal();
+      activeModifyCard = null;
+      activeModifyPayload = null;
+    }
+
     function setValue(input, value) {
       if (!input) {
         return;
       }
       input.value = (value === null || value === undefined) ? '' : String(value);
+    }
+
+    function getEventTargetElement(event) {
+      if (!event || !event.target) {
+        return null;
+      }
+      if (event.target.nodeType === Node.ELEMENT_NODE) {
+        return event.target;
+      }
+      return event.target.parentElement || null;
+    }
+
+    function closestFromEvent(event, selector) {
+      const element = getEventTargetElement(event);
+      if (!element || typeof element.closest !== 'function') {
+        return null;
+      }
+      return element.closest(selector);
+    }
+
+    function setPreviewImage(img, placeholder, imageUrl, altText) {
+      if (!img || !placeholder) {
+        return;
+      }
+      if (imageUrl) {
+        img.src = formatThumbUrl(imageUrl, 480) || imageUrl;
+        img.alt = altText || '';
+        img.classList.add('is-visible');
+        placeholder.classList.add('is-hidden');
+      } else {
+        img.removeAttribute('src');
+        img.alt = '';
+        img.classList.remove('is-visible');
+        placeholder.classList.remove('is-hidden');
+      }
+    }
+
+    async function postJokeCreationRequest(payload) {
+      const response = await fetch(jokeCreationUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      let json = null;
+      try {
+        json = await response.json();
+      } catch (_e) {
+        json = null;
+      }
+
+      return { response, json };
     }
 
     function parseEditPayload(rawValue) {
@@ -502,6 +601,18 @@
       });
     }
 
+    if (modifyCancelButton) {
+      modifyCancelButton.addEventListener('click', () => {
+        handleModifyCancel();
+      });
+    }
+
+    if (modifyModalBackdrop) {
+      modifyModalBackdrop.addEventListener('click', () => {
+        handleModifyCancel();
+      });
+    }
+
     if (editCancelButton) {
       editCancelButton.addEventListener('click', () => {
         handleEditCancel();
@@ -542,6 +653,10 @@
           handleEditCancel();
           return;
         }
+        if (isModifyModalOpen()) {
+          handleModifyCancel();
+          return;
+        }
         if (isRegenerateModalOpen()) {
           closeRegenerateModal();
           return;
@@ -576,22 +691,7 @@
         }
 
         try {
-          const response = await fetch(jokeCreationUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(payload),
-          });
-
-          let json = null;
-          try {
-            json = await response.json();
-          } catch (_e) {
-            json = null;
-          }
+          const { response, json } = await postJokeCreationRequest(payload);
 
           // If the backend returns the updated joke payload, refresh the card in-place.
           const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
@@ -614,7 +714,7 @@
     }
 
     document.addEventListener('click', (event) => {
-      const regenerateButton = event.target.closest('.joke-regenerate-button');
+      const regenerateButton = closestFromEvent(event, '.joke-regenerate-button');
       if (regenerateButton) {
         const jokeId = regenerateButton.getAttribute('data-joke-id');
         if (jokeId) {
@@ -624,7 +724,35 @@
         return;
       }
 
-      const editButton = event.target.closest('.joke-edit-button');
+      const modifyButton = closestFromEvent(event, '.joke-modify-button');
+      if (modifyButton) {
+        const card = modifyButton.closest('.joke-card');
+        const payload = parseEditPayload(modifyButton.getAttribute('data-joke-data'));
+
+        activeModifyCard = card;
+        activeModifyPayload = payload;
+
+        setValue(modifyJokeIdInput, payload.joke_id || payload.jokeId || '');
+        setValue(modifySetupInstructionInput, '');
+        setValue(modifyPunchlineInstructionInput, '');
+        setPreviewImage(
+          modifySetupPreview,
+          modifySetupPlaceholder,
+          payload.setup_image_url,
+          payload.setup_text || 'Setup image',
+        );
+        setPreviewImage(
+          modifyPunchlinePreview,
+          modifyPunchlinePlaceholder,
+          payload.punchline_image_url,
+          payload.punchline_text || 'Punchline image',
+        );
+
+        openModifyModal();
+        return;
+      }
+
+      const editButton = closestFromEvent(event, '.joke-edit-button');
       if (!editButton) {
         return;
       }
@@ -682,22 +810,7 @@
       };
 
       try {
-        const resp = await fetch(jokeCreationUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(requestPayload),
-        });
-
-        let json = null;
-        try {
-          json = await resp.json();
-        } catch (_e) {
-          json = null;
-        }
+        const { response: resp, json } = await postJokeCreationRequest(requestPayload);
 
         const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
         if (!resp.ok || !jokeData) {
@@ -801,23 +914,8 @@
       activeEditPayload = null;
 
       try {
-        const response = await fetch(jokeCreationUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        });
+        const { response, json } = await postJokeCreationRequest(payload);
         if (populateImages) {
-          let json = null;
-          try {
-            json = await response.json();
-          } catch (_e) {
-            json = null;
-          }
-
           const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
           if (response.ok && jokeData) {
             const refreshedPayload = applyJokeDataToPayload(optimisticPayload, jokeData);
@@ -848,6 +946,58 @@
       }
     }
 
+    async function sendModifyRequest() {
+      if (!modifyJokeIdInput || !modifySetupInstructionInput || !modifyPunchlineInstructionInput) {
+        return;
+      }
+
+      const setupInstruction = modifySetupInstructionInput.value.trim();
+      const punchlineInstruction = modifyPunchlineInstructionInput.value.trim();
+      if (!setupInstruction && !punchlineInstruction) {
+        return;
+      }
+
+      const jokeId = modifyJokeIdInput.value;
+      const card = activeModifyCard || document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
+      const basePayload = activeModifyPayload || getEditPayloadFromCard(card);
+      const payload = {
+        data: {
+          op: 'joke_image_modify',
+          joke_id: jokeId,
+        },
+      };
+
+      if (setupInstruction) {
+        payload.data.setup_instruction = setupInstruction;
+      }
+      if (punchlineInstruction) {
+        payload.data.punchline_instruction = punchlineInstruction;
+      }
+
+      handleModifyCancel();
+      if (card) {
+        setCardGenerating(card);
+      }
+
+      try {
+        const { response, json } = await postJokeCreationRequest(payload);
+        const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+        if (response.ok && jokeData && card) {
+          const refreshedPayload = applyJokeDataToPayload(basePayload, jokeData);
+          updateCardFromPayload(card, refreshedPayload);
+        }
+        if (!response.ok) {
+          console.warn('joke image modify request failed', response.status); // eslint-disable-line no-console
+        }
+      } catch (err) {
+        console.warn('joke image modify request failed', err); // eslint-disable-line no-console
+      } finally {
+        if (card) {
+          setCardIdle(card);
+        }
+      }
+    }
+
     if (editForm) {
       editForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -865,6 +1015,13 @@
       sceneIdeasForm.addEventListener('submit', (event) => {
         event.preventDefault();
         generateImageDescriptionsFromSceneIdeas();
+      });
+    }
+
+    if (modifyForm) {
+      modifyForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        sendModifyRequest();
       });
     }
   }

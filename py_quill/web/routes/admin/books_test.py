@@ -144,6 +144,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "$0.0500" in html
   assert "$0.1734" in html
   assert 'joke-edit-button' in html
+  assert 'joke-modify-button' in html
   assert 'data-joke-data=' in html
   assert '--joke-card-max-width: 200px;' in html
   assert 'class="variant-tile"' in html

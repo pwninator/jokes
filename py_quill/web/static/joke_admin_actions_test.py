@@ -17,3 +17,15 @@ def test_joke_admin_actions_updates_card_after_regenerate():
   assert "regenerateForm.addEventListener('submit'" in js
   assert "applyJokeDataToPayload" in js
   assert "updateCardFromPayload(card, refreshedPayload)" in js
+
+
+def test_joke_admin_actions_modify_flow_uses_image_modify_op_and_updates_card():
+  js_path = Path(__file__).resolve().parent / "js" / "joke_admin_actions.js"
+  js = js_path.read_text(encoding="utf-8")
+
+  assert "function closestFromEvent(event, selector)" in js
+  assert "const modifyButton = closestFromEvent(event, '.joke-modify-button');" in js
+  assert "function sendModifyRequest()" in js
+  assert "op: 'joke_image_modify'" in js
+  assert "joke image modify request failed" in js
+  assert "updateCardFromPayload(card, refreshedPayload)" in js

@@ -128,12 +128,12 @@
 }
 
 .admin-jokes-calendar-day--occupied {
-  background: rgba(196, 171, 140, 0.28);
+  background: rgba(196, 171, 140, 0.1);
 }
 
 .admin-jokes-calendar-day--today {
-  border-color: var(--color-primary, #c56f3a);
-  box-shadow: 0 0 0 2px var(--color-primary, #c56f3a);
+  border-color: var(--color-primary, #25f71a);
+  box-shadow: 0 0 0 3px var(--color-primary, #25f71a);
 }
 
 .admin-jokes-calendar-day--droppable {

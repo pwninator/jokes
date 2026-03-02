@@ -8,7 +8,8 @@ import random
 import sys
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Literal
+from typing import Any, Literal, cast
+from zoneinfo import ZoneInfo
 
 from common import (audio_operations, audio_timing, image_generation, models,
                     utils)
@@ -18,6 +19,7 @@ from common.posable_character_sequence import (
   SequenceSoundEvent, SequenceSubtitleEvent, SequenceTransformEvent)
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
+from google.cloud.firestore_v1.field_path import FieldPath
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
 from services import (audio_client, audio_voices, cloud_storage, firestore,
@@ -67,6 +69,21 @@ DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE: list[audio_client.DialogTurn] = [
 _MIME_TYPE_CONFIG: dict[str, tuple[str, str]] = {
   "image/png": ("PNG", "png"),
   "image/jpeg": ("JPEG", "jpg"),
+}
+_BATCHES_COLLECTION = "joke_schedule_batches"
+_DAILY_SCHEDULE_ID = "daily_jokes"
+_LA_TIMEZONE = ZoneInfo("America/Los_Angeles")
+_ADMIN_MUTABLE_STATES = {
+  models.JokeState.UNREVIEWED,
+  models.JokeState.APPROVED,
+  models.JokeState.REJECTED,
+}
+_SELECTABLE_TARGET_STATES = {
+  models.JokeState.UNREVIEWED,
+  models.JokeState.APPROVED,
+  models.JokeState.REJECTED,
+  models.JokeState.PUBLISHED,
+  models.JokeState.DAILY,
 }
 
 # Envelope frame hop in seconds.
@@ -639,6 +656,430 @@ def _image_to_bytes(
   return buffer.getvalue()
 
 
+def _parse_target_state(
+  target_state: models.JokeState | str, ) -> models.JokeState:
+  if isinstance(target_state, models.JokeState):
+    return target_state
+  try:
+    return models.JokeState(str(target_state))
+  except ValueError as exc:
+    raise ValueError(f"Unsupported new_state: {target_state}") from exc
+
+
+def _transition_loaded_joke_to_state(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  target_state: models.JokeState,
+  now_utc: datetime.datetime,
+) -> models.PunnyJoke:
+  current_state = joke.state
+  if current_state == target_state:
+    if current_state == models.JokeState.DAILY and not _is_future_daily(
+        joke, now_utc=now_utc):
+      raise ValueError('Past and current daily jokes cannot be changed')
+    return joke
+
+  reachable_states = _get_reachable_target_states(joke, now_utc=now_utc)
+  if target_state not in reachable_states:
+    raise ValueError(
+      f'Cannot transition joke "{joke_id}" from {current_state.value} '
+      f'to {target_state.value}')
+
+  if target_state in _ADMIN_MUTABLE_STATES:
+    joke = _normalize_to_admin_state(joke_id=joke_id,
+                                     joke=joke,
+                                     now_utc=now_utc)
+    return _set_admin_rating_and_state(
+      joke_id=joke_id,
+      joke=joke,
+      rating=_admin_rating_for_state(target_state),
+    )
+
+  if target_state == models.JokeState.PUBLISHED:
+    joke = _normalize_to_admin_state(joke_id=joke_id,
+                                     joke=joke,
+                                     now_utc=now_utc)
+    if joke.state != models.JokeState.APPROVED:
+      joke = _set_admin_rating_and_state(
+        joke_id=joke_id,
+        joke=joke,
+        rating=models.JokeAdminRating.APPROVED,
+      )
+    return _publish_joke_immediately(joke_id=joke_id,
+                                     joke=joke,
+                                     now_utc=now_utc)
+
+  if target_state == models.JokeState.DAILY:
+    if joke.state == models.JokeState.PUBLISHED:
+      return _schedule_joke_to_next_available_daily(
+        joke_id=joke_id,
+        joke=joke,
+        now_utc=now_utc,
+      )
+    joke = _normalize_to_admin_state(joke_id=joke_id,
+                                     joke=joke,
+                                     now_utc=now_utc)
+    if joke.state != models.JokeState.APPROVED:
+      joke = _set_admin_rating_and_state(
+        joke_id=joke_id,
+        joke=joke,
+        rating=models.JokeAdminRating.APPROVED,
+      )
+    if joke.state != models.JokeState.PUBLISHED:
+      joke = _publish_joke_immediately(
+        joke_id=joke_id,
+        joke=joke,
+        now_utc=now_utc,
+      )
+    return _schedule_joke_to_next_available_daily(
+      joke_id=joke_id,
+      joke=joke,
+      now_utc=now_utc,
+    )
+
+  raise ValueError(f'Unsupported target state: {target_state.value}')
+
+
+def _get_reachable_target_states(
+  joke: models.PunnyJoke,
+  *,
+  now_utc: datetime.datetime,
+) -> set[models.JokeState]:
+  state = joke.state
+  if state in _ADMIN_MUTABLE_STATES:
+    return set(_SELECTABLE_TARGET_STATES) - {state}
+  if state == models.JokeState.PUBLISHED:
+    return {
+      models.JokeState.UNREVIEWED,
+      models.JokeState.APPROVED,
+      models.JokeState.REJECTED,
+      models.JokeState.DAILY,
+    }
+  if state == models.JokeState.DAILY:
+    if not _is_future_daily(joke, now_utc=now_utc):
+      return set()
+    return {
+      models.JokeState.UNREVIEWED,
+      models.JokeState.APPROVED,
+      models.JokeState.REJECTED,
+      models.JokeState.PUBLISHED,
+    }
+  return set()
+
+
+def _normalize_to_admin_state(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  now_utc: datetime.datetime,
+) -> models.PunnyJoke:
+  if joke.state in _ADMIN_MUTABLE_STATES:
+    return joke
+  if joke.state == models.JokeState.PUBLISHED:
+    return _reset_joke_to_approved(
+      joke_id=joke_id,
+      joke=joke,
+      expected_state=models.JokeState.PUBLISHED,
+    )
+  if joke.state == models.JokeState.DAILY:
+    return _remove_joke_from_daily_schedule(
+      joke_id=joke_id,
+      joke=joke,
+      now_utc=now_utc,
+    )
+  raise ValueError(
+    f'Cannot transition joke "{joke_id}" from {joke.state.value}')
+
+
+def _admin_rating_for_state(
+  state: models.JokeState, ) -> models.JokeAdminRating:
+  if state == models.JokeState.APPROVED:
+    return models.JokeAdminRating.APPROVED
+  if state == models.JokeState.REJECTED:
+    return models.JokeAdminRating.REJECTED
+  if state == models.JokeState.UNREVIEWED:
+    return models.JokeAdminRating.UNREVIEWED
+  raise ValueError(f'Unsupported admin rating state: {state.value}')
+
+
+def _set_admin_rating_and_state(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  rating: models.JokeAdminRating,
+) -> models.PunnyJoke:
+  if joke.state not in _ADMIN_MUTABLE_STATES:
+    raise ValueError(
+      f'Admin rating cannot be changed when state is {joke.state.value}')
+
+  mapped_state = models.JokeState(rating.value)
+  _ = firestore.db().collection('jokes').document(joke_id).update({
+    'admin_rating':
+    rating.value,
+    'state':
+    mapped_state.value,
+  })
+  joke.admin_rating = rating
+  joke.state = mapped_state
+  return joke
+
+
+def _publish_joke_immediately(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  now_utc: datetime.datetime,
+) -> models.PunnyJoke:
+  la_now = _normalize_utc(now_utc).astimezone(_LA_TIMEZONE)
+  public_timestamp = datetime.datetime(
+    la_now.year,
+    la_now.month,
+    la_now.day,
+    tzinfo=_LA_TIMEZONE,
+  )
+  _ = firestore.db().collection('jokes').document(joke_id).update({
+    'state':
+    models.JokeState.PUBLISHED.value,
+    'public_timestamp':
+    public_timestamp,
+    'is_public':
+    True,
+  })
+  joke.state = models.JokeState.PUBLISHED
+  joke.public_timestamp = public_timestamp
+  joke.is_public = True
+  return joke
+
+
+def _reset_joke_to_approved(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  expected_state: models.JokeState | None = None,
+) -> models.PunnyJoke:
+  if expected_state is not None and joke.state != expected_state:
+    raise ValueError(
+      f'Cannot reset joke "{joke_id}": current state is {joke.state.value}, '
+      f'expected {expected_state.value}')
+  _ = firestore.db().collection('jokes').document(joke_id).update({
+    'state':
+    models.JokeState.APPROVED.value,
+    'public_timestamp':
+    None,
+    'is_public':
+    False,
+  })
+  joke.state = models.JokeState.APPROVED
+  joke.public_timestamp = None
+  joke.is_public = False
+  return joke
+
+
+def _remove_joke_from_daily_schedule(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  now_utc: datetime.datetime,
+) -> models.PunnyJoke:
+  _assert_future_daily_mutable(joke, now_utc=now_utc)
+
+  client = firestore.db()
+  batches = _load_daily_schedule_batches(client)
+  la_today = _normalize_utc(now_utc).astimezone(_LA_TIMEZONE).date()
+  batches_to_write: dict[str, dict[str, dict[str, object]]] = {}
+
+  for batch_id, batch in batches.items():
+    parsed_batch = _parse_daily_batch_id(batch_id)
+    if parsed_batch is None:
+      continue
+    year, month = parsed_batch
+    next_batch = dict(batch)
+    removed_any = False
+    for day_key, day_data in list(batch.items()):
+      if str(day_data.get('joke_id') or '').strip() != joke_id:
+        continue
+      scheduled_date = datetime.date(year, month, int(day_key))
+      if scheduled_date <= la_today:
+        raise ValueError('Past and current daily jokes cannot be changed')
+      del next_batch[day_key]
+      removed_any = True
+    if removed_any:
+      batches_to_write[batch_id] = next_batch
+
+  write_batch = client.batch()
+  for batch_id, batch_data in batches_to_write.items():
+    write_batch.set(
+      client.collection(_BATCHES_COLLECTION).document(batch_id),
+      {'jokes': batch_data},
+    )
+  write_batch.update(
+    client.collection('jokes').document(joke_id),
+    {
+      'state': models.JokeState.APPROVED.value,
+      'public_timestamp': None,
+      'is_public': False,
+    },
+  )
+  write_batch.commit()  # pyright: ignore[reportUnusedCallResult]
+
+  joke.state = models.JokeState.APPROVED
+  joke.public_timestamp = None
+  joke.is_public = False
+  return joke
+
+
+def _schedule_joke_to_next_available_daily(
+  *,
+  joke_id: str,
+  joke: models.PunnyJoke,
+  now_utc: datetime.datetime,
+) -> models.PunnyJoke:
+  if joke.state not in (models.JokeState.PUBLISHED, models.JokeState.DAILY):
+    raise ValueError(
+      f'Joke "{joke_id}" must be in PUBLISHED or DAILY state to schedule')
+
+  client = firestore.db()
+  batches = _load_daily_schedule_batches(client)
+  target_date = _find_next_available_daily_date(batches, now_utc=now_utc)
+  batch_id = _daily_batch_id(target_date.year, target_date.month)
+  target_batch = dict(batches.get(batch_id) or {})
+  day_key = f'{target_date.day:02d}'
+  if target_batch.get(day_key):
+    raise ValueError(
+      f'Schedule "{_DAILY_SCHEDULE_ID}" already has a joke scheduled for '
+      f'{target_date.isoformat()}')
+
+  target_batch[day_key] = _serialize_daily_batch_joke(joke)
+  public_timestamp = datetime.datetime(
+    target_date.year,
+    target_date.month,
+    target_date.day,
+    tzinfo=_LA_TIMEZONE,
+  )
+
+  write_batch = client.batch()
+  write_batch.set(
+    client.collection(_BATCHES_COLLECTION).document(batch_id),
+    {'jokes': target_batch},
+  )
+  write_batch.update(
+    client.collection('jokes').document(joke_id),
+    {
+      'state': models.JokeState.DAILY.value,
+      'public_timestamp': public_timestamp,
+      'is_public': False,
+    },
+  )
+  write_batch.commit()  # pyright: ignore[reportUnusedCallResult]
+
+  joke.state = models.JokeState.DAILY
+  joke.public_timestamp = public_timestamp
+  joke.is_public = False
+  return joke
+
+
+def _load_daily_schedule_batches(
+    client: Any) -> dict[str, dict[str, dict[str, object]]]:
+  batches: dict[str, dict[str, dict[str, object]]] = {}
+  query: Any = (client.collection(_BATCHES_COLLECTION).order_by(
+    FieldPath.document_id()).start_at([f'{_DAILY_SCHEDULE_ID}_']).end_at(
+      [f'{_DAILY_SCHEDULE_ID}_\uf8ff']))
+  for snapshot in query.stream():
+    if not snapshot.exists:
+      continue
+    data_raw: object = snapshot.to_dict() or {}
+    if not isinstance(data_raw, dict):
+      continue
+    data = cast(dict[str, object], data_raw)
+    jokes_raw: object = data.get('jokes')
+    if not isinstance(jokes_raw, dict):
+      batches[snapshot.id] = {}
+      continue
+    jokes_map = cast(dict[object, object], jokes_raw)
+    parsed_batch: dict[str, dict[str, object]] = {}
+    for day_key, day_value in jokes_map.items():
+      if not isinstance(day_value, dict):
+        continue
+      parsed_batch[str(day_key)] = cast(dict[str, object], day_value)
+    batches[snapshot.id] = parsed_batch
+  return batches
+
+
+def _find_next_available_daily_date(
+  batches: dict[str, dict[str, dict[str, object]]],
+  *,
+  now_utc: datetime.datetime,
+) -> datetime.date:
+  target_date = _normalize_utc(now_utc).astimezone(_LA_TIMEZONE).date()
+  while True:
+    batch = batches.get(_daily_batch_id(target_date.year, target_date.month),
+                        {})
+    if f'{target_date.day:02d}' not in batch:
+      return target_date
+    target_date += datetime.timedelta(days=1)
+
+
+def _serialize_daily_batch_joke(joke: models.PunnyJoke) -> dict[str, object]:
+  return {
+    'joke_id': joke.key or '',
+    'setup': joke.setup_text or '',
+    'punchline': joke.punchline_text or '',
+    'setup_image_url': joke.setup_image_url,
+    'punchline_image_url': joke.punchline_image_url,
+  }
+
+
+def _daily_batch_id(year: int, month: int) -> str:
+  return f'{_DAILY_SCHEDULE_ID}_{year}_{month:02d}'
+
+
+def _parse_daily_batch_id(batch_id: str) -> tuple[int, int] | None:
+  prefix = f'{_DAILY_SCHEDULE_ID}_'
+  if not batch_id.startswith(prefix):
+    return None
+  suffix = batch_id.removeprefix(prefix)
+  parts = suffix.split('_')
+  if len(parts) != 2:
+    return None
+  try:
+    return int(parts[0]), int(parts[1])
+  except ValueError:
+    return None
+
+
+def _is_future_daily(
+  joke: models.PunnyJoke,
+  *,
+  now_utc: datetime.datetime,
+) -> bool:
+  if joke.state != models.JokeState.DAILY:
+    return False
+  public_timestamp = joke.public_timestamp
+  if not isinstance(public_timestamp, datetime.datetime):
+    return False
+  return _normalize_utc(public_timestamp) > _normalize_utc(now_utc)
+
+
+def _assert_future_daily_mutable(
+  joke: models.PunnyJoke,
+  *,
+  now_utc: datetime.datetime,
+) -> None:
+  if not _is_future_daily(joke, now_utc=now_utc):
+    raise ValueError('Past and current daily jokes cannot be changed')
+
+
+def _normalize_utc(value: datetime.datetime) -> datetime.datetime:
+  if value.tzinfo is None:
+    return value.replace(tzinfo=datetime.timezone.utc)
+  return value.astimezone(datetime.timezone.utc)
+
+
+def _current_time_utc() -> datetime.datetime:
+  return datetime.datetime.now(datetime.timezone.utc)
+
+
 def sync_joke_to_search_collection(
   joke: models.PunnyJoke,
   new_embedding: Vector | None,
@@ -707,6 +1148,34 @@ def to_response_joke(joke: models.PunnyJoke) -> dict[str, object]:
       joke_dict[key] = value.isoformat()
 
   return joke_dict
+
+
+def transition_joke_to_state(
+  *,
+  joke_id: str,
+  target_state: models.JokeState | str,
+  now_utc: datetime.datetime | None = None,
+) -> models.PunnyJoke:
+  """Transition a joke to a reachable admin state target."""
+  resolved_joke_id = joke_id.strip()
+  if not resolved_joke_id:
+    raise ValueError("joke_id is required")
+
+  resolved_target_state = _parse_target_state(target_state)
+  if resolved_target_state not in _SELECTABLE_TARGET_STATES:
+    raise ValueError(f"Unsupported new_state: {resolved_target_state.value}")
+
+  joke = firestore.get_punny_joke(resolved_joke_id)
+  if not joke:
+    raise JokeNotFoundError(f"Joke not found: {resolved_joke_id}")
+
+  resolved_now_utc = _current_time_utc() if now_utc is None else now_utc
+  return _transition_loaded_joke_to_state(
+    joke_id=resolved_joke_id,
+    joke=joke,
+    target_state=resolved_target_state,
+    now_utc=resolved_now_utc,
+  )
 
 
 def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
@@ -1527,8 +1996,7 @@ def _decode_wav_to_peak_envelope(
     peak = 0.0
     for sample_index in range(frame_start, frame_end):
       value = abs(int(samples[sample_index]))
-      if value > peak:
-        peak = value
+      peak = max(peak, value)
     envelope.append(peak)
     frame_start = frame_end
 

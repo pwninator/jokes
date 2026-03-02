@@ -112,6 +112,7 @@ def admin_jokes_load_more():
     admin_state_badge_enabled=True,
     admin_stats_enabled=True,
     admin_edit_enabled=True,
+    admin_state_selector_enabled=True,
   )
 
   response = {

@@ -39,7 +39,7 @@ def test_admin_jokes_default_filters(monkeypatch):
 
   joke = models.PunnyJoke(setup_text="setup", punchline_text="punch")
   joke.key = "joke-1"
-  joke.state = models.JokeState.DRAFT
+  joke.state = models.JokeState.APPROVED
   joke.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/setup.png"
   joke.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/punch.png"
   joke.all_setup_image_urls = [joke.setup_image_url]
@@ -95,6 +95,7 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'id="admin-jokes-calendar-month-picker"' in html
   assert 'id="admin-edit-joke-modal"' in html
   assert 'id="admin-modify-joke-modal"' in html
+  assert 'id="admin-state-joke-modal"' in html
   assert 'id="admin-edit-joke-setup-scene-idea"' not in html
   assert 'id="admin-edit-joke-punchline-scene-idea"' not in html
   assert 'id="admin-edit-joke-scene-ideas-button"' in html
@@ -102,9 +103,12 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'id="admin-scene-ideas-generate-button"' in html
   assert f"https://{config.JOKE_CREATION_API_HOST}" in html
   assert 'data-joke-id="joke-1"' in html
+  assert 'data-joke-state-button' in html
   assert 'joke-edit-button' in html
   assert 'joke-modify-button' in html
   assert 'data-joke-data=' in html
+  assert 'state' in html
+  assert 'APPROVED' in html
   assert 'id="admin-modify-joke-setup-instruction"' in html
   assert 'id="admin-modify-joke-punchline-instruction"' in html
   # Spot check a few edit payload fields (HTML-escaped JSON).
@@ -196,7 +200,7 @@ def test_admin_jokes_load_more(monkeypatch):
 
   joke = models.PunnyJoke(setup_text="setup", punchline_text="punch")
   joke.key = "joke-1"
-  joke.state = models.JokeState.DRAFT
+  joke.state = models.JokeState.APPROVED
   joke.num_viewed_users = 12
   joke.num_saved_users = 3
   joke.num_shared_users = 1
@@ -231,6 +235,7 @@ def test_admin_jokes_load_more(monkeypatch):
   assert body["has_more"] is True
   assert "joke-admin-stats" in body["html"]
   assert "joke-state-badge" in body["html"]
+  assert "data-joke-state-button" in body["html"]
   assert "joke-edit-button" in body["html"]
   assert "joke-modify-button" in body["html"]
   assert 'title="SUMMARY&#10;Total Cost: $0.2500' in body["html"]

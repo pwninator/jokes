@@ -1,4 +1,4 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, is_future_daily=None, edit_payload=None, selectable=false) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, admin_state_selector_enabled=false, is_future_daily=None, edit_payload=None, selectable=false) -%}
 {% macro multiline_title_attr(text) -%}
 {%- set newline = '&#10;' | safe -%}
 {{- text | e | replace('\n', newline) -}}
@@ -31,13 +31,22 @@
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
     {% if admin_state_badge_enabled and state_value %}
-      <div class="joke-state-badge joke-state-{{ badge_state_class }}">
-        {% if is_daily and has_public_ts %}
-          {{ joke.public_timestamp.strftime('%Y-%m-%d') }}
-        {% else %}
-          {{ state_value|lower|capitalize }}
-        {% endif %}
+      {% set state_badge_label = joke.public_timestamp.strftime('%Y-%m-%d') if is_daily and has_public_ts else state_value|lower|capitalize %}
+      {% set state_selector_clickable = admin_state_selector_enabled and state_value not in ('UNKNOWN', 'DRAFT') and (not is_daily or is_future_daily_value) %}
+      {% if state_selector_clickable %}
+      <button type="button"
+        class="joke-state-badge joke-state-badge--button joke-state-{{ badge_state_class }}"
+        data-joke-state-button="true"
+        data-joke-data='{{ edit_payload_value | tojson }}'
+        aria-label="Change joke state"
+        title="Change state">
+        {{ state_badge_label }}
+      </button>
+      {% else %}
+      <div class="joke-state-badge joke-state-{{ badge_state_class }}" data-joke-state-badge-static>
+        {{ state_badge_label }}
       </div>
+      {% endif %}
     {% endif %}
     <div class="joke-carousel">
       <div class="joke-carousel-viewport">

@@ -27,6 +27,7 @@ class JokeCreationOp(str, Enum):
   PROC = "proc"
   JOKE_IMAGE = "joke_image"
   JOKE_IMAGE_MODIFY = "joke_image_modify"
+  JOKE_STATE = "joke_state"
   JOKE_AUDIO = "joke_audio"
   JOKE_VIDEO = "joke_video"
   SOCIAL = "social"
@@ -102,6 +103,8 @@ def _route_joke_creation_op(req: flask.Request) -> flask.Response:
     return _run_joke_image_tuner(req)
   if op == JokeCreationOp.JOKE_IMAGE_MODIFY:
     return _run_joke_image_modify_op(req)
+  if op == JokeCreationOp.JOKE_STATE:
+    return _run_joke_state_op(req)
   if op == JokeCreationOp.JOKE_AUDIO:
     return _run_joke_audio_tuner(req)
   if op == JokeCreationOp.JOKE_VIDEO:
@@ -382,6 +385,50 @@ def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
                     f"{traceback.format_exc()}")
     logger.error(error_string)
     return error_response(error_string, error_type='internal_error', req=req)
+
+
+def _run_joke_state_op(req: flask.Request) -> flask.Response:
+  """Transition a joke to a reachable target state."""
+  joke_id = get_str_param(req, 'joke_id')
+  new_state_value = get_str_param(req, 'new_state')
+
+  if not joke_id:
+    return error_response(
+      'joke_id is required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+  if not new_state_value:
+    return error_response(
+      'new_state is required',
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  try:
+    updated_joke = joke_operations.transition_joke_to_state(
+      joke_id=joke_id,
+      target_state=new_state_value,
+    )
+  except joke_operations.JokeNotFoundError as exc:
+    return error_response(str(exc),
+                          error_type='not_found',
+                          status=404,
+                          req=req)
+  except ValueError as exc:
+    return error_response(
+      str(exc),
+      error_type='invalid_request',
+      status=400,
+      req=req,
+    )
+
+  return success_response(
+    {"joke_data": joke_operations.to_response_joke(updated_joke)},
+    req=req,
+  )
 
 
 def _run_joke_image_modify_op(req: flask.Request) -> flask.Response:

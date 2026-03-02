@@ -96,6 +96,114 @@ def mock_scene_ideas_fixture(monkeypatch):
   return fake_generate
 
 
+class _FakeSnapshot:
+
+  def __init__(self, doc_id: str, data: dict[str, object] | None):
+    self.id = doc_id
+    self._data = data.copy() if data is not None else None
+    self.exists = data is not None
+
+  def to_dict(self) -> dict[str, object]:
+    return {} if self._data is None else self._data.copy()
+
+
+class _FakeDocumentReference:
+
+  def __init__(self, client: "_FakeClient", collection_name: str, doc_id: str):
+    self._client = client
+    self._collection_name = collection_name
+    self.id = doc_id
+
+  def get(self, transaction=None):
+    _ = transaction
+    collection = self._client.data.setdefault(self._collection_name, {})
+    return _FakeSnapshot(self.id, collection.get(self.id))
+
+  def set(self, value: dict[str, object]):
+    collection = self._client.data.setdefault(self._collection_name, {})
+    collection[self.id] = value.copy()
+
+  def update(self, value: dict[str, object]):
+    collection = self._client.data.setdefault(self._collection_name, {})
+    current = (collection.get(self.id) or {}).copy()
+    current.update(value.copy())
+    collection[self.id] = current
+
+
+class _FakeQuery:
+
+  def __init__(self, client: "_FakeClient", collection_name: str):
+    self._client = client
+    self._collection_name = collection_name
+    self._start = None
+    self._end = None
+
+  def order_by(self, field):
+    _ = field
+    return self
+
+  def start_at(self, values):
+    self._start = values[0]
+    return self
+
+  def end_at(self, values):
+    self._end = values[0]
+    return self
+
+  def stream(self):
+    collection = self._client.data.setdefault(self._collection_name, {})
+    for doc_id in sorted(collection.keys()):
+      if self._start is not None and doc_id < self._start:
+        continue
+      if self._end is not None and doc_id > self._end:
+        continue
+      yield _FakeSnapshot(doc_id, collection[doc_id])
+
+
+class _FakeCollection:
+
+  def __init__(self, client: "_FakeClient", name: str):
+    self._client = client
+    self._name = name
+
+  def document(self, doc_id: str):
+    return _FakeDocumentReference(self._client, self._name, doc_id)
+
+  def order_by(self, field):
+    _ = field
+    return _FakeQuery(self._client, self._name)
+
+
+class _FakeBatch:
+
+  def set(self, ref: _FakeDocumentReference, value: dict[str, object]):
+    ref.set(value)
+
+  def update(self, ref: _FakeDocumentReference, value: dict[str, object]):
+    ref.update(value)
+
+  def commit(self):
+    return True
+
+
+class _FakeClient:
+
+  def __init__(self, data: dict[str, dict[str, dict[str, object]]]):
+    self.data = {
+      collection: {
+        doc_id: doc.copy()
+        for doc_id, doc in docs.items()
+      }
+      for collection, docs in data.items()
+    }
+
+  def collection(self, name: str):
+    return _FakeCollection(self, name)
+
+  def batch(self):
+    return _FakeBatch()
+
+
 def test_initialize_joke_creates_new_with_overrides(monkeypatch,
                                                     mock_firestore):
   """initialize_joke should build a new joke and apply field overrides."""
@@ -1199,6 +1307,152 @@ def test_to_response_joke_serializes_datetime_with_nanoseconds():
 
   assert response["public_timestamp"] == now.isoformat()
   assert isinstance(response["public_timestamp"], str)
+
+
+def test_transition_joke_to_state_promotes_unreviewed_to_daily(monkeypatch):
+  client = _FakeClient({
+    "joke_schedule_batches": {
+      "daily_jokes_2026_03": {
+        "jokes": {
+          "02": {
+            "joke_id": "occupied-joke",
+          },
+        },
+      },
+    },
+    "jokes": {
+      "joke-1": {
+        "setup_text": "setup",
+        "punchline_text": "punch",
+        "setup_image_url": "setup.png",
+        "punchline_image_url": "punch.png",
+        "state": models.JokeState.UNREVIEWED.value,
+        "admin_rating": models.JokeAdminRating.UNREVIEWED.value,
+      },
+    },
+  })
+  monkeypatch.setattr(joke_operations.firestore, "db", lambda: client)
+  monkeypatch.setattr(
+    joke_operations.firestore,
+    "get_punny_joke",
+    lambda joke_id: models.PunnyJoke.from_firestore_dict(
+      client.data["jokes"][joke_id],
+      key=joke_id,
+    ),
+  )
+
+  updated = joke_operations.transition_joke_to_state(
+    joke_id="joke-1",
+    target_state=models.JokeState.DAILY,
+    now_utc=datetime.datetime(2026, 3, 2, 18, tzinfo=datetime.timezone.utc),
+  )
+
+  assert updated.state == models.JokeState.DAILY
+  assert updated.admin_rating == models.JokeAdminRating.APPROVED
+  assert updated.is_public is False
+  assert client.data["joke_schedule_batches"]["daily_jokes_2026_03"]["jokes"][
+    "03"]["joke_id"] == "joke-1"
+
+
+def test_transition_joke_to_state_demotes_future_daily_to_rejected(
+    monkeypatch):
+  client = _FakeClient({
+    "joke_schedule_batches": {
+      "daily_jokes_2026_03": {
+        "jokes": {
+          "05": {
+            "joke_id": "joke-1",
+            "setup": "setup",
+            "punchline": "punch",
+          },
+        },
+      },
+    },
+    "jokes": {
+      "joke-1": {
+        "setup_text":
+        "setup",
+        "punchline_text":
+        "punch",
+        "state":
+        models.JokeState.DAILY.value,
+        "admin_rating":
+        models.JokeAdminRating.APPROVED.value,
+        "public_timestamp":
+        datetime.datetime(
+          2026,
+          3,
+          5,
+          tzinfo=datetime.timezone(datetime.timedelta(hours=-8)),
+        ),
+        "is_public":
+        False,
+      },
+    },
+  })
+  monkeypatch.setattr(joke_operations.firestore, "db", lambda: client)
+  monkeypatch.setattr(
+    joke_operations.firestore,
+    "get_punny_joke",
+    lambda joke_id: models.PunnyJoke.from_firestore_dict(
+      client.data["jokes"][joke_id],
+      key=joke_id,
+    ),
+  )
+
+  updated = joke_operations.transition_joke_to_state(
+    joke_id="joke-1",
+    target_state=models.JokeState.REJECTED,
+    now_utc=datetime.datetime(2026, 3, 2, 18, tzinfo=datetime.timezone.utc),
+  )
+
+  assert updated.state == models.JokeState.REJECTED
+  assert updated.admin_rating == models.JokeAdminRating.REJECTED
+  assert updated.public_timestamp is None
+  assert client.data["joke_schedule_batches"]["daily_jokes_2026_03"][
+    "jokes"] == {}
+
+
+def test_transition_joke_to_state_rejects_locked_daily(monkeypatch):
+  client = _FakeClient({
+    "jokes": {
+      "joke-1": {
+        "setup_text":
+        "setup",
+        "punchline_text":
+        "punch",
+        "state":
+        models.JokeState.DAILY.value,
+        "admin_rating":
+        models.JokeAdminRating.APPROVED.value,
+        "public_timestamp":
+        datetime.datetime(
+          2026,
+          3,
+          2,
+          tzinfo=datetime.timezone(datetime.timedelta(hours=-8)),
+        ),
+        "is_public":
+        False,
+      },
+    },
+  })
+  monkeypatch.setattr(joke_operations.firestore, "db", lambda: client)
+  monkeypatch.setattr(
+    joke_operations.firestore,
+    "get_punny_joke",
+    lambda joke_id: models.PunnyJoke.from_firestore_dict(
+      client.data["jokes"][joke_id],
+      key=joke_id,
+    ),
+  )
+
+  with pytest.raises(ValueError, match='Cannot transition joke'):
+    joke_operations.transition_joke_to_state(
+      joke_id="joke-1",
+      target_state=models.JokeState.APPROVED,
+      now_utc=datetime.datetime(2026, 3, 2, 18, tzinfo=datetime.timezone.utc),
+    )
 
 
 def test_generate_joke_audio_splits_on_two_one_second_pauses_and_uploads(

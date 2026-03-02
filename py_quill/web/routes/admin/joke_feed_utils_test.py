@@ -29,6 +29,11 @@ def test_build_edit_payload_dedupes_and_sets_thumbs():
   joke.key = "joke-1"
   joke.seasonal = "Fall"
   joke.tags = ["cozy", "pumpkin"]
+  joke.state = models.JokeState.PUBLISHED
+  joke.public_timestamp = datetime.datetime(2024,
+                                            10,
+                                            31,
+                                            tzinfo=datetime.timezone.utc)
   joke.setup_image_url = (
     "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/setup.png"
   )
@@ -41,6 +46,8 @@ def test_build_edit_payload_dedupes_and_sets_thumbs():
   payload = joke_feed_utils.build_edit_payload(joke, thumb_size=123)
 
   assert payload["joke_id"] == "joke-1"
+  assert payload["state"] == "PUBLISHED"
+  assert payload["public_timestamp"] == "2024-10-31T00:00:00+00:00"
   assert payload["seasonal"] == "Fall"
   assert payload["tags"] == "cozy, pumpkin"
   assert payload["setup_images"][0]["url"] == joke.setup_image_url
@@ -67,3 +74,5 @@ def test_build_feed_entries_wraps_jokes():
   assert entry.cursor == "cursor-1"
   assert entry.is_future_daily is True
   assert entry.edit_payload["joke_id"] == "joke-2"
+  assert entry.edit_payload["state"] == "DAILY"
+  assert entry.edit_payload["public_timestamp"] == future_ts.isoformat()

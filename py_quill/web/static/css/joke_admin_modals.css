@@ -148,6 +148,10 @@
   width: min(1080px, calc(100vw - 40px));
 }
 
+.admin-modal__dialog--state {
+  width: min(560px, calc(100vw - 40px));
+}
+
 .admin-modal__modify-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -198,6 +202,33 @@
 
 .admin-modal__textarea--modify {
   min-height: 220px;
+}
+
+.joke-state-badge--button {
+  cursor: pointer;
+}
+
+.joke-state-badge--button[disabled] {
+  cursor: default;
+}
+
+.admin-modal__state-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-modal__state-option.joke-state-badge {
+  position: static;
+  min-width: 120px;
+  padding: 8px 12px;
+  background-clip: padding-box;
+  cursor: pointer;
+}
+
+.admin-modal__state-option--selected.joke-state-badge {
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+  border-color: rgba(0, 0, 0, 0.18);
 }
 
 /* Keep tab order = Submit then Cancel, while rendering Cancel left of Submit. */

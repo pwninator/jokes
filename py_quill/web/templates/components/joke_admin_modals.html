@@ -141,6 +141,31 @@
   </div>
 </div>
 
+<div id="admin-state-joke-modal" class="admin-modal" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-admin-state-joke-backdrop></div>
+  <div class="admin-modal__dialog admin-modal__dialog--state" role="dialog" aria-modal="true"
+    aria-labelledby="admin-state-joke-title">
+    <h3 id="admin-state-joke-title" class="admin-modal__title text-section-heading">Change joke state</h3>
+    <div class="admin-modal__content">
+      <form id="admin-state-joke-form">
+        <input type="hidden" id="admin-state-joke-id" name="joke_id" value="">
+        <input type="hidden" id="admin-state-joke-new-state" name="new_state" value="">
+        <div class="admin-modal__field">
+          <div class="admin-modal__label">Reachable states</div>
+          <div id="admin-state-joke-options" class="admin-modal__state-options" aria-label="Reachable joke states">
+          </div>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button"
+            id="admin-state-joke-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button"
+            id="admin-state-joke-submit-button">Update State</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div id="admin-scene-ideas-modal" class="admin-modal admin-modal--overlay" aria-hidden="true">
   <div class="admin-modal__backdrop" data-admin-scene-ideas-backdrop></div>
   <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-scene-ideas-title">

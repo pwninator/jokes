@@ -12,6 +12,8 @@ _DEFAULT_THUMB_SIZE = 180
 
 @dataclass(frozen=True)
 class JokeFeedEntry:
+  """Rendered admin-feed data for a joke card."""
+
   joke: models.PunnyJoke
   cursor: str
   is_future_daily: bool
@@ -19,6 +21,7 @@ class JokeFeedEntry:
 
 
 def parse_category_filter(value: str | None) -> str | None:
+  """Normalize a category query parameter into a category id or None."""
   category_id = (value or "").strip()
   return category_id or None
 
@@ -38,6 +41,7 @@ def _dedupe_keep_order(values: list[str]) -> list[str]:
 
 def is_future_daily(joke: models.PunnyJoke, *,
                     now_utc: datetime.datetime) -> bool:
+  """Return whether the joke is a DAILY joke scheduled strictly in the future."""
   if joke.state != models.JokeState.DAILY:
     return False
   public_ts = getattr(joke, "public_timestamp", None)
@@ -55,6 +59,7 @@ def build_edit_payload(
     joke: models.PunnyJoke,
     *,
     thumb_size: int = _DEFAULT_THUMB_SIZE) -> dict[str, object]:
+  """Build the JSON payload shared by admin joke-card actions."""
   setup_urls = list(getattr(joke, "all_setup_image_urls", None) or [])
   punchline_urls = list(getattr(joke, "all_punchline_image_urls", None) or [])
 
@@ -69,6 +74,10 @@ def build_edit_payload(
   return {
     "joke_id":
     joke.key,
+    "state":
+    joke.state.value,
+    "public_timestamp":
+    joke.public_timestamp.isoformat() if joke.public_timestamp else None,
     "setup_text":
     joke.setup_text,
     "punchline_text":

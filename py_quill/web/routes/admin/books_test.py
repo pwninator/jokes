@@ -70,7 +70,8 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
         book_name='Space Llamas',
         jokes=['joke-1', 'joke-2'],
         associated_book_key='animal-jokes',
-        belongs_to_page_gcs_uri='gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
+        belongs_to_page_gcs_uri=
+        'gs://images.quillsstorybook.com/_joke_assets/book/belongs.png',
         zip_url='https://example.com/book.zip',
         paperback_pdf_url='https://example.com/book_paperback.pdf',
         ebook_pdf_url='https://example.com/book_ebook.pdf',
@@ -145,6 +146,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "$0.1734" in html
   assert 'joke-edit-button' in html
   assert 'joke-modify-button' in html
+  assert 'data-joke-state-button' not in html
   assert 'data-joke-data=' in html
   assert '--joke-card-max-width: 200px;' in html
   assert 'class="variant-tile"' in html
@@ -364,13 +366,12 @@ def test_admin_joke_book_upload_belongs_to_page(monkeypatch):
                       mock_upload)
   monkeypatch.setattr(books_routes.cloud_storage, 'get_public_image_cdn_url',
                       Mock(return_value='https://cdn/belongs.png'))
-  mock_update = Mock(
-    return_value=books_routes.models.JokeBook(
-      id='book-456',
-      book_name='Space Llamas',
-      belongs_to_page_gcs_uri=
-      'gs://images.quillsstorybook.com/_joke_assets/book/uploaded.png',
-    ))
+  mock_update = Mock(return_value=books_routes.models.JokeBook(
+    id='book-456',
+    book_name='Space Llamas',
+    belongs_to_page_gcs_uri=
+    'gs://images.quillsstorybook.com/_joke_assets/book/uploaded.png',
+  ))
   monkeypatch.setattr(books_routes.joke_books_firestore,
                       'update_joke_book_belongs_to_page', mock_update)
   monkeypatch.setattr(
@@ -394,8 +395,7 @@ def test_admin_joke_book_upload_belongs_to_page(monkeypatch):
   assert payload == {
     'belongs_to_page_gcs_uri':
     'gs://images.quillsstorybook.com/_joke_assets/book/uploaded.png',
-    'preview_url':
-    'https://cdn/belongs.png',
+    'preview_url': 'https://cdn/belongs.png',
   }
   mock_upload.assert_called_once_with(
     _make_image_bytes('PNG'),
@@ -405,9 +405,9 @@ def test_admin_joke_book_upload_belongs_to_page(monkeypatch):
   )
   mock_update.assert_called_once_with(
     'book-456',
-    belongs_to_page_gcs_uri=
-    ('gs://images.quillsstorybook.com/_joke_assets/book/'
-     '20260228_120000__belongs_to__space_llamas.png'),
+    belongs_to_page_gcs_uri=(
+      'gs://images.quillsstorybook.com/_joke_assets/book/'
+      '20260228_120000__belongs_to__space_llamas.png'),
   )
 
 
@@ -415,12 +415,11 @@ def test_admin_joke_book_update_associated_book(monkeypatch):
   """Book-level association updates the stored book key."""
   _mock_admin_session(monkeypatch)
 
-  mock_update = Mock(
-    return_value=books_routes.models.JokeBook(
-      id='book-456',
-      book_name='Space Llamas',
-      associated_book_key='animal-jokes',
-    ))
+  mock_update = Mock(return_value=books_routes.models.JokeBook(
+    id='book-456',
+    book_name='Space Llamas',
+    associated_book_key='animal-jokes',
+  ))
   monkeypatch.setattr(books_routes.joke_books_firestore,
                       'update_joke_book_associated_book_key', mock_update)
 

@@ -18,6 +18,79 @@
   const GENERATING_LABEL = 'Generating...';
   const IMAGE_CDN_PREFIX = 'https://images.quillsstorybook.com/cdn-cgi/image/';
   const IMAGE_GRID_EMPTY_TEXT = 'No images found.';
+  const ADMIN_MUTABLE_STATES = ['UNREVIEWED', 'APPROVED', 'REJECTED'];
+
+  function getStateLabel(state) {
+    switch (state) {
+      case 'UNREVIEWED':
+        return 'Unreviewed';
+      case 'APPROVED':
+        return 'Approved';
+      case 'REJECTED':
+        return 'Rejected';
+      case 'PUBLISHED':
+        return 'Published';
+      case 'DAILY':
+        return 'Daily';
+      case 'DRAFT':
+        return 'Draft';
+      case 'UNKNOWN':
+        return 'Unknown';
+      default:
+        return '';
+    }
+  }
+
+  function extractDateLabel(value) {
+    if (typeof value === 'string') {
+      const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (match) {
+        return match[1];
+      }
+    }
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '';
+  }
+
+  function isFutureDailyPayload(payload) {
+    if (!payload || payload.state !== 'DAILY' || !payload.public_timestamp) {
+      return false;
+    }
+    const date = new Date(payload.public_timestamp);
+    return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+  }
+
+  function getStateBadgeClass(payload) {
+    if (!payload || !payload.state) {
+      return '';
+    }
+    return isFutureDailyPayload(payload) ? 'future-daily' : String(payload.state).toLowerCase();
+  }
+
+  function getStateBadgeText(payload) {
+    if (!payload || !payload.state) {
+      return '';
+    }
+    if (payload.state === 'DAILY' && payload.public_timestamp) {
+      return extractDateLabel(payload.public_timestamp) || 'Daily';
+    }
+    return getStateLabel(payload.state);
+  }
+
+  function getReachableStateOptions(payload) {
+    const state = payload && payload.state ? String(payload.state) : '';
+    if (ADMIN_MUTABLE_STATES.includes(state)) {
+      return ['UNREVIEWED', 'APPROVED', 'REJECTED', 'PUBLISHED', 'DAILY']
+        .filter((value) => value !== state);
+    }
+    if (state === 'PUBLISHED') {
+      return ['APPROVED', 'UNREVIEWED', 'REJECTED', 'DAILY'];
+    }
+    if (state === 'DAILY' && isFutureDailyPayload(payload)) {
+      return ['APPROVED', 'PUBLISHED', 'UNREVIEWED', 'REJECTED'];
+    }
+    return [];
+  }
 
   function decodeHtmlEntities(value) {
     const raw = String(value || '');
@@ -104,6 +177,12 @@
     }
     const payload = { ...(basePayload || {}) };
     payload.joke_id = jokeData.key || jokeData.joke_id || payload.joke_id || '';
+    if (jokeData.state !== undefined) {
+      payload.state = jokeData.state;
+    }
+    if (Object.prototype.hasOwnProperty.call(jokeData, 'public_timestamp')) {
+      payload.public_timestamp = jokeData.public_timestamp;
+    }
     if (jokeData.setup_text !== undefined) {
       payload.setup_text = jokeData.setup_text;
     }
@@ -198,6 +277,14 @@
       data.punchline_instruction = punchlineInstruction;
     }
     return data;
+  }
+
+  function buildStateRequestData(jokeId, newState) {
+    return {
+      op: 'joke_state',
+      joke_id: jokeId,
+      new_state: newState,
+    };
   }
 
   function getRevealButtonLabel(button) {
@@ -309,13 +396,38 @@
     return url ? formatThumbUrl(url, getCardImageSize(card)) : url;
   }
 
-  function updateEditButtonPayload(card, payload) {
+  function updateCardAdminPayload(card, payload) {
     if (!card || !payload) {
       return;
     }
-    const editButton = card.querySelector('.joke-edit-button');
-    if (editButton) {
-      editButton.setAttribute('data-joke-data', JSON.stringify(payload));
+    ['.joke-edit-button', '.joke-modify-button', '[data-joke-state-button]'].forEach((selector) => {
+      const element = card.querySelector(selector);
+      if (element) {
+        element.setAttribute('data-joke-data', JSON.stringify(payload));
+      }
+    });
+  }
+
+  function updateCardStateBadge(card, payload) {
+    if (!card || !payload) {
+      return;
+    }
+    const stateButton = card.querySelector('[data-joke-state-button]');
+    const staticBadge = card.querySelector('[data-joke-state-badge-static]');
+    const badge = stateButton || staticBadge;
+    if (!badge) {
+      return;
+    }
+    const badgeClass = getStateBadgeClass(payload);
+    badge.className = stateButton
+      ? `joke-state-badge joke-state-badge--button joke-state-${badgeClass}`
+      : `joke-state-badge joke-state-${badgeClass}`;
+    badge.textContent = getStateBadgeText(payload);
+    if (stateButton) {
+      const options = getReachableStateOptions(payload);
+      stateButton.disabled = options.length === 0;
+      stateButton.title = options.length ? 'Change state' : '';
+      stateButton.setAttribute('aria-label', options.length ? 'Change joke state' : 'Joke state');
     }
   }
 
@@ -369,7 +481,8 @@
         card.removeAttribute('data-setup-url');
       }
     }
-    updateEditButtonPayload(card, payload);
+    updateCardAdminPayload(card, payload);
+    updateCardStateBadge(card, payload);
   }
 
   function setCardGenerating(card) {
@@ -490,6 +603,13 @@
       modifyPunchlinePreview: document.getElementById('admin-modify-joke-punchline-preview'),
       modifySetupPlaceholder: document.getElementById('admin-modify-joke-setup-placeholder'),
       modifyPunchlinePlaceholder: document.getElementById('admin-modify-joke-punchline-placeholder'),
+      stateModal: document.getElementById('admin-state-joke-modal'),
+      stateModalBackdrop: document.querySelector('[data-admin-state-joke-backdrop]'),
+      stateForm: document.getElementById('admin-state-joke-form'),
+      stateCancelButton: document.getElementById('admin-state-joke-cancel-button'),
+      stateJokeIdInput: document.getElementById('admin-state-joke-id'),
+      stateNewStateInput: document.getElementById('admin-state-joke-new-state'),
+      stateOptions: document.getElementById('admin-state-joke-options'),
       sceneIdeasModal: document.getElementById('admin-scene-ideas-modal'),
       sceneIdeasModalBackdrop: document.querySelector('[data-admin-scene-ideas-backdrop]'),
       sceneIdeasForm: document.getElementById('admin-scene-ideas-form'),
@@ -500,7 +620,7 @@
     };
 
     if (!elements.editModal || !elements.regenerateModal
-        || !elements.modifyModal || !elements.sceneIdeasModal) {
+        || !elements.modifyModal || !elements.stateModal || !elements.sceneIdeasModal) {
       return;
     }
 
@@ -511,6 +631,9 @@
       activeEditPayload: null,
       activeModifyCard: null,
       activeModifyPayload: null,
+      activeStateCard: null,
+      activeStatePayload: null,
+      selectedStateValue: '',
       selectedSetupImageUrl: null,
       selectedPunchlineImageUrl: null,
     };
@@ -528,6 +651,18 @@
       closeModal(elements.modifyModal);
       state.activeModifyCard = null;
       state.activeModifyPayload = null;
+    }
+
+    function handleStateCancel() {
+      closeModal(elements.stateModal);
+      state.activeStateCard = null;
+      state.activeStatePayload = null;
+      state.selectedStateValue = '';
+      setValue(elements.stateJokeIdInput, '');
+      setValue(elements.stateNewStateInput, '');
+      if (elements.stateOptions) {
+        elements.stateOptions.innerHTML = '';
+      }
     }
 
     function setSceneIdeasLocked(isLocked) {
@@ -630,6 +765,38 @@
         payload.punchline_image_url,
         payload.punchline_text || 'Punchline image',
       );
+    }
+
+    function renderStateOptions(payload) {
+      if (!elements.stateOptions) {
+        return;
+      }
+      const options = getReachableStateOptions(payload);
+      elements.stateOptions.innerHTML = '';
+      options.forEach((stateValue) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = state.selectedStateValue === stateValue
+          ? `admin-modal__state-option admin-modal__state-option--selected joke-state-badge joke-state-${String(stateValue).toLowerCase()}`
+          : `admin-modal__state-option joke-state-badge joke-state-${String(stateValue).toLowerCase()}`;
+        button.textContent = getStateLabel(stateValue);
+        button.setAttribute('data-state-value', stateValue);
+        button.addEventListener('click', () => {
+          state.selectedStateValue = stateValue;
+          setValue(elements.stateNewStateInput, stateValue);
+          renderStateOptions(payload);
+        });
+        elements.stateOptions.appendChild(button);
+      });
+    }
+
+    function populateStateModal(payload, card) {
+      state.activeStateCard = card;
+      state.activeStatePayload = payload;
+      state.selectedStateValue = '';
+      setValue(elements.stateJokeIdInput, payload.joke_id || payload.jokeId || '');
+      setValue(elements.stateNewStateInput, '');
+      renderStateOptions(payload);
     }
 
     function readEditFormValues() {
@@ -752,6 +919,65 @@
       }
     }
 
+    function showStateRequestError(message) {
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert(message);
+      }
+    }
+
+    async function sendStateRequest() {
+      if (!elements.stateJokeIdInput || !elements.stateNewStateInput) {
+        return;
+      }
+
+      const jokeId = elements.stateJokeIdInput.value;
+      const newState = elements.stateNewStateInput.value;
+      if (!jokeId || !newState) {
+        return;
+      }
+
+      const card = state.activeStateCard
+        || document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
+      const previousPayload = { ...(state.activeStatePayload || getEditPayloadFromCard(card)) };
+      const optimisticPayload = {
+        ...previousPayload,
+        state: newState,
+        public_timestamp: null,
+      };
+
+      handleStateCancel();
+      if (card) {
+        updateCardFromPayload(card, optimisticPayload);
+        setCardGenerating(card);
+      }
+
+      try {
+        const { response, json } = await postJokeCreationRequest(config.jokeCreationUrl, {
+          data: buildStateRequestData(jokeId, newState),
+        });
+        const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+        if (response.ok && jokeData && card) {
+          updateCardFromPayload(card, applyJokeDataToPayload(optimisticPayload, jokeData));
+          return;
+        }
+        if (card) {
+          updateCardFromPayload(card, previousPayload);
+        }
+        showStateRequestError(
+          (json && json.data && json.data.error) || 'Failed to update joke state.',
+        );
+      } catch (_error) {
+        if (card) {
+          updateCardFromPayload(card, previousPayload);
+        }
+        showStateRequestError('Failed to update joke state.');
+      } finally {
+        if (card) {
+          setCardIdle(card);
+        }
+      }
+    }
+
     async function generateImageDescriptionsFromSceneIdeas() {
       if (!state.activeEditPayload || !elements.editJokeIdInput
           || !elements.sceneIdeasSetupInput || !elements.sceneIdeasPunchlineInput) {
@@ -852,6 +1078,12 @@
     if (elements.modifyModalBackdrop) {
       elements.modifyModalBackdrop.addEventListener('click', handleModifyCancel);
     }
+    if (elements.stateCancelButton) {
+      elements.stateCancelButton.addEventListener('click', handleStateCancel);
+    }
+    if (elements.stateModalBackdrop) {
+      elements.stateModalBackdrop.addEventListener('click', handleStateCancel);
+    }
     if (elements.editCancelButton) {
       elements.editCancelButton.addEventListener('click', handleEditCancel);
     }
@@ -896,6 +1128,10 @@
       }
       if (isModalOpen(elements.modifyModal)) {
         handleModifyCancel();
+        return;
+      }
+      if (isModalOpen(elements.stateModal)) {
+        handleStateCancel();
         return;
       }
       if (isModalOpen(elements.regenerateModal)) {
@@ -966,6 +1202,17 @@
         return;
       }
 
+      const stateButton = closestFromEvent(event, '[data-joke-state-button]');
+      if (stateButton && !stateButton.disabled) {
+        const payload = parseEditPayload(stateButton.getAttribute('data-joke-data'));
+        if (!getReachableStateOptions(payload).length) {
+          return;
+        }
+        populateStateModal(payload, stateButton.closest('.joke-card'));
+        openModal(elements.stateModal, elements.stateOptions);
+        return;
+      }
+
       const editButton = closestFromEvent(event, '.joke-edit-button');
       if (!editButton) {
         return;
@@ -1001,6 +1248,12 @@
         sendModifyRequest();
       });
     }
+    if (elements.stateForm) {
+      elements.stateForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        sendStateRequest();
+      });
+    }
   }
 
   return {
@@ -1008,13 +1261,18 @@
     buildEditRequestData,
     buildImagesForGrid,
     buildModifyRequestData,
+    buildStateRequestData,
     buildOptimisticPayload,
     closestFromEvent,
     dedupeKeepOrder,
     extractImageUrls,
     formatThumbUrl,
+    getReachableStateOptions,
     getRevealButtonLabel,
+    getStateBadgeClass,
+    getStateBadgeText,
     initJokeAdminActions,
+    isFutureDailyPayload,
     parseEditPayload,
     updateCardFromPayload,
   };

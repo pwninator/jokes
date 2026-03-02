@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -1084,7 +1085,7 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
   ]
   assert captured_audio_args[
     "audio_model"].value == "gemini-2.5-flash-preview-tts"
-  assert captured_audio_args["use_audio_cache"] is True
+  assert captured_audio_args["use_audio_cache"] is False
 
 
 def test_joke_creation_process_handles_joke_audio_op_invalid_audio_model(
@@ -1397,7 +1398,7 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
   assert payload["video_gcs_uri"] == "gs://public/video/joke.mp4"
   assert captured_video_args["teller_character_def_id"] == "char-teller"
   assert captured_video_args["listener_character_def_id"] is None
-  assert captured_video_args["use_audio_cache"] is True
+  assert captured_video_args["use_audio_cache"] is False
 
 
 def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_fails(
@@ -1877,3 +1878,38 @@ def test_joke_creation_process_character_def_op_allows_surface_line_dimension_mi
   assert payload["key"] == "new-char-surface-line-mismatch"
   assert captured["char_def"].width == 500
   assert captured["char_def"].height == 350
+
+
+def test_joke_creation_process_joke_state_delegates_to_joke_operations(
+    monkeypatch):
+  monkeypatch.setattr(joke_creation_fns.utils, "is_emulator", lambda: True)
+  updated_joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="setup",
+    punchline_text="punch",
+    state=models.JokeState.PUBLISHED,
+  )
+  captured: dict[str, object] = {}
+
+  def fake_transition(*, joke_id, target_state, now_utc=None):
+    captured["joke_id"] = joke_id
+    captured["target_state"] = target_state
+    captured["now_utc"] = now_utc
+    return updated_joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations,
+                      "transition_joke_to_state", fake_transition)
+
+  resp = joke_creation_fns.joke_creation_process(
+    DummyReq(
+      data={
+        "op": joke_creation_fns.JokeCreationOp.JOKE_STATE.value,
+        "joke_id": "joke-1",
+        "new_state": models.JokeState.PUBLISHED.value,
+      }))
+
+  assert resp.status_code == 200
+  assert captured["joke_id"] == "joke-1"
+  assert captured["target_state"] == models.JokeState.PUBLISHED.value
+  assert captured["now_utc"] is None
+  assert resp.get_json()["data"]["joke_data"]["state"] == "PUBLISHED"

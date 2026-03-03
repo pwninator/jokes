@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import enum
 import importlib
 import zipfile
 from dataclasses import dataclass
@@ -40,6 +41,14 @@ _BOOK_REVIEW_QR_X_RATIO = 1.35 / _PAPERBACK_SIZE_INCHES
 _BOOK_REVIEW_QR_Y_RATIO = 4.45 / _PAPERBACK_SIZE_INCHES
 _BOOK_REVIEW_QR_SIZE_RATIO = 1.0 / _PAPERBACK_SIZE_INCHES
 _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_RATIO = 0.01 / _PAPERBACK_SIZE_INCHES
+
+
+class BookPageNumberPosition(enum.Enum):
+  """The position of the page number on the page."""
+
+  BOTTOM_LEFT = enum.auto()
+  BOTTOM_RIGHT = enum.auto()
+  BOTTOM_OUTER = enum.auto()
 
 
 @dataclass()
@@ -121,6 +130,8 @@ class BookExportProfile:
   jpeg_progressive: bool
   review_book_format: book_defs.BookFormat
   qr_label: str
+  include_blank_page: bool
+  page_number_position: BookPageNumberPosition
 
   @property
   def pre_trim_width_px(self) -> int:
@@ -208,6 +219,8 @@ _PAPERBACK_EXPORT_PROFILE = BookExportProfile(
   jpeg_progressive=True,
   review_book_format=book_defs.BookFormat.PAPERBACK,
   qr_label="Scan me!",
+  include_blank_page=True,
+  page_number_position=BookPageNumberPosition.BOTTOM_OUTER,
 )
 _EBOOK_EXPORT_PROFILE = BookExportProfile(
   name='ebook',
@@ -218,6 +231,8 @@ _EBOOK_EXPORT_PROFILE = BookExportProfile(
   jpeg_progressive=True,
   review_book_format=book_defs.BookFormat.EBOOK,
   qr_label="Tap me!",
+  include_blank_page=False,
+  page_number_position=BookPageNumberPosition.BOTTOM_RIGHT,
 )
 
 
@@ -448,10 +463,10 @@ def _build_book_export_pages(
     raise ValueError("Joke book has no jokes")
 
   editor = image_editor.ImageEditor()
-  pages = [
-    _build_belongs_to_page(book, profile=profile, editor=editor),
-    _build_blank_page(profile=profile, editor=editor),
-  ]
+  pages: list[BookPage] = []
+  pages.append(_build_belongs_to_page(book, profile=profile, editor=editor))
+  if profile.include_blank_page:
+    pages.append(_build_blank_page(profile=profile, editor=editor))
   pages.extend(
     _build_joke_pages(book,
                       profile=profile,
@@ -700,11 +715,18 @@ def _trim_and_add_page_numbers(
         trim_right=profile.output_bleed_size_px if is_left_page else 0,
       )
     if page.page_number is not None:
+      match profile.page_number_position:
+        case BookPageNumberPosition.BOTTOM_OUTER:
+          number_on_left = is_left_page
+        case BookPageNumberPosition.BOTTOM_LEFT:
+          number_on_left = True
+        case BookPageNumberPosition.BOTTOM_RIGHT:
+          number_on_left = False
       _add_page_number_to_image(
         page.image,
         page_number=page.page_number,
         total_pages=max_page_number,
-        is_punchline=is_left_page,
+        number_on_left=number_on_left,
         font_size=profile.page_number_font_size_px,
         offset_from_edge=profile.page_number_offset_px,
       )
@@ -793,7 +815,7 @@ def _add_page_number_to_image(
   *,
   page_number: int,
   total_pages: int,
-  is_punchline: bool,
+  number_on_left: bool,
   font_size: int,
   offset_from_edge: int,
 ) -> None:
@@ -811,7 +833,7 @@ def _add_page_number_to_image(
     font_size=font_size,
   )
   text_x: float
-  if is_punchline:
+  if number_on_left:
     text_x = offset_from_edge
   else:
     text_x = width - offset_from_edge - text_drawer.width

@@ -209,6 +209,104 @@ class ExportJokePageFilesTest(unittest.TestCase):
       'offset_from_edge': profile.page_number_offset_px,
     })
 
+  @patch('common.joke_book_file_operations._add_page_number_to_image')
+  def test_trim_and_add_page_numbers_honors_right_override(
+    self,
+    mock_add_page_number,
+  ):
+    profile = joke_book_file_operations.BookExportProfile(
+      name='test',
+      output_base_size_px=(1800, 1800),
+      output_bleed_size_px=38,
+      jpeg_quality=100,
+      jpeg_subsampling=0,
+      jpeg_progressive=True,
+      review_book_format=amazon_redirect.BookFormat.PAPERBACK,
+      qr_label='Scan me!',
+      include_blank_page=True,
+      page_number_position=joke_book_file_operations.BookPageNumberPosition.BOTTOM_RIGHT,
+    )
+    pages = [
+      joke_book_file_operations.BookPage(
+        file_name='001.jpg',
+        image=Image.new(
+          'RGB',
+          (profile.pre_trim_width_px, profile.pre_trim_height_px),
+          'white',
+        ),
+        page_number=1,
+      ),
+      joke_book_file_operations.BookPage(
+        file_name='002.jpg',
+        image=Image.new(
+          'RGB',
+          (profile.pre_trim_width_px, profile.pre_trim_height_px),
+          'white',
+        ),
+        page_number=2,
+      ),
+    ]
+
+    joke_book_file_operations._trim_and_add_page_numbers(
+      pages,
+      profile=profile,
+    )
+
+    self.assertEqual(mock_add_page_number.call_args_list[0].kwargs['is_punchline'],
+                     False)
+    self.assertEqual(mock_add_page_number.call_args_list[1].kwargs['is_punchline'],
+                     False)
+
+  @patch('common.joke_book_file_operations._build_about_page')
+  @patch('common.joke_book_file_operations._build_joke_pages')
+  @patch('common.joke_book_file_operations._build_blank_page')
+  @patch('common.joke_book_file_operations._build_belongs_to_page')
+  def test_build_book_export_pages_skips_blank_page_when_disabled(
+    self,
+    mock_build_belongs_to_page,
+    mock_build_blank_page,
+    mock_build_joke_pages,
+    mock_build_about_page,
+  ):
+    profile = joke_book_file_operations.BookExportProfile(
+      name='test',
+      output_base_size_px=(700, 700),
+      output_bleed_size_px=0,
+      jpeg_quality=70,
+      jpeg_subsampling=2,
+      jpeg_progressive=True,
+      review_book_format=amazon_redirect.BookFormat.EBOOK,
+      qr_label='Tap me!',
+      include_blank_page=False,
+      page_number_position=joke_book_file_operations.BookPageNumberPosition.BOTTOM_RIGHT,
+    )
+    book = models.JokeBook(
+      id='book-1',
+      book_name='My Book',
+      jokes=['joke-1'],
+      belongs_to_page_gcs_uri='gs://bucket/belongs.png',
+    )
+    mock_build_belongs_to_page.return_value = joke_book_file_operations.BookPage(
+      file_name='001_belongs.jpg',
+      image=Image.new('RGB', (profile.pre_trim_width_px, profile.pre_trim_height_px),
+                      'white'),
+    )
+    mock_build_joke_pages.return_value = []
+    mock_build_about_page.return_value = joke_book_file_operations.BookPage(
+      file_name='999_about.jpg',
+      image=Image.new('RGB', (profile.pre_trim_width_px, profile.pre_trim_height_px),
+                      'white'),
+    )
+
+    pages = joke_book_file_operations._build_book_export_pages(
+      book,
+      profile=profile,
+    )
+
+    mock_build_blank_page.assert_not_called()
+    self.assertEqual([page.file_name for page in pages],
+                     ['001_belongs.jpg', '999_about.jpg'])
+
   def test_book_page_trim_shifts_hyperlink_after_left_trim(self):
     """Trimming left should shift hyperlink coordinates into final page space."""
     profile = joke_book_file_operations._PAPERBACK_EXPORT_PROFILE

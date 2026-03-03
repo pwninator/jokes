@@ -65,7 +65,7 @@ class AttributionSource(enum.Enum):
   LUNCHBOX_THANK_YOU = "lunchbox_thank_you"
   WEB_BOOK_PAGE = "web_book_page"
   PRINTABLE_QR_CODE = "pqc"
-  GOOGLE_ADS_DAD_SEARCH = "gads"
+  GOOGLE_ADS_SEARCH = "gas"
 
 
 class BookKey(enum.Enum):
@@ -135,7 +135,7 @@ BOOKS: dict[BookKey, Book] = {
           AttributionSource.PRINTABLE_QR_CODE:
           ("maas=maas_adg_79F411A380CF8D44AA0D8594E45FD53E_afap_abs&ref_=aa_maas&tag=maas"
            ),
-          AttributionSource.GOOGLE_ADS_DAD_SEARCH:
+          AttributionSource.GOOGLE_ADS_SEARCH:
           ("maas=maas_adg_EDB4F21623D5C210AE5E98D5DE7769B1_afap_abs&ref_=aa_maas&tag=maas"
            ),
         },
@@ -161,7 +161,7 @@ BOOKS: dict[BookKey, Book] = {
           AttributionSource.PRINTABLE_QR_CODE:
           ("maas=maas_adg_C14294AAE6E358275AB7BFB2F5EE6766_afap_abs&ref_=aa_maas&tag=maas"
            ),
-          AttributionSource.GOOGLE_ADS_DAD_SEARCH:
+          AttributionSource.GOOGLE_ADS_SEARCH:
           ("maas=maas_adg_9DE4D67EAF883F7805231247BA72E16A_afap_abs&ref_=aa_maas&tag=maas"
            ),
         },

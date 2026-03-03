@@ -75,6 +75,12 @@ def parse_gcs_uri(gcs_uri: str) -> tuple[str, str]:
   return uri_parts[0], uri_parts[1]
 
 
+def get_gcs_file_name(gcs_uri: str) -> str:
+  """Get the file name from a GCS URI."""
+  _, file_path = parse_gcs_uri(gcs_uri)
+  return file_path.rsplit('/', 1)[-1]
+
+
 def upload_bytes_to_gcs(
   content_bytes: bytes,
   gcs_uri: str,

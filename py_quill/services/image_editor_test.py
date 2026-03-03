@@ -18,10 +18,20 @@ class ImageEditorTest(unittest.TestCase):
     scaled = self.editor.scale_image(img, 0.5)
     self.assertEqual(scaled.size, (50, 40))
 
-  def test_rotate_image_produces_rgba_and_expands(self):
+  def test_create_blank_image_supports_requested_color_mode(self):
+    img = self.editor.create_blank_image(
+      20,
+      10,
+      color=(0, 0, 0, 0),
+      color_mode='RGBA',
+    )
+    self.assertEqual(img.size, (20, 10))
+    self.assertEqual(img.mode, 'RGBA')
+
+  def test_rotate_image_preserves_input_mode_and_expands(self):
     img = Image.new('RGB', (50, 30), color='green')
     rotated = self.editor.rotate_image(img, 15)
-    self.assertEqual(rotated.mode, 'RGBA')
+    self.assertEqual(rotated.mode, 'RGB')
     self.assertTrue(rotated.width >= img.width)
     self.assertTrue(rotated.height >= img.height)
 
@@ -57,6 +67,7 @@ class ImageEditorTest(unittest.TestCase):
     base = Image.new('RGB', (100, 100), color='white')
     sticker = Image.new('RGB', (20, 20), color='blue')
     result = self.editor.paste_image(base, sticker, 10, 10, add_shadow=True)
+    self.assertEqual(result.mode, 'RGB')
 
     # Shadow offset is (8, 8) with blur; sample a pixel near the shadow area
     # Expect pixel not equal to pure white due to shadow darkening
@@ -71,6 +82,8 @@ class ImageEditorTest(unittest.TestCase):
     sticker = Image.new('RGBA', (30, 30), color=(255, 0, 0, 255))
     rotated = self.editor.rotate_image(sticker, 45)
     result = self.editor.paste_image(base, rotated, 40, 40, add_shadow=True)
+    self.assertEqual(rotated.mode, 'RGBA')
+    self.assertEqual(result.mode, 'RGB')
 
     # Corner of the rotated bounding box should remain light (no solid shadow)
     corner_pixel = result.getpixel((40, 40))
@@ -116,6 +129,12 @@ class ImageEditorTest(unittest.TestCase):
     )
     self.assertEqual(enhanced.size, (64, 64))
     self.assertEqual(enhanced.mode, 'RGB')
+
+  def test_enhance_image_preserves_non_rgb_input_mode(self):
+    img = Image.new('L', (32, 32), color=128)
+    enhanced = self.editor.enhance_image(img)
+    self.assertEqual(enhanced.size, (32, 32))
+    self.assertEqual(enhanced.mode, 'L')
 
 
 if __name__ == '__main__':

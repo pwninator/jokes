@@ -191,7 +191,7 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
 
 
 @patch(
-  'functions.joke_book_fns.image_operations.export_joke_book_files')
+  'functions.joke_book_fns.joke_book_file_operations.export_joke_book_files')
 @patch('functions.joke_book_fns.joke_books_firestore')
 def test_update_joke_book_files_regenerates_and_updates(
     mock_joke_books_firestore, mock_export_files):

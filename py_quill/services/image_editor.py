@@ -1,8 +1,10 @@
 """Image editing service using PIL."""
 
+# pyright: reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false, reportRedeclaration=false
+
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Any
 
 import cv2
 import numpy as np
@@ -10,16 +12,35 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 
 class ImageEditor:
-  """Service for creating and composing images using PIL."""
+  """Service for creating and composing images using PIL.
+
+  Invariant: image-editing operations preserve the input image's color mode.
+  If a temporary internal conversion is required, the returned image is
+  converted back to the original mode before being returned.
+  """
 
   def create_blank_image(
-      self,
-      width: int,
-      height: int,
-      color: Tuple[int, int, int] = (255, 255, 255),
+    self,
+    width: int,
+    height: int,
+    color: tuple[int, ...] | None = None,
+    color_mode: str | None = None,
   ) -> Image.Image:
-    """Create a new blank RGB image of specified size."""
-    return Image.new('RGB', (width, height), color)
+    """Create a new blank image. Default to white if color is not specified."""
+    if not color_mode:
+      color_mode = 'RGB'
+    if not color:
+      match color_mode:
+        case 'RGB':
+          color = (255, 255, 255)
+        case 'RGBA':
+          color = (255, 255, 255, 255)
+        case 'CMYK':
+          color = (0, 0, 0, 0)
+        case _:
+          raise ValueError(f"Unsupported color mode: {color_mode}")
+
+    return Image.new(color_mode, (width, height), color)
 
   def scale_image(
     self,
@@ -51,25 +72,34 @@ class ImageEditor:
     )
 
   def rotate_image(self, image: Image.Image, degrees: float) -> Image.Image:
-    """Return a new image rotated by degrees. Uses RGBA to preserve transparency."""
-    if image.mode != 'RGBA':
-      image = image.convert('RGBA')
+    """Return a new rotated image with the same color mode as the input."""
+    original_mode = image.mode
+    working_image = image if original_mode == 'RGBA' else image.convert('RGBA')
 
     # Add 2px transparent border to prevent edge artifacts during rotation
     border = 2
     bordered = Image.new(
       'RGBA',
-      (image.width + border * 2, image.height + border * 2),
+      (working_image.width + border * 2, working_image.height + border * 2),
       (0, 0, 0, 0),
     )
-    bordered.paste(image, (border, border))
-
-    return bordered.rotate(
-      angle=degrees,
-      resample=Image.Resampling.BICUBIC,
-      expand=True,
-      fillcolor=(0, 0, 0, 0),
-    )
+    try:
+      bordered.paste(working_image, (border, border))
+      rotated = bordered.rotate(
+        angle=degrees,
+        resample=Image.Resampling.BICUBIC,
+        expand=True,
+        fillcolor=(0, 0, 0, 0),
+      )
+      if rotated.mode != original_mode:
+        converted_rotated = rotated.convert(original_mode)
+        rotated.close()
+        rotated = converted_rotated
+      return rotated
+    finally:
+      bordered.close()
+      if working_image is not image:
+        working_image.close()
 
   def paste_image(
     self,
@@ -83,6 +113,7 @@ class ImageEditor:
 
     If add_shadow is True, a subtle drop shadow is rendered beneath the image.
     """
+    original_mode = base_image.mode
     # Ensure base supports alpha composite if needed
     if base_image.mode != 'RGBA':
       base_rgba = base_image.convert('RGBA')
@@ -138,7 +169,16 @@ class ImageEditor:
     # Paste the actual image on top using its alpha as mask
     base_rgba.paste(paste_img, (x, y), paste_img)
 
-    return base_rgba
+    try:
+      if base_rgba.mode == original_mode:
+        return base_rgba
+      converted_result = base_rgba.convert(original_mode)
+      return converted_result
+    finally:
+      if paste_img is not image_to_paste:
+        paste_img.close()
+      if base_rgba is not base_image:
+        base_rgba.close()
 
   def trim_edges(
     self,
@@ -197,8 +237,10 @@ class ImageEditor:
     5. Small brightness enhancement
     6. Sharpening
     """
+    original_mode = image.mode
+
     # Convert PIL to OpenCV (RGB -> BGR)
-    img_np = np.array(image)
+    img_np: Any = np.array(image)
 
     # Handle RGBA if present
     has_alpha = False
@@ -213,11 +255,11 @@ class ImageEditor:
       img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
     else:
       # Fallback for other modes
-      img_rgb = np.array(image.convert('RGB'))
+      img_rgb: Any = np.array(image.convert('RGB'))
       img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
 
     # Apply enhancement pipeline
-    result = img_bgr
+    result: Any = img_bgr
     # Do not apply white balance because the images are intentionally drawn
     # on textured, tinted paper backgrounds.
     # result = self._robust_white_balance(result)
@@ -238,16 +280,23 @@ class ImageEditor:
     result = self._sharpen_image(result, sharpen_amount)
 
     # Convert back to PIL (BGR -> RGB)
-    img_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+    img_rgb: Any = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
 
     if has_alpha and alpha_channel is not None:
       # Re-attach alpha channel
-      img_rgba = np.dstack((img_rgb, alpha_channel))
-      return Image.fromarray(img_rgba)
+      img_rgba: Any = np.dstack((img_rgb, alpha_channel))
+      result_image = Image.fromarray(img_rgba)
+    else:
+      result_image = Image.fromarray(img_rgb)
 
-    return Image.fromarray(img_rgb)
+    if result_image.mode != original_mode:
+      converted_result = result_image.convert(original_mode)
+      result_image.close()
+      result_image = converted_result
 
-  def _robust_white_balance(self, img_bgr: np.ndarray) -> np.ndarray:
+    return result_image
+
+  def _robust_white_balance(self, img_bgr: Any) -> Any:
     """Apply robust white balance using top 2% percentile method.
 
     Args:
@@ -295,13 +344,13 @@ class ImageEditor:
 
   def _apply_smart_clahe_hybrid(
     self,
-    img_bgr: np.ndarray,
+    img_bgr: Any,
     strength: float,
     soft_clip_base: float,
     strong_clip_base: float,
     edge_threshold: int,
     mask_blur_ksize: int,
-  ) -> np.ndarray:
+  ) -> Any:
     """Apply Hybrid CLAHE: strong contrast for details, soft for flat areas.
 
     Args:
@@ -362,9 +411,9 @@ class ImageEditor:
 
   def _enhance_saturation(
     self,
-    img_bgr: np.ndarray,
+    img_bgr: Any,
     saturation_boost: float,
-  ) -> np.ndarray:
+  ) -> Any:
     """Enhance image saturation.
 
     Args:
@@ -383,10 +432,10 @@ class ImageEditor:
 
   def _enhance_contrast_brightness(
     self,
-    img_bgr: np.ndarray,
+    img_bgr: Any,
     contrast_alpha: float,
     brightness_beta: float,
-  ) -> np.ndarray:
+  ) -> Any:
     """Enhance contrast and brightness.
 
     Args:
@@ -403,9 +452,9 @@ class ImageEditor:
 
   def _sharpen_image(
     self,
-    img_bgr: np.ndarray,
+    img_bgr: Any,
     sharpen_amount: float,
-  ) -> np.ndarray:
+  ) -> Any:
     """Apply unsharp masking to sharpen the image.
 
     Args:

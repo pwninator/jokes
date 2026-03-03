@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Any
+from typing import TypeAlias, TypeGuard
 
 import img2pdf
 from common import models
@@ -18,12 +18,20 @@ _PDF_POINTS_PER_INCH = 72
 class HyperlinkSpec:
   """Clickable rectangle overlay for a generated PDF page."""
 
-  page_index: int
   url: str
   x1: float
   y1: float
   x2: float
   y2: float
+
+
+PdfImageInput: TypeAlias = Image.Image | bytes | str | models.Image
+PdfPageInput: TypeAlias = PdfImageInput | tuple[PdfImageInput, HyperlinkSpec | None]
+
+
+def _is_model_image(value: object) -> TypeGuard[models.Image]:
+  """Return True when the input is a `models.Image` instance."""
+  return isinstance(value, models.Image)
 
 
 def _can_embed_jpeg_bytes(
@@ -47,31 +55,39 @@ def _can_embed_jpeg_bytes(
 
 
 def create_pdf(
-  images: list[Any],
+  images: list[PdfPageInput],
   dpi: int = 300,
   quality: int = 80,
   page_width: int | None = None,
   page_height: int | None = None,
-  hyperlinks: list[HyperlinkSpec] | None = None,
 ) -> bytes:
   """Creates a PDF from a list of images.
 
   Args:
-      images: List of images. Can be PIL Image objects, bytes, models.Image
-        objects, or strings (GCS URIs).
+      images: List of page inputs. Each item can be an image source directly,
+        or a tuple of `(image_source, hyperlink)` for a page-local hyperlink.
       dpi: DPI of the images in the PDF.
       quality: JPEG quality of the images in the PDF.
       page_width: Width of the pages in pixels.
       page_height: Height of the pages in pixels.
-      hyperlinks: Optional clickable URL rectangles, with coordinates in pixels.
 
   Returns:
       The PDF bytes.
   """
   jpeg_bytes_list = []
   page_pixel_sizes: list[tuple[int, int]] = []
+  page_hyperlinks: list[HyperlinkSpec | None] = []
 
-  for image_item in images:
+  for page_item in images:
+    hyperlink: HyperlinkSpec | None = None
+    image_item: PdfImageInput
+    if isinstance(page_item, tuple):
+      if len(page_item) != 2:
+        raise ValueError(f"Unsupported page tuple: {page_item}")
+      image_item, hyperlink = page_item
+    else:
+      image_item = page_item
+
     # 1. Resolve to PIL Image
     img: Image.Image | None = None
     if isinstance(image_item, Image.Image):
@@ -86,11 +102,12 @@ def create_pdf(
           embedded_image.load()  # pyright: ignore[reportUnusedCallResult]
           page_pixel_sizes.append(embedded_image.size)
         jpeg_bytes_list.append(image_item)
+        page_hyperlinks.append(hyperlink)
         continue
       img = Image.open(BytesIO(image_item))
     elif isinstance(image_item, str):
       img = cloud_storage.download_image_from_gcs(image_item)
-    elif isinstance(image_item, models.Image):
+    elif _is_model_image(image_item):
       if not image_item.gcs_uri:
         raise ValueError(f"Image model has no GCS URI: {image_item}")
       img = cloud_storage.download_image_from_gcs(image_item.gcs_uri)
@@ -112,6 +129,7 @@ def create_pdf(
     jpeg_bytes = buffer.getvalue()
     jpeg_bytes_list.append(jpeg_bytes)
     page_pixel_sizes.append(img.size)
+    page_hyperlinks.append(hyperlink)
 
     # Explicitly close the PIL image to free memory, though garbage collection
     # usually handles it.
@@ -123,12 +141,12 @@ def create_pdf(
 
   if not pdf_bytes:
     raise ValueError("No images to convert to PDF")
-  if hyperlinks:
+  if any(page_hyperlinks):
     return _add_hyperlinks_to_pdf(
       pdf_bytes,
       page_pixel_sizes=page_pixel_sizes,
       dpi=dpi,
-      hyperlinks=hyperlinks,
+      hyperlinks=page_hyperlinks,
     )
   return pdf_bytes
 
@@ -154,13 +172,10 @@ def _pdf_rect_from_pixels(
 def _validate_hyperlink(
   hyperlink: HyperlinkSpec,
   *,
-  page_count: int,
   page_width_px: int,
   page_height_px: int,
 ) -> None:
   """Validate a hyperlink spec against the generated PDF pages."""
-  if hyperlink.page_index < 0 or hyperlink.page_index >= page_count:
-    raise ValueError(f"Invalid hyperlink page_index: {hyperlink.page_index}")
   if not hyperlink.url:
     raise ValueError("Hyperlink URL is required")
   if hyperlink.x2 <= hyperlink.x1 or hyperlink.y2 <= hyperlink.y1:
@@ -176,26 +191,24 @@ def _add_hyperlinks_to_pdf(
   *,
   page_pixel_sizes: list[tuple[int, int]],
   dpi: int,
-  hyperlinks: list[HyperlinkSpec],
+  hyperlinks: list[HyperlinkSpec | None],
 ) -> bytes:
   """Add link annotations to an existing PDF."""
   reader = PdfReader(BytesIO(pdf_bytes))
   writer = PdfWriter()
   writer.append_pages_from_reader(reader)
 
-  for hyperlink in hyperlinks:
-    if hyperlink.page_index < 0 or hyperlink.page_index >= len(
-        page_pixel_sizes):
-      raise ValueError(f"Invalid hyperlink page_index: {hyperlink.page_index}")
-    page_width_px, page_height_px = page_pixel_sizes[hyperlink.page_index]
+  for page_index, hyperlink in enumerate(hyperlinks):
+    if not hyperlink:
+      continue
+    page_width_px, page_height_px = page_pixel_sizes[page_index]
     _validate_hyperlink(
       hyperlink,
-      page_count=len(page_pixel_sizes),
       page_width_px=page_width_px,
       page_height_px=page_height_px,
     )
     writer.add_uri(
-      hyperlink.page_index,
+      page_index,
       hyperlink.url,
       _pdf_rect_from_pixels(
         hyperlink,

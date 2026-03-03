@@ -3,7 +3,7 @@ import traceback
 from typing import cast
 
 import flask
-from common import image_operations, models, utils
+from common import image_operations, joke_book_file_operations, models, utils
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import (AuthError, error_response,
                                       get_bool_param, get_list_param,
@@ -197,7 +197,7 @@ def update_joke_book_files(req: flask.Request) -> flask.Response:
                             req=req,
                             status=400)
 
-    export_files = image_operations.export_joke_book_files(book)
+    export_files = joke_book_file_operations.export_joke_book_files(book)
     _ = joke_books_firestore.update_joke_book_export_files(
       joke_book_id,
       zip_url=export_files.zip_url,

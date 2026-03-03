@@ -112,18 +112,17 @@ def test_create_pdf_adds_hyperlink_annotation():
   img = create_test_image('red', width=1838, height=1876)
 
   pdf_bytes = pdf_client.create_pdf(
-    [img],
-    dpi=300,
-    hyperlinks=[
+    [(
+      img,
       pdf_client.HyperlinkSpec(
-        page_index=0,
         url='https://example.com/review',
         x1=486,
         y1=1554,
         x2=836,
         y2=1800,
-      )
-    ],
+      ),
+    )],
+    dpi=300,
   )
 
   reader = PdfReader(BytesIO(pdf_bytes))
@@ -146,20 +145,19 @@ def test_create_pdf_adds_hyperlink_annotation():
   ])
 
 
-def test_create_pdf_rejects_invalid_hyperlink_page_index():
+def test_create_pdf_rejects_invalid_hyperlink_rectangle():
   img = create_test_image('red', width=100, height=100)
 
-  with pytest.raises(ValueError, match='Invalid hyperlink page_index'):
+  with pytest.raises(ValueError, match='Invalid hyperlink rectangle'):
     pdf_client.create_pdf(
-      [img],
-      hyperlinks=[
+      [(
+        img,
         pdf_client.HyperlinkSpec(
-          page_index=1,
           url='https://example.com/review',
           x1=0,
           y1=0,
-          x2=10,
+          x2=1000,
           y2=10,
-        )
-      ],
+        ),
+      )],
     )

@@ -80,6 +80,26 @@ def test_extract_gcs_uri_from_image_url_cdn_nested_path(monkeypatch):
   assert result == expected
 
 
+def test_get_gcs_file_name_returns_last_path_segment():
+  """Test extracting the file name from a nested GCS object path."""
+  gcs_uri = "gs://test-bucket/some/nested/path/sample_0.png"
+
+  result = cloud_storage.get_gcs_file_name(gcs_uri)
+
+  assert result == "sample_0.png"
+
+
+def test_get_gcs_file_name_invalid_uri_raises():
+  """Test that invalid GCS URIs are rejected."""
+  invalid_gcs_uri = "https://example.com/not-a-gcs-uri.png"
+
+  try:
+    cloud_storage.get_gcs_file_name(invalid_gcs_uri)
+    assert False, "Should have raised ValueError"
+  except ValueError as e:
+    assert "Invalid GCS URI format" in str(e)
+
+
 def test_get_cdn_url_params_basic():
   """Test extracting params from a CDN URL."""
   cdn_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/image_file.png"

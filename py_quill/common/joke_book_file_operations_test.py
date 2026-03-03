@@ -139,11 +139,8 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertEqual(mock_editor.enhance_image.call_args.kwargs, {})
     self.assertEqual(enhanced_image.mode, 'RGB')
 
-  @patch('common.joke_book_file_operations._add_page_number_to_image',
-         side_effect=lambda image, **_kwargs: image)
   def test_convert_for_book_export_returns_pre_trim_image_without_trimming(
     self,
-    _mock_add_page_number,
   ):
     """Page conversion should leave trimming for the later encode step."""
     profile = joke_book_file_operations._PAPERBACK_EXPORT_PROFILE
@@ -154,9 +151,6 @@ class ExportJokePageFilesTest(unittest.TestCase):
 
     result = joke_book_file_operations._convert_for_book_export(
       source_image,
-      is_left_page=True,
-      page_number=1,
-      total_numbered_pages=2,
       profile=profile,
       image_editor_instance=mock_editor,
     )
@@ -164,8 +158,12 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertIs(result, scaled_image)
     mock_editor.trim_edges.assert_not_called()
 
-  def test_trim_book_pages_trims_inner_binding_edge(self):
-    """The trim pass should trim each page's inner edge down to final size."""
+  @patch('common.joke_book_file_operations._add_page_number_to_image')
+  def test_trim_and_add_page_numbers_uses_shared_page_side_logic(
+    self,
+    mock_add_page_number,
+  ):
+    """The final pass should trim inner edges and add numbers by page parity."""
     profile = joke_book_file_operations._PAPERBACK_EXPORT_PROFILE
     right_page = joke_book_file_operations.BookPage(
       file_name='setup.jpg',
@@ -174,6 +172,7 @@ class ExportJokePageFilesTest(unittest.TestCase):
         (profile.pre_trim_width_px, profile.pre_trim_height_px),
         'white',
       ),
+      page_number=1,
     )
     left_page = joke_book_file_operations.BookPage(
       file_name='punchline.jpg',
@@ -182,9 +181,10 @@ class ExportJokePageFilesTest(unittest.TestCase):
         (profile.pre_trim_width_px, profile.pre_trim_height_px),
         'white',
       ),
+      page_number=2,
     )
 
-    joke_book_file_operations._trim_book_pages(
+    joke_book_file_operations._trim_and_add_page_numbers(
       [right_page, left_page],
       profile=profile,
     )
@@ -193,6 +193,21 @@ class ExportJokePageFilesTest(unittest.TestCase):
                      (profile.final_width_px, profile.final_height_px))
     self.assertEqual(left_page.image.size,
                      (profile.final_width_px, profile.final_height_px))
+    self.assertEqual(mock_add_page_number.call_count, 2)
+    self.assertEqual(mock_add_page_number.call_args_list[0].kwargs, {
+      'page_number': 1,
+      'total_pages': 2,
+      'is_punchline': False,
+      'font_size': profile.page_number_font_size_px,
+      'offset_from_edge': profile.page_number_offset_px,
+    })
+    self.assertEqual(mock_add_page_number.call_args_list[1].kwargs, {
+      'page_number': 2,
+      'total_pages': 2,
+      'is_punchline': True,
+      'font_size': profile.page_number_font_size_px,
+      'offset_from_edge': profile.page_number_offset_px,
+    })
 
   def test_book_page_trim_shifts_hyperlink_after_left_trim(self):
     """Trimming left should shift hyperlink coordinates into final page space."""

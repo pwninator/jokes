@@ -48,6 +48,7 @@ class BookPage:
 
   file_name: str
   image: Image.Image
+  page_number: int | None = None
   hyperlink: pdf_client.HyperlinkSpec | None = None
   _image_bytes: bytes | None = None
 
@@ -462,7 +463,7 @@ def _build_book_export_pages(
     editor=editor,
   ))
 
-  _trim_book_pages(pages, profile=profile)
+  _trim_and_add_page_numbers(pages, profile=profile)
   for page in pages:
     page.encode(profile=profile)
 
@@ -520,7 +521,6 @@ def _build_joke_pages(
   pages: list[BookPage] = []
   current_file_index = starting_file_index
   current_page_number = 1
-  total_numbered_pages = len(book.jokes) * 2
 
   for joke_id in book.jokes:
     setup_img_url, punchline_img_url = _get_book_page_image_uris_for_joke(
@@ -528,9 +528,7 @@ def _build_joke_pages(
     pages.append(
       _build_rendered_joke_page(
         image_gcs_uri=setup_img_url,
-        is_left_page=False,
         page_number=current_page_number,
-        total_numbered_pages=total_numbered_pages,
         profile=profile,
         file_name=f"{current_file_index:03d}_{joke_id}_setup.jpg",
         editor=editor,
@@ -540,9 +538,7 @@ def _build_joke_pages(
     pages.append(
       _build_rendered_joke_page(
         image_gcs_uri=punchline_img_url,
-        is_left_page=True,
         page_number=current_page_number,
-        total_numbered_pages=total_numbered_pages,
         profile=profile,
         file_name=f"{current_file_index:03d}_{joke_id}_punchline.jpg",
         editor=editor,
@@ -614,9 +610,7 @@ def _get_book_page_image_uris_for_joke(joke_id: str) -> tuple[str, str]:
 def _build_rendered_joke_page(
   image_gcs_uri: str,
   *,
-  is_left_page: bool,
   page_number: int,
-  total_numbered_pages: int,
   profile: BookExportProfile,
   file_name: str,
   editor: image_editor.ImageEditor,
@@ -625,9 +619,6 @@ def _build_rendered_joke_page(
   with cloud_storage.download_image_from_gcs(image_gcs_uri) as source_image:
     converted_image = _convert_for_book_export(
       source_image,
-      is_left_page=is_left_page,
-      page_number=page_number,
-      total_numbered_pages=total_numbered_pages,
       profile=profile,
       image_editor_instance=editor,
     )
@@ -640,6 +631,7 @@ def _build_rendered_joke_page(
     return BookPage(
       file_name=file_name,
       image=processed_image,
+      page_number=page_number,
     )
 
 
@@ -689,21 +681,33 @@ def _scale_book_export_image(
   )
 
 
-def _trim_book_pages(
+def _trim_and_add_page_numbers(
   pages: list[BookPage],
   *,
   profile: BookExportProfile,
 ) -> None:
-  """Trim each page's inner edge based on its position in the export order."""
-  if not profile.requires_trimming:
-    return
+  """Trim pages and add page numbers using one shared left/right pass."""
+  max_page_number = max(
+    (page.page_number for page in pages if page.page_number is not None),
+    default=0,
+  )
 
   for page_index, page in enumerate(pages):
     is_left_page = page_index % 2 == 1
-    page.trim(
-      trim_left=profile.output_bleed_size_px if not is_left_page else 0,
-      trim_right=profile.output_bleed_size_px if is_left_page else 0,
-    )
+    if profile.requires_trimming:
+      page.trim(
+        trim_left=profile.output_bleed_size_px if not is_left_page else 0,
+        trim_right=profile.output_bleed_size_px if is_left_page else 0,
+      )
+    if page.page_number is not None:
+      _add_page_number_to_image(
+        page.image,
+        page_number=page.page_number,
+        total_pages=max_page_number,
+        is_punchline=is_left_page,
+        font_size=profile.page_number_font_size_px,
+        offset_from_edge=profile.page_number_offset_px,
+      )
 
 
 def _convert_image_to_export_bytes(
@@ -741,37 +745,15 @@ def _convert_for_book_export(
   image: Image.Image,
   *,
   profile: BookExportProfile,
-  page_number: int | None = None,
-  total_numbered_pages: int | None = None,
-  is_left_page: bool | None = None,
   image_editor_instance: image_editor.ImageEditor | None = None,
 ) -> Image.Image:
   """Convert an image to a pre-trim rendered image for an export profile."""
   editor = image_editor_instance or image_editor.ImageEditor()
-  rendered_image = _scale_book_export_image(
+  return _scale_book_export_image(
     image,
     profile=profile,
     editor=editor,
   )
-  if page_number is not None:
-    if page_number <= 0:
-      raise ValueError('page_number must be positive')
-    if not total_numbered_pages or total_numbered_pages <= 0:
-      raise ValueError('total_pages must be positive')
-    if is_left_page is None:
-      raise ValueError(
-        'is_left_page must be provided if page_number is provided')
-
-    _add_page_number_to_image(
-      rendered_image,
-      page_number=page_number,
-      total_pages=total_numbered_pages,
-      is_punchline=is_left_page,
-      font_size=profile.page_number_font_size_px,
-      offset_from_edge=profile.page_number_offset_px,
-    )
-
-  return rendered_image
 
 
 @lru_cache(maxsize=len(_PAGE_NUMBER_FONT_URLS))

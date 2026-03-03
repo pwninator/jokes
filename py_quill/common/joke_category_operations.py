@@ -325,11 +325,8 @@ def refresh_single_category_cache(
   )
   if added_writes or removed_writes:
     logger.info(
-      "Updated joke category_id fields for %s: added_writes=%s removed_writes=%s",
-      category_id,
-      added_writes,
-      removed_writes,
-    )
+      f"Updated joke category_id fields for {category_id}: "
+      f"added_writes={added_writes} removed_writes={removed_writes}")
 
   if not jokes_payload:
     # Force category state to PROPOSED when empty
@@ -439,17 +436,11 @@ def _delete_invalid_sheet(sheet: models.JokeSheet, category_id: str) -> None:
   try:
     firestore.delete_joke_sheet(sheet.key)
     logger.info(
-      "Deleted invalid joke sheet for category %s: %s",
-      category_id,
-      sheet.key,
-    )
+      f"Deleted invalid joke sheet for category {category_id}: {sheet.key}")
   except Exception as exc:  # pylint: disable=broad-except
     logger.error(
-      "Failed deleting invalid joke sheet %s for category %s: %s",
-      sheet.key,
-      category_id,
-      exc,
-    )
+      f"Failed deleting invalid joke sheet {sheet.key} "
+      f"for category {category_id}: {exc}")
 
 
 def search_category_jokes(

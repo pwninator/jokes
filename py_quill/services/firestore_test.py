@@ -105,6 +105,8 @@ def test_upsert_social_post_creates_document(monkeypatch):
     pinterest_title="Title",
     pinterest_description="Description",
     pinterest_alt_text="Alt text",
+    reel_intro_script="Heya!",
+    reel_response_script="Hmm, why?",
     jokes=[joke],
   )
 
@@ -179,6 +181,8 @@ def test_upsert_social_post_creates_document(monkeypatch):
   assert captured["pinterest_title"] == "Title"
   assert captured["pinterest_description"] == "Description"
   assert captured["pinterest_alt_text"] == "Alt text"
+  assert captured["reel_intro_script"] == "Heya!"
+  assert captured["reel_response_script"] == "Hmm, why?"
   assert captured["jokes"] == [{
     "key": "j1",
     "setup_text": "Setup 1",
@@ -451,10 +455,12 @@ def test_upsert_social_post_updates_document(monkeypatch):
     type=models.JokeSocialPostType.JOKE_GRID,
     link_url="https://snickerdoodlejokes.com/jokes/updated",
     pinterest_title="Updated",
+    reel_intro_script="Psst!",
   )
   post.key = "post1"
   firestore.upsert_social_post(post)
   assert captured["pinterest_title"] == "Updated"
+  assert captured["reel_intro_script"] == "Psst!"
   assert captured["last_modification_time"] == "TS"
 
 

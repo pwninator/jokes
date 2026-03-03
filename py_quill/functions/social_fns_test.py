@@ -221,15 +221,27 @@ def test_social_post_creation_process_success_joke_video(
     "DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID",
     "char_listener",
   )
+  monkeypatch.setattr(
+    social_fns.social_operations.social_post_prompts,
+    "generate_joke_reel_dialog_scripts",
+    lambda **_kwargs:
+    ("Psst!", "I have no idea. What?", models.GenerationMetadata()),
+  )
+
+  def _fake_generate_joke_video(*_args, **_kwargs):
+    script_template = _kwargs["script_template"]
+    assert script_template[0].script == "[playfully] Psst!"
+    assert script_template[2].script == "[curiously] I have no idea. What?"
+    return Mock(
+      video_gcs_uri="gs://bucket/social/video.mp4",
+      error=None,
+      error_stage=None,
+    )
 
   monkeypatch.setattr(
     social_fns.social_operations.joke_media_operations,
     "generate_joke_video",
-    lambda *_args, **_kwargs: Mock(
-      video_gcs_uri="gs://bucket/social/video.mp4",
-      error=None,
-      error_stage=None,
-    ),
+    _fake_generate_joke_video,
   )
 
   def _fake_pin_prompt(image_bytes: list[bytes], *, post_type, recent_posts):
@@ -285,6 +297,8 @@ def test_social_post_creation_process_success_joke_video(
   assert post_data["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert post_data["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert post_data["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert post_data["reel_intro_script"] == "Psst!"
+  assert post_data["reel_response_script"] == "I have no idea. What?"
 
 
 def test_initialize_social_post_joke_grid_picks_most_shared_tag(

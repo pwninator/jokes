@@ -123,14 +123,13 @@ def test_reorder_joke_in_book(mock_db):
   joke_book_operations.reorder_joke_in_book("b1", "j1", 0)
   db.transaction.assert_called()
 
-def test_get_book_data_not_found(mock_db):
-    db = mock_db.return_value
-    collection = db.collection.return_value
-    doc_ref = collection.document.return_value
+def test_get_book_ref_returns_joke_books_document(mock_db):
+  db = mock_db.return_value
+  collection = db.collection.return_value
+  doc_ref = collection.document.return_value
 
-    doc_snap = MagicMock()
-    doc_snap.exists = False
-    doc_ref.get.return_value = doc_snap
+  result = joke_book_operations._get_book_ref("b1")
 
-    with pytest.raises(ValueError, match="Joke book b1 not found"):
-        joke_book_operations._get_book_data("b1")
+  db.collection.assert_called_once_with("joke_books")
+  collection.document.assert_called_once_with("b1")
+  assert result == doc_ref

@@ -7,9 +7,10 @@ import pprint
 import time
 import traceback
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Generator, Generic, Optional, Tuple, TypeVar, Union
+from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, Union
 
 import anthropic
 import httpx
@@ -59,12 +60,13 @@ class LlmResponse:
   thinking_text_delta: str
   """The delta of thinking text since the last chunk."""
 
-  metadata: Optional[models.SingleGenerationMetadata] = None
+  metadata: models.SingleGenerationMetadata | None = None
   """Metadata about the generation."""
 
   is_final: bool = False
   """Whether this is the final chunk."""
 
+  @override
   def __str__(self) -> str:
     return f"""********** Thinking **********
 {self.thinking_text}
@@ -86,6 +88,7 @@ class LlmModel(str, Enum):
   GEMINI_2_5_PRO = "gemini-2.5-pro"
   GEMINI_3_0_FLASH_PREVIEW = "gemini-3-flash-preview"
   GEMINI_3_0_PRO_PREVIEW = "gemini-3-pro-preview"
+  GEMINI_3_1_PRO_PREVIEW = "gemini-3.1-pro-preview"
 
   # Anthropic models
   CLAUDE_3_5_HAIKU = "claude-3-5-haiku-20241022"
@@ -96,7 +99,7 @@ def get_client(label: str,
                model: LlmModel,
                temperature: float,
                system_instructions: list[str] | None = None,
-               response_schema: Optional[dict] = None,
+               response_schema: dict[str, Any] | None = None,
                thinking_tokens: int = 0,
                output_tokens: int = 8000,
                max_retries: int = 5,
@@ -151,24 +154,24 @@ class LlmClient(ABC, Generic[_T]):
     model: LlmModel,
     temperature: float,
     system_instructions: list[str] | None,
-    response_schema: Optional[dict],
+    response_schema: dict[str, Any] | None,
     thinking_tokens: int,
     output_tokens: int,
     max_retries: int,
   ):
-    self.label = label
-    self.model = model
-    self.temperature = temperature
-    self.response_schema = response_schema
-    self.thinking_tokens = thinking_tokens
-    self.output_tokens = output_tokens
-    self.max_retries = max_retries
+    self.label: str = label
+    self.model: LlmModel = model
+    self.temperature: float = temperature
+    self.response_schema: dict[str, Any] | None = response_schema
+    self.thinking_tokens: int = thinking_tokens
+    self.output_tokens: int = output_tokens
+    self.max_retries: int = max_retries
 
     system_instruction_lines = []
     if system_instructions:
       system_instruction_lines = system_instructions
     system_instruction_lines.append(_SAFETY_PROMPT)
-    self.system_instructions = "\n\n".join(system_instruction_lines)
+    self.system_instructions: str = "\n\n".join(system_instruction_lines)
 
     self._model_client: _T | None = None
 
@@ -195,7 +198,7 @@ class LlmClient(ABC, Generic[_T]):
   @abstractmethod
   def _stream_internal(
     self,
-    prompt_chunks: list[Union[str, Tuple[str, Any]]],
+    prompt_chunks: Sequence[str | tuple[str, Any]],
   ) -> Generator[LlmResponse, None, None]:
     """Stream a response from the LLM.
 
@@ -217,7 +220,7 @@ class LlmClient(ABC, Generic[_T]):
 
   def generate(
     self,
-    prompt_chunks: list[Union[str, Tuple[str, Any]]],
+    prompt_chunks: Sequence[str | tuple[str, Any]],
     label: str | None = None,
     extra_log_data: dict[str, Any] | None = None,
   ) -> LlmResponse:
@@ -252,7 +255,7 @@ class LlmClient(ABC, Generic[_T]):
 
   def stream(
     self,
-    prompt_chunks: list[Union[str, Tuple[str, Any]]],
+    prompt_chunks: Sequence[str | tuple[str, Any]],
     label: str | None = None,
     extra_log_data: dict[str, Any] | None = None,
   ) -> Generator[LlmResponse, None, None]:
@@ -285,8 +288,8 @@ class LlmClient(ABC, Generic[_T]):
     retry_count = 0
 
     # Accumulate deltas to yield only once per _MIN_EMIT_INTERVAL_SEC
-    answer_delta = []
-    thinking_delta = []
+    answer_delta: list[str] = []
+    thinking_delta: list[str] = []
     last_yield_time = 0
 
     while retry_count <= self.max_retries:
@@ -323,9 +326,8 @@ class LlmClient(ABC, Generic[_T]):
           e) else "non-retryable"
         merged_extra_log_data = self._get_merged_extra_log_data(extra_log_data)
         logger.error(
-          "LLM call failed with %s error:\n%s",
-          retryable_str,
-          traceback.format_exc(),
+          f"LLM call failed with {retryable_str} error:\n"
+          f"{traceback.format_exc()}",
           extra={"json_fields": merged_extra_log_data},
         )
         if not self._is_retryable_error(e):
@@ -342,11 +344,8 @@ class LlmClient(ABC, Generic[_T]):
         delay = min(max_delay,
                     initial_delay * (backoff_factor**(retry_count - 1)))
         logger.warn(
-          "LLM call to %s (%s) failed: %s\nRetrying in %s seconds...",
-          self.model.value,
-          self.label,
-          e,
-          delay,
+          f"LLM call to {self.model.value} ({self.label}) failed: {e}\n"
+          f"Retrying in {delay} seconds...",
           extra={"json_fields": merged_extra_log_data},
         )
         time.sleep(delay)
@@ -359,7 +358,7 @@ class LlmClient(ABC, Generic[_T]):
 
   def _log_response(
     self,
-    prompt_chunks: list[Union[str, Tuple[str, Any]]],
+    prompt_chunks: Sequence[str | tuple[str, Any]],
     response: LlmResponse,
     extra_log_data: dict[str, Any] | None = None,
   ) -> None:
@@ -652,7 +651,7 @@ class GeminiClient(LlmClient[genai.Client]):
   """Gemini API client implementation (Google GenAI SDK, API-key auth)."""
 
   # Gemini Developer API pricing (keep aligned with LlmClient token naming)
-  GENERATION_COSTS = {
+  GENERATION_COSTS: dict[LlmModel, dict[str, float]] = {
     # Gemini 3.0
     LlmModel.GEMINI_3_0_FLASH_PREVIEW: {
       "prompt_tokens": 0.5 / 1_000_000,
@@ -660,6 +659,11 @@ class GeminiClient(LlmClient[genai.Client]):
       "output_tokens": 3.0 / 1_000_000,
     },
     LlmModel.GEMINI_3_0_PRO_PREVIEW: {
+      "prompt_tokens": 2.0 / 1_000_000,
+      "cached_prompt_tokens": 0.2 / 1_000_000,
+      "output_tokens": 12.0 / 1_000_000,
+    },
+    LlmModel.GEMINI_3_1_PRO_PREVIEW: {
       "prompt_tokens": 2.0 / 1_000_000,
       "cached_prompt_tokens": 0.2 / 1_000_000,
       "output_tokens": 12.0 / 1_000_000,
@@ -898,7 +902,7 @@ class AnthropicClient(LlmClient[anthropic.Anthropic]):
   @override
   def _stream_internal(
     self,
-    prompt_chunks: list[Union[str, Tuple[str, Any]]],
+    prompt_chunks: Sequence[str | tuple[str, Any]],
   ) -> Generator[LlmResponse, None, None]:
     # Add JSON schema as system message if provided
     if self.response_schema:

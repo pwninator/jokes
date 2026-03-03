@@ -214,7 +214,7 @@ Write a short post message in this format:
         goal="Drive reel engagement and clickthrough",
         guidelines=
         "The post should be a simple, wholesome statement related to the content, maybe using a pun related to the joke themes that's not already in the images. Occasionally, once every 4-8 posts, include a CTA to encourage sharing or commenting.",
-        cta="None`",
+        cta="None",
         audience="All",
       ),
     },
@@ -235,18 +235,77 @@ _COMMON_SYSTEM_PROMPT = """\
 You are also given a list of recent posts. Use this information to avoid repeating content and ensure that each post is unique and fresh. For example, if including a pun, make sure it's not already in the recent posts.
 """
 
+_REEL_DIALOG_OUTPUT_SCHEMA = {
+  "type": "OBJECT",
+  "properties": {
+    "intro_script": {
+      "type": "STRING",
+      "description": "A very short opener spoken before the setup.",
+    },
+    "response_script": {
+      "type": "STRING",
+      "description": "A brief listener response to the setup text.",
+    },
+  },
+  "required": ["intro_script", "response_script"],
+}
+
 _LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient[Any]] = {
   platform:
   llm_client.get_client(
     label=f"{platform.value} Social Post Text",
-    model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
+    model=LlmModel.GEMINI_3_0_PRO_PREVIEW,
     temperature=1.0,
+    thinking_tokens=1000,
     output_tokens=8000,
     system_instructions=[platform_config.system_prompt, _COMMON_SYSTEM_PROMPT],
     response_schema=platform_config.output_schema,
   )
   for platform, platform_config in _PLATFORM_CONFIGS.items()
 }
+
+_REEL_DIALOG_LLM = llm_client.get_client(
+  label="Social Reel Dialog Script",
+  model=LlmModel.GEMINI_3_0_PRO_PREVIEW,
+  temperature=1.0,
+  thinking_tokens=1000,
+  output_tokens=4000,
+  system_instructions=[
+    """Write a short two-character dialog between a Teller, who tells a joke to a Listener.
+
+Generate only the opener and the listener response for this fixed 4-turn structure:
+1. Teller says the intro_script
+2. Teller says the joke setup line exactly as provided
+3. Listener responds with the response_script
+4. Teller says the joke punchline exactly as provided
+
+Requirements:
+- `intro_script` must be short and natural, aiming to capture the audience's attention.
+- `response_script` must fit the setup. Match the right question word when needed, such as what/how/why/who/where/when.
+- Keep both lines concise and conversational.
+- Do not include speaker labels, emojis, quotes, or extra commentary.
+- If other recent scripts are provided, aim for variety and keep the script fresh by avoiding repeating the same intro/response patterns.
+- Return valid JSON only.
+
+Example 1:
+Input:
+Setup text: Why did the chicken cross the road?
+Punchline text: To get to the other side!
+Output:
+intro_script: Hey!
+response_script: I don't know. Why?
+
+Example 2:
+Input:
+Setup text: How do you make a dog laugh?
+Punchline text: You give it a funny bone!
+Output:
+intro_script: Pss!
+response_script: Hmmm, how?
+""",
+  ],
+  response_schema=_REEL_DIALOG_OUTPUT_SCHEMA,
+)
 
 
 def _get_platform_config(platform: models.SocialPlatform) -> PlatformConfig:
@@ -300,14 +359,14 @@ RECENT POSTS
   try:
     result = json.loads(response.text)
   except json.JSONDecodeError as exc:
-    logger.error("Invalid Pinterest JSON response: %s", response.text)
+    logger.error(f"Invalid Pinterest JSON response: {response.text}")
     raise ValueError("Failed to generate Pinterest post text") from exc
 
   title = result.get("pinterest_title")
   description = result.get("pinterest_description")
   alt_text = result.get("pinterest_alt_text")
   if not title or not description or not alt_text:
-    logger.error("Missing Pinterest fields in response: %s", response.text)
+    logger.error(f"Missing Pinterest fields in response: {response.text}")
     raise ValueError("Failed to generate Pinterest post text")
 
   return title, description, alt_text, models.GenerationMetadata.from_single_generation_metadata(
@@ -350,13 +409,13 @@ RECENT POSTS
   try:
     result = json.loads(response.text)
   except json.JSONDecodeError as exc:
-    logger.error("Invalid Instagram JSON response: %s", response.text)
+    logger.error(f"Invalid Instagram JSON response: {response.text}")
     raise ValueError("Failed to generate Instagram post text") from exc
 
   caption = result.get("instagram_caption")
   alt_text = result.get("instagram_alt_text")
   if not caption or not alt_text:
-    logger.error("Missing Instagram fields in response: %s", response.text)
+    logger.error(f"Missing Instagram fields in response: {response.text}")
     raise ValueError("Failed to generate Instagram post text")
 
   return caption, alt_text, models.GenerationMetadata.from_single_generation_metadata(
@@ -404,16 +463,62 @@ RECENT POSTS
   try:
     result = json.loads(response.text)
   except json.JSONDecodeError as exc:
-    logger.error("Invalid Facebook JSON response: %s", response.text)
+    logger.error(f"Invalid Facebook JSON response: {response.text}")
     raise ValueError("Failed to generate Facebook post text") from exc
 
   message = result.get("facebook_message")
   if not message:
-    logger.error("Missing Facebook fields in response: %s", response.text)
+    logger.error(f"Missing Facebook fields in response: {response.text}")
     raise ValueError("Failed to generate Facebook post text")
 
   return message, models.GenerationMetadata.from_single_generation_metadata(
     response.metadata)
+
+
+def generate_joke_reel_dialog_scripts(
+  *,
+  setup_text: str,
+  punchline_text: str,
+  recent_posts: list[models.JokeSocialPost],
+) -> tuple[str, str, models.GenerationMetadata]:
+  """Generate varied intro/response lines for a joke reel dialog."""
+  normalized_setup = setup_text.strip()
+  normalized_punchline = punchline_text.strip()
+  if not normalized_setup:
+    raise ValueError("setup_text is required for reel dialog generation")
+  if not normalized_punchline:
+    raise ValueError("punchline_text is required for reel dialog generation")
+
+  prompt_chunks: list[str] = [
+    f"""CURRENT JOKE
+* Setup text: {normalized_setup}
+* Punchline text: {normalized_punchline}
+"""
+  ]
+
+  recent_scripts_prompt = _get_recent_reel_scripts_prompt_str(recent_posts)
+  if recent_scripts_prompt:
+    prompt_chunks.append(recent_scripts_prompt)
+
+  response = _REEL_DIALOG_LLM.generate(prompt_chunks)
+  try:
+    result = json.loads(response.text)
+  except json.JSONDecodeError as exc:
+    logger.error(f"Invalid reel dialog JSON response: {response.text}")
+    raise ValueError("Failed to generate reel dialog scripts") from exc
+
+  intro_script = str(result.get("intro_script", "")).strip()
+  response_script = str(result.get("response_script", "")).strip()
+  if not intro_script or not response_script:
+    logger.error(f"Missing reel dialog fields in response: {response.text}")
+    raise ValueError("Failed to generate reel dialog scripts")
+
+  return (
+    intro_script,
+    response_script,
+    models.GenerationMetadata.from_single_generation_metadata(
+      response.metadata),
+  )
 
 
 def _get_recent_posts_prompt_str(recent_posts: list[models.JokeSocialPost],
@@ -423,3 +528,32 @@ def _get_recent_posts_prompt_str(recent_posts: list[models.JokeSocialPost],
     return ""
   return "\n\n".join(
     [post.platform_summary(platform) for post in recent_posts])
+
+
+def _get_recent_reel_scripts_prompt_str(
+    recent_posts: list[models.JokeSocialPost]) -> str | None:
+  """Generate a prompt block describing recent reel intro/response pairs."""
+  if not recent_posts:
+    return None
+
+  summaries: list[str] = []
+  for index, post in enumerate(recent_posts, start=1):
+    intro_script = (post.reel_intro_script or "").strip()
+    response_script = (post.reel_response_script or "").strip()
+
+    if not post.jokes:
+      continue
+    joke = post.jokes[0]
+    if not (joke.setup_text and joke.punchline_text and intro_script
+            and response_script):
+      continue
+
+    summaries.append(f"""
+Recent script {index}:
+Intro: {intro_script}
+Setup: {joke.setup_text}
+Response: {response_script}
+Punchline: {joke.punchline_text}
+""".strip())
+
+  return "\n\n".join(summaries) if summaries else None

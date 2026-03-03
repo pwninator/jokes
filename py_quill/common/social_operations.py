@@ -6,7 +6,7 @@ import datetime
 
 from common import image_operations, joke_media_operations, models, utils
 from functions.prompts import social_post_prompts
-from services import cloud_storage, firestore
+from services import audio_client, cloud_storage, firestore
 from services import meta as meta_service
 
 MAX_SOCIAL_POST_JOKES = 5
@@ -352,8 +352,7 @@ def generate_social_post_media(
 
   if post.type == models.JokeSocialPostType.JOKE_REEL_VIDEO:
     return _generate_social_post_media_video(post)
-  else:
-    return _generate_social_post_media_images(post)
+  return _generate_social_post_media_images(post)
 
 
 def _generate_social_post_media_video(
@@ -662,11 +661,12 @@ def _generate_social_post_video(post: models.JokeSocialPost) -> models.Video:
   if len(post.jokes) != 1:
     raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
   joke = post.jokes[0]
+  dialog_turns = _get_social_reel_dialog_turns(post)
   result = joke_media_operations.generate_joke_video(
     joke,
     teller_character_def_id=DEFAULT_SOCIAL_REEL_TELLER_CHARACTER_DEF_ID,
     listener_character_def_id=DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID,
-    script_template=joke_media_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE,
+    script_template=dialog_turns,
     use_audio_cache=True,
   )
   if result.error and not result.video_gcs_uri:
@@ -677,3 +677,59 @@ def _generate_social_post_video(post: models.JokeSocialPost) -> models.Video:
   if not video_gcs_uri:
     raise SocialPostRequestError("Video generation did not return a GCS URI")
   return models.Video(gcs_uri=video_gcs_uri)
+
+
+def _get_social_reel_dialog_turns(
+  post: models.JokeSocialPost, ) -> list[audio_client.DialogTurn]:
+  """Resolve the dialog turns for a reel, generating intro/response if needed."""
+  if len(post.jokes) != 1:
+    raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
+  joke = post.jokes[0]
+  if not joke.setup_text or not joke.punchline_text:
+    raise SocialPostRequestError(
+      "JOKE_REEL_VIDEO requires setup and punchline text")
+
+  intro_script = (post.reel_intro_script or "").strip()
+  response_script = (post.reel_response_script or "").strip()
+
+  if not intro_script or not response_script:
+    recent_posts = firestore.get_joke_social_posts(
+      post_type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+      limit=NUM_RECENT_POSTS_TO_INCLUDE,
+    )
+    intro_script, response_script, _metadata = (
+      social_post_prompts.generate_joke_reel_dialog_scripts(
+        setup_text=joke.setup_text,
+        punchline_text=joke.punchline_text,
+        recent_posts=recent_posts,
+      ))
+    post.reel_intro_script = intro_script
+    post.reel_response_script = response_script
+
+  default_turns = joke_media_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
+  return [
+    audio_client.DialogTurn(
+      voice=default_turns[0].voice,
+      script=f"[playfully] {intro_script}",
+      pause_sec_before=default_turns[0].pause_sec_before,
+      pause_sec_after=default_turns[0].pause_sec_after,
+    ),
+    audio_client.DialogTurn(
+      voice=default_turns[1].voice,
+      script=default_turns[1].script,
+      pause_sec_before=default_turns[1].pause_sec_before,
+      pause_sec_after=default_turns[1].pause_sec_after,
+    ),
+    audio_client.DialogTurn(
+      voice=default_turns[2].voice,
+      script=f"[curiously] {response_script}",
+      pause_sec_before=default_turns[2].pause_sec_before,
+      pause_sec_after=default_turns[2].pause_sec_after,
+    ),
+    audio_client.DialogTurn(
+      voice=default_turns[3].voice,
+      script=default_turns[3].script,
+      pause_sec_before=default_turns[3].pause_sec_before,
+      pause_sec_after=default_turns[3].pause_sec_after,
+    ),
+  ]

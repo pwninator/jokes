@@ -102,3 +102,65 @@ def test_generate_instagram_post_text_supports_joke_video(monkeypatch):
   assert "reel caption" in caption
   assert alt_text == "Setup and punchline comic panels."
   assert isinstance(metadata, models.GenerationMetadata)
+
+
+def test_generate_joke_reel_dialog_scripts_parses_fields(monkeypatch):
+  fake_text = json.dumps({
+    "intro_script": "Psst!",
+    "response_script": "I have no idea. Why?",
+  })
+  fake_client = _FakeClient(fake_text)
+  monkeypatch.setattr(
+    social_post_prompts,
+    "_REEL_DIALOG_LLM",
+    fake_client,
+  )
+
+  intro_script, response_script, metadata = (
+    social_post_prompts.generate_joke_reel_dialog_scripts(
+      setup_text="Why did the chicken cross the road?",
+      punchline_text="To get to the other side.",
+      recent_posts=[
+        models.JokeSocialPost(
+          type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+          link_url="https://snickerdoodlejokes.com/jokes/chicken",
+          reel_intro_script="Hey!",
+          reel_response_script="I don't know. Why?",
+          jokes=[
+            models.PunnyJoke(
+              key="j1",
+              setup_text="Why did the chicken cross the road?",
+              punchline_text="To get to the other side.",
+            )
+          ],
+        )
+      ],
+    ))
+
+  assert intro_script == "Psst!"
+  assert response_script == "I have no idea. Why?"
+  assert isinstance(metadata, models.GenerationMetadata)
+  assert "Why did the chicken cross the road?" in fake_client.prompts[0]
+  assert any("Intro: Hey!" in prompt for prompt in fake_client.prompts)
+  assert any("Response: I don't know. Why?" in prompt
+             for prompt in fake_client.prompts)
+
+
+def test_generate_joke_reel_dialog_scripts_requires_output(monkeypatch):
+  fake_client = _FakeClient(
+    json.dumps({
+      "intro_script": "Heya",
+      "response_script": "",
+    }))
+  monkeypatch.setattr(
+    social_post_prompts,
+    "_REEL_DIALOG_LLM",
+    fake_client,
+  )
+
+  with pytest.raises(ValueError):
+    social_post_prompts.generate_joke_reel_dialog_scripts(
+      setup_text="What do you call fake spaghetti?",
+      punchline_text="An impasta.",
+      recent_posts=[],
+    )

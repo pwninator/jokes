@@ -380,6 +380,8 @@ def test_joke_social_post_video_uri_fields_round_trip():
     pinterest_video_gcs_uri="gs://bucket/social/video.mp4",
     instagram_video_gcs_uri="gs://bucket/social/video.mp4",
     facebook_video_gcs_uri="gs://bucket/social/video.mp4",
+    reel_intro_script="Psst!",
+    reel_response_script="I have no idea. Why?",
   )
   post.key = "post-video-1"
 
@@ -388,6 +390,8 @@ def test_joke_social_post_video_uri_fields_round_trip():
   assert payload["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert payload["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert payload["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert payload["reel_intro_script"] == "Psst!"
+  assert payload["reel_response_script"] == "I have no idea. Why?"
 
   restored = models.JokeSocialPost.from_firestore_dict(payload,
                                                        key="post-video-1")
@@ -395,6 +399,8 @@ def test_joke_social_post_video_uri_fields_round_trip():
   assert restored.pinterest_video_gcs_uri == "gs://bucket/social/video.mp4"
   assert restored.instagram_video_gcs_uri == "gs://bucket/social/video.mp4"
   assert restored.facebook_video_gcs_uri == "gs://bucket/social/video.mp4"
+  assert restored.reel_intro_script == "Psst!"
+  assert restored.reel_response_script == "I have no idea. Why?"
 
 
 def test_joke_social_post_platform_summary_pinterest_with_time():

@@ -913,6 +913,9 @@ class JokeSocialPost:
   facebook_post_time: datetime.datetime | None = None
   facebook_message: str | None = None
 
+  reel_intro_script: str | None = None
+  reel_response_script: str | None = None
+
   def __post_init__(self) -> None:
     if not isinstance(self.link_url, str) or not self.link_url:
       raise ValueError("JokeSocialPost requires a link_url")

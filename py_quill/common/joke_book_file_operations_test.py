@@ -27,7 +27,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
           image,
           page_number=3,
           total_pages=12,
-          is_punchline=False,
+          number_on_left=False,
           font_size=profile.page_number_font_size_px,
           offset_from_edge=profile.page_number_offset_px,
         )
@@ -66,7 +66,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
           image,
           page_number=1,
           total_pages=5,
-          is_punchline=True,
+          number_on_left=True,
           font_size=profile.page_number_font_size_px,
           offset_from_edge=profile.page_number_offset_px,
         )
@@ -97,7 +97,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
           image,
           page_number=1,
           total_pages=99,
-          is_punchline=False,
+          number_on_left=False,
           font_size=profile.page_number_font_size_px,
           offset_from_edge=profile.page_number_offset_px,
         )
@@ -105,7 +105,7 @@ class AddPageNumberToImageTest(unittest.TestCase):
           image,
           page_number=10,
           total_pages=2,
-          is_punchline=False,
+          number_on_left=False,
           font_size=profile.page_number_font_size_px,
           offset_from_edge=profile.page_number_offset_px,
         )
@@ -197,14 +197,14 @@ class ExportJokePageFilesTest(unittest.TestCase):
     self.assertEqual(mock_add_page_number.call_args_list[0].kwargs, {
       'page_number': 1,
       'total_pages': 2,
-      'is_punchline': False,
+      'number_on_left': False,
       'font_size': profile.page_number_font_size_px,
       'offset_from_edge': profile.page_number_offset_px,
     })
     self.assertEqual(mock_add_page_number.call_args_list[1].kwargs, {
       'page_number': 2,
       'total_pages': 2,
-      'is_punchline': True,
+      'number_on_left': True,
       'font_size': profile.page_number_font_size_px,
       'offset_from_edge': profile.page_number_offset_px,
     })
@@ -252,10 +252,14 @@ class ExportJokePageFilesTest(unittest.TestCase):
       profile=profile,
     )
 
-    self.assertEqual(mock_add_page_number.call_args_list[0].kwargs['is_punchline'],
-                     False)
-    self.assertEqual(mock_add_page_number.call_args_list[1].kwargs['is_punchline'],
-                     False)
+    self.assertEqual(
+      mock_add_page_number.call_args_list[0].kwargs['number_on_left'],
+      False,
+    )
+    self.assertEqual(
+      mock_add_page_number.call_args_list[1].kwargs['number_on_left'],
+      False,
+    )
 
   @patch('common.joke_book_file_operations._build_about_page')
   @patch('common.joke_book_file_operations._build_joke_pages')

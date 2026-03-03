@@ -105,8 +105,40 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
     "DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID",
     "char_listener",
   )
+  monkeypatch.setattr(
+    social_operations.firestore,
+    "get_joke_social_posts",
+    lambda **_kwargs: [
+      models.JokeSocialPost(
+        type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+        link_url="https://snickerdoodlejokes.com/jokes/old-joke",
+        reel_intro_script="Hey!",
+        reel_response_script="I don't know. What?",
+      )
+    ],
+  )
+  prompt_call = {}
+
+  def _fake_generate_dialog_scripts(*, setup_text, punchline_text,
+                                    recent_posts):
+    prompt_call["setup_text"] = setup_text
+    prompt_call["punchline_text"] = punchline_text
+    prompt_call["recent_posts"] = recent_posts
+    return "Psst!", "Hmm, why?", models.GenerationMetadata()
+
+  monkeypatch.setattr(
+    social_operations.social_post_prompts,
+    "generate_joke_reel_dialog_scripts",
+    _fake_generate_dialog_scripts,
+  )
 
   def _fake_generate_joke_video(*_args, **_kwargs):
+    script_template = _kwargs["script_template"]
+    assert script_template[0].script == "[playfully] Psst!"
+    assert script_template[1].script == "{setup_text}"
+    assert script_template[2].script == "[curiously] Hmm, why?"
+    assert script_template[3].script == (
+      "[excitedly, holding back laughter] {punchline_text}")
     return Mock(
       video_gcs_uri="gs://bucket/social/joke_video.mp4",
       error=None,
@@ -126,6 +158,8 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
   assert updated_post.instagram_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
   assert updated_post.facebook_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
   assert updated_post.pinterest_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
+  assert updated_post.reel_intro_script == "Psst!"
+  assert updated_post.reel_response_script == "Hmm, why?"
   assert image_bytes_by_platform[models.SocialPlatform.PINTEREST] == [
     b"bytes-setup.png",
     b"bytes-punch.png",
@@ -138,6 +172,113 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
     b"bytes-setup.png",
     b"bytes-punch.png",
   ]
+  assert prompt_call["setup_text"] == "Setup 1"
+  assert prompt_call["punchline_text"] == "Punchline 1"
+  assert len(prompt_call["recent_posts"]) == 1
+
+
+def test_generate_social_post_media_joke_video_reuses_persisted_scripts(
+  monkeypatch: pytest.MonkeyPatch, ):
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+    jokes=[
+      models.PunnyJoke(
+        key="j1",
+        setup_text="Why did the scarecrow win an award?",
+        punchline_text="Because he was outstanding in his field.",
+        setup_image_url="https://cdn.example.com/setup.png",
+        punchline_image_url="https://cdn.example.com/punch.png",
+      )
+    ],
+    link_url="https://snickerdoodlejokes.com/jokes/scarecrow",
+    reel_intro_script="Heya!",
+    reel_response_script="I have no idea. Why?",
+  )
+
+  monkeypatch.setattr(
+    social_operations.cloud_storage,
+    "extract_gcs_uri_from_image_url",
+    lambda image_url: f"gs://bucket/{image_url.rsplit('/', 1)[-1]}",
+  )
+  monkeypatch.setattr(
+    social_operations.cloud_storage,
+    "download_bytes_from_gcs",
+    lambda gcs_uri: (f"bytes-{gcs_uri.rsplit('/', 1)[-1]}".encode("utf-8")),
+  )
+  monkeypatch.setattr(
+    social_operations.social_post_prompts,
+    "generate_joke_reel_dialog_scripts",
+    Mock(side_effect=AssertionError("LLM should not run")),
+  )
+
+  def _fake_generate_joke_video(*_args, **_kwargs):
+    script_template = _kwargs["script_template"]
+    assert script_template[0].script == "[playfully] Heya!"
+    assert script_template[2].script == "[curiously] I have no idea. Why?"
+    return Mock(
+      video_gcs_uri="gs://bucket/social/joke_video.mp4",
+      error=None,
+      error_stage=None,
+    )
+
+  monkeypatch.setattr(
+    social_operations.joke_media_operations,
+    "generate_joke_video",
+    _fake_generate_joke_video,
+  )
+
+  updated_post, _image_bytes_by_platform, updated = (
+    social_operations.generate_social_post_media(post))
+
+  assert updated is True
+  assert updated_post.reel_intro_script == "Heya!"
+  assert updated_post.reel_response_script == "I have no idea. Why?"
+
+
+def test_generate_social_post_media_joke_video_fails_when_script_llm_fails(
+  monkeypatch: pytest.MonkeyPatch, ):
+  post = models.JokeSocialPost(
+    type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
+    jokes=[
+      models.PunnyJoke(
+        key="j1",
+        setup_text="Why is the math book sad?",
+        punchline_text="Because it has too many problems.",
+        setup_image_url="https://cdn.example.com/setup.png",
+        punchline_image_url="https://cdn.example.com/punch.png",
+      )
+    ],
+    link_url="https://snickerdoodlejokes.com/jokes/math-book",
+  )
+
+  monkeypatch.setattr(
+    social_operations.cloud_storage,
+    "extract_gcs_uri_from_image_url",
+    lambda image_url: f"gs://bucket/{image_url.rsplit('/', 1)[-1]}",
+  )
+  monkeypatch.setattr(
+    social_operations.cloud_storage,
+    "download_bytes_from_gcs",
+    lambda gcs_uri: (f"bytes-{gcs_uri.rsplit('/', 1)[-1]}".encode("utf-8")),
+  )
+  monkeypatch.setattr(
+    social_operations.social_post_prompts,
+    "generate_joke_reel_dialog_scripts",
+    Mock(side_effect=ValueError("LLM failed")),
+  )
+  monkeypatch.setattr(
+    social_operations.firestore,
+    "get_joke_social_posts",
+    lambda **_kwargs: [],
+  )
+  monkeypatch.setattr(
+    social_operations.joke_media_operations,
+    "generate_joke_video",
+    Mock(side_effect=AssertionError("Video generation should not run")),
+  )
+
+  with pytest.raises(ValueError, match="LLM failed"):
+    _ = social_operations.generate_social_post_media(post)
 
 
 def test_publish_platform_instagram_video_uses_instagram_video_uri(

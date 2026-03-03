@@ -183,13 +183,13 @@
 .admin-jokes-calendar-day-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.1));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0));
 }
 
 .admin-jokes-calendar-day-number {
   position: absolute;
-  top: 6px;
-  right: 7px;
+  top: 0;
+  right: 3px;
   z-index: 1;
   font-size: 0.78rem;
   font-weight: 700;

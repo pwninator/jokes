@@ -425,6 +425,90 @@ test('successful drop posts move and keeps the joke on the target date', async (
   }
 });
 
+test('open calendar sync loads an unloaded month and adds a scheduled daily joke', async () => {
+  const env = buildEnvironment([
+    {
+      json: {
+        months: [
+          buildMonth('2026-03'),
+        ],
+        earliest_month_id: '2026-01',
+        latest_month_id: '2026-05',
+        initial_month_id: '2026-03',
+      },
+    },
+    {
+      json: {
+        months: [
+          buildMonth('2026-05'),
+        ],
+        earliest_month_id: '2026-01',
+        latest_month_id: '2026-05',
+        initial_month_id: '2026-03',
+      },
+    },
+  ]);
+
+  try {
+    initAdminJokesCalendar({
+      calendarDataUrl: '/admin/jokes/calendar-data',
+      calendarMoveUrl: '/admin/jokes/calendar-move',
+    });
+    await env.elements.toggleButton.dispatch('click');
+
+    await global.window.syncAdminJokesCalendarJokeState({
+      removeDate: null,
+      addDate: '2026-05-07',
+      entry: {
+        joke_id: 'joke-2',
+        setup_text: 'May joke',
+        thumbnail_url: 'may-thumb.png',
+      },
+    });
+
+    assert.equal(env.fetchMock.calls.length, 2);
+    assert.match(env.fetchMock.calls[1].url, /start_month=2026-05/);
+    assert.match(daySegment(env.monthsContainer.innerHTML, '2026-05-07'), /data-joke-id="joke-2"/);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('open calendar sync removes a joke when it leaves the daily state', async () => {
+  const env = buildEnvironment([
+    {
+      json: {
+        months: [
+          buildMonth('2026-03', {
+            '05': { joke_id: 'joke-1', setup_text: 'March joke', thumbnail_url: 'thumb.png' },
+          }, ['05', '06', '07']),
+        ],
+        earliest_month_id: '2026-01',
+        latest_month_id: '2026-05',
+        initial_month_id: '2026-03',
+      },
+    },
+  ]);
+
+  try {
+    initAdminJokesCalendar({
+      calendarDataUrl: '/admin/jokes/calendar-data',
+      calendarMoveUrl: '/admin/jokes/calendar-move',
+    });
+    await env.elements.toggleButton.dispatch('click');
+
+    await global.window.syncAdminJokesCalendarJokeState({
+      removeDate: '2026-03-05',
+      addDate: null,
+      entry: null,
+    });
+
+    assert.doesNotMatch(daySegment(env.monthsContainer.innerHTML, '2026-03-05'), /data-joke-id="joke-1"/);
+  } finally {
+    env.cleanup();
+  }
+});
+
 test('failed move reverts optimistic UI and shows error message', async () => {
   const env = buildEnvironment([
     {

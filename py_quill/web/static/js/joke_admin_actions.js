@@ -287,6 +287,38 @@
     };
   }
 
+  function buildCalendarEntryFromPayload(payload) {
+    return {
+      joke_id: payload.joke_id || payload.jokeId || '',
+      setup_text: payload.setup_text || '',
+      thumbnail_url: payload.setup_image_url || null,
+    };
+  }
+
+  function syncDailyCalendarFromStateChange(previousPayload, nextPayload) {
+    if (typeof window === 'undefined'
+        || typeof window.syncAdminJokesCalendarJokeState !== 'function') {
+      return;
+    }
+
+    const removeDate = isFutureDailyPayload(previousPayload)
+      ? extractDateLabel(previousPayload.public_timestamp)
+      : '';
+    const addDate = isFutureDailyPayload(nextPayload)
+      ? extractDateLabel(nextPayload.public_timestamp)
+      : '';
+
+    if (!removeDate && !addDate) {
+      return;
+    }
+
+    window.syncAdminJokesCalendarJokeState({
+      removeDate: removeDate || null,
+      addDate: addDate || null,
+      entry: addDate ? buildCalendarEntryFromPayload(nextPayload) : null,
+    });
+  }
+
   function getRevealButtonLabel(button) {
     if (!button) {
       return DEFAULT_REVEAL_LABEL;
@@ -956,8 +988,12 @@
           data: buildStateRequestData(jokeId, newState),
         });
         const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
-        if (response.ok && jokeData && card) {
-          updateCardFromPayload(card, applyJokeDataToPayload(optimisticPayload, jokeData));
+        if (response.ok && jokeData) {
+          const nextPayload = applyJokeDataToPayload(optimisticPayload, jokeData);
+          if (card) {
+            updateCardFromPayload(card, nextPayload);
+          }
+          syncDailyCalendarFromStateChange(previousPayload, nextPayload);
           return;
         }
         if (card) {

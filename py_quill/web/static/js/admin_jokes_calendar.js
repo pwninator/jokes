@@ -81,6 +81,17 @@
     return String(dayNumber).padStart(2, '0');
   }
 
+  function parseIsoDateParts(isoDate) {
+    const match = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+      return null;
+    }
+    return {
+      monthId: `${match[1]}-${match[2]}`,
+      dayKey: match[3],
+    };
+  }
+
   function isMovableDay(month, key) {
     return Array.isArray(month && month.movable_day_keys)
       && month.movable_day_keys.indexOf(key) !== -1;
@@ -222,6 +233,38 @@
       ...targetMonth,
       entries: nextTargetEntries,
     });
+    return nextMonthsById;
+  }
+
+  function syncDailyJokeEntryInMonths(monthsById, change) {
+    const nextMonthsById = new Map(monthsById);
+
+    function applyDateUpdate(isoDate, entry) {
+      const parts = parseIsoDateParts(isoDate);
+      if (!parts) {
+        return;
+      }
+      const month = nextMonthsById.get(parts.monthId);
+      if (!month) {
+        return;
+      }
+      const nextEntries = { ...month.entries };
+      if (entry) {
+        nextEntries[parts.dayKey] = { ...entry };
+      } else {
+        delete nextEntries[parts.dayKey];
+      }
+      nextMonthsById.set(parts.monthId, {
+        ...month,
+        entries: nextEntries,
+      });
+    }
+
+    applyDateUpdate(change && change.removeDate, null);
+    if (change && change.addDate && change.entry) {
+      applyDateUpdate(change.addDate, change.entry);
+    }
+
     return nextMonthsById;
   }
 
@@ -479,6 +522,13 @@
       setError('');
     }
 
+    async function ensureMonthLoaded(monthId) {
+      if (!monthId || state.monthsById.has(monthId) || !isMonthIdWithinBounds(state.bounds, monthId)) {
+        return;
+      }
+      await fetchRange(monthId, monthId, null);
+    }
+
     async function ensureMonthVisible(monthId) {
       if (!monthId || !isMonthIdWithinBounds(state.bounds, monthId)) {
         return;
@@ -557,6 +607,20 @@
         throw new Error(json.error || 'Failed to move joke');
       }
     }
+
+    window.syncAdminJokesCalendarJokeState = async (change) => {
+      if (!state.isOpen || !state.hasLoaded || !change) {
+        return;
+      }
+
+      const addDateParts = parseIsoDateParts(change.addDate);
+      if (addDateParts) {
+        await ensureMonthLoaded(addDateParts.monthId);
+      }
+
+      state.monthsById = syncDailyJokeEntryInMonths(state.monthsById, change);
+      render();
+    };
 
     toggleButton.addEventListener('click', async () => {
       if (state.isOpen) {
@@ -710,7 +774,9 @@
     monthIdFromDate,
     normalizeMonth,
     parseMonthId,
+    parseIsoDateParts,
     renderMonthHtml,
     revertOptimisticMoveInMonths,
+    syncDailyJokeEntryInMonths,
   };
 }));

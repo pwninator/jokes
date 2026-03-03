@@ -424,6 +424,10 @@ test('modify submit posts joke_image_modify and updates the card in place', { co
 test('state submit posts joke_state and updates the badge in place', { concurrency: false }, async () => {
   const env = buildEnvironment();
   try {
+    const calendarSyncCalls = [];
+    global.window.syncAdminJokesCalendarJokeState = (payload) => {
+      calendarSyncCalls.push(payload);
+    };
     initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
     await env.document.dispatch('click', { target: env.elements.stateButton });
     await env.elements.stateOptions.children[2].dispatch('click');
@@ -465,6 +469,15 @@ test('state submit posts joke_state and updates the badge in place', { concurren
     assert.equal(env.elements.stateButton.textContent, '2099-03-05');
     assert.equal(env.elements.stateButton.classList.contains('joke-state-future-daily'), true);
     assert.equal(env.alerts.length, 0);
+    assert.deepEqual(calendarSyncCalls, [{
+      removeDate: null,
+      addDate: '2099-03-05',
+      entry: {
+        joke_id: 'joke-1',
+        setup_text: 'Old setup',
+        thumbnail_url: 'https://example.com/setup-old.png',
+      },
+    }]);
   } finally {
     env.cleanup();
   }

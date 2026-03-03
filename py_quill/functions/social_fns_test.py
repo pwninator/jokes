@@ -223,7 +223,7 @@ def test_social_post_creation_process_success_joke_video(
   )
 
   monkeypatch.setattr(
-    social_fns.social_operations.joke_operations,
+    social_fns.social_operations.joke_media_operations,
     "generate_joke_video",
     lambda *_args, **_kwargs: Mock(
       video_gcs_uri="gs://bucket/social/video.mp4",

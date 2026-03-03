@@ -12,6 +12,7 @@ const {
 const {
   applyJokeDataToPayload,
   buildModifyRequestData,
+  buildRegenerateAllRequestData,
   buildStateRequestData,
   buildOptimisticPayload,
   formatThumbUrl,
@@ -52,12 +53,14 @@ function buildEnvironment() {
   global.fetch = fetchMock;
 
   const editModalBundle = buildModalRoot('admin-edit-joke-modal', 'data-admin-edit-joke-backdrop');
+  const regenerateAllModalBundle = buildModalRoot('admin-regenerate-all-modal', 'data-admin-regenerate-all-backdrop');
   const regenerateModalBundle = buildModalRoot('admin-regenerate-modal', 'data-admin-regenerate-backdrop');
   const modifyModalBundle = buildModalRoot('admin-modify-joke-modal', 'data-admin-modify-joke-backdrop');
   const stateModalBundle = buildModalRoot('admin-state-joke-modal', 'data-admin-state-joke-backdrop');
   const sceneIdeasModalBundle = buildModalRoot('admin-scene-ideas-modal', 'data-admin-scene-ideas-backdrop');
 
   append(root, editModalBundle.modal);
+  append(root, regenerateAllModalBundle.modal);
   append(root, regenerateModalBundle.modal);
   append(root, modifyModalBundle.modal);
   append(root, stateModalBundle.modal);
@@ -75,7 +78,12 @@ function buildEnvironment() {
   const editPunchlineImages = append(editForm, new FakeElement({ id: 'admin-edit-joke-punchline-images' }));
   append(editForm, new FakeElement({ id: 'admin-edit-joke-cancel-button', tagName: 'button' }));
   const editRegenerateButton = append(editForm, new FakeElement({ id: 'admin-edit-joke-regenerate-button', tagName: 'button' }));
+  const editRegenerateAllButton = append(editModalBundle.modal, new FakeElement({ id: 'admin-edit-joke-regenerate-all-button', tagName: 'button' }));
   const editSceneIdeasButton = append(editForm, new FakeElement({ id: 'admin-edit-joke-scene-ideas-button', tagName: 'button' }));
+
+  const regenerateAllForm = append(regenerateAllModalBundle.modal, new FakeElement({ id: 'admin-regenerate-all-form', tagName: 'form' }));
+  append(regenerateAllForm, new FakeElement({ id: 'admin-regenerate-all-cancel-button', tagName: 'button' }));
+  const regenerateAllSubmitButton = append(regenerateAllForm, new FakeElement({ id: 'admin-regenerate-all-submit-button', tagName: 'button' }));
 
   const regenerateForm = append(regenerateModalBundle.modal, new FakeElement({ id: 'admin-regenerate-form', tagName: 'form' }));
   const regenerateJokeId = append(regenerateForm, new FakeElement({ id: 'admin-regenerate-joke-id', tagName: 'input' }));
@@ -186,7 +194,11 @@ function buildEnvironment() {
       editSetupImages,
       editPunchlineImages,
       editRegenerateButton,
+      editRegenerateAllButton,
       editSceneIdeasButton,
+      regenerateAllModal: regenerateAllModalBundle.modal,
+      regenerateAllForm,
+      regenerateAllSubmitButton,
       regenerateButton,
       regenerateForm,
       regenerateJokeId,
@@ -230,6 +242,49 @@ test('buildModifyRequestData includes only non-empty instructions', () => {
       op: 'joke_image_modify',
       joke_id: 'joke-1',
       setup_instruction: 'make it sunnier',
+    },
+  );
+});
+
+test('buildRegenerateAllRequestData sends text only when it changed', () => {
+  assert.deepEqual(
+    buildRegenerateAllRequestData(
+      {
+        jokeId: 'joke-1',
+        setupText: 'Old setup',
+        punchlineText: 'Old punchline',
+      },
+      {
+        setup_text: ' Old setup ',
+        punchline_text: 'Old punchline',
+      },
+    ),
+    {
+      joke_id: 'joke-1',
+      regenerate_scene_ideas: true,
+      generate_descriptions: true,
+      populate_images: true,
+    },
+  );
+
+  assert.deepEqual(
+    buildRegenerateAllRequestData(
+      {
+        jokeId: 'joke-1',
+        setupText: 'New setup',
+        punchlineText: 'Old punchline',
+      },
+      {
+        setup_text: 'Old setup',
+        punchline_text: 'Old punchline',
+      },
+    ),
+    {
+      joke_id: 'joke-1',
+      setup_text: 'New setup',
+      regenerate_scene_ideas: true,
+      generate_descriptions: true,
+      populate_images: true,
     },
   );
 });
@@ -483,6 +538,21 @@ test('state submit posts joke_state and updates the badge in place', { concurren
   }
 });
 
+test('regenerate all button opens confirmation modal from edit dialog', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+
+    await env.document.dispatch('click', { target: env.elements.editButton });
+    await env.elements.editRegenerateAllButton.dispatch('click');
+
+    assert.equal(env.elements.regenerateAllModal.classList.contains('admin-modal--open'), true);
+    assert.equal(env.elements.regenerateAllSubmitButton.focused, true);
+  } finally {
+    env.cleanup();
+  }
+});
+
 test('edit button populates modal and regenerate request refreshes the card', { concurrency: false }, async () => {
   const env = buildEnvironment();
   try {
@@ -528,6 +598,87 @@ test('edit button populates modal and regenerate request refreshes the card', { 
     });
     assert.equal(env.elements.setupMedia.querySelector('img').src, 'https://example.com/setup-refreshed.png');
     assert.equal(env.elements.punchlineMedia.querySelector('img').src, 'https://example.com/punchline-refreshed.png');
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('regenerate all confirmation omits unchanged text fields and refreshes the card', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+
+    await env.document.dispatch('click', { target: env.elements.editButton });
+    await env.elements.editRegenerateAllButton.dispatch('click');
+
+    env.fetchMock.enqueue(createFetchResponse({
+      json: {
+        data: {
+          joke_data: {
+            key: 'joke-1',
+            setup_text: 'Old setup',
+            punchline_text: 'Old punchline',
+            setup_image_url: 'https://example.com/setup-all.png',
+            punchline_image_url: 'https://example.com/punchline-all.png',
+            all_setup_image_urls: ['https://example.com/setup-all.png'],
+            all_punchline_image_urls: ['https://example.com/punchline-all.png'],
+          },
+        },
+      },
+    }));
+
+    await env.elements.regenerateAllForm.dispatch('submit');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(JSON.parse(env.fetchMock.calls[0].options.body), {
+      data: {
+        joke_id: 'joke-1',
+        regenerate_scene_ideas: true,
+        generate_descriptions: true,
+        populate_images: true,
+      },
+    });
+    assert.equal(env.elements.regenerateAllModal.classList.contains('admin-modal--open'), false);
+    assert.equal(env.elements.setupMedia.querySelector('img').src, 'https://example.com/setup-all.png');
+    assert.equal(env.elements.punchlineMedia.querySelector('img').src, 'https://example.com/punchline-all.png');
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('regenerate all confirmation sends only changed text fields', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+
+    await env.document.dispatch('click', { target: env.elements.editButton });
+    env.elements.editSetup.value = 'Updated setup';
+    await env.elements.editRegenerateAllButton.dispatch('click');
+
+    env.fetchMock.enqueue(createFetchResponse({
+      json: {
+        data: {
+          joke_data: {
+            key: 'joke-1',
+            setup_text: 'Updated setup',
+            punchline_text: 'Old punchline',
+          },
+        },
+      },
+    }));
+
+    await env.elements.regenerateAllForm.dispatch('submit');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(JSON.parse(env.fetchMock.calls[0].options.body), {
+      data: {
+        joke_id: 'joke-1',
+        setup_text: 'Updated setup',
+        regenerate_scene_ideas: true,
+        generate_descriptions: true,
+        populate_images: true,
+      },
+    });
   } finally {
     env.cleanup();
   }

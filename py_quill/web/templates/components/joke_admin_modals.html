@@ -1,7 +1,11 @@
 <div id="admin-edit-joke-modal" class="admin-modal" aria-hidden="true">
   <div class="admin-modal__backdrop" data-admin-edit-joke-backdrop></div>
   <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-edit-joke-title">
-    <h3 id="admin-edit-joke-title" class="admin-modal__title text-section-heading">Edit joke</h3>
+    <div class="admin-modal__header">
+      <h3 id="admin-edit-joke-title" class="admin-modal__title text-section-heading">Edit joke</h3>
+      <button type="button" class="button-secondary text-button"
+        id="admin-edit-joke-regenerate-all-button">Regenerate All</button>
+    </div>
     <div class="admin-modal__content">
       <form id="admin-edit-joke-form">
         <input type="hidden" id="admin-edit-joke-id" name="joke_id" value="">
@@ -60,6 +64,29 @@
           <button type="submit" class="button-primary text-button" id="admin-edit-joke-save-button">Save</button>
           <button type="button" class="button-primary text-button"
             id="admin-edit-joke-regenerate-button">Regenerate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="admin-regenerate-all-modal" class="admin-modal admin-modal--overlay" aria-hidden="true">
+  <div class="admin-modal__backdrop" data-admin-regenerate-all-backdrop></div>
+  <div class="admin-modal__dialog admin-modal__dialog--state" role="dialog" aria-modal="true"
+    aria-labelledby="admin-regenerate-all-title">
+    <h3 id="admin-regenerate-all-title" class="admin-modal__title text-section-heading">Regenerate all</h3>
+    <div class="admin-modal__content">
+      <form id="admin-regenerate-all-form">
+        <div class="admin-modal__field">
+          <div class="admin-modal__label">
+            Regenerate and overwrite the scene ideas, image descriptions, and images for this joke?
+          </div>
+        </div>
+        <div class="admin-modal__actions">
+          <button type="button" class="button-secondary text-button"
+            id="admin-regenerate-all-cancel-button">Cancel</button>
+          <button type="submit" class="button-primary text-button"
+            id="admin-regenerate-all-submit-button">Regenerate All</button>
         </div>
       </form>
     </div>

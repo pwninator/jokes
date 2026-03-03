@@ -114,7 +114,7 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
     )
 
   monkeypatch.setattr(
-    social_operations.joke_operations,
+    social_operations.joke_media_operations,
     "generate_joke_video",
     _fake_generate_joke_video,
   )

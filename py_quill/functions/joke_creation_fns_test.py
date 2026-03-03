@@ -1010,13 +1010,13 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     captured_audio_args["audio_model"] = audio_model
     captured_audio_args["allow_partial"] = allow_partial
     captured_audio_args["use_audio_cache"] = use_audio_cache
-    return joke_creation_fns.joke_operations.JokeLipSyncResult(
+    return joke_creation_fns.joke_media_operations.JokeLipSyncResult(
       dialog_gcs_uri="gs://public/audio/dialog.wav",
       intro_audio_gcs_uri="gs://public/audio/intro.wav",
       setup_audio_gcs_uri="gs://public/audio/setup.wav",
       response_audio_gcs_uri="gs://public/audio/response.wav",
       punchline_audio_gcs_uri="gs://public/audio/punchline.wav",
-      transcripts=joke_creation_fns.joke_operations.JokeAudioTranscripts(
+      transcripts=joke_creation_fns.joke_media_operations.JokeAudioTranscripts(
         intro="intro", setup="setup", response="response", punchline="punch"),
       intro_sequence=None,
       setup_sequence=None,
@@ -1033,7 +1033,7 @@ def test_joke_creation_process_handles_joke_audio_op(monkeypatch):
     )
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "get_joke_lip_sync_media",
     fake_generate_audio,
   )
@@ -1108,7 +1108,7 @@ def test_joke_creation_process_handles_joke_audio_op_invalid_audio_model(
     raise AssertionError("generate_joke_audio should not be called")
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "get_joke_lip_sync_media",
     should_not_run,
   )
@@ -1172,7 +1172,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     captured_video_args["temp_output"] = temp_output
     captured_video_args["allow_partial"] = allow_partial
     captured_video_args["use_audio_cache"] = use_audio_cache
-    return joke_creation_fns.joke_operations.JokeVideoResult(
+    return joke_creation_fns.joke_media_operations.JokeVideoResult(
       video_gcs_uri="gs://public/video/joke.mp4",
       dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
       intro_audio_gcs_uri="gs://public/audio/intro.wav",
@@ -1184,7 +1184,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     )
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "generate_joke_video",
     fake_generate_video,
   )
@@ -1269,7 +1269,7 @@ def test_joke_creation_process_handles_joke_video_op_invalid_script_template(
     raise AssertionError("generate_joke_audio should not be called")
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "generate_joke_video",
     should_not_run,
   )
@@ -1310,7 +1310,7 @@ def test_joke_creation_process_handles_joke_video_op_requires_teller_character(
                       lambda _joke_id: joke)
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "generate_joke_video",
     lambda *_args, **_kwargs:
     (_ for _ in
@@ -1368,7 +1368,7 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
     _ = audio_model
     _ = allow_partial
     captured_video_args["use_audio_cache"] = use_audio_cache
-    return joke_creation_fns.joke_operations.JokeVideoResult(
+    return joke_creation_fns.joke_media_operations.JokeVideoResult(
       video_gcs_uri="gs://public/video/joke.mp4",
       dialog_audio_gcs_uri=None,
       intro_audio_gcs_uri=None,
@@ -1380,7 +1380,7 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
     )
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "generate_joke_video",
     fake_generate_video,
   )
@@ -1424,9 +1424,9 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_
   generation_metadata = models.GenerationMetadata()
   generation_metadata.add_generation(audio_metadata)
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "generate_joke_video",
-    lambda *_args, **_kwargs: joke_creation_fns.joke_operations.
+    lambda *_args, **_kwargs: joke_creation_fns.joke_media_operations.
     JokeVideoResult(
       video_gcs_uri=None,
       dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
@@ -1489,9 +1489,9 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_
   generation_metadata = models.GenerationMetadata()
   generation_metadata.add_generation(audio_metadata)
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "generate_joke_video",
-    lambda *_args, **_kwargs: joke_creation_fns.joke_operations.
+    lambda *_args, **_kwargs: joke_creation_fns.joke_media_operations.
     JokeVideoResult(
       video_gcs_uri=None,
       dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
@@ -1637,7 +1637,7 @@ def test_joke_creation_process_handles_animation_laugh_op(monkeypatch):
   )
 
   monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
+    joke_creation_fns.joke_media_operations,
     "build_laugh_sequence",
     lambda audio_gcs_uri: generated_sequence
     if audio_gcs_uri == "gs://audio/laugh.wav" else None,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 
-from common import image_operations, joke_operations, models, utils
+from common import image_operations, joke_media_operations, models, utils
 from functions.prompts import social_post_prompts
 from services import cloud_storage, firestore
 from services import meta as meta_service
@@ -662,11 +662,11 @@ def _generate_social_post_video(post: models.JokeSocialPost) -> models.Video:
   if len(post.jokes) != 1:
     raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
   joke = post.jokes[0]
-  result = joke_operations.generate_joke_video(
+  result = joke_media_operations.generate_joke_video(
     joke,
     teller_character_def_id=DEFAULT_SOCIAL_REEL_TELLER_CHARACTER_DEF_ID,
     listener_character_def_id=DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID,
-    script_template=joke_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE,
+    script_template=joke_media_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE,
     use_audio_cache=True,
   )
   if result.error and not result.video_gcs_uri:

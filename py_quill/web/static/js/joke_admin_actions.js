@@ -265,6 +265,28 @@
     };
   }
 
+  function normalizeTextValue(value) {
+    return value === null || value === undefined ? '' : String(value).trim();
+  }
+
+  function buildRegenerateAllRequestData(formValues, basePayload) {
+    const payload = {
+      joke_id: formValues.jokeId,
+      regenerate_scene_ideas: true,
+      generate_descriptions: true,
+      populate_images: true,
+    };
+
+    if (formValues.setupText !== normalizeTextValue(basePayload && basePayload.setup_text)) {
+      payload.setup_text = formValues.setupText;
+    }
+    if (formValues.punchlineText !== normalizeTextValue(basePayload && basePayload.punchline_text)) {
+      payload.punchline_text = formValues.punchlineText;
+    }
+
+    return payload;
+  }
+
   function buildModifyRequestData(jokeId, setupInstruction, punchlineInstruction) {
     const data = {
       op: 'joke_image_modify',
@@ -617,7 +639,13 @@
       editSetupImagesGrid: document.getElementById('admin-edit-joke-setup-images'),
       editPunchlineImagesGrid: document.getElementById('admin-edit-joke-punchline-images'),
       editRegenerateButton: document.getElementById('admin-edit-joke-regenerate-button'),
+      editRegenerateAllButton: document.getElementById('admin-edit-joke-regenerate-all-button'),
       editSceneIdeasButton: document.getElementById('admin-edit-joke-scene-ideas-button'),
+      regenerateAllModal: document.getElementById('admin-regenerate-all-modal'),
+      regenerateAllModalBackdrop: document.querySelector('[data-admin-regenerate-all-backdrop]'),
+      regenerateAllForm: document.getElementById('admin-regenerate-all-form'),
+      regenerateAllCancelButton: document.getElementById('admin-regenerate-all-cancel-button'),
+      regenerateAllSubmitButton: document.getElementById('admin-regenerate-all-submit-button'),
       regenerateModal: document.getElementById('admin-regenerate-modal'),
       regenerateModalBackdrop: document.querySelector('[data-admin-regenerate-backdrop]'),
       regenerateForm: document.getElementById('admin-regenerate-form'),
@@ -651,7 +679,7 @@
       sceneIdeasGenerateButton: document.getElementById('admin-scene-ideas-generate-button'),
     };
 
-    if (!elements.editModal || !elements.regenerateModal
+    if (!elements.editModal || !elements.regenerateAllModal || !elements.regenerateModal
         || !elements.modifyModal || !elements.stateModal || !elements.sceneIdeasModal) {
       return;
     }
@@ -671,12 +699,37 @@
     };
 
     function handleEditCancel() {
+      if (isModalOpen(elements.regenerateAllModal)) {
+        closeModal(elements.regenerateAllModal);
+      }
       if (isModalOpen(elements.sceneIdeasModal)) {
         closeModal(elements.sceneIdeasModal);
       }
       closeModal(elements.editModal);
       state.activeEditCard = null;
       state.activeEditPayload = null;
+    }
+
+    function validateEditForm() {
+      if (!elements.editJokeIdInput || !elements.editSetupInput || !elements.editPunchlineInput) {
+        return null;
+      }
+      if (!elements.editSetupInput.checkValidity()
+          || !elements.editPunchlineInput.checkValidity()) {
+        if (elements.editForm && typeof elements.editForm.reportValidity === 'function') {
+          elements.editForm.reportValidity();
+        }
+        return null;
+      }
+
+      const formValues = readEditFormValues();
+      if (!formValues.setupText || !formValues.punchlineText) {
+        if (elements.editForm && typeof elements.editForm.reportValidity === 'function') {
+          elements.editForm.reportValidity();
+        }
+        return null;
+      }
+      return formValues;
     }
 
     function handleModifyCancel() {
@@ -850,22 +903,8 @@
     }
 
     async function sendEditRequest(populateImages) {
-      if (!elements.editJokeIdInput || !elements.editSetupInput || !elements.editPunchlineInput) {
-        return;
-      }
-      if (!elements.editSetupInput.checkValidity()
-          || !elements.editPunchlineInput.checkValidity()) {
-        if (elements.editForm && typeof elements.editForm.reportValidity === 'function') {
-          elements.editForm.reportValidity();
-        }
-        return;
-      }
-
-      const formValues = readEditFormValues();
-      if (!formValues.setupText || !formValues.punchlineText) {
-        if (elements.editForm && typeof elements.editForm.reportValidity === 'function') {
-          elements.editForm.reportValidity();
-        }
+      const formValues = validateEditForm();
+      if (!formValues) {
         return;
       }
 
@@ -901,6 +940,50 @@
         }
       } catch (error) {
         console.warn('joke_creation_process request failed', error); // eslint-disable-line no-console
+      } finally {
+        if (card) {
+          setCardIdle(card);
+        }
+      }
+    }
+
+    async function sendRegenerateAllRequest() {
+      const formValues = validateEditForm();
+      if (!formValues) {
+        return;
+      }
+
+      const card = state.activeEditCard
+        || document.querySelector(`.joke-card[data-joke-id="${formValues.jokeId}"]`);
+      const basePayload = state.activeEditPayload || getEditPayloadFromCard(card);
+      const optimisticPayload = buildOptimisticPayload(basePayload, formValues);
+      const payload = {
+        data: buildRegenerateAllRequestData(formValues, basePayload),
+      };
+
+      if (card) {
+        updateCardFromPayload(card, optimisticPayload);
+      }
+
+      closeModal(elements.regenerateAllModal);
+      closeModal(elements.editModal);
+      if (card) {
+        setCardGenerating(card);
+      }
+      state.activeEditCard = null;
+      state.activeEditPayload = null;
+
+      try {
+        const { response, json } = await postJokeCreationRequest(config.jokeCreationUrl, payload);
+        const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+        if (response.ok && jokeData && card) {
+          updateCardFromPayload(card, applyJokeDataToPayload(optimisticPayload, jokeData));
+        }
+        if (!response.ok) {
+          console.warn('regenerate all request failed', response.status); // eslint-disable-line no-console
+        }
+      } catch (error) {
+        console.warn('regenerate all request failed', error); // eslint-disable-line no-console
       } finally {
         if (card) {
           setCardIdle(card);
@@ -1103,6 +1186,16 @@
         closeModal(elements.regenerateModal);
       });
     }
+    if (elements.regenerateAllCancelButton) {
+      elements.regenerateAllCancelButton.addEventListener('click', () => {
+        closeModal(elements.regenerateAllModal);
+      });
+    }
+    if (elements.regenerateAllModalBackdrop) {
+      elements.regenerateAllModalBackdrop.addEventListener('click', () => {
+        closeModal(elements.regenerateAllModal);
+      });
+    }
     if (elements.regenerateModalBackdrop) {
       elements.regenerateModalBackdrop.addEventListener('click', () => {
         closeModal(elements.regenerateModal);
@@ -1152,6 +1245,10 @@
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') {
+        return;
+      }
+      if (isModalOpen(elements.regenerateAllModal)) {
+        closeModal(elements.regenerateAllModal);
         return;
       }
       if (isModalOpen(elements.sceneIdeasModal)) {
@@ -1272,6 +1369,17 @@
         sendEditRequest(true);
       });
     }
+    if (elements.editRegenerateAllButton) {
+      elements.editRegenerateAllButton.addEventListener('click', () => {
+        openModal(elements.regenerateAllModal, elements.regenerateAllSubmitButton);
+      });
+    }
+    if (elements.regenerateAllForm) {
+      elements.regenerateAllForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        sendRegenerateAllRequest();
+      });
+    }
     if (elements.sceneIdeasForm) {
       elements.sceneIdeasForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1297,6 +1405,7 @@
     buildEditRequestData,
     buildImagesForGrid,
     buildModifyRequestData,
+    buildRegenerateAllRequestData,
     buildStateRequestData,
     buildOptimisticPayload,
     closestFromEvent,

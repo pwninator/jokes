@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import flask
-from common import joke_operations, utils
+from common import joke_media_operations, utils
 from functions import auth_helpers, joke_creation_fns
 from services import audio_client, audio_voices, firestore
 from web.routes import web_bp
@@ -38,7 +38,7 @@ def admin_joke_media_generator():
   } for model in audio_client.AudioModel]
 
   default_dialog_turns = []
-  for turn in joke_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE[:4]:
+  for turn in joke_media_operations.DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE[:4]:
     default_dialog_turns.append({
       "voice":
       str(getattr(turn.voice, "name", turn.voice)),

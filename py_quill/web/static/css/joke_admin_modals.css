@@ -35,8 +35,20 @@
   flex-direction: column;
 }
 
+.admin-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .admin-modal__title {
   margin: 0 0 12px;
+}
+
+.admin-modal__header .admin-modal__title {
+  margin: 0;
 }
 
 .admin-modal__section-title {

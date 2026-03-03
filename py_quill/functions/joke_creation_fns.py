@@ -10,8 +10,9 @@ from typing import cast
 
 import flask
 from agents import constants
-from common import (image_generation, joke_notes_sheet_operations,
-                    joke_operations, models, posable_character_sequence, utils)
+from common import (image_generation, joke_media_operations,
+                    joke_notes_sheet_operations, joke_operations, models,
+                    posable_character_sequence, utils)
 from firebase_functions import https_fn, logger, options
 from functions import social_fns
 from functions.function_utils import (AuthError, error_response,
@@ -349,7 +350,7 @@ def _run_joke_audio_tuner(req: flask.Request) -> flask.Response:
   try:
     script_template, audio_model, allow_partial, use_audio_cache = _parse_tuner_audio_options(
       req)
-    lip_sync = joke_operations.get_joke_lip_sync_media(
+    lip_sync = joke_media_operations.get_joke_lip_sync_media(
       joke,
       temp_output=True,
       script_template=script_template,
@@ -575,7 +576,7 @@ def _run_joke_video_generation(req: flask.Request) -> flask.Response:
   try:
     script_template, audio_model, allow_partial, use_audio_cache = _parse_tuner_audio_options(
       req)
-    result = joke_operations.generate_joke_video(
+    result = joke_media_operations.generate_joke_video(
       joke,
       teller_character_def_id=teller_character_def_id,
       listener_character_def_id=listener_character_def_id,
@@ -897,7 +898,7 @@ def _run_character_animation_laugh(req: flask.Request) -> flask.Response:
                           req=req)
 
   try:
-    sequence = joke_operations.build_laugh_sequence(
+    sequence = joke_media_operations.build_laugh_sequence(
       audio_gcs_uri=audio_gcs_uri, )
     return success_response(
       sequence.to_dict(include_key=True),

@@ -676,7 +676,7 @@ class GeminiClient(LlmClient[genai.Client]):
     model: LlmModel,
     temperature: float,
     system_instructions: list[str] | None,
-    response_schema: Optional[dict],
+    response_schema: dict[str, Any] | None,
     thinking_tokens: int,
     output_tokens: int,
     max_retries: int,
@@ -697,6 +697,11 @@ class GeminiClient(LlmClient[genai.Client]):
   @override
   def _create_model_client(self) -> genai.Client:
     return genai.Client(api_key=config.get_gemini_api_key())
+    # return genai.Client(
+    #   vertexai=True,
+    #   project=config.PROJECT_ID,
+    #   location=config.PROJECT_LOCATION,
+    # )
 
   @override
   def _get_generation_costs(self) -> dict[str, float]:

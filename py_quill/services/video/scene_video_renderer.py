@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import math
 import os
 import tempfile
 import time
-import math
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
 import numpy as np
-from common import image_operations, models
+from common import joke_book_file_operations, models
 from common.character_animator import CharacterAnimator
 from common.posable_character import PosableCharacter, PoseState
 from moviepy.audio.AudioClip import CompositeAudioClip
@@ -524,7 +524,7 @@ def _render_subtitle_overlay(
     return
 
   draw = ImageDraw.Draw(base)
-  font = image_operations.get_text_font(_SUBTITLE_FONT_SIZE_PX)
+  font = joke_book_file_operations.get_text_font(_SUBTITLE_FONT_SIZE_PX)
   wrapped_lines = _wrap_subtitle_lines(
     draw=draw,
     font=font,
@@ -583,7 +583,8 @@ def _subtitle_line_width_px(
   return int(round(bbox[2] - bbox[0]))
 
 
-def _split_words_evenly_by_chars(words: list[str], line_count: int) -> list[str]:
+def _split_words_evenly_by_chars(words: list[str],
+                                 line_count: int) -> list[str]:
   if line_count <= 1 or len(words) <= 1:
     return [" ".join(words)] if words else []
 

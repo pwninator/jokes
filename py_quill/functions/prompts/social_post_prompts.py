@@ -254,7 +254,7 @@ _LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient[Any]] = {
   platform:
   llm_client.get_client(
     label=f"{platform.value} Social Post Text",
-    model=LlmModel.GEMINI_3_0_PRO_PREVIEW,
+    model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
     temperature=1.0,
     thinking_tokens=1000,
     output_tokens=8000,
@@ -266,7 +266,7 @@ _LLM_CLIENTS: dict[models.SocialPlatform, llm_client.LlmClient[Any]] = {
 
 _REEL_DIALOG_LLM = llm_client.get_client(
   label="Social Reel Dialog Script",
-  model=LlmModel.GEMINI_3_0_PRO_PREVIEW,
+  model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
   temperature=1.0,
   thinking_tokens=1000,
   output_tokens=4000,

@@ -21,7 +21,7 @@ class SceneCanvas:
 
   def validate(self) -> None:
     """Validate the canvas dimensions."""
-    if int(self.width_px) <= 0 or int(self.height_px) <= 0:
+    if self.width_px <= 0 or self.height_px <= 0:
       raise ValueError("SceneCanvas width_px and height_px must be positive")
 
 
@@ -36,7 +36,7 @@ class SceneRect:
 
   def validate(self) -> None:
     """Validate the rectangle dimensions."""
-    if int(self.width_px) <= 0 or int(self.height_px) <= 0:
+    if self.width_px <= 0 or self.height_px <= 0:
       raise ValueError("SceneRect width_px and height_px must be positive")
 
 
@@ -85,37 +85,43 @@ class SceneScript:
   def validate(self) -> None:
     """Validate item timing, geometry and actor overlap constraints."""
     self.canvas.validate()
-    if float(self.duration_sec) <= 0:
+    if self.duration_sec <= 0:
       raise ValueError("SceneScript duration_sec must be > 0")
 
-    character_items_by_actor: dict[str, list[TimedCharacterSequence]] = {}
+    character_items_by_actor: dict[str,
+                                   list[tuple[int,
+                                              TimedCharacterSequence]]] = {}
     for index, item in enumerate(self.items):
       _validate_item_bounds(item,
-                            duration_sec=float(self.duration_sec),
+                            duration_sec=self.duration_sec,
                             item_index=index)
       _validate_fit_mode(item.fit_mode, item_index=index)
       item.rect.validate()
       if isinstance(item, TimedCharacterSequence):
-        character_items_by_actor.setdefault(item.actor_id, []).append(item)
+        character_items_by_actor.setdefault(item.actor_id, []).append(
+          (index, item))
 
-    for actor_id, actor_items in character_items_by_actor.items():
-      actor_items.sort(key=lambda entry: float(entry.start_time_sec))
+    for actor_id, indexed_actor_items in character_items_by_actor.items():
+      indexed_actor_items.sort(key=lambda entry: entry[1].start_time_sec)
+      actor_items = [item for _, item in indexed_actor_items]
       prior_end = -1.0
       for item in actor_items:
-        if float(item.start_time_sec) < prior_end:
+        if item.start_time_sec < prior_end:
           raise ValueError(
-            f"Overlapping character sequence items for actor_id '{actor_id}'")
-        prior_end = float(item.end_time_sec)
+            "Overlapping character sequence items for actor_id "
+            f"'{actor_id}'. "
+            f"{_format_actor_items_for_error(indexed_actor_items)}")
+        prior_end = item.end_time_sec
 
       first_character = actor_items[0].character
-      first_z_index = int(actor_items[0].z_index)
+      first_z_index = actor_items[0].z_index
       first_rect = actor_items[0].rect
       first_fit_mode = actor_items[0].fit_mode
       for item in actor_items[1:]:
         if item.character is not first_character:
           raise ValueError(
             f"actor_id '{actor_id}' references multiple character objects")
-        if int(item.z_index) != first_z_index:
+        if item.z_index != first_z_index:
           raise ValueError(
             f"actor_id '{actor_id}' uses inconsistent z_index values")
         if item.rect != first_rect:
@@ -141,21 +147,21 @@ def _validate_item_bounds(
   duration_sec: float,
   item_index: int,
 ) -> None:
-  start = float(item.start_time_sec)
-  end = float(item.end_time_sec)
+  start = item.start_time_sec
+  end = item.end_time_sec
   if start < 0:
     raise ValueError(f"Scene item {item_index} start_time_sec must be >= 0")
   if end <= start:
     raise ValueError(
       f"Scene item {item_index} end_time_sec must be > start_time_sec")
-  if end > float(duration_sec):
+  if end > duration_sec:
     raise ValueError(
       f"Scene item {item_index} end_time_sec exceeds script duration")
 
 
 def _validate_sequence_fits_item(item: TimedCharacterSequence) -> None:
   item.sequence.validate()
-  item_duration = float(item.end_time_sec) - float(item.start_time_sec)
+  item_duration = item.end_time_sec - item.start_time_sec
   sequence_duration = _sequence_duration_sec(item.sequence)
   if sequence_duration > item_duration + 1e-6:
     raise ValueError(
@@ -178,5 +184,24 @@ def _sequence_duration_sec(sequence: PosableCharacterSequence) -> float:
   ]
   for track in tracks:
     for event in track:
-      max_end = max(max_end, float(event.end_time))
+      max_end = max(max_end, event.end_time)
   return max_end
+
+
+def _format_actor_items_for_error(
+  indexed_actor_items: list[tuple[int, TimedCharacterSequence]], ) -> str:
+  summaries: list[str] = []
+  for item_index, item in indexed_actor_items:
+    audio_windows = ", ".join(
+      f"{event.start_time:.3f}-{event.end_time:.3f}"
+      for event in item.sequence.sequence_sound_events) or "none"
+    transcript = " ".join(str(item.sequence.transcript or "").split())
+    if len(transcript) > 80:
+      transcript = transcript[:77] + "..."
+    summaries.append(
+      "{" + f"item_index={item_index}, "
+      f"window={item.start_time_sec:.3f}-{item.end_time_sec:.3f}, "
+      f"sequence_duration={_sequence_duration_sec(item.sequence):.3f}, "
+      f"sound_windows=[{audio_windows}], "
+      f"transcript={transcript!r}" + "}")
+  return "actor_items=[" + ", ".join(summaries) + "]"

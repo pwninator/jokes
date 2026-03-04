@@ -203,3 +203,48 @@ def test_chars_on_top_inserts_leading_filler_for_listener_track():
   surface_line_track = first_item.sequence.sequence_surface_line_visible
   assert len(surface_line_track) == 1
   assert surface_line_track[0].value is False
+
+
+def test_chars_on_top_delays_listener_response_until_pop_in_finishes():
+  teller = _SizedCharacter(width=200, height=260)
+  listener = _SizedCharacter(width=140, height=220)
+
+  def _load_long_pop_in_sequence(
+    sequence_id: str = script_utils.POP_IN_SEQUENCE_ID
+  ) -> PosableCharacterSequence:
+    if sequence_id == script_utils.POP_IN_SEQUENCE_ID:
+      return _sound_sequence(0.6, "gs://bucket/pop_in.wav")
+    return _load_firestore_sequence(sequence_id)
+
+  with patch.object(
+      script_utils,
+      "load_sequence_from_firestore",
+      side_effect=_load_long_pop_in_sequence,
+  ), patch.object(script_utils.random, "randint", return_value=1):
+    script = joke_video_chars_on_top_script_builder.build_script(
+      setup_image_gcs_uri="gs://bucket/setup.png",
+      punchline_image_gcs_uri="gs://bucket/punchline.png",
+      teller_character=teller,
+      teller_voice=audio_voices.Voice.GEMINI_LEDA,
+      listener_character=listener,
+      listener_voice=audio_voices.Voice.GEMINI_PUCK,
+      intro_sequence=None,
+      setup_sequence=_sound_sequence(0.05, "gs://bucket/setup.wav"),
+      response_sequence=_sound_sequence(0.2, "gs://bucket/response.wav"),
+      punchline_sequence=_sound_sequence(0.3, "gs://bucket/punchline.wav"),
+    )
+
+  listener_spoken_items = sorted([
+    item for item in script.items
+    if isinstance(item, TimedCharacterSequence) and item.actor_id == "actor_1"
+    and item.sequence.sequence_sound_events
+  ],
+                               key=lambda item: item.start_time_sec)
+  assert len(listener_spoken_items) >= 2
+  listener_pop_in = listener_spoken_items[0]
+  listener_response = next(
+    item for item in listener_spoken_items
+    if item.sequence.sequence_sound_events[0].gcs_uri ==
+    "gs://bucket/response.wav")
+  assert listener_response.start_time_sec == pytest.approx(
+    listener_pop_in.end_time_sec)

@@ -12,7 +12,7 @@ This document contains everything AI agents need to work effectively on this cod
 
 ## 1. Project Overview
 
-**Snickerdoodle** is a mobile jokes app that delivers AI-generated illustrated jokes to users.
+**Snickerdoodle** is a jokes app that delivers AI-generated illustrated jokes to users across the Flutter app and web surfaces.
 
 ### 1.1. Tech Stack
 
@@ -31,68 +31,78 @@ This document contains everything AI agents need to work effectively on this cod
 
 ### 1.2. System Architecture
 
-```
+```text
 Client (Flutter App)
-  ↓
+  ->
 Firebase (BaaS)
-  ├─ Firestore (database)
-  ├─ Authentication
-  ├─ Cloud Storage (images)
-  └─ Cloud Functions (Python backend)
-      ↓
+  |- Firestore (database)
+  |- Authentication
+  |- Cloud Storage (images)
+  `- Cloud Functions (Python backend)
+      ->
   External AI Services (LLMs, Image Generation)
 ```
 
 **Data Flow**:
-1. App requests joke from Firestore
-2. If generation needed, Cloud Function triggers
-3. Function calls LLM → generates joke → generates images
-4. Saves to Firestore + Cloud Storage
-5. App receives real-time updates
+1. App initializes local state, including Drift and any bundled Firestore data
+2. App requests joke/feed data from local storage and Firestore-backed repositories
+3. If generation needed, Cloud Function triggers
+4. Function calls LLM -> generates joke -> generates images
+5. Saves to Firestore + Cloud Storage and app receives updated data
 
 ## 2. Directory Structure
 
 ### 2.1. Flutter (`lib/src/`)
 
-```
+```text
 lib/src/
-├── common_widgets/      # Reusable UI components
-├── config/              # App configuration (themes, routing)
-├── core/                # Core logic (services, providers)
-├── data/                # Data layer (repositories, local storage)
-├── features/            # Feature modules
-│   ├── admin/           # Admin panel screens
-│   ├── auth/            # Authentication
-│   ├── book_creator/    # Joke book creation
-│   ├── feedback/        # User feedback
-│   ├── jokes/           # Main joke features
-│   ├── search/          # Search and discovery
-│   └── settings/        # User settings
-├── providers/           # Riverpod providers
-├── startup/             # App initialization
-└── utils/               # Utility functions
+|- common_widgets/      # Reusable UI components
+|- config/              # App configuration (themes, routing)
+|- core/                # Core logic (services, providers)
+|- data/                # Data layer (repositories, local storage)
+|- features/            # Feature modules
+|  |- admin/            # Admin panel screens
+|  |- ads/              # Ad services and placement logic
+|  |- auth/             # Authentication
+|  |- book_creator/     # Joke book creation
+|  |- character/        # Character rendering and animation
+|  |- feedback/         # User feedback
+|  |- jokes/            # Main joke features
+|  |- onboarding/       # Onboarding flows
+|  |- search/           # Search and discovery
+|  `- settings/         # User settings
+|- providers/           # Riverpod providers (legacy/placeholder; most are colocated)
+|- startup/             # App initialization
+`- utils/               # Utility functions
 ```
 
 ### 2.2. Python (`py_quill/`)
 
-```
+```text
 py_quill/
-├── agents/              # ADK agents for content generation
-├── common/              # Shared utilities and models
-├── functions/           # Cloud Functions entry points
-├── services/            # External service clients (LLM, Firestore, Storage)
-└── web/                 # Flask app (templates, routes)
+|- agents/              # ADK agents for content generation
+|- common/              # Shared utilities and models
+|- functions/           # Cloud Functions entry points
+|- services/            # External service clients (LLM, Firestore, Storage)
+|- storage/             # Firestore-backed storage helpers
+`- web/                 # Flask app (templates, routes)
 ```
 
 ### 2.3. Tests
 
-```
+```text
 test/
-├── common_widgets/      # Widget tests
-├── core/                # Core service tests
-├── data/                # Repository/data layer tests
-├── features/            # Feature tests (mirror lib/src/features)
-└── test_helpers/        # (deprecated - being removed)
+|- bootstrap/           # App bootstrap tests
+|- common/              # Shared test utilities
+|- common_widgets/      # Widget tests
+|- config/              # Router/config tests
+|- core/                # Core service tests
+|- data/                # Repository/data layer tests
+|- features/            # Feature tests (mirror lib/src/features)
+|- helpers/             # Shared widget/test helpers
+|- src/                 # Tests still organized under src/
+|- startup/             # Startup task/orchestrator tests
+`- utils/               # Utility tests
 ```
 
 ## 3. Core Development Directives
@@ -274,7 +284,7 @@ Run from repository root. After changes, always run the corresponding tests, lin
 # Install dependencies
 flutter pub get
 
-# Generate code (after provider changes)
+# Generate code (after provider/model/codegen changes)
 dart run build_runner build --delete-conflicting-outputs
 
 # Run tests
@@ -286,7 +296,7 @@ flutter test test/path/to/test_file.dart
 # Linters
 flutter analyze
 
-# Formater
+# Formatter
 dart format .
 ```
 
@@ -327,10 +337,10 @@ node --test py_quill/web/static/js/*.test.js
 
 **Important**: Python imports inside `py_quill/` must be relative to `py_quill` root:
 ```python
-# ✅ Correct
+# Correct
 from common import models
 
-# ❌ Wrong
+# Wrong
 from py_quill.common import models
 from ..common import models
 ```
@@ -341,6 +351,7 @@ Feature areas are stable, but concrete screen names/routes evolve often.
 
 High-level areas:
 - User feed/saved/discovery/search
+- Onboarding, character, and ads
 - Book creation
 - User feedback/settings/auth
 - Admin joke management, scheduling, categories, analytics, and feedback
@@ -352,8 +363,7 @@ Source of truth for current screen/route wiring:
 
 Cloud Functions are defined across files in `py_quill/functions/` and exported in `py_quill/main.py`.
 
-- `py_quill/functions/joke_creation_fns.py` is a main entry point for many joke-related operations.
-- Additional joke workflows are split across specialized modules (for example trigger/notification/image/auto maintenance files).
+- Joke-related operations are split across `joke_fns.py`, `joke_creation_fns.py`, and specialized trigger/notification/image/auto maintenance files.
 - Always verify deployed/exported function names in `py_quill/main.py` (source of truth).
 
 ## 8. Flask Web Layer
@@ -415,8 +425,9 @@ Environment is pre-configured. No setup needed.
 - Python functions exported in `py_quill/main.py`
 - Flask served via `web` function
 - Firebase Hosting rewrites:
+  - `/get_joke_bundle` maps to the `get_joke_bundle` HTTPS function
+  - `/joke_creation_process` maps to the `joke_creation_process` HTTPS function
   - Catch-all web requests are routed to the `web` HTTPS function
-  - Some paths may map to specific HTTPS functions first (check `firebase.json`)
   - Static assets are served via Hosting/CDN
 - Keep timeouts/memory reasonable
 - Batch Firestore reads where possible
@@ -489,7 +500,7 @@ from services import firestore
 
 ## 14. Critical Reminders
 
-1. **Never** run `flutter run` for verification—use tests
+1. **Never** run `flutter run` for verification - use tests
 2. **Always** create tests for new/changed behavior
 3. **Never** use shared mock singletons in tests
 4. **Always** close `AppDatabase` in repository test tearDown

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from common.character_animator import CharacterAnimator
 from common.posable_character import PosableCharacter, PoseState
@@ -78,6 +78,8 @@ def resolve_timeline(
   response_sequence: PosableCharacterSequence | None,
   punchline_sequence: PosableCharacterSequence,
   laugh_duration_sec: float,
+  listener_pop_in_delay_after_teller_pop_in_end_sec:
+  float = LISTENER_POP_IN_DELAY_AFTER_TELLER_POP_IN_END_SEC,
   joke_audio_setup_gap_sec: float = JOKE_AUDIO_SETUP_GAP_SEC,
   joke_audio_response_gap_sec: float = JOKE_AUDIO_RESPONSE_GAP_SEC,
   joke_audio_punchline_gap_sec: float = JOKE_AUDIO_PUNCHLINE_GAP_SEC,
@@ -108,7 +110,11 @@ def resolve_timeline(
   response_end: float | None = None
   punchline_start = setup_end + joke_audio_punchline_gap_sec
   if response_sequence is not None:
-    response_start = setup_end + joke_audio_response_gap_sec
+    listener_pop_in_end = (
+      pop_in_end + listener_pop_in_delay_after_teller_pop_in_end_sec +
+      pop_in_duration)
+    response_start = max(setup_end + joke_audio_response_gap_sec,
+                         listener_pop_in_end)
     response_end = response_start + response_duration
     punchline_start = response_end + joke_audio_punchline_gap_sec
   punchline_end = punchline_start + punchline_duration
@@ -133,6 +139,74 @@ def resolve_timeline(
   )
 
 
+def build_portrait_timeline_and_character_items(
+  *,
+  teller_character: PosableCharacter,
+  teller_voice: audio_voices.Voice,
+  setup_sequence: PosableCharacterSequence,
+  punchline_sequence: PosableCharacterSequence,
+  z_index: int,
+  actor_band_rect: SceneRect,
+  actor_side_margin_px: int,
+  listener_character: PosableCharacter | None = None,
+  listener_voice: audio_voices.Voice | None = None,
+  intro_sequence: PosableCharacterSequence | None = None,
+  response_sequence: PosableCharacterSequence | None = None,
+  extend_first_sequence: bool = False,
+  surface_line_visible: bool | None = None,
+) -> tuple[PortraitJokeTimeline, list[TimedCharacterSequence]]:
+  """Load shared portrait joke sequences, resolve the timeline, and build items."""
+  pop_in_sequence = load_sequence_from_firestore()
+  if pop_in_sequence.duration_sec <= 0:
+    raise ValueError("pop_in sequence must have positive duration")
+
+  teller_laugh_sequence = load_random_giggle_sequence(voice=teller_voice)
+  teller_laugh_duration_sec = teller_laugh_sequence.duration_sec
+  if teller_laugh_duration_sec <= 0:
+    raise ValueError(
+      f"{teller_voice.name} giggle sequence must have positive duration")
+
+  listener_laugh_sequence: PosableCharacterSequence | None = None
+  listener_laugh_duration_sec = 0.0
+  if listener_character is not None:
+    if listener_voice is None:
+      raise ValueError(
+        "listener_voice is required when listener_character is set")
+    listener_laugh_sequence = load_random_giggle_sequence(voice=listener_voice)
+    listener_laugh_duration_sec = listener_laugh_sequence.duration_sec
+    if listener_laugh_duration_sec <= 0:
+      raise ValueError(
+        f"{listener_voice.name} giggle sequence must have positive duration")
+
+  timeline = resolve_timeline(
+    pop_in_sequence=pop_in_sequence,
+    intro_sequence=intro_sequence,
+    setup_sequence=setup_sequence,
+    response_sequence=response_sequence,
+    punchline_sequence=punchline_sequence,
+    laugh_duration_sec=max(teller_laugh_duration_sec,
+                           listener_laugh_duration_sec),
+  )
+  character_items = build_character_sequences(
+    teller_character=teller_character,
+    listener_character=listener_character,
+    pop_in_sequence=pop_in_sequence,
+    intro_sequence=intro_sequence,
+    setup_sequence=setup_sequence,
+    response_sequence=response_sequence,
+    punchline_sequence=punchline_sequence,
+    teller_laugh_sequence=teller_laugh_sequence,
+    listener_laugh_sequence=listener_laugh_sequence,
+    timeline=timeline,
+    z_index=z_index,
+    actor_band_rect=actor_band_rect,
+    actor_side_margin_px=actor_side_margin_px,
+    extend_first_sequence=extend_first_sequence,
+    surface_line_visible=surface_line_visible,
+  )
+  return timeline, character_items
+
+
 def build_character_sequences(
   *,
   teller_character: PosableCharacter,
@@ -154,113 +228,249 @@ def build_character_sequences(
   surface_line_visible: bool | None = None,
 ) -> list[TimedCharacterSequence]:
   """Build timed character sequence items for teller/listener tracks."""
-  tracks: list[tuple[PosableCharacter,
-                     list[tuple[float, PosableCharacterSequence]]]] = []
+  characters: list[PosableCharacter] = [teller_character]
+  if listener_character is not None:
+    characters.append(listener_character)
 
-  teller_dialogs: list[tuple[float, PosableCharacterSequence]] = [
-    (timeline.pop_in_start_sec, pop_in_sequence)
-  ]
-  if intro_sequence is not None:
-    teller_dialogs.append((timeline.intro_start_sec or 0.0, intro_sequence))
-  teller_dialogs.extend([
-    (timeline.setup_start_sec, setup_sequence),
-    (timeline.punchline_start_sec, punchline_sequence),
-    (timeline.laugh_start_sec, teller_laugh_sequence),
-  ])
-  tracks.append((teller_character, teller_dialogs))
-
-  if listener_character:
-    listener_pop_in_start_sec = (
-      timeline.pop_in_end_sec +
-      listener_pop_in_delay_after_teller_pop_in_end_sec)
-    listener_dialogs: list[tuple[float, PosableCharacterSequence]] = [
-      (listener_pop_in_start_sec, pop_in_sequence)
-    ]
-    if response_sequence and timeline.response_start_sec is not None:
-      listener_dialogs.append((timeline.response_start_sec, response_sequence))
-    if listener_laugh_sequence is not None:
-      listener_dialogs.append(
-        (timeline.laugh_start_sec, listener_laugh_sequence))
-    tracks.append((listener_character, listener_dialogs))
-
-  items: list[TimedCharacterSequence] = []
   actor_rects = build_actor_rects_for_tracks(
-    tracks=tracks,
+    characters=characters,
     actor_band_rect=actor_band_rect,
     actor_side_margin_px=actor_side_margin_px,
   )
-  for actor_index, (character, dialogs) in enumerate(tracks):
-    actor_id = f"actor_{actor_index}"
-    actor_rect = actor_rects[actor_index]
-    dialog_entries = _fill_track_gaps(
-      dialogs=dialogs,
+
+  teller_items = [
+    _build_timed_character_item(
+      actor_id="actor_0",
+      character=teller_character,
+      sequence=pop_in_sequence,
+      start_time_sec=timeline.pop_in_start_sec,
+      end_time_sec=timeline.pop_in_end_sec,
+      z_index=z_index,
+      rect=actor_rects[0],
+    ),
+    _build_timed_character_item(
+      actor_id="actor_0",
+      character=teller_character,
+      sequence=setup_sequence,
+      start_time_sec=timeline.setup_start_sec,
+      end_time_sec=timeline.setup_end_sec,
+      z_index=z_index,
+      rect=actor_rects[0],
+    ),
+    _build_timed_character_item(
+      actor_id="actor_0",
+      character=teller_character,
+      sequence=punchline_sequence,
+      start_time_sec=timeline.punchline_start_sec,
+      end_time_sec=timeline.punchline_end_sec,
+      z_index=z_index,
+      rect=actor_rects[0],
+    ),
+    _build_timed_character_item(
+      actor_id="actor_0",
+      character=teller_character,
+      sequence=teller_laugh_sequence,
+      start_time_sec=timeline.laugh_start_sec,
+      end_time_sec=timeline.laugh_start_sec + teller_laugh_sequence.duration_sec,
+      z_index=z_index,
+      rect=actor_rects[0],
+    ),
+  ]
+  if intro_sequence is not None and timeline.intro_start_sec is not None and timeline.intro_end_sec is not None:
+    teller_items.insert(
+      1,
+      _build_timed_character_item(
+        actor_id="actor_0",
+        character=teller_character,
+        sequence=intro_sequence,
+        start_time_sec=timeline.intro_start_sec,
+        end_time_sec=timeline.intro_end_sec,
+        z_index=z_index,
+        rect=actor_rects[0],
+      ))
+
+  items_by_actor = [
+    _finalize_actor_track(
+      base_items=teller_items,
       scene_end_sec=timeline.total_duration_sec,
       extend_first_sequence=extend_first_sequence,
+      surface_line_visible=surface_line_visible,
+      blink_rng=random.Random("actor_0"),
+      first_blink_delay_multiplier=1.0,
     )
-    first_blink_delay_multiplier = (BLINK_SECOND_ACTOR_FIRST_DELAY_MULTIPLIER
-                                    if actor_index == 1 else 1.0)
-    dialog_entries = _inject_blinks(
-      dialog_entries=dialog_entries,
-      rng=random.Random(actor_id),
-      first_blink_delay_multiplier=first_blink_delay_multiplier,
-    )
-    for start_time, sequence in dialog_entries:
-      resolved_sequence = sequence
-      if surface_line_visible is not None:
-        resolved_sequence = _with_surface_line_visibility(
-          sequence=resolved_sequence,
-          visible=surface_line_visible,
-        )
-      duration_sec = resolved_sequence.duration_sec
-      items.append(
-        TimedCharacterSequence(
-          actor_id=actor_id,
-          character=character,
-          sequence=resolved_sequence,
-          start_time_sec=start_time,
-          end_time_sec=start_time + duration_sec,
-          z_index=int(z_index),
-          rect=actor_rect,
-          fit_mode="contain",
-        ))
+  ]
 
-  return items
+  if listener_character is not None:
+    listener_pop_in_start_sec = (
+      timeline.pop_in_end_sec +
+      listener_pop_in_delay_after_teller_pop_in_end_sec)
+    listener_items = [
+      _build_timed_character_item(
+        actor_id="actor_1",
+        character=listener_character,
+        sequence=pop_in_sequence,
+        start_time_sec=listener_pop_in_start_sec,
+        end_time_sec=listener_pop_in_start_sec + pop_in_sequence.duration_sec,
+        z_index=z_index,
+        rect=actor_rects[1],
+      ),
+    ]
+    if (response_sequence is not None and timeline.response_start_sec is not None
+        and timeline.response_end_sec is not None):
+      listener_items.append(
+        _build_timed_character_item(
+          actor_id="actor_1",
+          character=listener_character,
+          sequence=response_sequence,
+          start_time_sec=timeline.response_start_sec,
+          end_time_sec=timeline.response_end_sec,
+          z_index=z_index,
+          rect=actor_rects[1],
+        ))
+    if listener_laugh_sequence is not None:
+      listener_items.append(
+        _build_timed_character_item(
+          actor_id="actor_1",
+          character=listener_character,
+          sequence=listener_laugh_sequence,
+          start_time_sec=timeline.laugh_start_sec,
+          end_time_sec=timeline.laugh_start_sec +
+          listener_laugh_sequence.duration_sec,
+          z_index=z_index,
+          rect=actor_rects[1],
+        ))
+    items_by_actor.append(
+      _finalize_actor_track(
+        base_items=listener_items,
+        scene_end_sec=timeline.total_duration_sec,
+        extend_first_sequence=extend_first_sequence,
+        surface_line_visible=surface_line_visible,
+        blink_rng=random.Random("actor_1"),
+        first_blink_delay_multiplier=
+        BLINK_SECOND_ACTOR_FIRST_DELAY_MULTIPLIER,
+      ))
+
+  return [item for actor_items in items_by_actor for item in actor_items]
+
+
+def _finalize_actor_track(
+  *,
+  base_items: list[TimedCharacterSequence],
+  scene_end_sec: float,
+  extend_first_sequence: bool,
+  surface_line_visible: bool | None,
+  blink_rng: random.Random,
+  first_blink_delay_multiplier: float,
+) -> list[TimedCharacterSequence]:
+  """Fill gaps, inject blinks, and apply per-track overrides."""
+  items = _fill_track_gaps(
+    items=base_items,
+    scene_end_sec=scene_end_sec,
+    extend_first_sequence=extend_first_sequence,
+  )
+  items = _inject_blinks(
+    items=items,
+    rng=blink_rng,
+    first_blink_delay_multiplier=first_blink_delay_multiplier,
+  )
+  if surface_line_visible is None:
+    return items
+  return [
+    replace(
+      item,
+      sequence=_with_surface_line_visibility(
+        sequence=item.sequence,
+        visible=surface_line_visible,
+      )) for item in items
+  ]
+
+
+def _build_timed_character_item(
+  *,
+  actor_id: str,
+  character: PosableCharacter,
+  sequence: PosableCharacterSequence,
+  start_time_sec: float,
+  end_time_sec: float,
+  z_index: int,
+  rect: SceneRect,
+  fit_mode: FitMode = "contain",
+) -> TimedCharacterSequence:
+  """Build a timed character item and enforce duration/window agreement."""
+  item_duration_sec = float(end_time_sec) - float(start_time_sec)
+  if item_duration_sec <= 0.0:
+    raise ValueError(
+      f"TimedCharacterSequence window must be positive for actor_id "
+      f"'{actor_id}': start={start_time_sec:.6f} end={end_time_sec:.6f}")
+  sequence_duration_sec = float(sequence.duration_sec)
+  if abs(sequence_duration_sec - item_duration_sec) > _EPSILON:
+    raise ValueError(
+      f"Sequence duration {sequence_duration_sec:.6f}s does not match item "
+      f"window {item_duration_sec:.6f}s for actor_id '{actor_id}'")
+  return TimedCharacterSequence(
+    actor_id=actor_id,
+    character=character,
+    sequence=sequence,
+    start_time_sec=float(start_time_sec),
+    end_time_sec=float(end_time_sec),
+    z_index=int(z_index),
+    rect=rect,
+    fit_mode=fit_mode,
+  )
 
 
 def _fill_track_gaps(
   *,
-  dialogs: list[tuple[float, PosableCharacterSequence]],
+  items: list[TimedCharacterSequence],
   scene_end_sec: float,
   extend_first_sequence: bool,
-) -> list[tuple[float, PosableCharacterSequence]]:
+) -> list[TimedCharacterSequence]:
   """Fill timeline gaps with explicit default-pose or first-pose clips."""
-  if not dialogs:
+  if not items:
     return []
 
-  sorted_dialogs = sorted(dialogs, key=lambda entry: entry[0])
-  _, first_sequence = sorted_dialogs[0]
+  sorted_items = sorted(items, key=lambda item: item.start_time_sec)
+  first_item = sorted_items[0]
+  first_sequence = first_item.sequence
 
-  out: list[tuple[float, PosableCharacterSequence]] = []
+  out: list[TimedCharacterSequence] = []
   cursor_sec = 0.0
-  for index, (start_sec, sequence) in enumerate(sorted_dialogs):
-    if start_sec > cursor_sec:
-      gap_duration_sec = start_sec - cursor_sec
+  for index, item in enumerate(sorted_items):
+    if item.start_time_sec > cursor_sec:
+      gap_duration_sec = item.start_time_sec - cursor_sec
       if index == 0 and extend_first_sequence:
-        out.append((cursor_sec,
-                    _build_first_pose_filler_sequence(
-                      first_sequence=first_sequence,
-                      duration_sec=gap_duration_sec,
-                    )))
+        filler_sequence = _build_first_pose_filler_sequence(
+          first_sequence=first_sequence,
+          duration_sec=gap_duration_sec,
+        )
       else:
-        out.append(
-          (cursor_sec, _build_default_pose_filler_sequence(gap_duration_sec)))
-    out.append((start_sec, sequence))
-    cursor_sec = max(cursor_sec, start_sec + sequence.duration_sec)
+        filler_sequence = _build_default_pose_filler_sequence(gap_duration_sec)
+      out.append(
+        _build_timed_character_item(
+          actor_id=first_item.actor_id,
+          character=first_item.character,
+          sequence=filler_sequence,
+          start_time_sec=cursor_sec,
+          end_time_sec=item.start_time_sec,
+          z_index=first_item.z_index,
+          rect=first_item.rect,
+          fit_mode=first_item.fit_mode,
+        ))
+    out.append(item)
+    cursor_sec = item.end_time_sec
 
   if scene_end_sec > cursor_sec:
     out.append(
-      (cursor_sec,
-       _build_default_pose_filler_sequence(scene_end_sec - cursor_sec)))
+      _build_timed_character_item(
+        actor_id=first_item.actor_id,
+        character=first_item.character,
+        sequence=_build_default_pose_filler_sequence(scene_end_sec - cursor_sec),
+        start_time_sec=cursor_sec,
+        end_time_sec=scene_end_sec,
+        z_index=first_item.z_index,
+        rect=first_item.rect,
+        fit_mode=first_item.fit_mode,
+      ))
 
   return out
 
@@ -307,19 +517,18 @@ def _with_surface_line_visibility(
 
 def _inject_blinks(
   *,
-  dialog_entries: list[tuple[float, PosableCharacterSequence]],
+  items: list[TimedCharacterSequence],
   rng: random.Random | None = None,
   blink_period_sec: float = BLINK_PERIOD_SEC,
   blink_jitter_sec: float = BLINK_JITTER_SEC,
   blink_duration_sec: float = BLINK_DURATION_SEC,
   eye_close_buffer_sec: float = BLINK_EYE_CLOSE_BUFFER_SEC,
   first_blink_delay_multiplier: float = 1.0,
-) -> list[tuple[float, PosableCharacterSequence]]:
+) -> list[TimedCharacterSequence]:
   """Inject blinks into resolved per-actor dialog entries.
 
   Args:
-    dialog_entries: Ordered `(start_time_sec, sequence)` entries representing the
-      actor's complete resolved timeline.
+    items: Actor timeline items representing the actor's complete timeline.
     rng: Optional random generator used to sample blink intervals.
     blink_period_sec: Target blink cadence in seconds.
     blink_jitter_sec: Symmetric jitter range applied to `blink_period_sec`.
@@ -330,10 +539,10 @@ def _inject_blinks(
       delay per open window.
 
   Returns:
-    A new list of dialog entries where eye tracks include injected blinks while
+    A new list of actor items where eye tracks include injected blinks while
     preserving existing explicit eye-state intent.
   """
-  if not dialog_entries:
+  if not items:
     return []
   if blink_period_sec <= 0.0:
     raise ValueError("blink_period_sec must be positive")
@@ -348,9 +557,9 @@ def _inject_blinks(
 
   resolved_rng = rng or random.Random(0)
   open_windows, eye_close_times = _resolve_open_windows_and_eye_close_times(
-    dialog_entries)
+    items)
   if not open_windows:
-    return dialog_entries
+    return items
 
   blink_times = _generate_blink_times(
     open_windows=open_windows,
@@ -363,23 +572,23 @@ def _inject_blinks(
     first_blink_delay_multiplier=first_blink_delay_multiplier,
   )
   if not blink_times:
-    return dialog_entries
+    return items
 
   blink_intervals = [(time_sec, time_sec + blink_duration_sec)
                      for time_sec in blink_times]
   return _apply_global_blink_intervals(
-    dialog_entries=dialog_entries,
+    items=items,
     blink_intervals=blink_intervals,
   )
 
 
 def _resolve_open_windows_and_eye_close_times(
-  dialog_entries: list[tuple[float, PosableCharacterSequence]],
+  items: list[TimedCharacterSequence],
 ) -> tuple[list[tuple[float, float]], list[float]]:
   """Resolve global open-eye windows and close transition times.
 
   Args:
-    dialog_entries: Actor timeline entries as `(global_start_sec, sequence)`.
+    items: Actor timeline items.
 
   Returns:
     A tuple of:
@@ -387,12 +596,12 @@ def _resolve_open_windows_and_eye_close_times(
       - `eye_close_times`: global timestamps where state changes open->closed.
   """
   state_windows: list[tuple[float, float, bool]] = []
-  for global_start_sec, sequence in dialog_entries:
-    duration_sec = max(0.0, sequence.duration_sec)
+  for item in items:
+    duration_sec = max(0.0, item.end_time_sec - item.start_time_sec)
     if duration_sec <= _EPSILON:
       continue
-    animator = CharacterAnimator(sequence)
-    boundaries = _sequence_eye_boundaries(sequence=sequence,
+    animator = CharacterAnimator(item.sequence)
+    boundaries = _sequence_eye_boundaries(sequence=item.sequence,
                                           duration_sec=duration_sec)
     for start_sec, end_sec in zip(boundaries[:-1], boundaries[1:]):
       if end_sec <= start_sec:
@@ -400,8 +609,8 @@ def _resolve_open_windows_and_eye_close_times(
       pose = animator.sample_pose(start_sec)
       is_open = pose.left_eye_open and pose.right_eye_open
       state_windows.append((
-        global_start_sec + start_sec,
-        global_start_sec + end_sec,
+        item.start_time_sec + start_sec,
+        item.start_time_sec + end_sec,
         is_open,
       ))
 
@@ -623,42 +832,42 @@ def _is_interval_within_open_windows(
 
 def _apply_global_blink_intervals(
   *,
-  dialog_entries: list[tuple[float, PosableCharacterSequence]],
+  items: list[TimedCharacterSequence],
   blink_intervals: list[tuple[float, float]],
-) -> list[tuple[float, PosableCharacterSequence]]:
+) -> list[TimedCharacterSequence]:
   """Apply global blink intervals to per-sequence local eye tracks.
 
   Args:
-    dialog_entries: Actor timeline entries as `(global_start_sec, sequence)`.
+    items: Actor timeline items.
     blink_intervals: Global blink intervals as `(start_sec, end_sec)`.
 
   Returns:
-    Updated dialog entries with blink overrides applied to affected sequences.
+    Updated actor items with blink overrides applied to affected sequences.
   """
   if not blink_intervals:
-    return dialog_entries
+    return items
 
-  updated_entries: list[tuple[float, PosableCharacterSequence]] = []
-  for start_sec, sequence in dialog_entries:
-    duration_sec = sequence.duration_sec
-    end_sec = start_sec + duration_sec
+  updated_items: list[TimedCharacterSequence] = []
+  for item in items:
     local_blinks: list[tuple[float, float]] = []
     for blink_start_sec, blink_end_sec in blink_intervals:
-      if blink_start_sec < start_sec or blink_end_sec > end_sec:
+      if (blink_start_sec < item.start_time_sec
+          or blink_end_sec > item.end_time_sec):
         continue
       local_blinks.append(
-        (blink_start_sec - start_sec, blink_end_sec - start_sec))
+        (blink_start_sec - item.start_time_sec,
+         blink_end_sec - item.start_time_sec))
     if not local_blinks:
-      updated_entries.append((start_sec, sequence))
+      updated_items.append(item)
       continue
-    updated_entries.append((
-      start_sec,
-      _with_eye_blink_overrides(
-        sequence=sequence,
-        blink_intervals=local_blinks,
-      ),
-    ))
-  return updated_entries
+    updated_items.append(
+      replace(
+        item,
+        sequence=_with_eye_blink_overrides(
+          sequence=item.sequence,
+          blink_intervals=local_blinks,
+        )))
+  return updated_items
 
 
 def _with_eye_blink_overrides(
@@ -821,17 +1030,16 @@ def load_random_giggle_sequence(
 
 def build_actor_rects_for_tracks(
   *,
-  tracks: list[tuple[PosableCharacter, list[tuple[float,
-                                                  PosableCharacterSequence]]]],
+  characters: list[PosableCharacter],
   actor_band_rect: SceneRect,
   actor_side_margin_px: int,
 ) -> list[SceneRect]:
   """Build actor rects with proportional horizontal allocation and bottom alignment."""
-  if not tracks:
+  if not characters:
     return []
 
   actor_sizes: list[tuple[int, int]] = []
-  for character, _dialogs in tracks:
+  for character in characters:
     actor_sizes.append(
       (character.definition.width, character.definition.height))
 

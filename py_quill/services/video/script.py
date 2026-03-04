@@ -193,15 +193,15 @@ def _format_actor_items_for_error(
   summaries: list[str] = []
   for item_index, item in indexed_actor_items:
     audio_windows = ", ".join(
-      f"{event.start_time:.3f}-{event.end_time:.3f}"
+      f"{event.start_time:.6f}-{event.end_time:.6f}"
       for event in item.sequence.sequence_sound_events) or "none"
     transcript = " ".join(str(item.sequence.transcript or "").split())
     if len(transcript) > 80:
       transcript = transcript[:77] + "..."
     summaries.append(
       "{" + f"item_index={item_index}, "
-      f"window={item.start_time_sec:.3f}-{item.end_time_sec:.3f}, "
-      f"sequence_duration={_sequence_duration_sec(item.sequence):.3f}, "
+      f"window={item.start_time_sec:.6f}-{item.end_time_sec:.6f}, "
+      f"sequence_duration={_sequence_duration_sec(item.sequence):.6f}, "
       f"sound_windows=[{audio_windows}], "
       f"transcript={transcript!r}" + "}")
   return "actor_items=[" + ", ".join(summaries) + "]"

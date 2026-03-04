@@ -1,5 +1,7 @@
 """Build declarative `SceneScript` objects for joke/social portrait videos."""
 
+# pylint: disable=duplicate-code
+
 from __future__ import annotations
 
 from common.posable_character import PosableCharacter
@@ -95,39 +97,20 @@ def build_script(
   response_sequence: PosableCharacterSequence | None = None,
 ) -> SceneScript:
   """Build the portrait joke `SceneScript` from prebuilt character sequences."""
-  pop_in_sequence = script_utils.load_sequence_from_firestore()
-  pop_in_duration_sec = pop_in_sequence.duration_sec
-  if pop_in_duration_sec <= 0:
-    raise ValueError("pop_in sequence must have positive duration")
-
-  teller_laugh_sequence = script_utils.load_random_giggle_sequence(
-    voice=teller_voice, )
-  teller_laugh_duration_sec = teller_laugh_sequence.duration_sec
-  if teller_laugh_duration_sec <= 0:
-    raise ValueError(
-      f"{teller_voice.name} giggle sequence must have positive duration")
-
-  listener_laugh_sequence: PosableCharacterSequence | None = None
-  listener_laugh_duration_sec = 0.0
-  if listener_character is not None:
-    if listener_voice is None:
-      raise ValueError(
-        "listener_voice is required when listener_character is set")
-    listener_laugh_sequence = script_utils.load_random_giggle_sequence(
-      voice=listener_voice, )
-    listener_laugh_duration_sec = listener_laugh_sequence.duration_sec
-    if listener_laugh_duration_sec <= 0:
-      raise ValueError(
-        f"{listener_voice.name} giggle sequence must have positive duration")
-
-  timeline = script_utils.resolve_timeline(
-    pop_in_sequence=pop_in_sequence,
-    intro_sequence=intro_sequence,
+  timeline, character_items = script_utils.build_portrait_timeline_and_character_items(
+    teller_character=teller_character,
+    teller_voice=teller_voice,
     setup_sequence=setup_sequence,
-    response_sequence=response_sequence,
     punchline_sequence=punchline_sequence,
-    laugh_duration_sec=max(teller_laugh_duration_sec,
-                           listener_laugh_duration_sec),
+    z_index=_PORTRAIT_CHARACTER_LAYER_Z_INDEX,
+    actor_band_rect=_PORTRAIT_CHARACTER_RECT,
+    actor_side_margin_px=_PORTRAIT_CHARACTER_SIDE_MARGIN_PX,
+    listener_character=listener_character,
+    listener_voice=listener_voice,
+    intro_sequence=intro_sequence,
+    response_sequence=response_sequence,
+    extend_first_sequence=True,
+    surface_line_visible=True,
   )
 
   timed_images: list[TimedImage] = []
@@ -138,24 +121,6 @@ def build_script(
       timeline=timeline,
     ))
   timed_images.extend(_build_background_image_items(timeline=timeline))
-
-  character_items = script_utils.build_character_sequences(
-    teller_character=teller_character,
-    listener_character=listener_character,
-    pop_in_sequence=pop_in_sequence,
-    intro_sequence=intro_sequence,
-    setup_sequence=setup_sequence,
-    response_sequence=response_sequence,
-    punchline_sequence=punchline_sequence,
-    teller_laugh_sequence=teller_laugh_sequence,
-    listener_laugh_sequence=listener_laugh_sequence,
-    timeline=timeline,
-    z_index=_PORTRAIT_CHARACTER_LAYER_Z_INDEX,
-    actor_band_rect=_PORTRAIT_CHARACTER_RECT,
-    actor_side_margin_px=_PORTRAIT_CHARACTER_SIDE_MARGIN_PX,
-    extend_first_sequence=True,
-    surface_line_visible=True,
-  )
 
   script = SceneScript(
     canvas=SceneCanvas(

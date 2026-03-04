@@ -487,6 +487,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["organic_profit_usd"][idx_0217] == 2.0
   assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0217] == 1
   assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0217] == [{
+    "country_code": "US",
     "asin": "B0GNMFVYC5",
     "book_key": "valentine-jokes",
     "book_format": "Ebook",
@@ -499,6 +500,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["organic_profit_usd"][idx_0219] == 7.0
   assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0219] == 2
   assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0219] == [{
+    "country_code": "US",
     "asin": "B0G9765J19",
     "book_key": "animal-jokes",
     "book_format": "Ebook",

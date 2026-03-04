@@ -783,23 +783,29 @@ def _serialize_unmatched_ads_sales_details(
     return []
 
   details: list[dict[str, object]] = []
-  for asin, asin_stats in reconciled_stat.by_asin.items():
-    unmatched_count = asin_stats.unmatched_ads_click_date_units
-    if unmatched_count <= 0:
-      continue
+  for asin, country_map in reconciled_stat.by_asin_country.items():
+    for country_code, asin_stats in country_map.items():
+      unmatched_count = asin_stats.unmatched_ads_click_date_units
+      if unmatched_count <= 0:
+        continue
 
-    book_key = book_defs.BOOK_KEY_BY_VARIANT_ASIN.get(asin)
-    book_variant = book_defs.find_book_variant(asin)
-    details.append({
-      "asin": asin,
-      "book_key": book_key.value if book_key is not None else "unknown",
-      "book_format": (book_variant.format.label
-                       if book_variant is not None else "Unknown"),
-      "count": unmatched_count,
-    })
+      book_key = book_defs.BOOK_KEY_BY_VARIANT_ASIN.get(asin)
+      book_variant = book_defs.find_book_variant(asin)
+      details.append({
+        "country_code": country_code,
+        "asin": asin,
+        "book_key": book_key.value if book_key is not None else "unknown",
+        "book_format": (book_variant.format.label
+                         if book_variant is not None else "Unknown"),
+        "count": unmatched_count,
+      })
 
   details.sort(
-    key=lambda item: (-cast(int, item["count"]), cast(str, item["asin"])))
+    key=lambda item: (
+      -cast(int, item["count"]),
+      cast(str, item["country_code"]),
+      cast(str, item["asin"]),
+    ))
   return details
 
 

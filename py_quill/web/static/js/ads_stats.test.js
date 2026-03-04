@@ -104,12 +104,14 @@ function createFakeReconciledChartData() {
       [],
       [
         {
+          country_code: 'US',
           asin: 'B0G9765J19',
           book_key: 'animal-jokes',
           book_format: 'Ebook',
           count: 2,
         },
         {
+          country_code: 'GB',
           asin: 'B0GNMFVYC5',
           book_key: 'valentine-jokes',
           book_format: 'Ebook',
@@ -205,12 +207,13 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
 test('formatUnmatchedAdsTooltipLine formats asin, book key, format, and count', () => {
   assert.equal(
     formatUnmatchedAdsTooltipLine({
+      country_code: 'US',
       asin: 'B0G9765J19',
       book_key: 'animal-jokes',
       book_format: 'Ebook',
       count: 2,
     }),
-    'B0G9765J19 - animal-jokes (Ebook): 2',
+    'US B0G9765J19 - animal-jokes (Ebook): 2',
   );
 });
 
@@ -669,8 +672,8 @@ test('initAdsStatsPage adds unmatched ads sales dataset with tooltip lines', () 
     assert.deepEqual(
       datasets[0].tooltipLinesByIndex[1],
       [
-        'B0G9765J19 - animal-jokes (Ebook): 2',
-        'B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+        'US B0G9765J19 - animal-jokes (Ebook): 2',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
       ],
     );
 
@@ -681,8 +684,8 @@ test('initAdsStatsPage adds unmatched ads sales dataset with tooltip lines', () 
         dataIndex: 1,
       }),
       [
-        'B0G9765J19 - animal-jokes (Ebook): 2',
-        'B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+        'US B0G9765J19 - animal-jokes (Ebook): 2',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
       ],
     );
   } finally {

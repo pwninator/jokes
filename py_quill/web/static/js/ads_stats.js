@@ -129,6 +129,7 @@
     if (!detail || typeof detail !== 'object') {
       return '';
     }
+    const countryCode = String(detail.country_code || '??').trim() || '??';
     const asin = String(detail.asin || '').trim();
     const bookKey = String(detail.book_key || 'unknown').trim() || 'unknown';
     const bookFormat = String(detail.book_format || 'Unknown').trim() || 'Unknown';
@@ -136,7 +137,7 @@
     if (!asin || count <= 0) {
       return '';
     }
-    return `${asin} - ${bookKey} (${bookFormat}): ${formatCountValue(count)}`;
+    return `${countryCode} ${asin} - ${bookKey} (${bookFormat}): ${formatCountValue(count)}`;
   }
 
   function buildUnmatchedAdsTooltipLines(details) {

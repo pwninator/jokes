@@ -650,7 +650,7 @@
               </span>
               {% if not pinterest_locked %}
               <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
-                Post
+                Manual Post
               </button>
               {% endif %}
             </div>
@@ -713,6 +713,9 @@
               <button type="button" class="text-button js-social-post-button" data-platform="instagram">
                 Post
               </button>
+              <button type="button" class="text-button js-social-manual-post-button" data-platform="instagram">
+                Manual Post
+              </button>
               {% endif %}
             </div>
           </div>
@@ -767,6 +770,9 @@
               <button type="button" class="text-button js-social-post-button" data-platform="facebook">
                 Post
               </button>
+              <button type="button" class="text-button js-social-manual-post-button" data-platform="facebook">
+                Manual Post
+              </button>
               {% endif %}
             </div>
           </div>
@@ -805,7 +811,7 @@
 <div class="admin-modal" id="admin-social-post-modal" aria-hidden="true">
   <div class="admin-modal__backdrop" data-close="true"></div>
   <div class="admin-modal__dialog">
-    <h4 class="admin-modal__title">Mark as posted</h4>
+    <h4 class="admin-modal__title" id="admin-social-post-modal-title">Mark as posted</h4>
     <div class="admin-modal__content">
       <div class="social-post-modal__field">
         <label class="post-type-select-label" for="admin-social-post-id-input">
@@ -833,6 +839,7 @@
     const pinPreview = document.getElementById('admin-social-pin-preview');
     const socialPostsList = document.querySelector('.social-posts-list');
     const postModal = document.getElementById('admin-social-post-modal');
+    const postModalTitle = document.getElementById('admin-social-post-modal-title');
     const postModalInput = document.getElementById('admin-social-post-id-input');
     const postModalSubmit = document.getElementById('admin-social-post-submit');
     const postModalCancel = document.getElementById('admin-social-post-cancel');
@@ -920,9 +927,38 @@
       platformRoot.querySelectorAll('button, input, textarea').forEach((el) => {
         el.disabled = isLocked;
       });
-      const postButton = platformRoot.querySelector('.js-social-post-button');
-      if (postButton) {
-        postButton.style.display = isLocked ? 'none' : '';
+      platformRoot.querySelectorAll(
+        '.js-social-post-button, .js-social-manual-post-button',
+      ).forEach((button) => {
+        button.style.display = isLocked ? 'none' : '';
+      });
+    }
+
+    function formatPlatformName(platform) {
+      if (!platform) {
+        return 'Post';
+      }
+      return platform.charAt(0).toUpperCase() + platform.slice(1);
+    }
+
+    function openPostModal(card, platform) {
+      activePostCard = card;
+      activePostPlatform = platform;
+      if (postModalTitle) {
+        postModalTitle.textContent = `Mark ${formatPlatformName(platform)} as posted`;
+      }
+      if (postModalInput) {
+        const currentValue = card.dataset[`${platform}PostId`] || '';
+        postModalInput.value = currentValue;
+      }
+      if (postModal) {
+        postModal.classList.add('admin-modal--open');
+        postModal.setAttribute('aria-hidden', 'false');
+      }
+      if (postModalInput) {
+        requestAnimationFrame(() => {
+          postModalInput.focus();
+        });
       }
     }
 
@@ -1407,13 +1443,13 @@
               <textarea class="social-posts-edit-textarea js-social-pinterest-alt-text-input"
                         maxlength="500"></textarea>
             </div>
-            <div class="social-platform-status">
-              <span class="social-platform-value js-social-pinterest-status is-empty"
-                    data-empty-text="Not posted">Not posted</span>
-              <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
-                Post
-              </button>
-            </div>
+              <div class="social-platform-status">
+                <span class="social-platform-value js-social-pinterest-status is-empty"
+                      data-empty-text="Not posted">Not posted</span>
+                <button type="button" class="text-button js-social-post-button" data-platform="pinterest">
+                  Manual Post
+                </button>
+              </div>
           </div>
           <div class="social-platform" data-platform="instagram">
             <div class="social-posts-image js-social-platform-image" data-platform="instagram">
@@ -1437,13 +1473,16 @@
                     data-empty-text="No alt text">No alt text</span>
               <textarea class="social-posts-edit-textarea js-social-instagram-alt-text-input"></textarea>
             </div>
-            <div class="social-platform-status">
-              <span class="social-platform-value js-social-instagram-status is-empty"
-                    data-empty-text="Not posted">Not posted</span>
-              <button type="button" class="text-button js-social-post-button" data-platform="instagram">
-                Post
-              </button>
-            </div>
+              <div class="social-platform-status">
+                <span class="social-platform-value js-social-instagram-status is-empty"
+                      data-empty-text="Not posted">Not posted</span>
+                <button type="button" class="text-button js-social-post-button" data-platform="instagram">
+                  Post
+                </button>
+                <button type="button" class="text-button js-social-manual-post-button" data-platform="instagram">
+                  Manual Post
+                </button>
+              </div>
           </div>
           <div class="social-platform" data-platform="facebook">
             <div class="social-posts-image js-social-platform-image" data-platform="facebook">
@@ -1461,13 +1500,16 @@
                     data-empty-text="No message">No message</span>
               <textarea class="social-posts-edit-textarea js-social-facebook-message-input"></textarea>
             </div>
-            <div class="social-platform-status">
-              <span class="social-platform-value js-social-facebook-status is-empty"
-                    data-empty-text="Not posted">Not posted</span>
-              <button type="button" class="text-button js-social-post-button" data-platform="facebook">
-                Post
-              </button>
-            </div>
+              <div class="social-platform-status">
+                <span class="social-platform-value js-social-facebook-status is-empty"
+                      data-empty-text="Not posted">Not posted</span>
+                <button type="button" class="text-button js-social-post-button" data-platform="facebook">
+                  Post
+                </button>
+                <button type="button" class="text-button js-social-manual-post-button" data-platform="facebook">
+                  Manual Post
+                </button>
+              </div>
           </div>
         </div>
         <div class="social-post-card__actions">
@@ -1570,13 +1612,14 @@
       });
     }
 
-    if (socialPostsList) {
-      socialPostsList.addEventListener('click', async (event) => {
-        const editButton = event.target.closest('.js-social-edit-toggle');
-        const regenButton = event.target.closest('.js-social-regenerate');
-        const postButton = event.target.closest('.js-social-post-button');
-        const deleteButton = event.target.closest('.js-social-delete');
-        const actionButton = editButton || regenButton || postButton;
+      if (socialPostsList) {
+        socialPostsList.addEventListener('click', async (event) => {
+          const editButton = event.target.closest('.js-social-edit-toggle');
+          const regenButton = event.target.closest('.js-social-regenerate');
+          const postButton = event.target.closest('.js-social-post-button');
+          const manualPostButton = event.target.closest('.js-social-manual-post-button');
+          const deleteButton = event.target.closest('.js-social-delete');
+          const actionButton = editButton || regenButton || postButton || manualPostButton;
 
         const card = (actionButton || deleteButton) ? (actionButton || deleteButton).closest('.social-post-card')
           : event.target.closest('.social-post-card');
@@ -1610,24 +1653,11 @@
           return;
         }
 
-        if (postButton) {
-          const platform = postButton.dataset.platform || '';
-          if (platform === 'pinterest') {
-            activePostCard = card;
-            activePostPlatform = platform;
-            if (postModalInput) {
-              const currentValue = card.dataset[`${platform}PostId`] || '';
-              postModalInput.value = currentValue;
-            }
-            if (postModal) {
-              postModal.classList.add('admin-modal--open');
-              postModal.setAttribute('aria-hidden', 'false');
-            }
-            if (postModalInput) {
-              requestAnimationFrame(() => {
-                postModalInput.focus();
-              });
-            }
+        if (postButton || manualPostButton) {
+          const triggerButton = postButton || manualPostButton;
+          const platform = triggerButton.dataset.platform || '';
+          if (manualPostButton || platform === 'pinterest') {
+            openPostModal(card, platform);
             return;
           }
 
@@ -1727,6 +1757,9 @@
       }
       postModal.classList.remove('admin-modal--open');
       postModal.setAttribute('aria-hidden', 'true');
+      if (postModalTitle) {
+        postModalTitle.textContent = 'Mark as posted';
+      }
       if (postModalInput) {
         postModalInput.value = '';
       }

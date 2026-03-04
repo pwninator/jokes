@@ -11,7 +11,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import flask
-from common import amazon_redirect, models
+from common import amazon_redirect, book_defs, models
 from firebase_functions import logger
 from functions import auth_helpers
 from services import amazon, amazon_kdp, amazon_sales_reconciliation, firestore
@@ -694,6 +694,8 @@ def _build_reconciled_click_date_chart_data(
   gross_profit_before_ads_usd: list[float] = []
   gross_profit_usd: list[float] = []
   organic_profit_usd: list[float] = []
+  unmatched_ads_sales_count: list[int] = []
+  unmatched_ads_sales_details: list[list[dict[str, object]]] = []
   poas: list[float] = []
   tpoas: list[float] = []
 
@@ -732,6 +734,11 @@ def _build_reconciled_click_date_chart_data(
       round(reconciled_gross_profit_before_ads, 2))
     gross_profit_usd.append(round(total_gross_profit, 2))
     organic_profit_usd.append(round(organic_profit, 2))
+    unmatched_ads_sales_count.append(
+      reconciled_stat.unmatched_ads_click_date_units_total
+      if reconciled_stat is not None else 0)
+    unmatched_ads_sales_details.append(
+      _serialize_unmatched_ads_sales_details(reconciled_stat))
     poas.append(round(current_poas, 4))
     tpoas.append(round(total_poas, 4))
     current_date += datetime.timedelta(days=1)
@@ -747,6 +754,10 @@ def _build_reconciled_click_date_chart_data(
     gross_profit_usd,
     "organic_profit_usd":
     organic_profit_usd,
+    "unmatched_ads_sales_count":
+    unmatched_ads_sales_count,
+    "unmatched_ads_sales_details":
+    unmatched_ads_sales_details,
     "poas":
     poas,
     "tpoas":
@@ -759,7 +770,37 @@ def _build_reconciled_click_date_chart_data(
     round(sum(gross_profit_usd), 2),
     "total_organic_profit_usd":
     round(sum(organic_profit_usd), 2),
+    "total_unmatched_ads_sales_count":
+    sum(unmatched_ads_sales_count),
   }
+
+
+def _serialize_unmatched_ads_sales_details(
+  reconciled_stat: models.AmazonSalesReconciledDailyStats | None,
+) -> list[dict[str, object]]:
+  """Serialize unmatched ads sales counts with book metadata for chart tooltips."""
+  if reconciled_stat is None:
+    return []
+
+  details: list[dict[str, object]] = []
+  for asin, asin_stats in reconciled_stat.by_asin.items():
+    unmatched_count = asin_stats.unmatched_ads_click_date_units
+    if unmatched_count <= 0:
+      continue
+
+    book_key = book_defs.BOOK_KEY_BY_VARIANT_ASIN.get(asin)
+    book_variant = book_defs.find_book_variant(asin)
+    details.append({
+      "asin": asin,
+      "book_key": book_key.value if book_key is not None else "unknown",
+      "book_format": (book_variant.format.label
+                       if book_variant is not None else "Unknown"),
+      "count": unmatched_count,
+    })
+
+  details.sort(
+    key=lambda item: (-cast(int, item["count"]), cast(str, item["asin"])))
+  return details
 
 
 def _iter_date_keys(

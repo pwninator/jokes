@@ -398,12 +398,34 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
         ads_click_date_royalty_usd_est=31.0,
         organic_royalty_usd_est=7.0,
         organic_sales_usd_est=12.5,
+        unmatched_ads_click_date_units_total=2,
+        by_asin_country={
+          "B0G9765J19": {
+            "US":
+            models.AmazonSalesReconciledAsinStats(
+              asin="B0G9765J19",
+              country_code="US",
+              unmatched_ads_click_date_units=2,
+            ),
+          },
+        },
       ),
       models.AmazonSalesReconciledDailyStats(
         date=datetime.date(2026, 2, 17),
         ads_click_date_royalty_usd_est=4.0,
         organic_royalty_usd_est=2.0,
         organic_sales_usd_est=3.5,
+        unmatched_ads_click_date_units_total=1,
+        by_asin_country={
+          "B0GNMFVYC5": {
+            "US":
+            models.AmazonSalesReconciledAsinStats(
+              asin="B0GNMFVYC5",
+              country_code="US",
+              unmatched_ads_click_date_units=1,
+            ),
+          },
+        },
       ),
     ],
   )
@@ -463,15 +485,30 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0217] == 4.0
   assert reconciled_chart_data["gross_profit_usd"][idx_0217] == 1.5
   assert reconciled_chart_data["organic_profit_usd"][idx_0217] == 2.0
+  assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0217] == 1
+  assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0217] == [{
+    "asin": "B0GNMFVYC5",
+    "book_key": "valentine-jokes",
+    "book_format": "Ebook",
+    "count": 1,
+  }]
   assert reconciled_chart_data["poas"][idx_0217] == 2.0
   assert reconciled_chart_data["tpoas"][idx_0217] == 2.4444
   assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0219] == 31.0
   assert reconciled_chart_data["gross_profit_usd"][idx_0219] == 13.0
   assert reconciled_chart_data["organic_profit_usd"][idx_0219] == 7.0
+  assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0219] == 2
+  assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0219] == [{
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "count": 2,
+  }]
   assert reconciled_chart_data["poas"][idx_0219] == 2.4
   assert reconciled_chart_data["tpoas"][idx_0219] == 2.68
   assert reconciled_chart_data["total_gross_profit_before_ads_usd"] == 35.0
   assert reconciled_chart_data["total_gross_profit_usd"] == 14.5
+  assert reconciled_chart_data["total_unmatched_ads_sales_count"] == 3
 
   # Verify totals
   assert chart_data["total_impressions"] == 205
@@ -536,6 +573,33 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/admin/ads-stats"' in html
   assert 'Ads Stats' in html
+
+
+def test_admin_ads_stats_page_reloads_after_kdp_upload(monkeypatch):
+  """Ads stats page reloads after a successful KDP upload."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'window.location.reload();' in html
 
 
 def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(

@@ -122,6 +122,9 @@ def test_lunchbox_thank_you_renders():
   assert 'High Five!' in html
   assert 'id="thankyou-title"' in html
   assert 'Get the Book on Amazon' in html
+  assert 'logo_prime.png' in html
+  assert 'cdn-cgi/image/width=160,format=auto,quality=75/_joke_assets/logos/logo_prime.png' in html
+  assert 'aria-label="Prime shipping"' in html
   assert 'web_lunchbox_thank_you' in html
   assert _thank_you_cta_href(html) == expected_url
 

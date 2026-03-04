@@ -143,6 +143,16 @@ def test_books_page_renders_book_promo(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'Your Lunchbox Notes are on their way' not in html
   assert 'Get the Book on Amazon' in html
+  assert 'aria-label="5 star rating"' in html
+  assert 'logo_amazon_50stars.png' in html
+  assert 'cdn-cgi/image/width=110,format=auto,quality=75/_joke_assets/logos/logo_amazon_50stars.png' in html
+  assert '>5.0<' in html
+  assert '$11.99' in html
+  assert '$9.99' in html
+  assert 'Save 17%' in html
+  assert 'logo_prime.png' in html
+  assert 'cdn-cgi/image/width=160,format=auto,quality=75/_joke_assets/logos/logo_prime.png' in html
+  assert 'aria-label="Prime shipping"' in html
   assert 'data-analytics-event="web_lunchbox_thank_you_amazon_click"' in html
   assert f'<link rel="canonical" href="{urls.canonical_url("/books")}">' in html
   assert 'href="https://www.amazon.com/dp/' in html

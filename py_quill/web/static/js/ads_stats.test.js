@@ -16,6 +16,7 @@ const {
   buildChartStats,
   chartDataToCsv,
   copyTextToClipboard,
+  formatUnmatchedAdsTooltipLine,
   isIsoDateString,
   normalizeAdsEvent,
   groupAdsEventsByDate,
@@ -98,6 +99,24 @@ function createFakeReconciledChartData() {
     labels: ['2026-02-22', '2026-02-23'],
     gross_profit_before_ads_usd: [35, 45],
     organic_profit_usd: [5, 7],
+    unmatched_ads_sales_count: [0, 3],
+    unmatched_ads_sales_details: [
+      [],
+      [
+        {
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 2,
+        },
+        {
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 1,
+        },
+      ],
+    ],
   };
 }
 
@@ -181,6 +200,18 @@ test('buildDaysOfWeekSeries averages weekdays and skips zero-impression days', (
   assertClose(series.cpc[3], 0);
   assertClose(series.ctr[3], 0);
   assertClose(series.conversion_rate[3], 0);
+});
+
+test('formatUnmatchedAdsTooltipLine formats asin, book key, format, and count', () => {
+  assert.equal(
+    formatUnmatchedAdsTooltipLine({
+      asin: 'B0G9765J19',
+      book_key: 'animal-jokes',
+      book_format: 'Ebook',
+      count: 2,
+    }),
+    'B0G9765J19 - animal-jokes (Ebook): 2',
+  );
 });
 
 test('reserveScaleWidth preserves larger widths and raises smaller widths', () => {
@@ -586,6 +617,73 @@ test('initAdsStatsPage switches chart configs from line to bar in Days of Week m
     assert.deepEqual(
       chartCalls.slice(-6).map((call) => call.config.type),
       Array(6).fill('bar'),
+    );
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
+});
+
+test('initAdsStatsPage adds unmatched ads sales dataset with tooltip lines', () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const chartCalls = [];
+  const { document } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+  };
+
+  try {
+    initAdsStatsPage({
+      chartData: createFakeChartData(),
+      reconciledClickDateChartData: createFakeReconciledChartData(),
+      adsEvents: [],
+    });
+
+    const adsProfitChartCall = chartCalls.find((call) => call.canvasId === 'adsProfitBreakdownChart');
+    assert.ok(adsProfitChartCall);
+
+    const datasets = adsProfitChartCall.config.data.datasets;
+    assert.equal(datasets[0].label, 'Unmatched Ads Sales');
+    assert.equal(datasets[0].borderColor, '#000000');
+    assert.equal(datasets[0].yAxisID, 'y1');
+    assert.equal(datasets[0].order, -10);
+    assert.deepEqual(datasets[0].data, [0, 3]);
+    assert.deepEqual(datasets[0].tooltipLinesByIndex[0], []);
+    assert.deepEqual(
+      datasets[0].tooltipLinesByIndex[1],
+      [
+        'B0G9765J19 - animal-jokes (Ebook): 2',
+        'B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+      ],
+    );
+
+    const tooltipCallbacks = adsProfitChartCall.config.options.plugins.tooltip.callbacks;
+    assert.deepEqual(
+      tooltipCallbacks.afterLabel({
+        dataset: datasets[0],
+        dataIndex: 1,
+      }),
+      [
+        'B0G9765J19 - animal-jokes (Ebook): 2',
+        'B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+      ],
     );
   } finally {
     global.window = originalWindow;

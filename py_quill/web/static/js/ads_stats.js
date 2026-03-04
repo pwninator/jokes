@@ -121,6 +121,31 @@
     return Number.isFinite(parsedValue) ? parsedValue : 0;
   }
 
+  function formatCountValue(value) {
+    return Math.round(toNumber(value)).toLocaleString('en-US');
+  }
+
+  function formatUnmatchedAdsTooltipLine(detail) {
+    if (!detail || typeof detail !== 'object') {
+      return '';
+    }
+    const asin = String(detail.asin || '').trim();
+    const bookKey = String(detail.book_key || 'unknown').trim() || 'unknown';
+    const bookFormat = String(detail.book_format || 'Unknown').trim() || 'Unknown';
+    const count = toNumber(detail.count);
+    if (!asin || count <= 0) {
+      return '';
+    }
+    return `${asin} - ${bookKey} (${bookFormat}): ${formatCountValue(count)}`;
+  }
+
+  function buildUnmatchedAdsTooltipLines(details) {
+    if (!Array.isArray(details)) {
+      return [];
+    }
+    return details.map((detail) => formatUnmatchedAdsTooltipLine(detail)).filter(Boolean);
+  }
+
   function dayOfWeekIndexForDate(dateKey) {
     const dateParts = String(dateKey || '').split('-').map((part) => Number(part));
     const year = dateParts[0];
@@ -422,12 +447,22 @@
     const organicProfit = Array.isArray(data.organic_profit_usd)
       ? data.organic_profit_usd
       : [];
+    const unmatchedAdsSalesCount = Array.isArray(data.unmatched_ads_sales_count)
+      ? data.unmatched_ads_sales_count
+      : [];
+    const unmatchedAdsSalesDetails = Array.isArray(data.unmatched_ads_sales_details)
+      ? data.unmatched_ads_sales_details
+      : [];
     const rowsByDate = {};
 
     labels.forEach((dateKey, index) => {
       rowsByDate[dateKey] = {
         gross_profit_before_ads_usd: toNumber(gpPreAd[index]),
         organic_profit_usd: toNumber(organicProfit[index]),
+        unmatched_ads_sales_count: toNumber(unmatchedAdsSalesCount[index]),
+        unmatched_ads_sales_tooltip_lines: buildUnmatchedAdsTooltipLines(
+          unmatchedAdsSalesDetails[index],
+        ),
       };
     });
 
@@ -455,6 +490,12 @@
         reconciled_profit_before_ads_usd: dayReconciledProfitBeforeAds,
         organic_profit_usd: dayOrganicProfit,
         unmatched_pre_ad_profit_usd: dayUnmatchedAdsProfitBeforeAds,
+        unmatched_ads_sales_count: toNumber(reconciledDay.unmatched_ads_sales_count),
+        unmatched_ads_sales_tooltip_lines: Array.isArray(
+          reconciledDay.unmatched_ads_sales_tooltip_lines,
+        )
+          ? reconciledDay.unmatched_ads_sales_tooltip_lines
+          : [],
         gross_profit_usd: dayReconciledProfitBeforeAds - dayCost,
         poas: dayCost > 0 ? dayAdsProfitBeforeAds / dayCost : 0,
         tpoas: dayCost > 0 ? dayReconciledProfitBeforeAds / dayCost : 0,
@@ -552,6 +593,8 @@
         gross_profit_usd: [],
         organic_profit_usd: [],
         unmatched_pre_ad_profit_usd: [],
+        unmatched_ads_sales_count: [],
+        unmatched_ads_sales_tooltip_lines: [],
         poas: [],
         tpoas: [],
         totals: {
@@ -580,6 +623,8 @@
         reconciled_profit_before_ads_usd: day.reconciled_profit_before_ads_usd,
         organic_profit_usd: day.organic_profit_usd,
         unmatched_pre_ad_profit_usd: day.unmatched_pre_ad_profit_usd,
+        unmatched_ads_sales_count: day.unmatched_ads_sales_count,
+        unmatched_ads_sales_tooltip_lines: day.unmatched_ads_sales_tooltip_lines,
         gross_profit_usd: day.gross_profit_usd,
       }),
     );
@@ -607,6 +652,10 @@
       organic_profit_usd: reconciledDailyStats.map((day) => day.organic_profit_usd),
       unmatched_pre_ad_profit_usd: reconciledDailyStats.map(
         (day) => day.unmatched_pre_ad_profit_usd),
+      unmatched_ads_sales_count: reconciledDailyStats.map(
+        (day) => day.unmatched_ads_sales_count),
+      unmatched_ads_sales_tooltip_lines: reconciledDailyStats.map(
+        (day) => day.unmatched_ads_sales_tooltip_lines),
       poas: reconciledDailyStats.map((day) => {
         return calculatePoas(day.raw_gross_profit_before_ads_usd, day.cost);
       }),
@@ -1000,6 +1049,14 @@
                       context.parsed.y,
                     )}`;
                   },
+                  afterLabel: function (context) {
+                    const tooltipLinesByIndex = context.dataset.tooltipLinesByIndex;
+                    if (!Array.isArray(tooltipLinesByIndex)) {
+                      return [];
+                    }
+                    const lines = tooltipLinesByIndex[context.dataIndex];
+                    return Array.isArray(lines) ? lines : [];
+                  },
                 },
               },
               adsEventsOverlay: {
@@ -1030,6 +1087,12 @@
         };
         if (config.borderWidth != null) {
           dataset.borderWidth = config.borderWidth;
+        }
+        if (config.order != null) {
+          dataset.order = config.order;
+        }
+        if (config.tooltipLinesByIndex != null) {
+          dataset.tooltipLinesByIndex = config.tooltipLinesByIndex;
         }
         if (isBarDataset) {
           dataset.borderRadius = config.borderRadius == null ? 4 : config.borderRadius;
@@ -1231,30 +1294,51 @@
       }
 
       function renderAdsProfitBreakdownChart(series, mode) {
+        const datasets = [];
+        if (mode === TIMELINE_MODE) {
+          datasets.push(createLineDataset({
+            label: 'Unmatched Ads Sales',
+            data: series.unmatched_ads_sales_count,
+            borderColor: '#000000',
+            yAxisID: 'y1',
+            formatType: 'number',
+            order: -10,
+            tooltipLinesByIndex: series.unmatched_ads_sales_tooltip_lines,
+          }, mode));
+        }
+
+        datasets.push(
+          createLineDataset({
+            label: 'Profit Before Ads (ads)',
+            data: series.ads_profit_before_ads_usd,
+            borderColor: '#ef6c00',
+            formatType: 'currency',
+          }, mode),
+        );
+        datasets.push(
+          createLineDataset({
+            label: 'Matched Ads Profit',
+            data: series.matched_ads_profit_before_ads_usd,
+            borderColor: '#2e7d32',
+            formatType: 'currency',
+          }, mode),
+        );
+        datasets.push(
+          createLineDataset({
+            label: 'Unmatched Ad Profit',
+            data: series.unmatched_pre_ad_profit_usd,
+            borderColor: '#c62828',
+            formatType: 'currency',
+          }, mode),
+        );
+
         createMultiLineChart(
           'adsProfitBreakdownChart',
           series.labels,
-          [
-            createLineDataset({
-              label: 'Profit Before Ads (ads)',
-              data: series.ads_profit_before_ads_usd,
-              borderColor: '#ef6c00',
-              formatType: 'currency',
-            }, mode),
-            createLineDataset({
-              label: 'Matched Ads Profit',
-              data: series.matched_ads_profit_before_ads_usd,
-              borderColor: '#2e7d32',
-              formatType: 'currency',
-            }, mode),
-            createLineDataset({
-              label: 'Unmatched Ad Profit',
-              data: series.unmatched_pre_ad_profit_usd,
-              borderColor: '#c62828',
-              formatType: 'currency',
-            }, mode),
-          ],
-          buildSingleAxis('currency'),
+          datasets,
+          mode === TIMELINE_MODE
+            ? buildDualAxis('currency', 'number')
+            : buildSingleAxis('currency'),
           mode,
         );
       }
@@ -1444,6 +1528,7 @@
       buildDaysOfWeekSeries: buildDaysOfWeekSeries,
       buildReconciledChartStats: buildReconciledChartStats,
       buildChartStats: buildChartStats,
+      formatUnmatchedAdsTooltipLine: formatUnmatchedAdsTooltipLine,
       initAdsStatsPage: initAdsStatsPage,
     };
   }

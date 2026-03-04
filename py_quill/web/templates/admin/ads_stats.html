@@ -499,6 +499,7 @@
         throw new Error(data.error || 'Upload failed');
       }
       kdpUploadStatus.textContent = `Saved ${data.days_saved} days`;
+      window.location.reload();
     } catch (error) {
       kdpUploadStatus.textContent = error?.message || 'Upload failed';
     } finally {

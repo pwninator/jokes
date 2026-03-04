@@ -110,9 +110,9 @@ def resolve_timeline(
   response_end: float | None = None
   punchline_start = setup_end + joke_audio_punchline_gap_sec
   if response_sequence is not None:
-    listener_pop_in_end = (
-      pop_in_end + listener_pop_in_delay_after_teller_pop_in_end_sec +
-      pop_in_duration)
+    listener_pop_in_end = (pop_in_end +
+                           listener_pop_in_delay_after_teller_pop_in_end_sec +
+                           pop_in_duration)
     response_start = max(setup_end + joke_audio_response_gap_sec,
                          listener_pop_in_end)
     response_end = response_start + response_duration
@@ -271,7 +271,8 @@ def build_character_sequences(
       character=teller_character,
       sequence=teller_laugh_sequence,
       start_time_sec=timeline.laugh_start_sec,
-      end_time_sec=timeline.laugh_start_sec + teller_laugh_sequence.duration_sec,
+      end_time_sec=timeline.laugh_start_sec +
+      teller_laugh_sequence.duration_sec,
       z_index=z_index,
       rect=actor_rects[0],
     ),
@@ -315,7 +316,8 @@ def build_character_sequences(
         rect=actor_rects[1],
       ),
     ]
-    if (response_sequence is not None and timeline.response_start_sec is not None
+    if (response_sequence is not None
+        and timeline.response_start_sec is not None
         and timeline.response_end_sec is not None):
       listener_items.append(
         _build_timed_character_item(
@@ -346,8 +348,7 @@ def build_character_sequences(
         extend_first_sequence=extend_first_sequence,
         surface_line_visible=surface_line_visible,
         blink_rng=random.Random("actor_1"),
-        first_blink_delay_multiplier=
-        BLINK_SECOND_ACTOR_FIRST_DELAY_MULTIPLIER,
+        first_blink_delay_multiplier=BLINK_SECOND_ACTOR_FIRST_DELAY_MULTIPLIER,
       ))
 
   return [item for actor_items in items_by_actor for item in actor_items]
@@ -376,12 +377,11 @@ def _finalize_actor_track(
   if surface_line_visible is None:
     return items
   return [
-    replace(
-      item,
-      sequence=_with_surface_line_visibility(
-        sequence=item.sequence,
-        visible=surface_line_visible,
-      )) for item in items
+    replace(item,
+            sequence=_with_surface_line_visibility(
+              sequence=item.sequence,
+              visible=surface_line_visible,
+            )) for item in items
   ]
 
 
@@ -464,7 +464,8 @@ def _fill_track_gaps(
       _build_timed_character_item(
         actor_id=first_item.actor_id,
         character=first_item.character,
-        sequence=_build_default_pose_filler_sequence(scene_end_sec - cursor_sec),
+        sequence=_build_default_pose_filler_sequence(scene_end_sec -
+                                                     cursor_sec),
         start_time_sec=cursor_sec,
         end_time_sec=scene_end_sec,
         z_index=first_item.z_index,
@@ -854,19 +855,17 @@ def _apply_global_blink_intervals(
       if (blink_start_sec < item.start_time_sec
           or blink_end_sec > item.end_time_sec):
         continue
-      local_blinks.append(
-        (blink_start_sec - item.start_time_sec,
-         blink_end_sec - item.start_time_sec))
+      local_blinks.append((blink_start_sec - item.start_time_sec,
+                           blink_end_sec - item.start_time_sec))
     if not local_blinks:
       updated_items.append(item)
       continue
     updated_items.append(
-      replace(
-        item,
-        sequence=_with_eye_blink_overrides(
-          sequence=item.sequence,
-          blink_intervals=local_blinks,
-        )))
+      replace(item,
+              sequence=_with_eye_blink_overrides(
+                sequence=item.sequence,
+                blink_intervals=local_blinks,
+              )))
   return updated_items
 
 

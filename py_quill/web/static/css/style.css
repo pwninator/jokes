@@ -812,14 +812,113 @@ img {
 .thankyou-product__cta {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 20px;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.thankyou-book-buybox {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 8px;
+  align-self: center;
   text-align: center;
 }
 
-.thankyou-amazon-cta {
-  width: min(520px, 100%);
+.thankyou-book-buybox__rating {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  line-height: 1;
+}
+
+.thankyou-book-buybox__rating-value {
+  font-size: 1rem;
+  font-weight: var(--font-weight-button);
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.thankyou-book-buybox__stars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.thankyou-book-buybox__stars-image {
+  width: 84px;
+  height: auto;
+}
+
+.thankyou-book-buybox__price-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  line-height: 1;
+}
+
+.thankyou-book-buybox__price-currency {
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-body);
+  color: var(--color-text);
+  align-self: flex-start;
+}
+
+.thankyou-book-buybox__price-major {
+  font-size: 2.2rem;
+  font-weight: var(--font-weight-display);
+  color: #111111;
+}
+
+.thankyou-book-buybox__price-minor {
+  font-size: 0.95rem;
+  font-weight: var(--font-weight-button);
+  color: #111111;
+  align-self: flex-start;
+  margin-right: 8px;
+}
+
+.thankyou-book-buybox__price-original {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+  font-size: 0.9rem;
+  align-self: flex-end;
+  margin-right: 8px;
+}
+
+.thankyou-book-buybox__savings {
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-button);
+  color: var(--color-primary-dark);
+  line-height: 1;
+  align-self: flex-end;
+}
+
+.thankyou-book-buybox__prime {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thankyou-book-buybox .thankyou-prime__logo {
+  max-width: 82px;
+  height: 19px;
+}
+
+.thankyou-amazon-cta {
+  width: min(280px, 100%);
+  justify-content: center;
+  align-self: center;
 }
 
 .thankyou-prime {
@@ -827,6 +926,13 @@ img {
   width: min(520px, 100%);
   text-align: center;
   align-self: center;
+}
+
+.thankyou-prime__logo {
+  width: auto;
+  max-width: 120px;
+  height: 28px;
+  margin: 0 auto;
 }
 
 .thankyou-features {

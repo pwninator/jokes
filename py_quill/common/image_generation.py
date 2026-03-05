@@ -78,18 +78,24 @@ _MODIFY_IMAGE_CLIENT = image_client.get_client(
 )
 
 # Image prompt constants
-# Old version, kept for reference.
-# _IMAGE_GENERATION_PROMPT_PREAMBLE = (
-#   "Create an unbearably cute, professional-quality children's illustration in soft colored pencil on lightly textured paper. "
-#   "Use organic, sketch-like outlines in darker saturated shades of the subject colors (avoid heavy black ink), with visible directional strokes and tight cross-hatching to build rich, vibrant color. "
-#   "Keep the palette bright, gentle, and harmonious. "
-#   # "Backgrounds should be fully rendered (not blank or vignette). "
-#   "Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. "
-#   "Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. "
-#   "Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies), tactile and hand-crafted yet polished for print."
-# )
 _IMAGE_GENERATION_PROMPT_PREAMBLE = """\
-A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. The background should extend to the edges of the image. Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies).
+A whimsical humorous cartoon illustrated in colored pencil on lightly textured paper.
+
+The drawing should have clean hand-drawn pencil outlines with a slightly wobbly, natural line quality, giving the artwork a warm handmade feel without looking rough or messy.
+
+Characters use chibi-style proportions (approximately a 1:1-1:1.5 head-to-body ratio), but the animal should retain the recognizable skull and muzzle structure of the real animal. Heads should be slightly oval with a clearly defined muzzle, not perfectly round.
+
+Eyes should be simple classic cartoon eyes with white sclera and small centered black pupils, outlined with thin pencil lines. Avoid anime-style eyes, glossy reflections, or multiple highlights.
+
+Faces should remain clean and simple with no blush marks, cheek tint, or rosy cheeks.
+
+Color should look like lightly layered colored pencil, with soft texture and gentle shading. The coloring should feel hand-colored rather than digitally smooth, and colors may occasionally stray slightly outside the outlines to keep the playful handmade look.
+
+Avoid heavy cross-hatching, dense rendering, or detailed fur texture.
+
+Backgrounds should be simple and softly colored with minimal detail, lightly suggesting the environment so the character remains the main focus.
+
+Overall the illustration should resemble a charming colored-pencil cartoon from a whimsical humor book, with clean outlines and softly textured hand coloring.
 """
 
 _STYLE_REFERENCE_GUIDANCE = """\
@@ -130,7 +136,7 @@ def generate_pun_images(
     pun_text=setup_text,
     image_description=setup_image_description,
     image_quality=image_quality,
-    style_reference_images=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
+    # style_reference_images=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
   )
 
   if not setup_image.url:
@@ -149,7 +155,7 @@ def generate_pun_images(
     image_description=punchline_image_description,
     image_quality=image_quality,
     previous_image=previous_image_reference,
-    style_reference_images=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
+    # style_reference_images=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
   )
 
   if not punchline_image.url:

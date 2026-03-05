@@ -405,6 +405,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
             models.AmazonSalesReconciledAsinStats(
               asin="B0G9765J19",
               country_code="US",
+              ads_click_date_units=5,
+              ads_click_date_royalty_usd_est=31.0,
               unmatched_ads_click_date_units=2,
             ),
           },
@@ -422,6 +424,8 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
             models.AmazonSalesReconciledAsinStats(
               asin="B0GNMFVYC5",
               country_code="US",
+              ads_click_date_units=1,
+              ads_click_date_royalty_usd_est=4.0,
               unmatched_ads_click_date_units=1,
             ),
           },
@@ -485,7 +489,22 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0217] == 4.0
   assert reconciled_chart_data["gross_profit_usd"][idx_0217] == 1.5
   assert reconciled_chart_data["organic_profit_usd"][idx_0217] == 2.0
+  assert reconciled_chart_data["matched_ads_sales_count"][idx_0217] == 1
   assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0217] == 1
+  assert reconciled_chart_data["ads_sales_details"][idx_0217] == [{
+    "country_code": "US",
+    "asin": "B0GNMFVYC5",
+    "book_key": "valentine-jokes",
+    "book_format": "Ebook",
+    "count": 2,
+  }]
+  assert reconciled_chart_data["matched_ads_sales_details"][idx_0217] == [{
+    "country_code": "US",
+    "asin": "B0GNMFVYC5",
+    "book_key": "valentine-jokes",
+    "book_format": "Ebook",
+    "count": 1,
+  }]
   assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0217] == [{
     "country_code": "US",
     "asin": "B0GNMFVYC5",
@@ -493,12 +512,48 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     "book_format": "Ebook",
     "count": 1,
   }]
+  assert reconciled_chart_data["ads_profit_details"][idx_0217] == [{
+    "country_code": "US",
+    "asin": "B0GNMFVYC5",
+    "book_key": "valentine-jokes",
+    "book_format": "Ebook",
+    "amount_usd": 9.0,
+  }]
+  assert reconciled_chart_data["matched_ads_profit_details"][idx_0217] == [{
+    "country_code": "US",
+    "asin": "B0GNMFVYC5",
+    "book_key": "valentine-jokes",
+    "book_format": "Ebook",
+    "amount_usd": 4.0,
+  }]
+  assert reconciled_chart_data["unmatched_ads_profit_details"][idx_0217] == [{
+    "country_code": "US",
+    "asin": "B0GNMFVYC5",
+    "book_key": "valentine-jokes",
+    "book_format": "Ebook",
+    "amount_usd": 5.0,
+  }]
   assert reconciled_chart_data["poas"][idx_0217] == 2.0
   assert reconciled_chart_data["tpoas"][idx_0217] == 2.4444
   assert reconciled_chart_data["gross_profit_before_ads_usd"][idx_0219] == 31.0
   assert reconciled_chart_data["gross_profit_usd"][idx_0219] == 13.0
   assert reconciled_chart_data["organic_profit_usd"][idx_0219] == 7.0
+  assert reconciled_chart_data["matched_ads_sales_count"][idx_0219] == 5
   assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0219] == 2
+  assert reconciled_chart_data["ads_sales_details"][idx_0219] == [{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "count": 7,
+  }]
+  assert reconciled_chart_data["matched_ads_sales_details"][idx_0219] == [{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "count": 5,
+  }]
   assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0219] == [{
     "country_code": "US",
     "asin": "B0G9765J19",
@@ -506,10 +561,32 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     "book_format": "Ebook",
     "count": 2,
   }]
+  assert reconciled_chart_data["ads_profit_details"][idx_0219] == [{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "amount_usd": 60.0,
+  }]
+  assert reconciled_chart_data["matched_ads_profit_details"][idx_0219] == [{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "amount_usd": 31.0,
+  }]
+  assert reconciled_chart_data["unmatched_ads_profit_details"][idx_0219] == [{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "amount_usd": 29.0,
+  }]
   assert reconciled_chart_data["poas"][idx_0219] == 2.4
   assert reconciled_chart_data["tpoas"][idx_0219] == 2.68
   assert reconciled_chart_data["total_gross_profit_before_ads_usd"] == 35.0
   assert reconciled_chart_data["total_gross_profit_usd"] == 14.5
+  assert reconciled_chart_data["total_matched_ads_sales_count"] == 6
   assert reconciled_chart_data["total_unmatched_ads_sales_count"] == 3
 
   # Verify totals
@@ -965,27 +1042,31 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
   ctr_pos = html.find("<h3>CTR</h3>")
   impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")
-  ads_profit_breakdown_pos = html.find("<h3>Ads Profit Breakdown</h3>")
+  profit_breakdown_pos = html.find("<h3>Profit Breakdown</h3>")
+  sales_breakdown_pos = html.find("<h3>Sales Breakdown</h3>")
 
   assert reconciled_profit_pos != -1
   assert reconciled_poas_pos != -1
   assert cpc_and_cr_pos != -1
   assert ctr_pos != -1
   assert impressions_and_clicks_pos != -1
-  assert ads_profit_breakdown_pos != -1
+  assert profit_breakdown_pos != -1
+  assert sales_breakdown_pos != -1
   assert "<h3>Impressions</h3>" not in html
   assert "<h3>Clicks</h3>" not in html
   assert '<canvas id="impressionsAndClicksChart"></canvas>' in html
   assert '<canvas id="reconciledProfitTimelineChart"></canvas>' in html
   assert '<canvas id="reconciledPoasTimelineChart"></canvas>' in html
   assert '<canvas id="adsProfitBreakdownChart"></canvas>' in html
+  assert '<canvas id="salesBreakdownChart"></canvas>' in html
   assert '<canvas id="profitChart"></canvas>' not in html
   assert '<canvas id="poasChart"></canvas>' not in html
   assert reconciled_poas_pos < cpc_and_cr_pos
   assert reconciled_profit_pos < reconciled_poas_pos
   assert cpc_and_cr_pos < ctr_pos
   assert ctr_pos < impressions_and_clicks_pos
-  assert impressions_and_clicks_pos < ads_profit_breakdown_pos
+  assert impressions_and_clicks_pos < profit_breakdown_pos
+  assert profit_breakdown_pos < sales_breakdown_pos
 
 
 def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
@@ -1021,6 +1102,7 @@ def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
     'ctrChart',
     'impressionsAndClicksChart',
     'adsProfitBreakdownChart',
+    'salesBreakdownChart',
   ]
   for canvas_id in chart_canvas_ids:
     assert f'data-canvas-id="{canvas_id}"' in html, f"Missing data-canvas-id for {canvas_id}"

@@ -692,10 +692,22 @@ def _build_reconciled_click_date_chart_data(
   labels: list[str] = []
   cost: list[float] = []
   gross_profit_before_ads_usd: list[float] = []
+  reconciled_matched_profit_before_ads_usd: list[float] = []
   gross_profit_usd: list[float] = []
   organic_profit_usd: list[float] = []
+  matched_ads_sales_count: list[int] = []
+  organic_sales_count: list[int] = []
+  reconciled_sales_count: list[int] = []
   unmatched_ads_sales_count: list[int] = []
+  ads_sales_details: list[list[dict[str, object]]] = []
+  matched_ads_sales_details: list[list[dict[str, object]]] = []
+  reconciled_sales_details: list[list[dict[str, object]]] = []
   unmatched_ads_sales_details: list[list[dict[str, object]]] = []
+  ads_profit_details: list[list[dict[str, object]]] = []
+  matched_ads_profit_details: list[list[dict[str, object]]] = []
+  reconciled_matched_profit_details: list[list[dict[str, object]]] = []
+  profit_before_ads_reconciled_details: list[list[dict[str, object]]] = []
+  unmatched_ads_profit_details: list[list[dict[str, object]]] = []
   poas: list[float] = []
   tpoas: list[float] = []
 
@@ -728,17 +740,105 @@ def _build_reconciled_click_date_chart_data(
                   ads_cost if ads_cost > 0 else 0.0)
     current_poas = (raw_gross_profit_before_ads /
                     ads_cost if ads_cost > 0 else 0.0)
+    unmatched_book_profit_before_ads = (raw_gross_profit_before_ads -
+                                        reconciled_gross_profit_before_ads)
+
+    reconciled_asin_rows = _build_reconciled_asin_rows(
+      ads_stat=ads_stat,
+      reconciled_stat=reconciled_stat,
+    )
+    unmatched_book_profit_allocations = _allocate_unmatched_book_profit_by_units(
+      rows=reconciled_asin_rows,
+      unmatched_book_profit_before_ads_usd=unmatched_book_profit_before_ads,
+    )
+    _populate_row_profit_fields(
+      rows=reconciled_asin_rows,
+      unmatched_book_profit_allocations=unmatched_book_profit_allocations,
+    )
+
+    day_matched_ads_profit_before_ads = sum(
+      float(row["matched_ads_profit_before_ads_usd"])
+      for row in reconciled_asin_rows)
+    day_reconciled_matched_profit_before_ads = sum(
+      float(row["reconciled_matched_profit_before_ads_usd"])
+      for row in reconciled_asin_rows)
 
     cost.append(round(ads_cost, 2))
-    gross_profit_before_ads_usd.append(
-      round(reconciled_gross_profit_before_ads, 2))
+    gross_profit_before_ads_usd.append(round(day_matched_ads_profit_before_ads,
+                                             2))
+    reconciled_matched_profit_before_ads_usd.append(
+      round(day_reconciled_matched_profit_before_ads, 2))
     gross_profit_usd.append(round(total_gross_profit, 2))
     organic_profit_usd.append(round(organic_profit, 2))
+    matched_ads_sales_count.append(
+      sum(cast(int, row["matched_ads_sales_count"]) for row in
+          reconciled_asin_rows))
+    organic_sales_count.append(
+      sum(cast(int, row["organic_sales_count"]) for row in reconciled_asin_rows))
+    reconciled_sales_count.append(
+      sum(cast(int, row["reconciled_sales_count"]) for row in
+          reconciled_asin_rows))
     unmatched_ads_sales_count.append(
-      reconciled_stat.unmatched_ads_click_date_units_total
-      if reconciled_stat is not None else 0)
+      sum(cast(int, row["unmatched_ads_sales_count"]) for row in
+          reconciled_asin_rows))
+    ads_sales_details.append(
+      _serialize_count_details(
+        rows=reconciled_asin_rows,
+        count_key="ads_sales_count",
+      ))
+    matched_ads_sales_details.append(
+      _serialize_count_details(
+        rows=reconciled_asin_rows,
+        count_key="matched_ads_sales_count",
+        kenp_pages_key="matched_ads_kenp_pages_count",
+      ))
+    reconciled_sales_details.append(
+      _serialize_count_details(
+        rows=reconciled_asin_rows,
+        count_key="reconciled_sales_count",
+        kenp_pages_key="reconciled_kenp_pages_count",
+      ))
     unmatched_ads_sales_details.append(
-      _serialize_unmatched_ads_sales_details(reconciled_stat))
+      _serialize_count_details(
+        rows=reconciled_asin_rows,
+        count_key="unmatched_ads_sales_count",
+        kenp_pages_key="unmatched_ads_kenp_pages_count",
+      ))
+    ads_profit_details.append(
+      _serialize_amount_details(
+        rows=reconciled_asin_rows,
+        amount_key="ads_book_profit_before_ads_usd",
+        kenp_amount_key="ads_kenp_profit_before_ads_usd",
+        kenp_pages_key="ads_kenp_pages_count",
+      ))
+    matched_ads_profit_details.append(
+      _serialize_amount_details(
+        rows=reconciled_asin_rows,
+        amount_key="matched_ads_book_profit_before_ads_usd",
+        kenp_amount_key="matched_ads_kenp_profit_before_ads_usd",
+        kenp_pages_key="matched_ads_kenp_pages_count",
+      ))
+    reconciled_matched_profit_details.append(
+      _serialize_amount_details(
+        rows=reconciled_asin_rows,
+        amount_key="reconciled_matched_book_profit_before_ads_usd",
+        kenp_amount_key="reconciled_matched_kenp_profit_before_ads_usd",
+        kenp_pages_key="reconciled_kenp_pages_count",
+      ))
+    profit_before_ads_reconciled_details.append(
+      _serialize_amount_details(
+        rows=reconciled_asin_rows,
+        amount_key="reconciled_book_profit_before_ads_usd",
+        kenp_amount_key="reconciled_kenp_profit_before_ads_usd",
+        kenp_pages_key="reconciled_kenp_pages_count",
+      ))
+    unmatched_ads_profit_details.append(
+      _serialize_amount_details(
+        rows=reconciled_asin_rows,
+        amount_key="unmatched_ads_book_profit_before_ads_usd",
+        kenp_amount_key="unmatched_ads_kenp_profit_before_ads_usd",
+        kenp_pages_key="unmatched_ads_kenp_pages_count",
+      ))
     poas.append(round(current_poas, 4))
     tpoas.append(round(total_poas, 4))
     current_date += datetime.timedelta(days=1)
@@ -750,14 +850,38 @@ def _build_reconciled_click_date_chart_data(
     cost,
     "gross_profit_before_ads_usd":
     gross_profit_before_ads_usd,
+    "reconciled_matched_profit_before_ads_usd":
+    reconciled_matched_profit_before_ads_usd,
     "gross_profit_usd":
     gross_profit_usd,
     "organic_profit_usd":
     organic_profit_usd,
+    "matched_ads_sales_count":
+    matched_ads_sales_count,
+    "organic_sales_count":
+    organic_sales_count,
+    "reconciled_sales_count":
+    reconciled_sales_count,
     "unmatched_ads_sales_count":
     unmatched_ads_sales_count,
+    "ads_sales_details":
+    ads_sales_details,
+    "matched_ads_sales_details":
+    matched_ads_sales_details,
+    "reconciled_sales_details":
+    reconciled_sales_details,
     "unmatched_ads_sales_details":
     unmatched_ads_sales_details,
+    "ads_profit_details":
+    ads_profit_details,
+    "matched_ads_profit_details":
+    matched_ads_profit_details,
+    "reconciled_matched_profit_details":
+    reconciled_matched_profit_details,
+    "profit_before_ads_reconciled_details":
+    profit_before_ads_reconciled_details,
+    "unmatched_ads_profit_details":
+    unmatched_ads_profit_details,
     "poas":
     poas,
     "tpoas":
@@ -770,39 +894,312 @@ def _build_reconciled_click_date_chart_data(
     round(sum(gross_profit_usd), 2),
     "total_organic_profit_usd":
     round(sum(organic_profit_usd), 2),
+    "total_matched_ads_sales_count":
+    sum(matched_ads_sales_count),
+    "total_organic_sales_count":
+    sum(organic_sales_count),
+    "total_reconciled_sales_count":
+    sum(reconciled_sales_count),
     "total_unmatched_ads_sales_count":
     sum(unmatched_ads_sales_count),
   }
 
 
-def _serialize_unmatched_ads_sales_details(
+def _build_reconciled_asin_rows(
+  *,
+  ads_stat: models.AmazonAdsDailyStats | None,
   reconciled_stat: models.AmazonSalesReconciledDailyStats | None,
 ) -> list[dict[str, object]]:
-  """Serialize unmatched ads sales counts with book metadata for chart tooltips."""
-  if reconciled_stat is None:
-    return []
+  """Build per-ASIN+country rows with sales/profit split fields for tooltips."""
+  rows_by_key: dict[str, dict[str, object]] = {}
 
+  def _get_or_create_row(asin: str, country_code: str) -> dict[str, object]:
+    row_key = f"{asin}::{country_code}"
+    existing = rows_by_key.get(row_key)
+    if existing is not None:
+      return existing
+    book_key = book_defs.BOOK_KEY_BY_VARIANT_ASIN.get(asin)
+    book_variant = book_defs.find_book_variant(asin)
+    row: dict[str, object] = {
+      "country_code": country_code,
+      "asin": asin,
+      "book_key": book_key.value if book_key is not None else "unknown",
+      "book_format": (book_variant.format.label
+                       if book_variant is not None else "Unknown"),
+      "ads_sales_count": 0,
+      "matched_ads_sales_count": 0,
+      "organic_sales_count": 0,
+      "reconciled_sales_count": 0,
+      "unmatched_ads_sales_count": 0,
+      "ads_kenp_pages_count": 0,
+      "matched_ads_kenp_pages_count": 0,
+      "organic_kenp_pages_count": 0,
+      "reconciled_kenp_pages_count": 0,
+      "unmatched_ads_kenp_pages_count": 0,
+      "ads_book_profit_before_ads_usd": 0.0,
+      "matched_ads_book_profit_before_ads_usd": 0.0,
+      "organic_profit_before_ads_usd": 0.0,
+      "unmatched_ads_book_profit_before_ads_usd": 0.0,
+      "reconciled_matched_book_profit_before_ads_usd": 0.0,
+      "reconciled_book_profit_before_ads_usd": 0.0,
+      "ads_kenp_profit_before_ads_usd": 0.0,
+      "matched_ads_kenp_profit_before_ads_usd": 0.0,
+      "unmatched_ads_kenp_profit_before_ads_usd": 0.0,
+      "reconciled_matched_kenp_profit_before_ads_usd": 0.0,
+      "reconciled_kenp_profit_before_ads_usd": 0.0,
+      "matched_ads_profit_before_ads_usd": 0.0,
+      "reconciled_matched_profit_before_ads_usd": 0.0,
+      "reconciled_profit_before_ads_usd": 0.0,
+      "unmatched_pre_ad_profit_usd": 0.0,
+    }
+    rows_by_key[row_key] = row
+    return row
+
+  if ads_stat is not None:
+    for campaign_stat in ads_stat.campaigns_by_id.values():
+      for asin, country_map in campaign_stat.sale_items_by_asin_country.items():
+        for country_code, sale_item in country_map.items():
+          row = _get_or_create_row(asin, country_code)
+          row["ads_sales_count"] = cast(int, row["ads_sales_count"]) + max(
+            0, int(sale_item.units_sold))
+          row["ads_kenp_pages_count"] = cast(int, row["ads_kenp_pages_count"]) + max(
+            0, int(sale_item.kenp_pages_read))
+          row["ads_book_profit_before_ads_usd"] = (
+            cast(float, row["ads_book_profit_before_ads_usd"]) +
+            float(sale_item.total_profit_usd))
+          row["ads_kenp_profit_before_ads_usd"] = (
+            cast(float, row["ads_kenp_profit_before_ads_usd"]) +
+            float(sale_item.kenp_royalties_usd))
+
+  if reconciled_stat is not None:
+    for asin, country_map in reconciled_stat.by_asin_country.items():
+      for country_code, asin_stats in country_map.items():
+        row = _get_or_create_row(asin, country_code)
+        row["matched_ads_sales_count"] = (
+          cast(int, row["matched_ads_sales_count"]) + max(
+            0, int(asin_stats.ads_click_date_units)))
+        row["organic_sales_count"] = (
+          cast(int, row["organic_sales_count"]) + max(
+            0, int(asin_stats.organic_units)))
+        row["unmatched_ads_sales_count"] = (
+          cast(int, row["unmatched_ads_sales_count"]) + max(
+            0, int(asin_stats.unmatched_ads_click_date_units)))
+        row["matched_ads_kenp_pages_count"] = (
+          cast(int, row["matched_ads_kenp_pages_count"]) + max(
+            0, int(asin_stats.ads_click_date_kenp_pages_read)))
+        row["organic_kenp_pages_count"] = (
+          cast(int, row["organic_kenp_pages_count"]) + max(
+            0, int(asin_stats.organic_kenp_pages_read)))
+        row["unmatched_ads_kenp_pages_count"] = (
+          cast(int, row["unmatched_ads_kenp_pages_count"]) + max(
+            0, int(asin_stats.unmatched_ads_click_date_kenp_pages_read)))
+        row["matched_ads_book_profit_before_ads_usd"] = (
+          cast(float, row["matched_ads_book_profit_before_ads_usd"]) +
+          float(asin_stats.ads_click_date_royalty_usd_est))
+        row["organic_profit_before_ads_usd"] = (
+          cast(float, row["organic_profit_before_ads_usd"]) +
+          float(asin_stats.organic_royalty_usd_est))
+
+  rows = list(rows_by_key.values())
+  for row in rows:
+    matched_sales = cast(int, row["matched_ads_sales_count"])
+    organic_sales = cast(int, row["organic_sales_count"])
+    unmatched_sales = cast(int, row["unmatched_ads_sales_count"])
+    if cast(int, row["ads_sales_count"]) <= 0:
+      row["ads_sales_count"] = matched_sales + unmatched_sales
+    row["reconciled_sales_count"] = matched_sales + organic_sales
+    row["reconciled_kenp_pages_count"] = (
+      cast(int, row["matched_ads_kenp_pages_count"]) +
+      cast(int, row["organic_kenp_pages_count"]))
+    _allocate_row_kenp_profit_split(row)
+
+  rows = [
+    row for row in rows
+    if (
+      cast(int, row["ads_sales_count"]) > 0
+      or cast(int, row["reconciled_sales_count"]) > 0
+      or cast(int, row["unmatched_ads_sales_count"]) > 0
+      or cast(int, row["ads_kenp_pages_count"]) > 0
+      or abs(cast(float, row["matched_ads_book_profit_before_ads_usd"])) > 1e-9
+      or abs(cast(float, row["organic_profit_before_ads_usd"])) > 1e-9
+      or abs(cast(float, row["ads_kenp_profit_before_ads_usd"])) > 1e-9
+    )
+  ]
+  rows.sort(
+    key=lambda item: (
+      cast(str, item["country_code"]),
+      cast(str, item["asin"]),
+    ))
+  return rows
+
+
+def _allocate_row_kenp_profit_split(row: dict[str, object]) -> None:
+  """Split ads KENP royalties into matched/unmatched buckets by KENP pages."""
+  ads_kenp_profit = cast(float, row["ads_kenp_profit_before_ads_usd"])
+  matched_kenp_pages = cast(int, row["matched_ads_kenp_pages_count"])
+  unmatched_kenp_pages = cast(int, row["unmatched_ads_kenp_pages_count"])
+  matched_kenp_profit = ads_kenp_profit
+  unmatched_kenp_profit = 0.0
+  total_click_date_kenp_pages = matched_kenp_pages + unmatched_kenp_pages
+  if total_click_date_kenp_pages > 0:
+    matched_kenp_profit = (ads_kenp_profit * matched_kenp_pages /
+                           total_click_date_kenp_pages)
+    unmatched_kenp_profit = ads_kenp_profit - matched_kenp_profit
+  row["matched_ads_kenp_profit_before_ads_usd"] = matched_kenp_profit
+  row["unmatched_ads_kenp_profit_before_ads_usd"] = unmatched_kenp_profit
+  row["reconciled_matched_kenp_profit_before_ads_usd"] = matched_kenp_profit
+  row["reconciled_kenp_profit_before_ads_usd"] = ads_kenp_profit
+
+
+def _allocate_unmatched_book_profit_by_units(
+  *,
+  rows: list[dict[str, object]],
+  unmatched_book_profit_before_ads_usd: float,
+) -> list[float]:
+  """Allocate unmatched daily book profit by unmatched unit count."""
+  allocations = [0.0 for _ in rows]
+  indices_with_units = [
+    index for index, row in enumerate(rows)
+    if cast(int, row["unmatched_ads_sales_count"]) > 0
+  ]
+  if not indices_with_units:
+    return allocations
+
+  total_unmatched_units = sum(
+    cast(int, rows[index]["unmatched_ads_sales_count"])
+    for index in indices_with_units)
+  if total_unmatched_units <= 0:
+    return allocations
+
+  allocated_running_total = 0.0
+  for index in indices_with_units[:-1]:
+    unmatched_units = cast(int, rows[index]["unmatched_ads_sales_count"])
+    allocated_amount = (unmatched_book_profit_before_ads_usd * unmatched_units /
+                        total_unmatched_units)
+    allocations[index] = allocated_amount
+    allocated_running_total += allocated_amount
+  last_index = indices_with_units[-1]
+  allocations[last_index] = (unmatched_book_profit_before_ads_usd -
+                             allocated_running_total)
+  return allocations
+
+
+def _populate_row_profit_fields(
+  *,
+  rows: list[dict[str, object]],
+  unmatched_book_profit_allocations: list[float],
+) -> None:
+  """Populate per-row profit fields after unmatched-book allocation."""
+  for index, row in enumerate(rows):
+    unmatched_book_profit = float(unmatched_book_profit_allocations[index])
+    matched_book_profit = cast(float, row["matched_ads_book_profit_before_ads_usd"])
+    organic_profit = cast(float, row["organic_profit_before_ads_usd"])
+    matched_kenp_profit = cast(float, row["matched_ads_kenp_profit_before_ads_usd"])
+    unmatched_kenp_profit = cast(float, row["unmatched_ads_kenp_profit_before_ads_usd"])
+    ads_kenp_profit = cast(float, row["ads_kenp_profit_before_ads_usd"])
+
+    row["unmatched_ads_book_profit_before_ads_usd"] = unmatched_book_profit
+    row["matched_ads_profit_before_ads_usd"] = (
+      matched_book_profit + matched_kenp_profit)
+    row["unmatched_pre_ad_profit_usd"] = (
+      unmatched_book_profit + unmatched_kenp_profit)
+    row["ads_book_profit_before_ads_usd"] = (
+      matched_book_profit + unmatched_book_profit)
+    row["ads_profit_before_ads_usd"] = (
+      cast(float, row["ads_book_profit_before_ads_usd"]) + ads_kenp_profit)
+    row["reconciled_matched_book_profit_before_ads_usd"] = (
+      matched_book_profit + organic_profit)
+    row["reconciled_book_profit_before_ads_usd"] = (
+      cast(float, row["ads_book_profit_before_ads_usd"]) + organic_profit)
+    row["reconciled_matched_profit_before_ads_usd"] = (
+      cast(float, row["reconciled_matched_book_profit_before_ads_usd"]) +
+      cast(float, row["reconciled_matched_kenp_profit_before_ads_usd"]))
+    row["reconciled_profit_before_ads_usd"] = (
+      cast(float, row["reconciled_book_profit_before_ads_usd"]) +
+      cast(float, row["reconciled_kenp_profit_before_ads_usd"]))
+
+
+def _serialize_count_details(
+  *,
+  rows: list[dict[str, object]],
+  count_key: str,
+  kenp_pages_key: str | None = None,
+) -> list[dict[str, object]]:
+  """Serialize per-ASIN+country count details with optional KENP pages."""
   details: list[dict[str, object]] = []
-  for asin, country_map in reconciled_stat.by_asin_country.items():
-    for country_code, asin_stats in country_map.items():
-      unmatched_count = asin_stats.unmatched_ads_click_date_units
-      if unmatched_count <= 0:
-        continue
-
-      book_key = book_defs.BOOK_KEY_BY_VARIANT_ASIN.get(asin)
-      book_variant = book_defs.find_book_variant(asin)
-      details.append({
-        "country_code": country_code,
-        "asin": asin,
-        "book_key": book_key.value if book_key is not None else "unknown",
-        "book_format": (book_variant.format.label
-                         if book_variant is not None else "Unknown"),
-        "count": unmatched_count,
-      })
+  for row in rows:
+    count_value = cast(int, row[count_key])
+    if count_value <= 0:
+      continue
+    details.append({
+      "country_code": row["country_code"],
+      "asin": row["asin"],
+      "book_key": row["book_key"],
+      "book_format": row["book_format"],
+      "count": count_value,
+    })
+    if kenp_pages_key is not None:
+      kenp_pages_count = cast(int, row[kenp_pages_key])
+      if kenp_pages_count > 0:
+        details.append({
+          "country_code": row["country_code"],
+          "asin": row["asin"],
+          "book_key": row["book_key"],
+          "book_format": row["book_format"],
+          "count": kenp_pages_count,
+          "is_kenp": True,
+        })
 
   details.sort(
     key=lambda item: (
       -cast(int, item["count"]),
+      cast(bool, item.get("is_kenp", False)),
+      cast(str, item["country_code"]),
+      cast(str, item["asin"]),
+    ))
+  return details
+
+
+def _serialize_amount_details(
+  *,
+  rows: list[dict[str, object]],
+  amount_key: str,
+  kenp_amount_key: str | None = None,
+  kenp_pages_key: str | None = None,
+) -> list[dict[str, object]]:
+  """Serialize per-ASIN+country amount details with optional KENP entries."""
+  details: list[dict[str, object]] = []
+  for row in rows:
+    amount_value = round(float(row[amount_key]), 2)
+    if abs(amount_value) < 1e-9:
+      continue
+    details.append({
+      "country_code": row["country_code"],
+      "asin": row["asin"],
+      "book_key": row["book_key"],
+      "book_format": row["book_format"],
+      "amount_usd": amount_value,
+    })
+    if kenp_amount_key is not None:
+      kenp_amount_value = round(float(row[kenp_amount_key]), 2)
+      kenp_pages_count = (
+        cast(int, row[kenp_pages_key])
+        if kenp_pages_key is not None else 0)
+      if abs(kenp_amount_value) >= 1e-9 or kenp_pages_count > 0:
+        details.append({
+          "country_code": row["country_code"],
+          "asin": row["asin"],
+          "book_key": row["book_key"],
+          "book_format": row["book_format"],
+          "amount_usd": kenp_amount_value,
+          "is_kenp": True,
+          "kenp_pages_count": kenp_pages_count,
+        })
+
+  details.sort(
+    key=lambda item: (
+      -abs(cast(float, item["amount_usd"])),
+      cast(bool, item.get("is_kenp", False)),
       cast(str, item["country_code"]),
       cast(str, item["asin"]),
     ))

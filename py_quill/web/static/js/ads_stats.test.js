@@ -67,6 +67,7 @@ function createFakeAdsStatsDom(initialMode) {
     ctrChart: createFakeCanvas('ctrChart'),
     impressionsAndClicksChart: createFakeCanvas('impressionsAndClicksChart'),
     adsProfitBreakdownChart: createFakeCanvas('adsProfitBreakdownChart'),
+    salesBreakdownChart: createFakeCanvas('salesBreakdownChart'),
   };
   elements.campaignSelector.value = 'All';
   elements.modeSelector.value = initialMode;
@@ -98,8 +99,141 @@ function createFakeReconciledChartData() {
   return {
     labels: ['2026-02-22', '2026-02-23'],
     gross_profit_before_ads_usd: [35, 45],
+    reconciled_matched_profit_before_ads_usd: [40, 52],
     organic_profit_usd: [5, 7],
+    matched_ads_sales_count: [2, 3],
+    organic_sales_count: [1, 2],
+    reconciled_sales_count: [3, 5],
     unmatched_ads_sales_count: [0, 3],
+    ads_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 2,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 300,
+          is_kenp: true,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 2,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 4,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 450,
+          is_kenp: true,
+        },
+      ],
+    ],
+    matched_ads_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 2,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 200,
+          is_kenp: true,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 2,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 1,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 250,
+          is_kenp: true,
+        },
+      ],
+    ],
+    reconciled_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 3,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 220,
+          is_kenp: true,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 3,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 2,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 300,
+          is_kenp: true,
+        },
+      ],
+    ],
     unmatched_ads_sales_details: [
       [],
       [
@@ -116,6 +250,230 @@ function createFakeReconciledChartData() {
           book_key: 'valentine-jokes',
           book_format: 'Ebook',
           count: 1,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 120,
+          is_kenp: true,
+        },
+      ],
+    ],
+    ads_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 40.0,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+          is_kenp: true,
+          kenp_pages_count: 300,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 18.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 30.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 8.0,
+          is_kenp: true,
+          kenp_pages_count: 450,
+        },
+      ],
+    ],
+    matched_ads_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 35.0,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+          is_kenp: true,
+          kenp_pages_count: 200,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 12.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 20.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 6.0,
+          is_kenp: true,
+          kenp_pages_count: 250,
+        },
+      ],
+    ],
+    reconciled_matched_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 40.0,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+          is_kenp: true,
+          kenp_pages_count: 220,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 18.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 27.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 6.0,
+          is_kenp: true,
+          kenp_pages_count: 300,
+        },
+      ],
+    ],
+    profit_before_ads_reconciled_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 40.0,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+          is_kenp: true,
+          kenp_pages_count: 300,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 24.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 30.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 8.0,
+          is_kenp: true,
+          kenp_pages_count: 450,
+        },
+      ],
+    ],
+    unmatched_ads_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 6.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 10.0,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 2.0,
+          is_kenp: true,
+          kenp_pages_count: 120,
         },
       ],
     ],
@@ -328,7 +686,132 @@ test('buildReconciledChartStats exposes ads and reconciled profit series for cam
   const reconciledChartData = {
     labels: ['2026-02-22', '2026-02-23'],
     gross_profit_before_ads_usd: [5, 11],
+    reconciled_matched_profit_before_ads_usd: [6, 14],
     organic_profit_usd: [1, 3],
+    matched_ads_sales_count: [1, 2],
+    organic_sales_count: [1, 1],
+    reconciled_sales_count: [2, 3],
+    unmatched_ads_sales_count: [1, 3],
+    ads_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0A',
+          book_key: 'a',
+          book_format: 'Ebook',
+          count: 2,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0B',
+          book_key: 'b',
+          book_format: 'Paperback',
+          count: 5,
+        },
+      ],
+    ],
+    matched_ads_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0A',
+          book_key: 'a',
+          book_format: 'Ebook',
+          count: 1,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0B',
+          book_key: 'b',
+          book_format: 'Paperback',
+          count: 2,
+        },
+      ],
+    ],
+    unmatched_ads_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0A',
+          book_key: 'a',
+          book_format: 'Ebook',
+          count: 1,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0B',
+          book_key: 'b',
+          book_format: 'Paperback',
+          count: 3,
+        },
+      ],
+    ],
+    ads_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0A',
+          book_key: 'a',
+          book_format: 'Ebook',
+          amount_usd: 6.0,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0B',
+          book_key: 'b',
+          book_format: 'Paperback',
+          amount_usd: 15.0,
+        },
+      ],
+    ],
+    matched_ads_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0A',
+          book_key: 'a',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0B',
+          book_key: 'b',
+          book_format: 'Paperback',
+          amount_usd: 11.0,
+        },
+      ],
+    ],
+    unmatched_ads_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0A',
+          book_key: 'a',
+          book_format: 'Ebook',
+          amount_usd: 1.0,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0B',
+          book_key: 'b',
+          book_format: 'Paperback',
+          amount_usd: 4.0,
+        },
+      ],
+    ],
   };
 
   const timeline = buildReconciledChartStats(
@@ -349,6 +832,7 @@ test('buildReconciledChartStats exposes ads and reconciled profit series for cam
   assert.deepEqual(timeline.ads_profit_before_ads_usd, [6, 15]);
   assert.deepEqual(timeline.matched_ads_profit_before_ads_usd, [5, 11]);
   assert.deepEqual(timeline.gross_profit_before_ads_usd, [5, 11]);
+  assert.deepEqual(timeline.reconciled_matched_profit_before_ads_usd, [6, 14]);
   assert.deepEqual(timeline.reconciled_profit_before_ads_usd, [7, 18]);
   assertClose(timeline.poas[0], 6 / 4);
   assertClose(timeline.poas[1], 15 / 10);
@@ -356,6 +840,10 @@ test('buildReconciledChartStats exposes ads and reconciled profit series for cam
   assertClose(timeline.tpoas[1], (15 + 3) / 10);
   assert.deepEqual(timeline.organic_profit_usd, [1, 3]);
   assert.deepEqual(timeline.unmatched_pre_ad_profit_usd, [1, 4]);
+  assert.deepEqual(timeline.matched_ads_sales_count, [1, 2]);
+  assert.deepEqual(timeline.organic_sales_count, [1, 1]);
+  assert.deepEqual(timeline.reconciled_sales_count, [2, 3]);
+  assert.deepEqual(timeline.unmatched_ads_sales_count, [1, 3]);
   assert.deepEqual(timeline.gross_profit_usd, [3, 8]);
   assertClose(timeline.totals.ads_profit_before_ads_usd, 21);
   assertClose(timeline.totals.matched_ads_profit_before_ads_usd, 16);
@@ -378,6 +866,99 @@ test('buildReconciledChartStats exposes ads and reconciled profit series for cam
   assertClose(daysOfWeek.unmatched_pre_ad_profit_usd[1], 4);
   assertClose(daysOfWeek.gross_profit_usd[0], 3);
   assertClose(daysOfWeek.gross_profit_usd[1], 8);
+});
+
+test('buildReconciledChartStats prefers profit detail totals for dollar series when present', () => {
+  const chartData = {
+    labels: ['2026-02-22'],
+    impressions: [10],
+    clicks: [2],
+    cost: [4],
+    sales_usd: [8],
+    units_sold: [1],
+    gross_profit_before_ads_usd: [999], // Intentionally different from detail sum.
+    gross_profit_usd: [2],
+    daily_campaigns: {
+      '2026-02-22': [],
+    },
+  };
+  const reconciledChartData = {
+    labels: ['2026-02-22'],
+    gross_profit_before_ads_usd: [111],
+    reconciled_matched_profit_before_ads_usd: [222],
+    organic_profit_usd: [3],
+    matched_ads_sales_count: [1],
+    organic_sales_count: [1],
+    reconciled_sales_count: [2],
+    unmatched_ads_sales_count: [0],
+    ads_profit_details: [[
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 6.0,
+      },
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 2.0,
+        is_kenp: true,
+        kenp_pages_count: 100,
+      },
+    ]],
+    matched_ads_profit_details: [[
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 5.0,
+      },
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 1.0,
+        is_kenp: true,
+        kenp_pages_count: 80,
+      },
+    ]],
+    reconciled_matched_profit_details: [[
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 7.5,
+      },
+    ]],
+    profit_before_ads_reconciled_details: [[
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 9.5,
+      },
+    ]],
+  };
+
+  const timeline = buildReconciledChartStats(
+    chartData,
+    'All',
+    'Timeline',
+    reconciledChartData,
+  );
+
+  assert.deepEqual(timeline.ads_profit_before_ads_usd, [8]);
+  assert.deepEqual(timeline.matched_ads_profit_before_ads_usd, [6]);
+  assert.deepEqual(timeline.reconciled_matched_profit_before_ads_usd, [7.5]);
+  assert.deepEqual(timeline.reconciled_profit_before_ads_usd, [9.5]);
+  assert.deepEqual(timeline.unmatched_pre_ad_profit_usd, [2]);
 });
 
 test('buildReconciledChartStats returns empty series for specific campaigns', () => {
@@ -607,19 +1188,19 @@ test('initAdsStatsPage switches chart configs from line to bar in Days of Week m
       adsEvents: [],
     });
 
-    assert.equal(chartCalls.length, 6);
+    assert.equal(chartCalls.length, 7);
     assert.deepEqual(
       chartCalls.map((call) => call.config.type),
-      Array(6).fill('line'),
+      Array(7).fill('line'),
     );
 
     elements.modeSelector.value = DAYS_OF_WEEK_MODE;
     elements.modeSelector.dispatch('change');
 
-    assert.equal(chartCalls.length, 12);
+    assert.equal(chartCalls.length, 14);
     assert.deepEqual(
-      chartCalls.slice(-6).map((call) => call.config.type),
-      Array(6).fill('bar'),
+      chartCalls.slice(-7).map((call) => call.config.type),
+      Array(7).fill('bar'),
     );
   } finally {
     global.window = originalWindow;
@@ -627,7 +1208,7 @@ test('initAdsStatsPage switches chart configs from line to bar in Days of Week m
   }
 });
 
-test('initAdsStatsPage adds unmatched ads sales dataset with tooltip lines', () => {
+test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed tooltip lines', () => {
   const originalWindow = global.window;
   const originalDocument = global.document;
   const chartCalls = [];
@@ -661,31 +1242,120 @@ test('initAdsStatsPage adds unmatched ads sales dataset with tooltip lines', () 
 
     const adsProfitChartCall = chartCalls.find((call) => call.canvasId === 'adsProfitBreakdownChart');
     assert.ok(adsProfitChartCall);
-
-    const datasets = adsProfitChartCall.config.data.datasets;
-    assert.equal(datasets[0].label, 'Unmatched Ads Sales');
-    assert.equal(datasets[0].borderColor, '#000000');
-    assert.equal(datasets[0].yAxisID, 'y1');
-    assert.equal(datasets[0].order, -10);
-    assert.deepEqual(datasets[0].data, [0, 3]);
-    assert.deepEqual(datasets[0].tooltipLinesByIndex[0], []);
+    const adsProfitDatasetLabels = adsProfitChartCall.config.data.datasets.map(
+      (dataset) => dataset.label,
+    );
+    assert.deepEqual(adsProfitDatasetLabels, [
+      'Profit Before Ads (ads)',
+      'Matched Ads Profit',
+      'Unmatched Ad Profit',
+      'Reconciled Profit',
+    ]);
     assert.deepEqual(
-      datasets[0].tooltipLinesByIndex[1],
+      adsProfitChartCall.config.data.datasets[0].tooltipLinesByIndex[0],
+      [
+        'US B0G9765J19 - animal-jokes (Ebook): $40.00',
+        'US B0G9765J19 - animal-jokes (Ebook KENP): $5.00',
+        'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 300',
+      ],
+    );
+    assert.deepEqual(
+      adsProfitChartCall.config.data.datasets[1].tooltipLinesByIndex[1],
+      [
+        'US B0G9765J19 - animal-jokes (Ebook): $12.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 250',
+      ],
+    );
+    assert.deepEqual(
+      adsProfitChartCall.config.data.datasets[3].tooltipLinesByIndex[1],
+      [
+        'US B0G9765J19 - animal-jokes (Ebook): $18.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $27.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 300',
+      ],
+    );
+    assert.equal(
+      adsProfitChartCall.config.data.datasets[2].tooltipLinesByIndex,
+      undefined,
+    );
+
+    const salesBreakdownChartCall = chartCalls.find((call) => call.canvasId === 'salesBreakdownChart');
+    assert.ok(salesBreakdownChartCall);
+
+    const datasets = salesBreakdownChartCall.config.data.datasets;
+    assert.deepEqual(datasets.map((dataset) => dataset.label), [
+      'Ads Sales (ads)',
+      'Matched Ads Sales',
+      'Unmatched Ads Sales',
+      'Reconciled Sales',
+    ]);
+    assert.equal(datasets[2].borderColor, '#c62828');
+    assert.equal(datasets[2].order, -10);
+    assert.deepEqual(datasets[0].data, [2, 3]);
+    assert.deepEqual(datasets[1].data, [2, 3]);
+    assert.deepEqual(datasets[2].data, [0, 3]);
+    assert.deepEqual(datasets[3].data, [3, 5]);
+    assert.deepEqual(datasets[0].tooltipLinesByIndex[0], [
+      'US B0G9765J19 - animal-jokes (Ebook): 2',
+      'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 300',
+    ]);
+    assert.deepEqual(datasets[1].tooltipLinesByIndex[1], [
+      'US B0G9765J19 - animal-jokes (Ebook): 2',
+      'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+      'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 250',
+    ]);
+    assert.deepEqual(datasets[2].tooltipLinesByIndex[0], []);
+    assert.deepEqual(
+      datasets[2].tooltipLinesByIndex[1],
       [
         'US B0G9765J19 - animal-jokes (Ebook): 2',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 120',
+      ],
+    );
+    assert.deepEqual(
+      datasets[3].tooltipLinesByIndex[1],
+      [
+        'US B0G9765J19 - animal-jokes (Ebook): 3',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): 2',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 300',
       ],
     );
 
-    const tooltipCallbacks = adsProfitChartCall.config.options.plugins.tooltip.callbacks;
+    const tooltipCallbacks = salesBreakdownChartCall.config.options.plugins.tooltip.callbacks;
     assert.deepEqual(
       tooltipCallbacks.afterLabel({
-        dataset: datasets[0],
+        dataset: datasets[2],
         dataIndex: 1,
       }),
       [
         'US B0G9765J19 - animal-jokes (Ebook): 2',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 120',
+      ],
+    );
+
+    const reconciledProfitChartCall = chartCalls.find(
+      (call) => call.canvasId === 'reconciledProfitTimelineChart',
+    );
+    assert.ok(reconciledProfitChartCall);
+    const reconciledDatasets = reconciledProfitChartCall.config.data.datasets;
+    assert.deepEqual(
+      reconciledDatasets[1].tooltipLinesByIndex[0],
+      [
+        'US B0G9765J19 - animal-jokes (Ebook): $40.00',
+        'US B0G9765J19 - animal-jokes (Ebook KENP): $5.00 (300)',
+      ],
+    );
+    assert.deepEqual(
+      reconciledDatasets[2].tooltipLinesByIndex[1],
+      [
+        'US B0G9765J19 - animal-jokes (Ebook): $24.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $30.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $8.00 (450)',
       ],
     );
   } finally {

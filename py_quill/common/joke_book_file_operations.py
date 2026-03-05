@@ -230,7 +230,7 @@ _EBOOK_EXPORT_PROFILE = BookExportProfile(
   jpeg_subsampling=2,
   jpeg_progressive=True,
   review_book_format=book_defs.BookFormat.EBOOK,
-  qr_label="Tap me!",
+  qr_label="Swipe left to review!",
   include_blank_page=False,
   page_number_position=BookPageNumberPosition.BOTTOM_RIGHT,
 )

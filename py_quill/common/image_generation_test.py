@@ -53,9 +53,11 @@ class GeneratePunImagesTest(unittest.TestCase):
   """Tests for pun setup/punchline image generation."""
 
   @patch('common.image_generation.generate_pun_image')
-  def test_punchline_includes_style_reference_images(self,
-                                                     mock_generate_pun_image):
-    """Punchline generation should include the same style refs as setup."""
+  def test_punchline_uses_setup_image_as_previous_image(
+    self,
+    mock_generate_pun_image,
+  ):
+    """Punchline generation should use setup output as prior panel reference."""
     # Arrange: return valid images (URLs required by generate_pun_images)
     mock_generate_pun_image.side_effect = [
       models.Image(
@@ -83,14 +85,13 @@ class GeneratePunImagesTest(unittest.TestCase):
     setup_call = mock_generate_pun_image.call_args_list[0]
     punchline_call = mock_generate_pun_image.call_args_list[1]
 
+    self.assertIsNone(setup_call.kwargs.get('previous_image'))
     self.assertEqual(
-      setup_call.kwargs.get('style_reference_images'),
-      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
+      punchline_call.kwargs.get('previous_image'),
+      'gs://example/setup.png',
     )
-    self.assertEqual(
-      punchline_call.kwargs.get('style_reference_images'),
-      constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
-    )
+    self.assertIsNone(setup_call.kwargs.get('style_reference_images'))
+    self.assertIsNone(punchline_call.kwargs.get('style_reference_images'))
 
 
 class GeneratePunImageTest(unittest.TestCase):

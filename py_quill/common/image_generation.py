@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from agents import constants
 from common import models, utils
 from services import cloud_storage, image_client
 
@@ -61,6 +60,30 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
   image_client.get_client(
     label="pun_image_high_15",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_5_HIGH,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "chatgpt_latest":
+  image_client.get_client(
+    label="pun_image_chatgpt_latest",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_LATEST,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "responses_low":
+  image_client.get_client(
+    label="pun_image_responses_low",
+    model=image_client.ImageModel.OPENAI_RESPONSES_API_LOW,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "responses_medium":
+  image_client.get_client(
+    label="pun_image_responses_medium",
+    model=image_client.ImageModel.OPENAI_RESPONSES_API_MEDIUM,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "responses_high":
+  image_client.get_client(
+    label="pun_image_responses_high",
+    model=image_client.ImageModel.OPENAI_RESPONSES_API_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "nano_banana_2_flash":

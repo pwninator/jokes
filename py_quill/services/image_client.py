@@ -17,6 +17,9 @@ from firebase_functions import logger
 from google import genai
 from google.genai import types as genai_types
 from openai import OpenAI
+from openai.types.responses import (response_input_image_param,
+                                    response_input_param,
+                                    response_input_text_param, tool_param)
 from PIL import Image
 from services import cloud_storage, firestore, image_editor
 
@@ -44,13 +47,17 @@ class ImageProvider(Enum):
   DUMMY_OUTPAINTER = "dummy_outpainter"
 
 
-OPEN_AI_RESPONSES_CHAT_MODEL_NAME = "gpt-4.1-mini"
+OPEN_AI_RESPONSES_CHAT_MODEL_NAME = "gpt-5"
 
 OTHER_TOKEN_COSTS = {
   "gpt-4.1-mini": {
     "input_tokens": 0.40 / 1_000_000,
     "output_tokens": 1.60 / 1_000_000,
-  }
+  },
+  "gpt-5": {
+    "input_tokens": 1.25 / 1_000_000,
+    "output_tokens": 10.00 / 1_000_000,
+  },
 }
 
 
@@ -176,6 +183,17 @@ class ImageModel(Enum):
   )
   OPENAI_GPT_IMAGE_1_5_HIGH = (
     "gpt-image-1.5",
+    {
+      "input_tokens": 8.00 / 1_000_000,
+      "output_tokens": 32.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "high"
+    },
+  )
+  OPENAI_GPT_IMAGE_LATEST = (
+    "chatgpt-image-latest",
     {
       "input_tokens": 8.00 / 1_000_000,
       "output_tokens": 32.00 / 1_000_000,
@@ -416,6 +434,7 @@ User UID: {user_uid}
 
     start_time = time.perf_counter()
 
+    # pylint: disable=assignment-from-no-return
     generation_result = self._generate_image_internal(
       prompt,
       reference_images,
@@ -517,6 +536,7 @@ User UID: {user_uid}
       raise ValueError("The provided image must have a gcs_uri.")
 
     start_time = time.perf_counter()
+    # pylint: disable=assignment-from-no-return
     upscaled_gcs_uri = self._upscale_image_internal(
       source_gcs_uri,
       upscale_factor=upscale_factor,
@@ -622,6 +642,7 @@ User UID: {user_uid}
     output_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
 
     start_time = time.perf_counter()
+    # pylint: disable=assignment-from-no-return
     outpainted_gcs_uri, usage_dict = self._outpaint_image_internal(
       pil_image,
       output_gcs_uri,
@@ -687,6 +708,7 @@ User UID: {user_uid}
     Returns:
       Image generation result.
     """
+    _ = (prompt, reference_images, user_uid, extra_log_data)
     raise NotImplementedError
 
   def _upscale_image_internal(
@@ -707,6 +729,7 @@ User UID: {user_uid}
     Returns:
       The GCS URI of the upscaled image.
     """
+    _ = (gcs_uri, upscale_factor, mime_type, compression_quality)
     raise NotImplementedError
 
   def _outpaint_image_internal(
@@ -735,6 +758,7 @@ User UID: {user_uid}
         - gcs_uri: The GCS URI of the outpainted image.
         - usage_dict: Dictionary of token/usage counts (e.g., {"images": 1}).
     """
+    _ = (input_image, output_gcs_uri, top, bottom, left, right, prompt)
     raise NotImplementedError
 
   def _outpaint_image_using_generate_image(
@@ -866,7 +890,7 @@ User UID: {user_uid}
     final_bytes = final_bytes_io.getvalue()
 
     print(f"Uploading outpainted image to GCS: {output_gcs_uri}")
-    cloud_storage.upload_bytes_to_gcs(
+    _ = cloud_storage.upload_bytes_to_gcs(
       final_bytes,
       output_gcs_uri,
       content_type="image/png",
@@ -925,8 +949,12 @@ class ImagenClient(ImageClient[genai.Client]):
     )
 
     # There should only be one image, since we only asked for one
-    response_image = response.generated_images[0].image
-    image_bytes = response_image.image_bytes
+    if not response.generated_images or not response.generated_images[0].image:
+      raise ValueError("No generated images returned from Imagen")
+
+    image_bytes = response.generated_images[0].image.image_bytes
+    if not image_bytes:
+      raise ValueError("No image bytes returned from Imagen")
 
     return _ImageGenerationResult(
       image=Image.open(BytesIO(image_bytes)),
@@ -959,6 +987,9 @@ class ImagenClient(ImageClient[genai.Client]):
         output_compression_quality=compression_quality,
       ),
     )
+    if not response.generated_images:
+      raise ValueError("No upscaled image returned from Imagen")
+
     upscaled_image = response.generated_images[0].image
 
     if not upscaled_image:
@@ -1021,7 +1052,7 @@ class ImagenClient(ImageClient[genai.Client]):
         mime_type="image/png",
       ),
       config=genai_types.MaskReferenceConfig(
-        mask_mode="MASK_MODE_USER_PROVIDED",
+        mask_mode=genai_types.MaskReferenceMode.MASK_MODE_USER_PROVIDED,
         mask_dilation=0.03,
       ),
     )
@@ -1032,7 +1063,8 @@ class ImagenClient(ImageClient[genai.Client]):
     response = self.model_client.models.edit_image(
       model=self.model.model_name,
       prompt=prompt or "",
-      reference_images=[raw_ref, mask_ref],
+      reference_images=[raw_ref,
+                        mask_ref],  # pyright: ignore[reportArgumentType]
       config=genai_types.EditImageConfig(
         edit_mode=genai_types.EditMode.EDIT_MODE_OUTPAINT,
         number_of_images=1,
@@ -1042,16 +1074,14 @@ class ImagenClient(ImageClient[genai.Client]):
     )
     logger.info(f"Outpainting response: {response}")
 
-    if not response.generated_images:
+    if not response.generated_images or not response.generated_images[0].image:
       raise ValueError("No outpainted image returned from Imagen 3")
 
-    generated = response.generated_images[0]
-    if not getattr(generated, "image", None) or not getattr(
-        generated.image, "gcs_uri", None):
-      raise ValueError(
-        "No image gcs_uri returned from Imagen 3 outpaint operation")
+    generated_image = response.generated_images[0].image
+    if not generated_image.gcs_uri:
+      raise ValueError("No image GCS URI returned from Imagen")
 
-    return generated.image.gcs_uri, {"images": 1}
+    return generated_image.gcs_uri, {"images": 1}
 
 
 class OpenAiImageClient(ImageClient[OpenAI]):
@@ -1079,17 +1109,9 @@ class OpenAiImageClient(ImageClient[OpenAI]):
   ) -> _ImageGenerationResult:
 
     quality = self.model.kwargs["quality"]
-    common_args = {
-      "model": self.model.model_name,
-      "prompt": prompt,
-      "output_format": "png",
-      "quality": quality,
-      "size": "1024x1024",
-      "background": "opaque",
-    }
 
     if reference_images:
-      reference_image_bytes = []
+      reference_image_bytes: list[tuple[str, BytesIO, str]] = []
       for i, img in enumerate(_get_reference_images(reference_images)):
         image_bytes = BytesIO()
         img.save(image_bytes, format="PNG")
@@ -1100,17 +1122,34 @@ class OpenAiImageClient(ImageClient[OpenAI]):
         f"Generating image with OpenAI ({self.model.model_name} - {quality}) with reference images"
       )
       result = self.model_client.images.edit(
-        **common_args,
         image=reference_image_bytes,
+        prompt=prompt,
+        model=self.model.model_name,
+        background="opaque",
+        input_fidelity="high",
+        output_format="png",
+        quality=quality,
+        size="1024x1024",
       )
 
     else:
       print(
         f"Generating image with OpenAI ({self.model.model_name} - {quality})")
-      result = self.model_client.images.generate(**common_args)
+      result = self.model_client.images.generate(
+        prompt=prompt,
+        model=self.model.model_name,
+        background="opaque",
+        output_format="png",
+        quality=quality,
+        size="1024x1024",
+      )
 
-    image_base64 = result.data[0].b64_json
-    image_bytes = base64.b64decode(image_base64)
+    if not result.data or not result.data[0].b64_json:
+      raise ValueError("No image data returned from OpenAI")
+    image_bytes = base64.b64decode(result.data[0].b64_json)
+
+    if not result.usage:
+      raise ValueError("No usage data returned from OpenAI")
 
     return _ImageGenerationResult(
       image=Image.open(BytesIO(image_bytes)),
@@ -1166,49 +1205,66 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
     extra_log_data: dict[str, Any] | None,
   ) -> _ImageGenerationResult:
 
-    request_inputs = []
+    request_inputs: list[response_input_param.ResponseInputItemParam] = []
     quality = self.model.kwargs["quality"]
 
-    # Reference images must be generation IDs from previous calls.
-    if reference_images:
-      for image_id in reference_images:
-        if not isinstance(image_id, str):
-          raise ValueError(
-            f"OpenAI Responses reference image must be a string, got {type(image_id)}"
-          )
-        request_inputs.append({
-          "type": "image_generation_call",
-          "id": image_id,
-        })
-      print(
-        f"Generating image with OpenAI Responses API ({self.model.model_name} - {quality}) with reference images"
-      )
-    else:
-      print(
-        f"Generating image with OpenAI Responses API ({self.model.model_name} - {quality})"
-      )
+    for img_url in _get_reference_image_urls(reference_images):
+      request_inputs.append(
+        response_input_param.Message(
+          role="user",
+          content=[
+            response_input_image_param.ResponseInputImageParam(
+              type="input_image",
+              image_url=img_url,
+              detail="high",
+            )
+          ]))
 
-    request_inputs.append({
-      "role":
-      "user",
-      "content": [{
-        "type":
-        "input_text",
-        "text":
-        f"Generate a square image with 1:1 aspect ratio: {prompt}"
-      }],
-    })
+    # Old code for passing reference images by ID.
+    # It doesn't work, but keeping it here for reference.
+    # if reference_images:
+    #   for image_id in reference_images:
+    #     if not isinstance(image_id, str):
+    #       raise ValueError(
+    #         f"OpenAI Responses reference image must be a string, got {type(image_id)}"
+    #       )
+    #     request_inputs.append(
+    #       response_input_param.ItemReference(
+    #         type="item_reference",
+    #         id=image_id,
+    #       ))
+    #   print(
+    #     f"Generating image with OpenAI Responses API ({self.model.model_name} - {quality}) with reference images"
+    #   )
+    # else:
+    #   print(
+    #     f"Generating image with OpenAI Responses API ({self.model.model_name} - {quality})"
+    #   )
+
+    request_inputs.append(
+      response_input_param.Message(
+        role="user",
+        content=[
+          response_input_text_param.ResponseInputTextParam(
+            type="input_text",
+            text=f"Generate a square image with 1:1 aspect ratio: {prompt}",
+          ),
+        ],
+      ))
 
     response = self.model_client.responses.create(
       model=OPEN_AI_RESPONSES_CHAT_MODEL_NAME,
       input=request_inputs,
-      tools=[{
-        "type": self.model.model_name,
-        "output_format": "png",
-        "quality": quality,
-        "size": "1024x1024",
-        "background": "opaque",
-      }],
+      tools=[
+        tool_param.ImageGeneration(
+          type="image_generation",
+          background="opaque",
+          input_fidelity="high",
+          output_format="png",
+          quality=quality,
+          size="1024x1024",
+        )
+      ],
     )
 
     image_generation_calls = [
@@ -1221,7 +1277,12 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
 
     image_generation_call = image_generation_calls[0]
     image_base64 = image_generation_call.result
+    if not image_base64:
+      raise ValueError("No image base64 returned from OpenAI")
     image_bytes = base64.b64decode(image_base64)
+
+    if not response.usage:
+      raise ValueError("No usage data returned from OpenAI")
 
     return _ImageGenerationResult(
       image=Image.open(BytesIO(image_bytes)),
@@ -1232,9 +1293,10 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
         # Tokens for the image generation
         "images": 1,
       },
-      custom_temp_data={
-        "image_generation_call_id": image_generation_call.id,
-      },
+      # This will be needed if we want to pass reference images by ID.
+      # custom_temp_data={
+      #   "image_generation_call_id": image_generation_call.id,
+      # },
     )
 
 
@@ -1269,7 +1331,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
     extra_log_data: dict[str, Any] | None,
   ) -> _ImageGenerationResult:
 
-    contents = []
+    contents: list[genai_types.ContentUnionDict] = []
 
     for img in _get_reference_images(reference_images):
       contents.append(img)
@@ -1296,15 +1358,17 @@ class GeminiImageClient(ImageClient[genai.Client]):
     )
     print(f"Gemini response:\n{response}")
 
+    if not response.candidates or not response.candidates[
+        0].content or not response.candidates[0].content.parts:
+      raise ValueError("No content returned from Gemini")
+
     image_bytes = None
-    thought_lines = []
+    thought_lines: list[str] = []
     for part in response.candidates[0].content.parts:
       if part.inline_data:
         image_bytes = part.inline_data.data
       elif part.text:
         thought_lines.append(part.text)
-      elif part.thought:
-        thought_lines.append(part.thought)
 
     if not image_bytes:
       raise ValueError("No image data returned from Gemini")
@@ -1314,7 +1378,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
       input_tokens = usage_metadata.prompt_token_count or 0
       output_text_tokens = usage_metadata.thoughts_token_count or 0
       output_image_tokens = sum(
-        detail.token_count
+        detail.token_count or 0
         for detail in usage_metadata.candidates_tokens_details or []
         if detail.modality == genai_types.Modality.IMAGE)
       logger.info(
@@ -1402,7 +1466,7 @@ class DummyOutpainterClient(ImageClient[None]):
     final_bytes = final_bytes_io.getvalue()
 
     print(f"Uploading outpainted image to GCS: {output_gcs_uri}")
-    cloud_storage.upload_bytes_to_gcs(
+    output_gcs_uri = cloud_storage.upload_bytes_to_gcs(
       final_bytes,
       output_gcs_uri,
       content_type="image/png",
@@ -1454,12 +1518,34 @@ def _get_reference_images(
     elif isinstance(image_data, str):
       img = cloud_storage.download_image_from_gcs(image_data)
     elif isinstance(image_data, models.Image):
+      if not image_data.gcs_uri:
+        raise ValueError(f"Image {image_data.key} has no GCS URI")
       img = cloud_storage.download_image_from_gcs(image_data.gcs_uri)
     else:
       raise ValueError(f"Invalid reference image type: {type(image_data)}")
     images.append(img)
 
   return images
+
+
+def _get_reference_image_urls(reference_images: list[Any] | None) -> list[str]:
+  """Get the reference image URLs from the list of images or GCS URIs."""
+  urls: list[str] = []
+  if not reference_images:
+    return urls
+
+  for image_data in reference_images:
+    if isinstance(image_data, str):
+      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(image_data)
+      urls.append(cloud_storage.get_public_cdn_url(gcs_uri))
+    elif isinstance(image_data, models.Image):
+      if not image_data.url:
+        raise ValueError(f"Image {image_data.key} has no URL")
+      urls.append(image_data.url)
+    else:
+      raise ValueError(f"Invalid reference image type: {type(image_data)}")
+
+  return urls
 
 
 @dataclass(frozen=True)

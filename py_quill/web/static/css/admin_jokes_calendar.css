@@ -132,8 +132,8 @@
 }
 
 .admin-jokes-calendar-day--today {
-  border-color: var(--color-primary, #25f71a);
-  box-shadow: 0 0 0 3px var(--color-primary, #25f71a);
+  border-color: #25f71a;
+  box-shadow: 0 0 0 3px #25f71a;
 }
 
 .admin-jokes-calendar-day--droppable {

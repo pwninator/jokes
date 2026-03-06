@@ -1015,6 +1015,9 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'chartData:' in html
   assert 'reconciledClickDateChartData:' in html
   assert 'id="modeSelector"' in html
+  assert 'id="modeSelector" type="hidden" value="Timeline"' in html
+  assert 'id="adsStatsModeTimelineButton"' in html
+  assert 'id="adsStatsModeDaysOfWeekButton"' in html
   assert 'id="adsStatsCreateEventToggleButton"' in html
   assert 'id="adsStatsCreateEventForm"' in html
   assert 'id="adsStatsEventDateInput"' in html
@@ -1031,8 +1034,8 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="stat-gross-profit"' in html
   assert 'id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden' in html
   assert '<canvas id="ctrChart"></canvas>' in html
-  assert '<option value="Timeline">Timeline</option>' in html
-  assert '<option value="Days of Week">Days of Week</option>' in html
+  assert 'id="adsStatsModeTimelineButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="true">Timeline</button>' in html
+  assert 'id="adsStatsModeDaysOfWeekButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="false">Days of Week</button>' in html
   assert 'class="ads-stats-filters-row"' in html
   assert "gap: 0;" in html
   assert "flex-wrap: wrap;" in html

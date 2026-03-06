@@ -16,7 +16,7 @@
 
 <section class="ads-stats-control-panel" aria-label="Ads stats controls">
   <div class="ads-stats-actions-row">
-    <button id="adsStatsCreateEventToggleButton" class="button-secondary text-button" type="button">Create Event</button>
+    <button id="adsStatsCreateEventToggleButton" class="button-secondary text-button" type="button" aria-controls="adsStatsCreateEventForm" aria-expanded="false">Create Event</button>
     <form id="kdpUploadForm" class="ads-stats-upload-form">
       <label class="sr-only" for="kdpFileInput">Upload KDP xlsx</label>
       <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
@@ -46,10 +46,11 @@
     </div>
     <div class="ads-stats-field ads-stats-field--narrow">
       <label for="modeSelector">Mode</label>
-      <select id="modeSelector">
-        <option value="Timeline">Timeline</option>
-        <option value="Days of Week">Days of Week</option>
-      </select>
+      <div class="ads-stats-mode-toggle" role="group" aria-label="Chart mode">
+        <button id="adsStatsModeTimelineButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="true">Timeline</button>
+        <button id="adsStatsModeDaysOfWeekButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="false">Days of Week</button>
+      </div>
+      <input id="modeSelector" type="hidden" value="Timeline">
     </div>
   </div>
 </section>
@@ -141,6 +142,23 @@
     flex-wrap: wrap;
     padding-top: 10px;
     border-top: 1px dashed var(--color-border);
+  }
+  .ads-stats-create-event-form[hidden] {
+    display: none;
+  }
+  .ads-stats-mode-toggle {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .ads-stats-mode-button {
+    width: 100%;
+    justify-content: center;
+  }
+  .ads-stats-mode-button[aria-pressed="true"] {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-text);
   }
   .ads-stats-event-field {
     width: min(220px, 100%);
@@ -293,6 +311,9 @@
     .ads-stats-upload-form input[type="file"] {
       width: 100%;
     }
+    .ads-stats-mode-toggle {
+      grid-template-columns: 1fr;
+    }
     .ads-stats-top-data-popup {
       left: 0;
       right: auto;
@@ -430,13 +451,66 @@
   const createEventTitleInput = document.getElementById('adsStatsEventTitleInput');
   const createEventSubmitButton = document.getElementById('adsStatsEventCreateButton');
   const createEventStatus = document.getElementById('adsStatsCreateEventStatus');
+  const modeSelectorInput = document.getElementById('modeSelector');
+  const modeTimelineButton = document.getElementById('adsStatsModeTimelineButton');
+  const modeDaysOfWeekButton = document.getElementById('adsStatsModeDaysOfWeekButton');
+
+  function setCreateEventToggleExpandedState(isExpanded) {
+    if (!createEventToggleButton) {
+      return;
+    }
+    createEventToggleButton.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+  }
+
+  function applyModeToggleState(modeValue) {
+    const selectedMode = modeValue === 'Days of Week' ? 'Days of Week' : 'Timeline';
+    if (modeTimelineButton) {
+      modeTimelineButton.setAttribute('aria-pressed', selectedMode === 'Timeline' ? 'true' : 'false');
+    }
+    if (modeDaysOfWeekButton) {
+      modeDaysOfWeekButton.setAttribute('aria-pressed', selectedMode === 'Days of Week' ? 'true' : 'false');
+    }
+  }
+
+  function updateMode(modeValue) {
+    if (!modeSelectorInput) {
+      return;
+    }
+    const selectedMode = modeValue === 'Days of Week' ? 'Days of Week' : 'Timeline';
+    const hasChanged = modeSelectorInput.value !== selectedMode;
+    modeSelectorInput.value = selectedMode;
+    applyModeToggleState(selectedMode);
+    if (hasChanged) {
+      modeSelectorInput.dispatchEvent(new Event('change'));
+    }
+  }
 
   if (createEventToggleButton && createEventForm) {
+    setCreateEventToggleExpandedState(!createEventForm.hidden);
     createEventToggleButton.addEventListener('click', () => {
-      createEventForm.hidden = !createEventForm.hidden;
-      if (!createEventForm.hidden && createEventDateInput) {
+      const isNowHidden = !createEventForm.hidden;
+      createEventForm.hidden = isNowHidden;
+      setCreateEventToggleExpandedState(!isNowHidden);
+      if (!isNowHidden && createEventDateInput) {
         createEventDateInput.focus();
       }
+    });
+  }
+
+  if (modeSelectorInput) {
+    applyModeToggleState(modeSelectorInput.value);
+    modeSelectorInput.addEventListener('change', () => {
+      applyModeToggleState(modeSelectorInput.value);
+    });
+  }
+  if (modeTimelineButton) {
+    modeTimelineButton.addEventListener('click', () => {
+      updateMode('Timeline');
+    });
+  }
+  if (modeDaysOfWeekButton) {
+    modeDaysOfWeekButton.addEventListener('click', () => {
+      updateMode('Days of Week');
     });
   }
 

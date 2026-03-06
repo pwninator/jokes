@@ -68,6 +68,7 @@ function createFakeAdsStatsDom(initialMode) {
     impressionsAndClicksChart: createFakeCanvas('impressionsAndClicksChart'),
     adsProfitBreakdownChart: createFakeCanvas('adsProfitBreakdownChart'),
     salesBreakdownChart: createFakeCanvas('salesBreakdownChart'),
+    kenpBreakdownChart: createFakeCanvas('kenpBreakdownChart'),
   };
   elements.campaignSelector.value = 'All';
   elements.modeSelector.value = initialMode;
@@ -1188,19 +1189,19 @@ test('initAdsStatsPage switches chart configs from line to bar in Days of Week m
       adsEvents: [],
     });
 
-    assert.equal(chartCalls.length, 7);
+    assert.equal(chartCalls.length, 8);
     assert.deepEqual(
       chartCalls.map((call) => call.config.type),
-      Array(7).fill('line'),
+      Array(8).fill('line'),
     );
 
     elements.modeSelector.value = DAYS_OF_WEEK_MODE;
     elements.modeSelector.dispatch('change');
 
-    assert.equal(chartCalls.length, 14);
+    assert.equal(chartCalls.length, 16);
     assert.deepEqual(
-      chartCalls.slice(-7).map((call) => call.config.type),
-      Array(7).fill('bar'),
+      chartCalls.slice(-8).map((call) => call.config.type),
+      Array(8).fill('bar'),
     );
   } finally {
     global.window = originalWindow;
@@ -1251,12 +1252,15 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       'Unmatched Ad Profit',
       'Reconciled Profit',
     ]);
+    assert.equal(adsProfitChartCall.config.data.datasets[0].borderColor, '#ef6c00');
+    assert.equal(adsProfitChartCall.config.data.datasets[1].borderColor, '#1565c0');
+    assert.equal(adsProfitChartCall.config.data.datasets[2].borderColor, '#c62828');
+    assert.equal(adsProfitChartCall.config.data.datasets[3].borderColor, '#2e7d32');
     assert.deepEqual(
       adsProfitChartCall.config.data.datasets[0].tooltipLinesByIndex[0],
       [
         'US B0G9765J19 - animal-jokes (Ebook): $40.00',
-        'US B0G9765J19 - animal-jokes (Ebook KENP): $5.00',
-        'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 300',
+        'US B0G9765J19 - animal-jokes (Ebook KENP): $5.00 (300)',
       ],
     );
     assert.deepEqual(
@@ -1264,8 +1268,7 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       [
         'US B0G9765J19 - animal-jokes (Ebook): $12.00',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 250',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (250)',
       ],
     );
     assert.deepEqual(
@@ -1273,8 +1276,7 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       [
         'US B0G9765J19 - animal-jokes (Ebook): $18.00',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): $27.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 300',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (300)',
       ],
     );
     assert.equal(
@@ -1294,18 +1296,19 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     ]);
     assert.equal(datasets[2].borderColor, '#c62828');
     assert.equal(datasets[2].order, -10);
+    assert.equal(datasets[0].borderColor, '#ef6c00');
+    assert.equal(datasets[1].borderColor, '#1565c0');
+    assert.equal(datasets[3].borderColor, '#2e7d32');
     assert.deepEqual(datasets[0].data, [2, 3]);
     assert.deepEqual(datasets[1].data, [2, 3]);
     assert.deepEqual(datasets[2].data, [0, 3]);
     assert.deepEqual(datasets[3].data, [3, 5]);
     assert.deepEqual(datasets[0].tooltipLinesByIndex[0], [
       'US B0G9765J19 - animal-jokes (Ebook): 2',
-      'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 300',
     ]);
     assert.deepEqual(datasets[1].tooltipLinesByIndex[1], [
       'US B0G9765J19 - animal-jokes (Ebook): 2',
       'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
-      'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 250',
     ]);
     assert.deepEqual(datasets[2].tooltipLinesByIndex[0], []);
     assert.deepEqual(
@@ -1313,7 +1316,6 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       [
         'US B0G9765J19 - animal-jokes (Ebook): 2',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 120',
       ],
     );
     assert.deepEqual(
@@ -1321,7 +1323,6 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       [
         'US B0G9765J19 - animal-jokes (Ebook): 3',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): 2',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 300',
       ],
     );
 
@@ -1334,9 +1335,32 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       [
         'US B0G9765J19 - animal-jokes (Ebook): 2',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 120',
       ],
     );
+
+    const kenpBreakdownChartCall = chartCalls.find((call) => call.canvasId === 'kenpBreakdownChart');
+    assert.ok(kenpBreakdownChartCall);
+    const kenpDatasets = kenpBreakdownChartCall.config.data.datasets;
+    assert.deepEqual(kenpDatasets.map((dataset) => dataset.label), [
+      'Ads KENP Pages (ads)',
+      'Matched KENP Pages',
+      'Unmatched KENP Pages',
+      'Reconciled KENP Pages',
+    ]);
+    assert.equal(kenpDatasets[0].borderColor, '#ef6c00');
+    assert.equal(kenpDatasets[1].borderColor, '#1565c0');
+    assert.equal(kenpDatasets[2].borderColor, '#c62828');
+    assert.equal(kenpDatasets[3].borderColor, '#2e7d32');
+    assert.deepEqual(kenpDatasets[0].data, [300, 450]);
+    assert.deepEqual(kenpDatasets[1].data, [200, 250]);
+    assert.deepEqual(kenpDatasets[2].data, [0, 120]);
+    assert.deepEqual(kenpDatasets[3].data, [220, 300]);
+    assert.deepEqual(kenpDatasets[0].tooltipLinesByIndex[0], [
+      'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 300',
+    ]);
+    assert.deepEqual(kenpDatasets[2].tooltipLinesByIndex[1], [
+      'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 120',
+    ]);
 
     const reconciledProfitChartCall = chartCalls.find(
       (call) => call.canvasId === 'reconciledProfitTimelineChart',

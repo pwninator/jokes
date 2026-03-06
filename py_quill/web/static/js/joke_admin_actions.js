@@ -648,10 +648,10 @@
       regenerateAllSubmitButton: document.getElementById('admin-regenerate-all-submit-button'),
       regenerateModal: document.getElementById('admin-regenerate-modal'),
       regenerateModalBackdrop: document.querySelector('[data-admin-regenerate-backdrop]'),
-      regenerateForm: document.getElementById('admin-regenerate-form'),
-      regenerateCancelButton: document.getElementById('admin-regenerate-cancel-button'),
       regenerateJokeIdInput: document.getElementById('admin-regenerate-joke-id'),
-      regenerateQualityInput: document.getElementById('admin-regenerate-quality'),
+      regenerateModelButtons: Array.from(
+        document.querySelectorAll('[data-admin-regenerate-model-button]'),
+      ),
       modifyModal: document.getElementById('admin-modify-joke-modal'),
       modifyModalBackdrop: document.querySelector('[data-admin-modify-joke-backdrop]'),
       modifyForm: document.getElementById('admin-modify-joke-form'),
@@ -991,6 +991,49 @@
       }
     }
 
+    async function sendRegenerateRequest(imageQuality) {
+      if (!elements.regenerateJokeIdInput) {
+        return;
+      }
+
+      const jokeId = elements.regenerateJokeIdInput.value;
+      if (!jokeId || !imageQuality) {
+        return;
+      }
+
+      const card = document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
+      closeModal(elements.regenerateModal);
+      if (card) {
+        setCardGenerating(card);
+      }
+
+      try {
+        const { response, json } = await postJokeCreationRequest(config.jokeCreationUrl, {
+          data: {
+            joke_id: jokeId,
+            image_quality: imageQuality,
+            populate_images: true,
+          },
+        });
+        const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
+        if (response.ok && jokeData && card) {
+          updateCardFromPayload(
+            card,
+            applyJokeDataToPayload(getEditPayloadFromCard(card), jokeData),
+          );
+        }
+        if (!response.ok) {
+          console.warn('regenerate images request failed', response.status); // eslint-disable-line no-console
+        }
+      } catch (error) {
+        console.warn('regenerate images request failed', error); // eslint-disable-line no-console
+      } finally {
+        if (card) {
+          setCardIdle(card);
+        }
+      }
+    }
+
     async function sendModifyRequest() {
       if (!elements.modifyJokeIdInput || !elements.modifySetupInstructionInput
           || !elements.modifyPunchlineInstructionInput) {
@@ -1181,11 +1224,6 @@
       }
     }
 
-    if (elements.regenerateCancelButton) {
-      elements.regenerateCancelButton.addEventListener('click', () => {
-        closeModal(elements.regenerateModal);
-      });
-    }
     if (elements.regenerateAllCancelButton) {
       elements.regenerateAllCancelButton.addEventListener('click', () => {
         closeModal(elements.regenerateAllModal);
@@ -1242,6 +1280,11 @@
         closeModal(elements.sceneIdeasModal);
       });
     }
+    elements.regenerateModelButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        sendRegenerateRequest(button.getAttribute('data-image-quality') || '');
+      });
+    });
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') {
@@ -1272,55 +1315,13 @@
       }
     });
 
-    if (elements.regenerateForm) {
-      elements.regenerateForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        if (!elements.regenerateJokeIdInput || !elements.regenerateQualityInput) {
-          return;
-        }
-
-        const jokeId = elements.regenerateJokeIdInput.value;
-        const card = document.querySelector(`.joke-card[data-joke-id="${jokeId}"]`);
-        closeModal(elements.regenerateModal);
-        if (card) {
-          setCardGenerating(card);
-        }
-
-        try {
-          const { response, json } = await postJokeCreationRequest(config.jokeCreationUrl, {
-            data: {
-              joke_id: jokeId,
-              image_quality: elements.regenerateQualityInput.value,
-              populate_images: true,
-            },
-          });
-          const jokeData = json && json.data && json.data.joke_data ? json.data.joke_data : null;
-          if (response.ok && jokeData && card) {
-            updateCardFromPayload(
-              card,
-              applyJokeDataToPayload(getEditPayloadFromCard(card), jokeData),
-            );
-          }
-          if (!response.ok) {
-            console.warn('regenerate images request failed', response.status); // eslint-disable-line no-console
-          }
-        } catch (error) {
-          console.warn('regenerate images request failed', error); // eslint-disable-line no-console
-        } finally {
-          if (card) {
-            setCardIdle(card);
-          }
-        }
-      });
-    }
-
     document.addEventListener('click', (event) => {
       const regenerateButton = closestFromEvent(event, '.joke-regenerate-button');
       if (regenerateButton) {
         const jokeId = regenerateButton.getAttribute('data-joke-id');
         if (jokeId) {
           setValue(elements.regenerateJokeIdInput, jokeId);
-          openModal(elements.regenerateModal, elements.regenerateQualityInput);
+          openModal(elements.regenerateModal, elements.regenerateModelButtons[0] || null);
         }
         return;
       }

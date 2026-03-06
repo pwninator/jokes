@@ -98,21 +98,21 @@
   <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="admin-regenerate-title">
     <h3 id="admin-regenerate-title" class="admin-modal__title text-section-heading">Regenerate Images</h3>
     <div class="admin-modal__content">
-      <form id="admin-regenerate-form">
-        <input type="hidden" id="admin-regenerate-joke-id" name="joke_id" value="">
-        <div class="admin-modal__field">
-          <label class="admin-modal__label" for="admin-regenerate-quality">Image Quality</label>
-          <select class="admin-modal__input" id="admin-regenerate-quality" name="image_quality">
-            {% for q in image_qualities | default([]) %}
-            <option value="{{ q }}"{% if q == 'medium_mini' %} selected{% endif %}>{{ q }}</option>
-            {% endfor %}
-          </select>
+      <input type="hidden" id="admin-regenerate-joke-id" name="joke_id" value="">
+      <div class="admin-modal__field">
+        <div class="admin-modal__label">Model</div>
+        <div class="admin-modal__model-options" aria-label="Available image models">
+          {% for q in image_qualities | default([]) %}
+          <button
+            type="button"
+            class="button-secondary text-button admin-modal__model-button"
+            data-admin-regenerate-model-button
+            data-image-quality="{{ q }}">
+            {{ q }}
+          </button>
+          {% endfor %}
         </div>
-        <div class="admin-modal__actions">
-          <button type="button" class="button-secondary text-button" id="admin-regenerate-cancel-button">Cancel</button>
-          <button type="submit" class="button-primary text-button" id="admin-regenerate-submit-button">Regenerate</button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 </div>

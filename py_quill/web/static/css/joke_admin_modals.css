@@ -230,6 +230,16 @@
   gap: 10px;
 }
 
+.admin-modal__model-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-modal__model-button {
+  min-width: 140px;
+}
+
 .admin-modal__state-option.joke-state-badge {
   position: static;
   min-width: 120px;

@@ -85,10 +85,13 @@ function buildEnvironment() {
   append(regenerateAllForm, new FakeElement({ id: 'admin-regenerate-all-cancel-button', tagName: 'button' }));
   const regenerateAllSubmitButton = append(regenerateAllForm, new FakeElement({ id: 'admin-regenerate-all-submit-button', tagName: 'button' }));
 
-  const regenerateForm = append(regenerateModalBundle.modal, new FakeElement({ id: 'admin-regenerate-form', tagName: 'form' }));
-  const regenerateJokeId = append(regenerateForm, new FakeElement({ id: 'admin-regenerate-joke-id', tagName: 'input' }));
-  const regenerateQuality = append(regenerateForm, new FakeElement({ id: 'admin-regenerate-quality', tagName: 'select' }));
-  append(regenerateForm, new FakeElement({ id: 'admin-regenerate-cancel-button', tagName: 'button' }));
+  const regenerateJokeId = append(regenerateModalBundle.modal, new FakeElement({ id: 'admin-regenerate-joke-id', tagName: 'input' }));
+  const regenerateModelButtonA = append(regenerateModalBundle.modal, new FakeElement({ tagName: 'button' }));
+  regenerateModelButtonA.setAttribute('data-admin-regenerate-model-button', '');
+  regenerateModelButtonA.setAttribute('data-image-quality', 'medium_mini');
+  const regenerateModelButtonB = append(regenerateModalBundle.modal, new FakeElement({ tagName: 'button' }));
+  regenerateModelButtonB.setAttribute('data-admin-regenerate-model-button', '');
+  regenerateModelButtonB.setAttribute('data-image-quality', 'high');
 
   const modifyForm = append(modifyModalBundle.modal, new FakeElement({ id: 'admin-modify-joke-form', tagName: 'form' }));
   const modifyJokeId = append(modifyForm, new FakeElement({ id: 'admin-modify-joke-id', tagName: 'input' }));
@@ -196,13 +199,14 @@ function buildEnvironment() {
       editRegenerateButton,
       editRegenerateAllButton,
       editSceneIdeasButton,
+      regenerateModal: regenerateModalBundle.modal,
       regenerateAllModal: regenerateAllModalBundle.modal,
       regenerateAllForm,
       regenerateAllSubmitButton,
       regenerateButton,
-      regenerateForm,
       regenerateJokeId,
-      regenerateQuality,
+      regenerateModelButtonA,
+      regenerateModelButtonB,
       modifyModal: modifyModalBundle.modal,
       modifyForm,
       modifyIcon,
@@ -638,7 +642,7 @@ test('regenerate all confirmation omits unchanged text fields and refreshes the 
         populate_images: true,
       },
     });
-    assert.equal(env.elements.regenerateAllModal.classList.contains('admin-modal--open'), false);
+    assert.equal(env.elements.regenerateModal.classList.contains('admin-modal--open'), false);
     assert.equal(env.elements.setupMedia.querySelector('img').src, 'https://example.com/setup-all.png');
     assert.equal(env.elements.punchlineMedia.querySelector('img').src, 'https://example.com/punchline-all.png');
   } finally {
@@ -691,7 +695,47 @@ test('regenerate button opens modal and stores joke id', { concurrency: false },
     await env.document.dispatch('click', { target: env.elements.regenerateButton });
 
     assert.equal(env.elements.regenerateJokeId.value, 'joke-1');
-    assert.equal(env.elements.regenerateQuality.focused, true);
+    assert.equal(env.elements.regenerateModelButtonA.focused, true);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('regenerate model button sends request immediately and closes modal', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+    await env.document.dispatch('click', { target: env.elements.regenerateButton });
+
+    env.fetchMock.enqueue(createFetchResponse({
+      json: {
+        data: {
+          joke_data: {
+            key: 'joke-1',
+            setup_text: 'Old setup',
+            punchline_text: 'Old punchline',
+            setup_image_url: 'https://example.com/setup-regenerated.png',
+            punchline_image_url: 'https://example.com/punchline-regenerated.png',
+            all_setup_image_urls: ['https://example.com/setup-regenerated.png'],
+            all_punchline_image_urls: ['https://example.com/punchline-regenerated.png'],
+          },
+        },
+      },
+    }));
+
+    await env.elements.regenerateModelButtonB.dispatch('click');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(JSON.parse(env.fetchMock.calls[0].options.body), {
+      data: {
+        joke_id: 'joke-1',
+        image_quality: 'high',
+        populate_images: true,
+      },
+    });
+    assert.equal(env.elements.regenerateAllModal.classList.contains('admin-modal--open'), false);
+    assert.equal(env.elements.setupMedia.querySelector('img').src, 'https://example.com/setup-regenerated.png');
+    assert.equal(env.elements.punchlineMedia.querySelector('img').src, 'https://example.com/punchline-regenerated.png');
   } finally {
     env.cleanup();
   }

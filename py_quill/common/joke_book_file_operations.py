@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import datetime
 import enum
-import importlib
 import zipfile
 from dataclasses import dataclass
 from functools import lru_cache
 from io import BytesIO
 from typing import Any, cast
 
+import qrcode
 import requests
 from common import amazon_redirect, book_defs, models
 from firebase_functions import logger
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from google.cloud.firestore_v1.document import DocumentReference
 from PIL import Image, ImageDraw, ImageFont
+from qrcode import constants as qrcode_constants
 from services import cloud_storage, firestore, image_editor, pdf_client
 
 _KDP_PRINT_COLOR_MODE = 'RGB'
@@ -38,7 +39,7 @@ _PAGE_NUMBER_FONT_SIZE_RATIO = 0.2 / _PAPERBACK_SIZE_INCHES
 _QR_CODE_CTA_FONT_SIZE_RATIO = 0.2 / _PAPERBACK_SIZE_INCHES
 _PAGE_NUMBER_EDGE_OFFSET_RATIO = 0.4375 / _PAPERBACK_SIZE_INCHES
 _BOOK_REVIEW_QR_X_RATIO = 1.35 / _PAPERBACK_SIZE_INCHES
-_BOOK_REVIEW_QR_Y_RATIO = 4.45 / _PAPERBACK_SIZE_INCHES
+_BOOK_REVIEW_QR_Y_RATIO = 4.25 / _PAPERBACK_SIZE_INCHES
 _BOOK_REVIEW_QR_SIZE_RATIO = 1.0 / _PAPERBACK_SIZE_INCHES
 _BOOK_REVIEW_QR_LABEL_MARGIN_TOP_RATIO = 0.01 / _PAPERBACK_SIZE_INCHES
 
@@ -368,17 +369,11 @@ def _create_qr_code_image(
   size_px: int,
 ) -> Image.Image:
   """Create a square QR code image for the provided content."""
-  try:
-    qr_module: Any = importlib.import_module('qrcode')
-  except ImportError as exc:  # pragma: no cover
-    raise RuntimeError(
-      'qrcode dependency is required for book review QR codes') from exc
-
-  qr = qr_module.QRCode(
+  qr = qrcode.QRCode(
     version=None,
-    error_correction=qr_module.constants.ERROR_CORRECT_M,
-    box_size=10,
-    border=4,
+    error_correction=qrcode_constants.ERROR_CORRECT_M,
+    box_size=10,  # pixels per box
+    border=3,  # number of boxes
   )
   qr.add_data(content)
   qr.make(fit=True)

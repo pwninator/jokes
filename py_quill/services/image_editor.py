@@ -217,25 +217,58 @@ class ImageEditor:
   def enhance_image(
     self,
     image: Image.Image,
-    histogram_strength: float = 1.0,
-    soft_clip_base: float = 0.0,
-    strong_clip_base: float = 4.0,
-    edge_threshold: int = 150,
-    mask_blur_ksize: int = 35,
-    saturation_boost: float = 1.3,
-    contrast_alpha: float = 1.05,
-    brightness_beta: float = 5.0,
-    sharpen_amount: float = 1.0,
+    soft_clip_base: float = 0.6,
+    strong_clip_base: float = 1.8,
+    edge_threshold: int = 180,
+    mask_blur_ksize: int = 21,
+    saturation_boost: float = 1.15,
+    contrast_alpha: float = 1.01,
+    brightness_beta: float = 8.0,
+    sharpen_amount: float = 0.25,
   ) -> Image.Image:
-    """Enhance image quality using robust white balance, CLAHE, and adjustments.
+    """Enhance image quality with local contrast, color, tone, and sharpening.
 
-    Applies the following enhancements:
-    1. Robust White Balance (Top 2% percentile - "White Patch")
-    2. CLAHE (Contrast Limited Adaptive Histogram Equalization)
-    3. Small saturation enhancement
-    4. Small contrast enhancement
-    5. Small brightness enhancement
-    6. Sharpening
+    Args:
+      image: Input PIL image. The output image keeps the same color mode.
+
+      soft_clip_base: CLAHE clip limit for low-detail regions.
+        Higher values add local contrast in flat areas (paper/background), but
+        can make those areas look noisy. Lower values keep flat areas cleaner.
+        Reasonable range: 0.0 to 1.0.
+
+      strong_clip_base: CLAHE clip limit for detail-heavy regions.
+        Higher values increase edge punch and perceived sharpness, but can look
+        crunchy or heavy.
+        Reasonable range: 1.0 to 4.0.
+
+      edge_threshold: Sobel threshold used to classify detailed pixels.
+        Lower values apply strong CLAHE to more of the image. Higher values
+        limit strong CLAHE to stronger edges only.
+        Reasonable range: 120 to 220.
+
+      mask_blur_ksize: Odd Gaussian kernel size for smoothing the detail mask.
+        Larger values soften transitions between soft/strong CLAHE; smaller
+        values create harder transitions and potential halos.
+        Reasonable range: 9 to 41 (odd integers).
+
+      saturation_boost: Multiplier on HSV saturation.
+        Values above 1.0 increase color vividness. Very high values can clip
+        and look neon; values below 1.0 reduce saturation.
+        Reasonable range: 1.0 to 1.3.
+
+      contrast_alpha: Global contrast scale in convertScaleAbs.
+        Higher values increase tonal separation; lower values keep a lighter,
+        gentler look.
+        Reasonable range: 1.0 to 1.1.
+
+      brightness_beta: Global brightness offset in convertScaleAbs.
+        Positive values brighten the image. Too high can wash highlights.
+        Reasonable range: 0.0 to 12.0.
+
+      sharpen_amount: Unsharp-mask strength.
+        0.0 disables sharpening. Higher values increase edge crispness but can
+        amplify noise and ringing around high-contrast lines.
+        Reasonable range: 0.0 to 1.0.
     """
     original_mode = image.mode
 
@@ -265,7 +298,6 @@ class ImageEditor:
     # result = self._robust_white_balance(result)
     result = self._apply_smart_clahe_hybrid(
       result,
-      strength=histogram_strength,
       soft_clip_base=soft_clip_base,
       strong_clip_base=strong_clip_base,
       edge_threshold=edge_threshold,
@@ -345,7 +377,6 @@ class ImageEditor:
   def _apply_smart_clahe_hybrid(
     self,
     img_bgr: Any,
-    strength: float,
     soft_clip_base: float,
     strong_clip_base: float,
     edge_threshold: int,
@@ -355,7 +386,6 @@ class ImageEditor:
 
     Args:
       img_bgr: Input image in BGR format as numpy array.
-      strength: Multiplier applied to base clip limits.
       soft_clip_base: Base CLAHE clip limit for soft regions.
       strong_clip_base: Base CLAHE clip limit for detailed regions.
       edge_threshold: Sobel magnitude threshold for the detail mask.
@@ -369,8 +399,8 @@ class ImageEditor:
     l, a, b = cv2.split(lab)
 
     # Scale clip limits
-    soft_clip = soft_clip_base * strength
-    strong_clip = max(0.1, strong_clip_base * strength)
+    soft_clip = soft_clip_base
+    strong_clip = max(0.1, strong_clip_base)
 
     # 2. Generate soft and strong CLAHE versions
     if soft_clip <= 0.0001:

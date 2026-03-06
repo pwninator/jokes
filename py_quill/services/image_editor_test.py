@@ -112,7 +112,6 @@ class ImageEditorTest(unittest.TestCase):
     # soft_clip_base=0 should skip the soft CLAHE branch gracefully
     enhanced = self.editor.enhance_image(
       img,
-      histogram_strength=1.0,
       soft_clip_base=0.0,
     )
     self.assertEqual(enhanced.size, (80, 60))

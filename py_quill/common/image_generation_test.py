@@ -7,6 +7,59 @@ from common import image_generation, models
 from agents import constants
 
 
+class ImageQualityGroupsTest(unittest.TestCase):
+  """Tests for grouping image qualities for admin model buttons."""
+
+  def test_groups_by_client_class_and_model_name(self):
+    class MockImageModel:
+
+      def __init__(self, model_name: str):
+        self.model_name = model_name
+
+    class AlphaClient:
+
+      def __init__(self, model_name: str):
+        self.model = MockImageModel(model_name)
+
+    class BetaClient:
+
+      def __init__(self, model_name: str):
+        self.model = MockImageModel(model_name)
+
+    fake_clients = {
+      "alpha_low": AlphaClient("model-a"),
+      "alpha_high": AlphaClient("model-a"),
+      "alpha_next": AlphaClient("model-a-next"),
+      "beta_low": BetaClient("model-a"),
+    }
+
+    with patch.object(image_generation, "PUN_IMAGE_CLIENTS_BY_QUALITY",
+                      fake_clients):
+      groups = image_generation.get_image_quality_groups_by_client_and_model_name(
+      )
+
+    self.assertEqual(
+      groups,
+      [
+        {
+          "client_class_name": "AlphaClient",
+          "model_name": "model-a",
+          "image_qualities": ["alpha_low", "alpha_high"],
+        },
+        {
+          "client_class_name": "AlphaClient",
+          "model_name": "model-a-next",
+          "image_qualities": ["alpha_next"],
+        },
+        {
+          "client_class_name": "BetaClient",
+          "model_name": "model-a",
+          "image_qualities": ["beta_low"],
+        },
+      ],
+    )
+
+
 class ModifyImageTest(unittest.TestCase):
   """Tests for the modify_image function."""
 

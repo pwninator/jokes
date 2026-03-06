@@ -102,14 +102,26 @@
       <div class="admin-modal__field">
         <div class="admin-modal__label">Model</div>
         <div class="admin-modal__model-options" aria-label="Available image models">
-          {% for q in image_qualities | default([]) %}
-          <button
-            type="button"
-            class="button-secondary text-button admin-modal__model-button"
-            data-admin-regenerate-model-button
-            data-image-quality="{{ q }}">
-            {{ q }}
-          </button>
+          {% for model_group in image_quality_groups | default([]) %}
+          {% set model_class_name = model_group.client_class_name %}
+          {% set model_name = model_group.model_name %}
+          {% set model_names = model_group.image_qualities | default([]) %}
+          {% if model_names %}
+          <div class="admin-modal__model-row"
+            data-image-client-class="{{ model_class_name }}"
+            data-image-model-name="{{ model_name }}"
+            data-image-client-model-group="{{ model_class_name }}::{{ model_name }}">
+            {% for image_quality in model_names %}
+            <button
+              type="button"
+              class="button-secondary text-button admin-modal__model-button"
+              data-admin-regenerate-model-button="true"
+              data-image-quality="{{ image_quality }}">
+              {{ image_quality }}
+            </button>
+            {% endfor %}
+          </div>
+          {% endif %}
           {% endfor %}
         </div>
       </div>

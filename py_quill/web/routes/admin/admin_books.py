@@ -339,7 +339,8 @@ def admin_joke_book_detail(book_id: str):
     update_associated_book_url=flask.url_for(
       'web.admin_joke_book_update_associated_book'),
     joke_creation_url=utils.joke_creation_url(),
-    image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
+    image_quality_groups=(
+      image_generation.get_image_quality_groups_by_client_and_model_name()),
     book_total_cost=total_book_cost if joke_rows else None,
     site_name='Snickerdoodle',
   )

@@ -160,6 +160,8 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "/admin/joke-books/update-page" in html
   assert "/admin/joke-books/set-main-image" in html
   assert "/admin/joke-books/update-associated-book" in html
+  assert 'data-image-client-model-group=' in html
+  assert 'data-admin-regenerate-model-button="true"' in html
 
 
 def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):

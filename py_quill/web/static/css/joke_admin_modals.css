@@ -232,12 +232,18 @@
 
 .admin-modal__model-options {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-modal__model-row {
+  display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
 .admin-modal__model-button {
-  min-width: 140px;
+  min-width: 132px;
 }
 
 .admin-modal__state-option.joke-state-badge {

@@ -26,12 +26,6 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
-  "low":
-  image_client.get_client(
-    label="pun_image_low_mini",
-    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_LOW,
-    file_name_base=_IMAGE_FILE_NAME_BASE,
-  ),
   "medium":
   image_client.get_client(
     label="pun_image_medium",
@@ -239,7 +233,7 @@ def generate_pun_image(
     client = image_client_override
   else:
     if utils.is_emulator():
-      client = PUN_IMAGE_CLIENTS_BY_QUALITY["low"]
+      client = PUN_IMAGE_CLIENTS_BY_QUALITY["low_mini"]
     elif image_quality in PUN_IMAGE_CLIENTS_BY_QUALITY:
       client = PUN_IMAGE_CLIENTS_BY_QUALITY[image_quality]
     else:
@@ -293,3 +287,21 @@ def modify_image(
       f"Failed to generate image for instruction: {instruction}")
 
   return new_image
+
+
+def get_image_quality_groups_by_client_and_model_name(
+) -> list[dict[str, object]]:
+  """Group image quality keys by client class + model_name."""
+  groups_by_key: dict[tuple[str, str], list[str]] = {}
+  for image_quality, client in PUN_IMAGE_CLIENTS_BY_QUALITY.items():
+    client_class_name = client.__class__.__name__
+    model_name = str(client.model.model_name)
+    key = (client_class_name, model_name)
+    groups_by_key.setdefault(key, []).append(image_quality)
+
+  return [{
+    "client_class_name": client_class_name,
+    "model_name": model_name,
+    "image_qualities": image_qualities,
+  } for (client_class_name,
+         model_name), image_qualities in groups_by_key.items()]

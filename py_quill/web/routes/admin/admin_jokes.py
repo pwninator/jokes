@@ -79,7 +79,8 @@ def admin_jokes():
     next_cursor=next_cursor,
     has_more=next_cursor is not None,
     image_size=_JOKE_IMAGE_SIZE,
-    image_qualities=list(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys()),
+    image_quality_groups=(
+      image_generation.get_image_quality_groups_by_client_and_model_name()),
   )
 
 

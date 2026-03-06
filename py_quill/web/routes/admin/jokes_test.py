@@ -159,6 +159,90 @@ def test_admin_jokes_custom_filters(monkeypatch):
   assert kwargs["category_id"] is None
 
 
+def test_admin_jokes_regenerate_models_grouped_by_client_and_model_name(
+    monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  class MockImageModel:
+
+    def __init__(self, model_name: str):
+      self.model_name = model_name
+
+  class AlphaClient:
+
+    def __init__(self, model_name: str):
+      self.model = MockImageModel(model_name)
+
+  class BetaClient:
+
+    def __init__(self, model_name: str):
+      self.model = MockImageModel(model_name)
+
+  class GammaClient:
+
+    def __init__(self, model_name: str):
+      self.model = MockImageModel(model_name)
+
+  monkeypatch.setattr(
+    admin_jokes_routes.image_generation,
+    "PUN_IMAGE_CLIENTS_BY_QUALITY",
+    {
+      "alpha_low": AlphaClient("model-alpha"),
+      "alpha_high": AlphaClient("model-alpha"),
+      "alpha_next": AlphaClient("model-alpha-next"),
+      "beta_only": BetaClient("model-alpha"),
+      "gamma_only": GammaClient("model-gamma"),
+    },
+  )
+  monkeypatch.setattr(
+    admin_jokes_routes.firestore,
+    "get_joke_by_state",
+    Mock(return_value=([], None)),
+  )
+  monkeypatch.setattr(
+    admin_jokes_routes.firestore,
+    "get_all_joke_categories",
+    Mock(return_value=[]),
+  )
+
+  with app.test_client() as client:
+    resp = client.get("/admin/jokes")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  alpha_model_row_start = html.find(
+    'data-image-client-model-group="AlphaClient::model-alpha"')
+  alpha_next_model_row_start = html.find(
+    'data-image-client-model-group="AlphaClient::model-alpha-next"')
+  beta_model_row_start = html.find(
+    'data-image-client-model-group="BetaClient::model-alpha"')
+  gamma_model_row_start = html.find(
+    'data-image-client-model-group="GammaClient::model-gamma"')
+  assert alpha_model_row_start != -1
+  assert alpha_next_model_row_start != -1
+  assert beta_model_row_start != -1
+  assert gamma_model_row_start != -1
+  assert (alpha_model_row_start < alpha_next_model_row_start < beta_model_row_start
+          < gamma_model_row_start)
+
+  alpha_low = html.find('data-image-quality="alpha_low"')
+  alpha_high = html.find('data-image-quality="alpha_high"')
+  alpha_next = html.find('data-image-quality="alpha_next"')
+  beta_only = html.find('data-image-quality="beta_only"')
+  gamma_only = html.find('data-image-quality="gamma_only"')
+  assert alpha_low != -1
+  assert alpha_high != -1
+  assert alpha_next != -1
+  assert beta_only != -1
+  assert gamma_only != -1
+  assert alpha_model_row_start < alpha_low < alpha_next_model_row_start
+  assert alpha_model_row_start < alpha_high < alpha_next_model_row_start
+  assert alpha_next_model_row_start < alpha_next < beta_model_row_start
+  assert beta_model_row_start < beta_only < gamma_model_row_start
+  assert gamma_model_row_start < gamma_only
+
+
 def test_admin_jokes_category_filter(monkeypatch):
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)

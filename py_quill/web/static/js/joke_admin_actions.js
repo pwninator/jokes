@@ -649,9 +649,6 @@
       regenerateModal: document.getElementById('admin-regenerate-modal'),
       regenerateModalBackdrop: document.querySelector('[data-admin-regenerate-backdrop]'),
       regenerateJokeIdInput: document.getElementById('admin-regenerate-joke-id'),
-      regenerateModelButtons: Array.from(
-        document.querySelectorAll('[data-admin-regenerate-model-button]'),
-      ),
       modifyModal: document.getElementById('admin-modify-joke-modal'),
       modifyModalBackdrop: document.querySelector('[data-admin-modify-joke-backdrop]'),
       modifyForm: document.getElementById('admin-modify-joke-form'),
@@ -767,6 +764,13 @@
           ? GENERATING_LABEL
           : 'Generate Image Descriptions';
       }
+    }
+
+    function getFirstRegenerateModelButton() {
+      if (!elements.regenerateModal) {
+        return null;
+      }
+      return elements.regenerateModal.querySelector('[data-admin-regenerate-model-button]');
     }
 
     function selectSetupImage(url) {
@@ -1280,11 +1284,6 @@
         closeModal(elements.sceneIdeasModal);
       });
     }
-    elements.regenerateModelButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        sendRegenerateRequest(button.getAttribute('data-image-quality') || '');
-      });
-    });
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') {
@@ -1316,12 +1315,18 @@
     });
 
     document.addEventListener('click', (event) => {
+      const regenerateModelButton = closestFromEvent(event, '[data-admin-regenerate-model-button]');
+      if (regenerateModelButton) {
+        sendRegenerateRequest(regenerateModelButton.getAttribute('data-image-quality') || '');
+        return;
+      }
+
       const regenerateButton = closestFromEvent(event, '.joke-regenerate-button');
       if (regenerateButton) {
         const jokeId = regenerateButton.getAttribute('data-joke-id');
         if (jokeId) {
           setValue(elements.regenerateJokeIdInput, jokeId);
-          openModal(elements.regenerateModal, elements.regenerateModelButtons[0] || null);
+          openModal(elements.regenerateModal, getFirstRegenerateModelButton());
         }
         return;
       }

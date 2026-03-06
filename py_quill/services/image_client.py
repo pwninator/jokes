@@ -16,7 +16,7 @@ from common import config, models
 from firebase_functions import logger
 from google import genai
 from google.genai import types as genai_types
-from openai import OpenAI
+from openai import NOT_GIVEN, OpenAI
 from openai.types.responses import (response_input_image_param,
                                     response_input_param,
                                     response_input_text_param, tool_param)
@@ -123,6 +123,41 @@ class ImageModel(Enum):
     ImageProvider.IMAGEN,
   )
 
+  # https://platform.openai.com/docs/models/gpt-image-1-mini
+  OPENAI_GPT_IMAGE_1_MINI_LOW = (
+    "gpt-image-1-mini",
+    {
+      "input_tokens": 2.50 / 1_000_000,
+      "output_tokens": 8.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "low"
+    },
+  )
+  OPENAI_GPT_IMAGE_1_MINI_MEDIUM = (
+    "gpt-image-1-mini",
+    {
+      "input_tokens": 2.50 / 1_000_000,
+      "output_tokens": 8.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "medium"
+    },
+  )
+  OPENAI_GPT_IMAGE_1_MINI_HIGH = (
+    "gpt-image-1-mini",
+    {
+      "input_tokens": 2.50 / 1_000_000,
+      "output_tokens": 8.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "high"
+    },
+  )
+
   # https://platform.openai.com/docs/models/gpt-image-1
   OPENAI_GPT_IMAGE_1_LOW = (
     "gpt-image-1",
@@ -203,42 +238,6 @@ class ImageModel(Enum):
       "quality": "high"
     },
   )
-
-  # https://platform.openai.com/docs/models/gpt-image-1-mini
-  OPENAI_GPT_IMAGE_1_MINI_LOW = (
-    "gpt-image-1-mini",
-    {
-      "input_tokens": 2.50 / 1_000_000,
-      "output_tokens": 8.00 / 1_000_000,
-    },
-    ImageProvider.OPENAI_IMAGES,
-    {
-      "quality": "low"
-    },
-  )
-  OPENAI_GPT_IMAGE_1_MINI_MEDIUM = (
-    "gpt-image-1-mini",
-    {
-      "input_tokens": 2.50 / 1_000_000,
-      "output_tokens": 8.00 / 1_000_000,
-    },
-    ImageProvider.OPENAI_IMAGES,
-    {
-      "quality": "medium"
-    },
-  )
-  OPENAI_GPT_IMAGE_1_MINI_HIGH = (
-    "gpt-image-1-mini",
-    {
-      "input_tokens": 2.50 / 1_000_000,
-      "output_tokens": 8.00 / 1_000_000,
-    },
-    ImageProvider.OPENAI_IMAGES,
-    {
-      "quality": "high"
-    },
-  )
-
   # https://platform.openai.com/docs/pricing
   # https://platform.openai.com/docs/models/gpt-image-1
   OPENAI_RESPONSES_API_LOW = (
@@ -1121,12 +1120,14 @@ class OpenAiImageClient(ImageClient[OpenAI]):
       print(
         f"Generating image with OpenAI ({self.model.model_name} - {quality}) with reference images"
       )
+      # gpt-image-1-mini doesn't support input_fidelity
+      input_fidelity = "high" if self.model.model_name != "gpt-image-1-mini" else NOT_GIVEN
       result = self.model_client.images.edit(
         image=reference_image_bytes,
         prompt=prompt,
         model=self.model.model_name,
         background="opaque",
-        input_fidelity="high",
+        input_fidelity=input_fidelity,
         output_format="png",
         quality=quality,
         size="1024x1024",

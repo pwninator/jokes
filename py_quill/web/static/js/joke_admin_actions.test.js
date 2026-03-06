@@ -87,10 +87,10 @@ function buildEnvironment() {
 
   const regenerateJokeId = append(regenerateModalBundle.modal, new FakeElement({ id: 'admin-regenerate-joke-id', tagName: 'input' }));
   const regenerateModelButtonA = append(regenerateModalBundle.modal, new FakeElement({ tagName: 'button' }));
-  regenerateModelButtonA.setAttribute('data-admin-regenerate-model-button', '');
+  regenerateModelButtonA.setAttribute('data-admin-regenerate-model-button', 'true');
   regenerateModelButtonA.setAttribute('data-image-quality', 'medium_mini');
   const regenerateModelButtonB = append(regenerateModalBundle.modal, new FakeElement({ tagName: 'button' }));
-  regenerateModelButtonB.setAttribute('data-admin-regenerate-model-button', '');
+  regenerateModelButtonB.setAttribute('data-admin-regenerate-model-button', 'true');
   regenerateModelButtonB.setAttribute('data-image-quality', 'high');
 
   const modifyForm = append(modifyModalBundle.modal, new FakeElement({ id: 'admin-modify-joke-form', tagName: 'form' }));
@@ -723,7 +723,7 @@ test('regenerate model button sends request immediately and closes modal', { con
       },
     }));
 
-    await env.elements.regenerateModelButtonB.dispatch('click');
+    await env.document.dispatch('click', { target: env.elements.regenerateModelButtonB });
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.deepEqual(JSON.parse(env.fetchMock.calls[0].options.body), {

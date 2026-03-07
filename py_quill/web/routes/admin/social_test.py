@@ -255,6 +255,7 @@ def test_admin_social_renders_video_preview(monkeypatch):
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
     link_url="https://snickerdoodlejokes.com/jokes/video",
+    pinterest_image_urls=["https://example.com/reel-preview.png"],
     pinterest_video_gcs_uri="gs://bucket/social/video.mp4",
     instagram_video_gcs_uri="gs://bucket/social/video.mp4",
     facebook_video_gcs_uri="gs://bucket/social/video.mp4",
@@ -295,5 +296,14 @@ def test_admin_social_renders_video_preview(monkeypatch):
   assert 'data-instagram-video-gcs-uri="gs://bucket/social/video.mp4"' in html
   assert 'data-facebook-video-gcs-uri="gs://bucket/social/video.mp4"' in html
   assert 'data-pinterest-video-gcs-uri="gs://bucket/social/video.mp4"' in html
-  assert '<video class="social-posts-thumb social-posts-video-thumb"' in html
   assert 'src="https://bucket/social/video.mp4"' in html
+  assert ('cdn-cgi/image/width=250,format=auto,quality=50/reel-preview.png'
+          ) in html
+
+  collapsed_start = html.index(
+    '<div class="social-post-card__collapsed-media js-social-collapsed-media">')
+  collapsed_end = html.index('<div class="social-post-card__expanded">',
+                             collapsed_start)
+  collapsed_html = html[collapsed_start:collapsed_end]
+  assert "<video" not in collapsed_html
+  assert "Reel preview image" in collapsed_html

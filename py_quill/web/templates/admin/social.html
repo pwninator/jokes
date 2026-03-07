@@ -243,7 +243,7 @@
   .social-posts-thumb {
     width: 100%;
     max-width: 200px;
-    max-height: 200px;
+    max-height: 300px;
     height: auto;
     border-radius: 8px;
     object-fit: cover;
@@ -577,11 +577,22 @@
         data-facebook-image-urls="{{ post.facebook_image_urls | tojson | e }}"
         data-facebook-video-gcs-uri="{{ (post.facebook_video_gcs_uri or '') | e }}"
         data-pinterest-video-gcs-uri="{{ (post.pinterest_video_gcs_uri or '') | e }}">
+        {% set is_reel_post = post.type.value == 'JOKE_REEL_VIDEO' %}
         {% set pinterest_preview_url = post.pinterest_image_urls[0] if post.pinterest_image_urls else '' %}
         {% set pinterest_preview_video_gcs_uri = post.pinterest_video_gcs_uri or '' %}
         {% set carousel_grid_urls = post.instagram_image_urls or post.facebook_image_urls or post.pinterest_image_urls or [] %}
         <div class="social-post-card__collapsed-media js-social-collapsed-media">
-          {% if pinterest_preview_video_gcs_uri %}
+          {% if is_reel_post %}
+          {% if pinterest_preview_url %}
+          <a href="{{ pinterest_preview_url }}" target="_blank" rel="noopener">
+            <img class="social-posts-thumb"
+              src="{{ set_cdn_url_params(pinterest_preview_url, width=250, quality=50) }}"
+              alt="Reel preview image">
+          </a>
+          {% else %}
+          <span class="muted js-social-no-image">No media</span>
+          {% endif %}
+          {% elif pinterest_preview_video_gcs_uri %}
           <video class="social-posts-thumb social-posts-video-thumb"
             controls preload="metadata"
             src="https://{{ pinterest_preview_video_gcs_uri | replace('gs://', '') }}"></video>
@@ -1133,12 +1144,36 @@
       slot.appendChild(empty);
     }
 
-    function updateCollapsedMedia(card, imageUrls, videoGcsUri) {
+    function updateCollapsedMedia(card, imageUrls, videoGcsUri, postType) {
       const container = card.querySelector('.js-social-collapsed-media');
       if (!container) {
         return;
       }
       container.innerHTML = '';
+
+      const isReelPost = postType === 'JOKE_REEL_VIDEO';
+
+      if (isReelPost) {
+        if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+          const link = document.createElement('a');
+          link.href = imageUrls[0];
+          link.target = '_blank';
+          link.rel = 'noopener';
+          const img = document.createElement('img');
+          img.className = 'social-posts-thumb';
+          img.src = getCollapsedPreviewImageUrl(imageUrls[0]);
+          img.alt = 'Reel preview image';
+          link.appendChild(img);
+          container.appendChild(link);
+          return;
+        }
+
+        const empty = document.createElement('span');
+        empty.className = 'muted js-social-no-image';
+        empty.textContent = 'No media';
+        container.appendChild(empty);
+        return;
+      }
 
       if (videoGcsUri) {
         const video = document.createElement('video');
@@ -1521,6 +1556,7 @@
         card,
         postData.pinterest_image_urls || [],
         postData.pinterest_video_gcs_uri || '',
+        postData.type || '',
       );
 
       updatePlatformMedia(

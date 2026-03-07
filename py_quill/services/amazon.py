@@ -18,7 +18,9 @@ from zoneinfo import ZoneInfo
 import requests
 from common import book_defs, config, models
 from firebase_functions import logger
+from models import amazon_ads_models
 from services import amazon_sales_reconciliation, firestore
+from storage import amazon_ads_firestore
 
 _AMAZON_TOKEN_URL = "https://api.amazon.com/auth/o2/token"
 _AMAZON_ADS_API_BY_REGION = {
@@ -39,6 +41,7 @@ ADS_STATS_REPORT_METADATA_WAIT_SEC = 5
 ADS_STATS_REQUIRED_REPORT_TYPES = (
   "spCampaigns",
   "spAdvertisedProduct",
+  "spSearchTerm",
 )
 _LOS_ANGELES_TIMEZONE = ZoneInfo("America/Los_Angeles")
 _KDP_PRICE_CANDIDATE_LOOKBACK_DAYS = 180
@@ -64,74 +67,64 @@ _COUNTRY_CODE_ALIASES: dict[str, str] = {"UK": "GB"}
 # Valid columns for Sponsored Products campaigns report
 # https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/campaign
 _SP_CAMPAIGNS_COLUMNS: list[str] = [
-  "attributedSalesSameSku1d",
-  "date",
-  "campaignBiddingStrategy",
-  "roasClicks14d",
-  "unitsSoldClicks1d",
-  "attributedSalesSameSku7d",
-  "attributedSalesSameSku14d",
-  "royaltyQualifiedBorrows",
-  "sales1d",
-  "sales7d",
-  "addToList",
-  "attributedSalesSameSku30d",
-  "purchasesSameSku14d",
-  "kindleEditionNormalizedPagesRoyalties14d",
-  "purchasesSameSku1d",
-  "spend",
-  "unitsSoldSameSku1d",
-  "purchases1d",
-  "purchasesSameSku7d",
-  "unitsSoldSameSku7d",
-  "purchases7d",
-  "unitsSoldSameSku30d",
-  "cost",
-  "costPerClick",
-  "unitsSoldClicks14d",
-  "retailer",
-  "sales14d",
-  "sales30d",
-  "clickThroughRate",
-  "impressions",
-  "kindleEditionNormalizedPagesRead14d",
-  "purchasesSameSku30d",
-  "purchases14d",
-  "unitsSoldClicks30d",
-  "qualifiedBorrows",
-  "acosClicks14d",
-  "purchases30d",
-  "clicks",
-  "unitsSoldClicks7d",
-  "unitsSoldSameSku14d",
-  "campaignRuleBasedBudgetAmount",
-  "campaignBudgetCurrencyCode",
-  "campaignId",
-  "campaignApplicableBudgetRuleId",
-  "campaignBudgetType",
-  "topOfSearchImpressionShare",
-  "campaignStatus",
-  "campaignName",
-  "campaignApplicableBudgetRuleName",
-  "campaignBudgetAmount",
+  "date",  # Report date (YYYY-MM-DD).
+  "campaignId",  # Campaign identifier.
+  "campaignName",  # Campaign display name.
+  "campaignBudgetCurrencyCode",  # Currency code for spend/sales fields.
+  "impressions",  # Ad impressions.
+  "clicks",  # Ad clicks.
+  "cost",  # Spend in campaign currency.
+  "sales14d",  # Attributed sales in the 14-day click window.
+  "unitsSoldClicks14d",  # Attributed units sold in the 14-day click window.
+  "kindleEditionNormalizedPagesRead14d",  # Attributed KENP pages read (14d).
+  "kindleEditionNormalizedPagesRoyalties14d",  # Attributed KENP royalties (14d).
+  # "topOfSearchImpressionShare",  # Top-of-search impression share (campaign-level).
 ]
 
 # Valid columns for Sponsored Products advertised products report
 # https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/advertised-product
 _SP_ADVERTISED_PRODUCT_COLUMNS: list[str] = [
-  "campaignId",
-  "campaignBudgetCurrencyCode",
-  "date",
-  "advertisedAsin",
-  "attributedSalesSameSku14d",
-  "kindleEditionNormalizedPagesRead14d",
-  "kindleEditionNormalizedPagesRoyalties14d",
-  "unitsSoldSameSku14d",
-  "sales14d",
-  "unitsSoldClicks14d",
-  "purchasesSameSku14d",
-  "purchases14d",
+  "date",  # Report date (YYYY-MM-DD).
+  "campaignId",  # Campaign identifier.
+  "advertisedAsin",  # Advertised ASIN tied to the ad interaction.
+  "attributedSalesSameSku14d",  # Same-SKU attributed sales in the 14-day click window.
+  "kindleEditionNormalizedPagesRead14d",  # Same-SKU attributed KENP pages read (14d).
+  "kindleEditionNormalizedPagesRoyalties14d",  # Same-SKU attributed KENP royalties (14d).
+  "unitsSoldSameSku14d",  # Same-SKU attributed units sold in the 14-day click window.
 ]
+
+# Valid columns for Sponsored Products search term report
+# https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/search-term
+_SP_SEARCH_TERM_COLUMNS: list[str] = [
+  "date",  # Report date (YYYY-MM-DD).
+  "campaignId",  # Campaign identifier.
+  "campaignName",  # Campaign display name.
+  "campaignBudgetCurrencyCode",  # Currency code for spend/sales fields.
+  "adGroupId",  # Ad group identifier.
+  "adGroupName",  # Ad group display name.
+  "keywordId",  # Keyword identifier (or target id context when available).
+  "keyword",  # Targeted keyword text.
+  "keywordType",  # Keyword/targeting type (EXACT/PHRASE/BROAD/TARGETING_EXPRESSION).
+  "matchType",  # Match type used for the serving keyword.
+  "targeting",  # Targeting expression used for attribution.
+  "searchTerm",  # Shopper query text (or '*' for some PDP traffic).
+  "adKeywordStatus",  # Current status of keyword/target entity.
+  "impressions",  # Ad impressions for this search-term row.
+  "clicks",  # Ad clicks for this search-term row.
+  "cost",  # Spend in campaign currency for this search-term row.
+  "purchases14d",  # Attributed purchases in the 14-day click window.
+  "unitsSoldClicks14d",  # Attributed units sold in the 14-day click window.
+  "sales14d",  # Attributed sales in the 14-day click window.
+  "kindleEditionNormalizedPagesRead14d",  # Attributed KENP pages read (14d).
+  "kindleEditionNormalizedPagesRoyalties14d",  # Attributed KENP royalties (14d).
+]
+_SP_SEARCH_TERM_KEYWORD_TYPE_FILTER_VALUES: tuple[str, ...] = (
+  "BROAD",
+  "PHRASE",
+  "EXACT",
+  "TARGETING_EXPRESSION",
+  "TARGETING_EXPRESSION_PREDEFINED",
+)
 
 
 class AmazonAdsError(Exception):
@@ -154,6 +147,7 @@ class ReportPair:
 
   campaigns_report: models.AmazonAdsReport
   advertised_products_report: models.AmazonAdsReport
+  search_term_report: models.AmazonAdsReport | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -218,13 +212,24 @@ def request_daily_campaign_stats_reports(
       end_date=end_date,
     ),
   )
+  search_term_report = _create_report(
+    api_base=api_base,
+    access_token=access_token,
+    profile=profile,
+    payload=_build_sp_search_term_report_payload(
+      start_date=start_date,
+      end_date=end_date,
+    ),
+  )
   campaigns_report = firestore.upsert_amazon_ads_report(campaigns_report)
   advertised_products_report = firestore.upsert_amazon_ads_report(
     advertised_products_report)
+  search_term_report = firestore.upsert_amazon_ads_report(search_term_report)
 
   return ReportPair(
     campaigns_report=campaigns_report,
     advertised_products_report=advertised_products_report,
+    search_term_report=search_term_report,
   )
 
 
@@ -286,6 +291,80 @@ def get_daily_campaign_stats_from_reports(
       kdp_price_candidates_by_country_asin),
   )
   return merged_stats
+
+
+def get_search_term_daily_stats_from_report(
+  *,
+  profile: AmazonAdsProfile,
+  search_term_report: models.AmazonAdsReport,
+) -> list[amazon_ads_models.AmazonAdsSearchTermDailyStat]:
+  """Normalize search-term report rows for Firestore upsert."""
+  _validate_report_profile_match(profile=profile, report=search_term_report)
+  _raise_if_report_not_completed(search_term_report)
+
+  rows = _download_report_rows(search_term_report)
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  output: list[amazon_ads_models.AmazonAdsSearchTermDailyStat] = []
+  for row in rows:
+    date_value = _parse_report_date(row.get("date"))
+    if date_value is None:
+      continue
+
+    campaign_id = _required_str(row.get("campaignId"))
+    ad_group_id = _required_str(row.get("adGroupId"))
+    search_term = _required_str(row.get("searchTerm"))
+    keyword_type = _required_str(row.get("keywordType"))
+    if (not campaign_id or not ad_group_id or not search_term
+        or not keyword_type):
+      continue
+
+    currency_code = _resolve_currency_code(
+      campaign_row=row,
+      profile_country_code=profile.country_code,
+    )
+    stat = amazon_ads_models.AmazonAdsSearchTermDailyStat(
+      date=date_value,
+      profile_id=profile.profile_id,
+      profile_country=profile.country_code,
+      region=profile.region,
+      campaign_id=campaign_id,
+      campaign_name=_required_str(row.get("campaignName")),
+      ad_group_id=ad_group_id,
+      ad_group_name=_required_str(row.get("adGroupName")),
+      search_term=search_term,
+      keyword_id=_required_str(row.get("keywordId")),
+      keyword=_required_str(row.get("keyword")),
+      targeting=_required_str(row.get("targeting")),
+      keyword_type=keyword_type,
+      match_type=_required_str(row.get("matchType")),
+      ad_keyword_status=_required_str(row.get("adKeywordStatus")),
+      impressions=_as_int(row.get("impressions")),
+      clicks=_as_int(row.get("clicks")),
+      cost_usd=_convert_amount_to_usd(
+        _as_float(row.get("cost")),
+        currency_code=currency_code,
+      ),
+      sales14d_usd=_convert_amount_to_usd(
+        _as_float(row.get("sales14d")),
+        currency_code=currency_code,
+      ),
+      purchases14d=_as_int(row.get("purchases14d")),
+      units_sold_clicks14d=_as_int(row.get("unitsSoldClicks14d")),
+      kenp_pages_read14d=_as_int(
+        row.get("kindleEditionNormalizedPagesRead14d")),
+      kenp_royalties14d_usd=_convert_amount_to_usd(
+        _as_float(row.get("kindleEditionNormalizedPagesRoyalties14d")),
+        currency_code=currency_code,
+      ),
+      currency_code=currency_code,
+      source_report_id=search_term_report.report_id,
+      source_report_name=search_term_report.report_name,
+      created_at=now_utc,
+      updated_at=now_utc,
+    )
+    stat.ensure_key()
+    output.append(stat)
+  return output
 
 
 @dataclasses.dataclass
@@ -369,6 +448,10 @@ def request_ads_stats_reports(
     ctx.reports_by_expected_key[(
       profile.profile_id, report_pair.advertised_products_report.report_type_id
     )] = report_pair.advertised_products_report
+    if report_pair.search_term_report is not None:
+      ctx.reports_by_expected_key[(
+        profile.profile_id, report_pair.search_term_report.report_type_id
+      )] = report_pair.search_term_report
     report_requests.append({
       "profile_id":
       profile.profile_id,
@@ -380,6 +463,9 @@ def request_ads_stats_reports(
       report_pair.campaigns_report.report_id,
       "advertised_products_report_id":
       report_pair.advertised_products_report.report_id,
+      "search_term_report_id":
+      report_pair.search_term_report.report_id
+      if report_pair.search_term_report is not None else "",
     })
 
   return AdsStatsRequestResult(
@@ -427,17 +513,33 @@ def fetch_ads_stats_reports(
     reports_by_type = {report.report_type_id: report for report in statuses}
     campaigns_report = reports_by_type.get("spCampaigns")
     advertised_products_report = reports_by_type.get("spAdvertisedProduct")
-    if (campaigns_report and advertised_products_report
+    search_term_report = reports_by_type.get("spSearchTerm")
+    for status_row in report_metadata[-len(statuses):]:
+      status_row["campaigns_report_id"] = (
+        campaigns_report.report_id if campaigns_report is not None else "")
+      status_row["advertised_products_report_id"] = (
+        advertised_products_report.report_id
+        if advertised_products_report is not None else "")
+      status_row["search_term_report_id"] = (
+        search_term_report.report_id if search_term_report is not None else "")
+
+    if (campaigns_report and advertised_products_report and search_term_report
         and _are_reports_complete(
           campaigns_report,
           advertised_products_report,
+          search_term_report,
         )):
-      if not campaigns_report.processed or not advertised_products_report.processed:
+      if (not campaigns_report.processed or not advertised_products_report.processed
+          or not search_term_report.processed):
 
         daily_campaign_stats = get_daily_campaign_stats_from_reports(
           profile=profile,
           campaigns_report=campaigns_report,
           advertised_products_report=advertised_products_report,
+        )
+        search_term_stats = get_search_term_daily_stats_from_report(
+          profile=profile,
+          search_term_report=search_term_report,
         )
 
         # Aggregate stats by date
@@ -464,6 +566,8 @@ def fetch_ads_stats_reports(
         # Upsert aggregated stats
         daily_stats_list = list(stats_by_date.values())
         _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+        _ = amazon_ads_firestore.upsert_amazon_ads_search_term_daily_stats(
+          search_term_stats)
         if daily_stats_list:
           current_min_date = min(stat.date for stat in daily_stats_list)
           if (earliest_reconciled_date is None
@@ -473,8 +577,10 @@ def fetch_ads_stats_reports(
         # Mark reports as processed
         campaigns_report.processed = True
         advertised_products_report.processed = True
+        search_term_report.processed = True
         _ = firestore.upsert_amazon_ads_report(campaigns_report)
         _ = firestore.upsert_amazon_ads_report(advertised_products_report)
+        _ = firestore.upsert_amazon_ads_report(search_term_report)
 
         # Flatten for logging and debugging response (keeping original format)
         for daily_stat in daily_stats_list:
@@ -733,6 +839,31 @@ def _build_sp_advertised_product_report_payload(
       "groupBy": ["advertiser"],
       "columns": _SP_ADVERTISED_PRODUCT_COLUMNS,
       "reportTypeId": "spAdvertisedProduct",
+      "timeUnit": _DAILY_TIME_UNIT,
+      "format": _GZIP_JSON_FORMAT,
+    },
+  }
+
+
+def _build_sp_search_term_report_payload(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, Any]:
+  """Construct the report payload for daily Sponsored Products search terms."""
+  return {
+    "name": f"spSearchTerm {start_date.isoformat()} to {end_date.isoformat()}",
+    "startDate": start_date.isoformat(),
+    "endDate": end_date.isoformat(),
+    "configuration": {
+      "adProduct": "SPONSORED_PRODUCTS",
+      "groupBy": ["searchTerm"],
+      "columns": _SP_SEARCH_TERM_COLUMNS,
+      "filters": [{
+        "field": "keywordType",
+        "values": list(_SP_SEARCH_TERM_KEYWORD_TYPE_FILTER_VALUES),
+      }],
+      "reportTypeId": "spSearchTerm",
       "timeUnit": _DAILY_TIME_UNIT,
       "format": _GZIP_JSON_FORMAT,
     },

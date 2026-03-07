@@ -576,17 +576,19 @@
         data-facebook-post-time="{{ post.facebook_post_time.isoformat() if post.facebook_post_time else '' }}"
         data-facebook-image-urls="{{ post.facebook_image_urls | tojson | e }}"
         data-facebook-video-gcs-uri="{{ (post.facebook_video_gcs_uri or '') | e }}"
+        data-preview-image-gcs-uri="{{ (post.preview_image_gcs_uri or '') | e }}"
         data-pinterest-video-gcs-uri="{{ (post.pinterest_video_gcs_uri or '') | e }}">
         {% set is_reel_post = post.type.value == 'JOKE_REEL_VIDEO' %}
         {% set pinterest_preview_url = post.pinterest_image_urls[0] if post.pinterest_image_urls else '' %}
+        {% set reel_preview_image_url = post.preview_image_gcs_uri or pinterest_preview_url %}
         {% set pinterest_preview_video_gcs_uri = post.pinterest_video_gcs_uri or '' %}
         {% set carousel_grid_urls = post.instagram_image_urls or post.facebook_image_urls or post.pinterest_image_urls or [] %}
         <div class="social-post-card__collapsed-media js-social-collapsed-media">
           {% if is_reel_post %}
-          {% if pinterest_preview_url %}
-          <a href="{{ pinterest_preview_url }}" target="_blank" rel="noopener">
+          {% if reel_preview_image_url %}
+          <a href="{{ set_cdn_url_params(reel_preview_image_url, width=250, quality=50) }}" target="_blank" rel="noopener">
             <img class="social-posts-thumb"
-              src="{{ set_cdn_url_params(pinterest_preview_url, width=250, quality=50) }}"
+              src="{{ set_cdn_url_params(reel_preview_image_url, width=250, quality=50) }}"
               alt="Reel preview image">
           </a>
           {% else %}
@@ -1144,7 +1146,7 @@
       slot.appendChild(empty);
     }
 
-    function updateCollapsedMedia(card, imageUrls, videoGcsUri, postType) {
+    function updateCollapsedMedia(card, imageUrls, videoGcsUri, postType, previewImageGcsUri) {
       const container = card.querySelector('.js-social-collapsed-media');
       if (!container) {
         return;
@@ -1154,14 +1156,16 @@
       const isReelPost = postType === 'JOKE_REEL_VIDEO';
 
       if (isReelPost) {
-        if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+        const previewSource = previewImageGcsUri
+          || (Array.isArray(imageUrls) && imageUrls.length > 0 ? imageUrls[0] : '');
+        if (previewSource) {
           const link = document.createElement('a');
-          link.href = imageUrls[0];
+          link.href = getCollapsedPreviewImageUrl(previewSource);
           link.target = '_blank';
           link.rel = 'noopener';
           const img = document.createElement('img');
           img.className = 'social-posts-thumb';
-          img.src = getCollapsedPreviewImageUrl(imageUrls[0]);
+          img.src = getCollapsedPreviewImageUrl(previewSource);
           img.alt = 'Reel preview image';
           link.appendChild(img);
           container.appendChild(link);
@@ -1491,6 +1495,7 @@
       card.dataset.facebookPostTime = postData.facebook_post_time || '';
       card.dataset.facebookImageUrls = JSON.stringify(postData.facebook_image_urls || []);
       card.dataset.facebookVideoGcsUri = postData.facebook_video_gcs_uri || '';
+      card.dataset.previewImageGcsUri = postData.preview_image_gcs_uri || '';
 
       if (postData.type) {
         const typeCell = card.querySelector('.js-social-type');
@@ -1557,6 +1562,7 @@
         postData.pinterest_image_urls || [],
         postData.pinterest_video_gcs_uri || '',
         postData.type || '',
+        postData.preview_image_gcs_uri || '',
       );
 
       updatePlatformMedia(

@@ -116,6 +116,7 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
     return models.JokeVideo(
       joke_id="j1",
       video_gcs_uri="gs://bucket/social/joke_video.mp4",
+      preview_image_gcs_uri="gs://bucket/social/joke_video_preview.png",
     )
 
   monkeypatch.setattr(
@@ -131,6 +132,7 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
   assert updated_post.instagram_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
   assert updated_post.facebook_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
   assert updated_post.pinterest_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
+  assert updated_post.preview_image_gcs_uri == "gs://bucket/social/joke_video_preview.png"
   assert ensure_call["joke"].key == "j1"
   assert ensure_call["teller_character_def_id"] == "char_teller"
   assert ensure_call["listener_character_def_id"] == "char_listener"
@@ -189,6 +191,7 @@ def test_generate_social_post_media_joke_video_reuses_existing_video_uri(
   assert updated_post.instagram_video_gcs_uri == "gs://bucket/social/already_exists.mp4"
   assert updated_post.facebook_video_gcs_uri == "gs://bucket/social/already_exists.mp4"
   assert updated_post.pinterest_video_gcs_uri == "gs://bucket/social/already_exists.mp4"
+  assert updated_post.preview_image_gcs_uri is None
 
 
 def test_generate_social_post_media_joke_video_fails_when_video_generation_fails(

@@ -14,7 +14,9 @@ import flask
 from common import amazon_redirect, book_defs, models
 from firebase_functions import logger
 from functions import auth_helpers
+from models import amazon_ads_models
 from services import amazon, amazon_kdp, amazon_sales_reconciliation, firestore
+from storage import amazon_ads_firestore
 from web.routes import web_bp
 from web.routes.redirects import amazon_redirect_view_models
 from web.utils import stats as stats_utils
@@ -178,8 +180,17 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  search_term_stats = amazon_ads_firestore.list_amazon_ads_search_term_daily_stats(
+    start_date=start_date,
+    end_date=end_date,
+  )
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
+    start_date=start_date,
+    end_date=end_date,
+  )
+  search_term_data = _build_ads_search_term_data(
+    stats_list=search_term_stats,
     start_date=start_date,
     end_date=end_date,
   )
@@ -200,6 +211,7 @@ def admin_ads_stats():
     'admin/ads_stats.html',
     site_name='Snickerdoodle',
     chart_data=chart_data,
+    search_term_data=search_term_data,
     reconciled_click_date_chart_data=reconciled_click_date_chart_data,
     reconciliation_debug_csv=reconciliation_debug_csv,
     ads_events=[_serialize_amazon_ads_event(event) for event in ads_events],
@@ -576,6 +588,86 @@ def _format_ads_report_table_cell(value: object) -> str:
   if isinstance(value, (dict, list)):
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
   return str(value)
+
+
+def _build_ads_search_term_data(
+  *,
+  stats_list: list[amazon_ads_models.AmazonAdsSearchTermDailyStat],
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, object]:
+  """Serialize search-term rows for ads-stats filtering and charting."""
+  labels: list[str] = []
+  current_date = start_date
+  while current_date <= end_date:
+    labels.append(current_date.isoformat())
+    current_date += datetime.timedelta(days=1)
+
+  rows: list[dict[str, object]] = []
+  campaign_names: set[str] = set()
+  keyword_types: set[str] = set()
+  match_types: set[str] = set()
+  totals = {
+    "impressions": 0,
+    "clicks": 0,
+    "cost_usd": 0.0,
+    "sales14d_usd": 0.0,
+    "purchases14d": 0,
+    "units_sold_clicks14d": 0,
+  }
+  for stat in sorted(stats_list,
+                     key=lambda row: (row.date, row.campaign_name,
+                                      row.search_term)):
+    row = {
+      "key": stat.ensure_key(),
+      "date": stat.date.isoformat(),
+      "campaign_id": stat.campaign_id,
+      "campaign_name": stat.campaign_name,
+      "ad_group_id": stat.ad_group_id,
+      "ad_group_name": stat.ad_group_name,
+      "search_term": stat.search_term,
+      "keyword_id": stat.keyword_id,
+      "keyword": stat.keyword,
+      "targeting": stat.targeting,
+      "keyword_type": stat.keyword_type,
+      "match_type": stat.match_type,
+      "ad_keyword_status": stat.ad_keyword_status,
+      "impressions": stat.impressions,
+      "clicks": stat.clicks,
+      "cost_usd": round(stat.cost_usd, 4),
+      "sales14d_usd": round(stat.sales14d_usd, 4),
+      "purchases14d": stat.purchases14d,
+      "units_sold_clicks14d": stat.units_sold_clicks14d,
+      "kenp_pages_read14d": stat.kenp_pages_read14d,
+      "kenp_royalties14d_usd": round(stat.kenp_royalties14d_usd, 4),
+      "currency_code": stat.currency_code,
+    }
+    rows.append(row)
+    campaign_names.add(stat.campaign_name)
+    keyword_types.add(stat.keyword_type)
+    match_types.add(stat.match_type)
+    totals["impressions"] += stat.impressions
+    totals["clicks"] += stat.clicks
+    totals["cost_usd"] += stat.cost_usd
+    totals["sales14d_usd"] += stat.sales14d_usd
+    totals["purchases14d"] += stat.purchases14d
+    totals["units_sold_clicks14d"] += stat.units_sold_clicks14d
+
+  return {
+    "labels": labels,
+    "rows": rows,
+    "campaign_names": sorted(name for name in campaign_names if name),
+    "keyword_types": sorted(name for name in keyword_types if name),
+    "match_types": sorted(name for name in match_types if name),
+    "totals": {
+      "impressions": totals["impressions"],
+      "clicks": totals["clicks"],
+      "cost_usd": round(cast(float, totals["cost_usd"]), 2),
+      "sales14d_usd": round(cast(float, totals["sales14d_usd"]), 2),
+      "purchases14d": totals["purchases14d"],
+      "units_sold_clicks14d": totals["units_sold_clicks14d"],
+    },
+  }
 
 
 def _build_ads_stats_chart_data(

@@ -33,6 +33,16 @@ def _mock_kdp_daily_stats_default(monkeypatch):
   )
 
 
+@pytest.fixture(autouse=True)
+def _mock_search_term_daily_stats_default(monkeypatch):
+  """Default search-term stats stub for ads-stats route tests."""
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_ads_search_term_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+
+
 def _make_ads_report(
   *,
   report_id: str,
@@ -463,6 +473,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     "created_at": None,
     "updated_at": None,
   }]
+  assert captured["search_term_data"]["rows"] == []
 
   chart_data = captured["chart_data"]
   assert len(chart_data["labels"]) == 30
@@ -768,6 +779,29 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
          ),
       ),
       _make_ads_report(
+        report_id="r-search-term",
+        report_name="search_term_report",
+        status="COMPLETED",
+        report_type_id="spSearchTerm",
+        created_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     9,
+                                     30,
+                                     tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026,
+                                     2,
+                                     27,
+                                     9,
+                                     31,
+                                     tzinfo=datetime.timezone.utc),
+        profile_id="p-us",
+        profile_country="US",
+        processed=False,
+        raw_report_text=
+        '[{"date":"2026-02-27","campaignId":"abc","searchTerm":"dad jokes","clicks":4}]',
+      ),
+      _make_ads_report(
         report_id="r-no-cache",
         report_name="pending_report",
         status="PROCESSING",
@@ -811,6 +845,7 @@ def test_admin_ads_reports_page_lists_recent_and_selected_cached_rows(
   assert "latest_campaign_report" in html
   assert "older_campaign_report" in html
   assert "advertised_product_report" in html
+  assert "search_term_report" in html
   assert "pending_report" in html
   assert "Cached Data for Selected Report" in html
   assert "Created At (Los Angeles)" in html
@@ -1112,6 +1147,9 @@ def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
     assert f'id="{canvas_id}-data-popup"' in html, f"Missing popup for {canvas_id}"
   assert 'id="adsStatsTopDataButton"' in html
   assert 'id="adsStatsTopDataPopup"' in html
+  assert 'id="searchTermCampaignSelector"' in html
+  assert 'id="searchTermInsightsTableBody"' in html
+  assert 'id="searchTermTrendChart"' in html
   assert '>Data</button>' in html
   assert 'chart-data-popup' in html
   assert 'aria-live="polite"' in html

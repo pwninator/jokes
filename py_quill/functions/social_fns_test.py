@@ -237,6 +237,7 @@ def test_social_post_creation_process_success_joke_video(
     return models.JokeVideo(
       joke_id="j1",
       video_gcs_uri="gs://bucket/social/video.mp4",
+      preview_image_gcs_uri="gs://bucket/social/video_preview.png",
     )
 
   monkeypatch.setattr(
@@ -304,6 +305,7 @@ def test_social_post_creation_process_success_joke_video(
   assert post_data["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert post_data["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert post_data["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
+  assert post_data["preview_image_gcs_uri"] == "gs://bucket/social/video_preview.png"
   assert update_calls == [("j1", {"joke_social_post_id": "post-video-1"})]
 
 

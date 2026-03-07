@@ -1,0 +1,2 @@
+"""Ads-focused model modules."""
+

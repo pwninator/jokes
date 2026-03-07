@@ -19,7 +19,10 @@ const {
   formatUnmatchedAdsTooltipLine,
   isIsoDateString,
   normalizeAdsEvent,
+  normalizeSearchTermRow,
   groupAdsEventsByDate,
+  buildSearchTermAggregates,
+  filterSearchTermAggregates,
   getAdsEventTooltipLines,
   getDailyStatsForCampaign,
   initAdsStatsPage,
@@ -69,9 +72,52 @@ function createFakeAdsStatsDom(initialMode) {
     adsProfitBreakdownChart: createFakeCanvas('adsProfitBreakdownChart'),
     salesBreakdownChart: createFakeCanvas('salesBreakdownChart'),
     kenpBreakdownChart: createFakeCanvas('kenpBreakdownChart'),
+    searchTermCampaignSelector: new FakeElement({ id: 'searchTermCampaignSelector', tagName: 'select' }),
+    searchTermKeywordTypeSelector: new FakeElement({
+      id: 'searchTermKeywordTypeSelector',
+      tagName: 'select',
+    }),
+    searchTermMatchTypeSelector: new FakeElement({
+      id: 'searchTermMatchTypeSelector',
+      tagName: 'select',
+    }),
+    searchTermTextFilter: new FakeElement({ id: 'searchTermTextFilter', tagName: 'input' }),
+    searchTermDimensionChips: new FakeElement({ id: 'searchTermDimensionChips' }),
+    searchTermInsightsTableHead: new FakeElement({ id: 'searchTermInsightsTableHead', tagName: 'thead' }),
+    searchTermInsightsTableBody: new FakeElement({ id: 'searchTermInsightsTableBody', tagName: 'tbody' }),
+    searchTermInsightsEmptyState: new FakeElement({ id: 'searchTermInsightsEmptyState', tagName: 'p' }),
+    searchTermTrendChart: createFakeCanvas('searchTermTrendChart'),
+    searchTermSummaryRows: new FakeElement({ id: 'searchTermSummaryRows' }),
+    searchTermSummaryClicks: new FakeElement({ id: 'searchTermSummaryClicks' }),
+    searchTermSummaryCost: new FakeElement({ id: 'searchTermSummaryCost' }),
+    searchTermSummarySales: new FakeElement({ id: 'searchTermSummarySales' }),
+    searchTermSummaryAcos: new FakeElement({ id: 'searchTermSummaryAcos' }),
+    searchTermSummaryRoas: new FakeElement({ id: 'searchTermSummaryRoas' }),
   };
   elements.campaignSelector.value = 'All';
   elements.modeSelector.value = initialMode;
+  elements.searchTermCampaignSelector.value = 'All';
+  elements.searchTermKeywordTypeSelector.value = 'All';
+  elements.searchTermMatchTypeSelector.value = 'All';
+
+  const dimensionChipConfigs = [
+    { key: 'campaign_name', pressed: false },
+    { key: 'search_term', pressed: true },
+    { key: 'targeting', pressed: false },
+    { key: 'keyword', pressed: false },
+    { key: 'keyword_type', pressed: false },
+    { key: 'match_type', pressed: false },
+  ];
+  dimensionChipConfigs.forEach((config) => {
+    const chip = new FakeElement({
+      tagName: 'button',
+      className: 'search-term-dimension-chip',
+    });
+    chip.setAttribute('data-dimension-key', config.key);
+    chip.setAttribute('aria-pressed', config.pressed ? 'true' : 'false');
+    chip.textContent = config.key;
+    append(elements.searchTermDimensionChips, chip);
+  });
 
   Object.values(elements).forEach((element) => append(body, element));
 
@@ -93,6 +139,56 @@ function createFakeChartData() {
       '2026-02-22': [],
       '2026-02-23': [],
     },
+  };
+}
+
+function createFakeSearchTermData() {
+  return {
+    labels: ['2026-02-22', '2026-02-23'],
+    rows: [
+      {
+        date: '2026-02-22',
+        campaign_name: 'Campaign A',
+        search_term: 'alpha',
+        keyword_type: 'EXACT',
+        match_type: 'EXACT',
+        keyword: 'alpha keyword',
+        targeting: '',
+        impressions: 10,
+        clicks: 1,
+        cost_usd: 1,
+        sales14d_usd: 10,
+        purchases14d: 1,
+      },
+      {
+        date: '2026-02-23',
+        campaign_name: 'Campaign B',
+        search_term: 'alpha',
+        keyword_type: 'EXACT',
+        match_type: 'EXACT',
+        keyword: 'alpha keyword',
+        targeting: '',
+        impressions: 20,
+        clicks: 2,
+        cost_usd: 2,
+        sales14d_usd: 20,
+        purchases14d: 2,
+      },
+      {
+        date: '2026-02-22',
+        campaign_name: 'Campaign A',
+        search_term: 'beta',
+        keyword_type: 'EXACT',
+        match_type: 'EXACT',
+        keyword: 'beta keyword',
+        targeting: '',
+        impressions: 30,
+        clicks: 3,
+        cost_usd: 4,
+        sales14d_usd: 40,
+        purchases14d: 3,
+      },
+    ],
   };
 }
 
@@ -574,6 +670,204 @@ test('formatUnmatchedAdsTooltipLine formats asin, book key, format, and count', 
     }),
     'US B0G9765J19 - animal-jokes (Ebook): 2',
   );
+});
+
+test('normalizeSearchTermRow validates required fields and normalizes numbers', () => {
+  assert.equal(normalizeSearchTermRow(null), null);
+  assert.equal(normalizeSearchTermRow({ date: 'bad' }), null);
+
+  const normalized = normalizeSearchTermRow({
+    date: '2026-02-20',
+    campaign_name: 'Campaign A',
+    search_term: 'dad jokes',
+    keyword_type: 'EXACT',
+    clicks: '4',
+    cost_usd: '5.25',
+  });
+
+  assert.equal(normalized.date, '2026-02-20');
+  assert.equal(normalized.campaign_name, 'Campaign A');
+  assert.equal(normalized.search_term, 'dad jokes');
+  assert.equal(normalized.keyword_type, 'EXACT');
+  assert.equal(normalized.clicks, 4);
+  assert.equal(normalized.cost_usd, 5.25);
+});
+
+test('buildSearchTermAggregates computes totals and derived metrics', () => {
+  const aggregates = buildSearchTermAggregates([
+    {
+      date: '2026-02-20',
+      campaign_name: 'Campaign A',
+      ad_group_name: 'AG 1',
+      search_term: 'dad jokes',
+      keyword_type: 'EXACT',
+      match_type: 'EXACT',
+      keyword: 'dad joke',
+      targeting: '',
+      impressions: 100,
+      clicks: 10,
+      cost_usd: 5,
+      sales14d_usd: 20,
+      purchases14d: 2,
+      units_sold_clicks14d: 2,
+    },
+    {
+      date: '2026-02-21',
+      campaign_name: 'Campaign A',
+      ad_group_name: 'AG 1',
+      search_term: 'dad jokes',
+      keyword_type: 'EXACT',
+      match_type: 'EXACT',
+      keyword: 'dad joke',
+      targeting: '',
+      impressions: 50,
+      clicks: 5,
+      cost_usd: 3,
+      sales14d_usd: 12,
+      purchases14d: 1,
+      units_sold_clicks14d: 1,
+    },
+  ]);
+
+  assert.equal(aggregates.length, 1);
+  assert.equal(aggregates[0].impressions, 150);
+  assert.equal(aggregates[0].clicks, 15);
+  assert.equal(aggregates[0].cost_usd, 8);
+  assert.equal(aggregates[0].sales14d_usd, 32);
+  assertClose(aggregates[0].ctr, 10);
+  assertClose(aggregates[0].cpc, 8 / 15);
+  assertClose(aggregates[0].cvr, 20);
+  assertClose(aggregates[0].acos, 25);
+  assertClose(aggregates[0].roas, 4);
+});
+
+test('filterSearchTermAggregates applies campaign/type/match/text filters', () => {
+  const aggregates = [
+    {
+      campaign_name: 'Campaign A',
+      keyword_type: 'EXACT',
+      match_type: 'EXACT',
+      search_term: 'dad jokes',
+      keyword: 'dad joke',
+      targeting: '',
+    },
+    {
+      campaign_name: 'Campaign B',
+      keyword_type: 'TARGETING_EXPRESSION',
+      match_type: '',
+      search_term: 'book',
+      keyword: '',
+      targeting: 'asin=\"B0G9765J19\"',
+    },
+  ];
+
+  assert.equal(
+    filterSearchTermAggregates(aggregates, {
+      campaign: 'Campaign A',
+      keywordType: 'EXACT',
+      matchType: 'EXACT',
+      text: 'dad',
+    }).length,
+    1,
+  );
+  assert.equal(
+    filterSearchTermAggregates(aggregates, {
+      campaign: 'All',
+      keywordType: 'TARGETING_EXPRESSION',
+      matchType: 'All',
+      text: 'asin=',
+    }).length,
+    1,
+  );
+});
+
+test('initAdsStatsPage search term timeline follows grouped row selection', async () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const originalElement = global.Element;
+  const chartCalls = [];
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  global.document = document;
+  global.Element = FakeElement;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage({
+      chartData: createFakeChartData(),
+      reconciledClickDateChartData: createFakeReconciledChartData(),
+      searchTermData: createFakeSearchTermData(),
+      adsEvents: [],
+    });
+
+    const tableBody = elements.searchTermInsightsTableBody;
+    const campaignChip = elements.searchTermDimensionChips.children[0];
+    const syncAggregateKeyAttributes = () => {
+      tableBody.children.forEach((row) => {
+        if (row && row.dataset && row.dataset.aggregateKey) {
+          row.setAttribute('data-aggregate-key', row.dataset.aggregateKey);
+        }
+      });
+    };
+
+    syncAggregateKeyAttributes();
+    assert.ok(campaignChip);
+    assert.equal(campaignChip.getAttribute('aria-pressed'), 'false');
+
+    const alphaOnlyRow = tableBody.children.find((row) => row.dataset.aggregateKey === 'alpha');
+    assert.ok(alphaOnlyRow);
+    await tableBody.dispatch('click', { target: alphaOnlyRow });
+
+    const searchTermChartsAfterAlpha = chartCalls.filter(
+      (call) => call.canvasId === 'searchTermTrendChart',
+    );
+    assert.ok(searchTermChartsAfterAlpha.length >= 1);
+    const alphaGroupedChart = searchTermChartsAfterAlpha[searchTermChartsAfterAlpha.length - 1];
+    assert.deepEqual(alphaGroupedChart.config.data.datasets[0].data, [1, 2]);
+    assert.deepEqual(alphaGroupedChart.config.data.datasets[1].data, [10, 20]);
+    assert.deepEqual(alphaGroupedChart.config.data.datasets[2].data, [1, 2]);
+
+    await campaignChip.dispatch('click');
+    assert.equal(campaignChip.getAttribute('aria-pressed'), 'true');
+    syncAggregateKeyAttributes();
+
+    const alphaCampaignBRow = tableBody.children.find((row) => {
+      return row.dataset.aggregateKey === `alpha${String.fromCharCode(31)}Campaign B`;
+    });
+    assert.ok(alphaCampaignBRow);
+    await tableBody.dispatch('click', { target: alphaCampaignBRow });
+
+    const searchTermChartsAfterCampaignGrouping = chartCalls.filter(
+      (call) => call.canvasId === 'searchTermTrendChart',
+    );
+    const alphaCampaignChart = searchTermChartsAfterCampaignGrouping[
+      searchTermChartsAfterCampaignGrouping.length - 1
+    ];
+    assert.deepEqual(alphaCampaignChart.config.data.datasets[0].data, [0, 2]);
+    assert.deepEqual(alphaCampaignChart.config.data.datasets[1].data, [0, 20]);
+    assert.deepEqual(alphaCampaignChart.config.data.datasets[2].data, [0, 2]);
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+    global.Element = originalElement;
+  }
 });
 
 test('reserveScaleWidth preserves larger widths and raises smaller widths', () => {

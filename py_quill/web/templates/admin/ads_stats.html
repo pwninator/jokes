@@ -272,6 +272,127 @@
   .chart-container:last-child {
     margin-bottom: 0;
   }
+  .search-term-section {
+    margin: 0 0 24px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: 0 4px 12px var(--color-shadow);
+  }
+  .search-term-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .search-term-controls input,
+  .search-term-controls select {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--color-form-border-strong);
+    background: var(--color-form-surface);
+    color: var(--color-text);
+  }
+  .search-term-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .search-term-summary-card {
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--color-form-surface);
+  }
+  .search-term-summary-label {
+    font-size: 0.74rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+  .search-term-summary-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  .search-term-dimension-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+  }
+  .search-term-dimension-chip {
+    border: 1px solid var(--color-border);
+    background: var(--color-form-surface);
+    color: var(--color-text);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+  .search-term-dimension-chip[aria-pressed="true"] {
+    background: color-mix(in srgb, #2f6fdf 18%, transparent);
+    border-color: color-mix(in srgb, #2f6fdf 45%, var(--color-border));
+  }
+  .search-term-trend-wrap {
+    margin-bottom: 14px;
+    height: 280px;
+  }
+  .search-term-table-wrap {
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+  }
+  .search-term-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1080px;
+  }
+  .search-term-table th,
+  .search-term-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.84rem;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  .search-term-table th {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: color-mix(in srgb, var(--color-surface) 86%, var(--color-border) 14%);
+  }
+  .search-term-sort-button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    padding: 0;
+    cursor: pointer;
+  }
+  .search-term-row {
+    cursor: pointer;
+  }
+  .search-term-row:hover td,
+  .search-term-row:focus td {
+    background: color-mix(in srgb, var(--color-border) 24%, transparent);
+  }
+  .search-term-row--selected td {
+    background: color-mix(in srgb, #2f6fdf 18%, transparent);
+  }
+  .search-term-empty {
+    margin: 8px 0 0;
+  }
   @media (max-width: 900px) {
     .ads-stats-header {
       align-items: stretch;
@@ -318,6 +439,9 @@
       left: 0;
       right: auto;
       min-width: min(100%, 520px);
+    }
+    .search-term-section {
+      padding: 12px;
     }
   }
 </style>
@@ -432,12 +556,87 @@
   </div>
 </section>
 
+<section class="search-term-section" aria-label="Search term insights">
+  <div class="chart-header">
+    <h3>Search Term Insights</h3>
+  </div>
+  <div class="search-term-controls">
+    <div class="ads-stats-field">
+      <label for="searchTermCampaignSelector">Campaign</label>
+      <select id="searchTermCampaignSelector">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <div class="ads-stats-field">
+      <label for="searchTermKeywordTypeSelector">Keyword Type</label>
+      <select id="searchTermKeywordTypeSelector">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <div class="ads-stats-field">
+      <label for="searchTermMatchTypeSelector">Match Type</label>
+      <select id="searchTermMatchTypeSelector">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <div class="ads-stats-field">
+      <label for="searchTermTextFilter">Search</label>
+      <input id="searchTermTextFilter" type="text" placeholder="Search term, keyword, targeting">
+    </div>
+  </div>
+  <div class="search-term-summary-grid">
+    <div class="search-term-summary-card">
+      <div class="search-term-summary-label">Rows</div>
+      <div class="search-term-summary-value" id="searchTermSummaryRows">0</div>
+    </div>
+    <div class="search-term-summary-card">
+      <div class="search-term-summary-label">Clicks</div>
+      <div class="search-term-summary-value" id="searchTermSummaryClicks">0</div>
+    </div>
+    <div class="search-term-summary-card">
+      <div class="search-term-summary-label">Cost</div>
+      <div class="search-term-summary-value" id="searchTermSummaryCost">$0.00</div>
+    </div>
+    <div class="search-term-summary-card">
+      <div class="search-term-summary-label">Sales</div>
+      <div class="search-term-summary-value" id="searchTermSummarySales">$0.00</div>
+    </div>
+    <div class="search-term-summary-card">
+      <div class="search-term-summary-label">ACOS</div>
+      <div class="search-term-summary-value" id="searchTermSummaryAcos">0.0%</div>
+    </div>
+    <div class="search-term-summary-card">
+      <div class="search-term-summary-label">ROAS</div>
+      <div class="search-term-summary-value" id="searchTermSummaryRoas">0.00</div>
+    </div>
+  </div>
+  <div class="search-term-dimension-chips" id="searchTermDimensionChips" aria-label="Search term grouping dimensions">
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="campaign_name" aria-pressed="false">Campaign</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="search_term" aria-pressed="true">Search Term</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="targeting" aria-pressed="false">Targeting</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="keyword" aria-pressed="false">Keyword</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="keyword_type" aria-pressed="false">Keyword Type</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="match_type" aria-pressed="false">Match Type</button>
+  </div>
+  <div class="search-term-trend-wrap">
+    <canvas id="searchTermTrendChart"></canvas>
+  </div>
+  <div class="search-term-table-wrap">
+    <table class="search-term-table">
+      <thead id="searchTermInsightsTableHead"></thead>
+      <tbody id="searchTermInsightsTableBody"></tbody>
+    </table>
+  </div>
+  <p class="muted search-term-empty" id="searchTermInsightsEmptyState" hidden>No rows match the current filters.</p>
+</section>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/ads_stats.js') }}"></script>
 <script>
   const adsStatsPage = window.initAdsStatsPage
     ? window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
+      searchTermData: {{ search_term_data | tojson }},
       reconciledClickDateChartData: {{ reconciled_click_date_chart_data | tojson }},
       reconciliationDebugCsv: {{ reconciliation_debug_csv | tojson }},
       adsEvents: {{ ads_events | tojson }},

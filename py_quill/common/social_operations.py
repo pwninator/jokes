@@ -638,9 +638,12 @@ def _ensure_video_uris_for_post(post: models.JokeSocialPost) -> bool:
   shared_video_gcs_uri = (post.instagram_video_gcs_uri
                           or post.facebook_video_gcs_uri
                           or post.pinterest_video_gcs_uri or "").strip()
+  shared_preview_image_gcs_uri = (post.preview_image_gcs_uri or "").strip()
   if not shared_video_gcs_uri:
-    generated_video = _generate_social_post_video(post)
-    shared_video_gcs_uri = (generated_video.gcs_uri or "").strip()
+    generated_joke_video = _generate_social_post_video(post)
+    shared_video_gcs_uri = (generated_joke_video.video_gcs_uri or "").strip()
+    shared_preview_image_gcs_uri = (generated_joke_video.preview_image_gcs_uri
+                                    or "").strip()
     if not shared_video_gcs_uri:
       raise SocialPostRequestError("Video generation did not return a GCS URI")
 
@@ -654,10 +657,14 @@ def _ensure_video_uris_for_post(post: models.JokeSocialPost) -> bool:
   if post.pinterest_video_gcs_uri != shared_video_gcs_uri:
     post.pinterest_video_gcs_uri = shared_video_gcs_uri
     updated = True
+  if shared_preview_image_gcs_uri and post.preview_image_gcs_uri != (
+      shared_preview_image_gcs_uri):
+    post.preview_image_gcs_uri = shared_preview_image_gcs_uri
+    updated = True
   return updated
 
 
-def _generate_social_post_video(post: models.JokeSocialPost) -> models.Video:
+def _generate_social_post_video(post: models.JokeSocialPost) -> models.JokeVideo:
   """Generate video media for a single-joke JOKE_REEL_VIDEO post."""
   if len(post.jokes) != 1:
     raise SocialPostRequestError("JOKE_REEL_VIDEO requires exactly one joke")
@@ -671,4 +678,4 @@ def _generate_social_post_video(post: models.JokeSocialPost) -> models.Video:
   video_gcs_uri = (joke_video.video_gcs_uri or "").strip()
   if not video_gcs_uri:
     raise SocialPostRequestError("Video generation did not return a GCS URI")
-  return models.Video(gcs_uri=video_gcs_uri)
+  return joke_video

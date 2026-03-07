@@ -255,7 +255,7 @@ def test_admin_social_renders_video_preview(monkeypatch):
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
     link_url="https://snickerdoodlejokes.com/jokes/video",
-    pinterest_image_urls=["https://example.com/reel-preview.png"],
+    preview_image_gcs_uri="gs://bucket/social/reel-preview.png",
     pinterest_video_gcs_uri="gs://bucket/social/video.mp4",
     instagram_video_gcs_uri="gs://bucket/social/video.mp4",
     facebook_video_gcs_uri="gs://bucket/social/video.mp4",
@@ -296,8 +296,9 @@ def test_admin_social_renders_video_preview(monkeypatch):
   assert 'data-instagram-video-gcs-uri="gs://bucket/social/video.mp4"' in html
   assert 'data-facebook-video-gcs-uri="gs://bucket/social/video.mp4"' in html
   assert 'data-pinterest-video-gcs-uri="gs://bucket/social/video.mp4"' in html
+  assert 'data-preview-image-gcs-uri="gs://bucket/social/reel-preview.png"' in html
   assert 'src="https://bucket/social/video.mp4"' in html
-  assert ('cdn-cgi/image/width=250,format=auto,quality=50/reel-preview.png'
+  assert ('cdn-cgi/image/width=250,format=auto,quality=50/social/reel-preview.png'
           ) in html
 
   collapsed_start = html.index(

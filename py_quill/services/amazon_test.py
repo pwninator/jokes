@@ -196,7 +196,7 @@ def test_build_report_name_uses_los_angeles_local_time(monkeypatch):
   assert report_name == "20260226_233012_spCampaigns_US"
 
 
-def test_request_daily_campaign_stats_reports_requests_two_reports(
+def test_request_daily_campaign_stats_reports_requests_three_reports(
     monkeypatch):
   calls: list[dict] = []
   upserted_report_ids: list[str] = []
@@ -228,6 +228,12 @@ def test_request_daily_campaign_stats_reports_requests_two_reports(
         status="PENDING",
         report_type_id="spAdvertisedProduct",
       )
+    if report_type == "spSearchTerm":
+      return _report_status(
+        report_id="search-term-report-id",
+        status="PENDING",
+        report_type_id="spSearchTerm",
+      )
     raise AssertionError(f"Unexpected report type: {report_type}")
 
   monkeypatch.setattr(amazon, "_get_access_token", lambda: "access-token")
@@ -251,10 +257,15 @@ def test_request_daily_campaign_stats_reports_requests_two_reports(
   assert result.advertised_products_report.key == "advertised-report-id-key"
   assert (
     result.advertised_products_report.report_type_id == "spAdvertisedProduct")
-  assert len(calls) == 2
+  assert result.search_term_report is not None
+  assert result.search_term_report.report_id == "search-term-report-id"
+  assert result.search_term_report.key == "search-term-report-id-key"
+  assert result.search_term_report.report_type_id == "spSearchTerm"
+  assert len(calls) == 3
   assert upserted_report_ids == [
     "campaigns-report-id",
     "advertised-report-id",
+    "search-term-report-id",
   ]
   assert calls[0]["api_base"] == "https://advertising-api.amazon.com"
   assert calls[0]["profile_id"] == "profile-1"
@@ -263,6 +274,7 @@ def test_request_daily_campaign_stats_reports_requests_two_reports(
   assert calls[0]["payload"]["configuration"]["reportTypeId"] == "spCampaigns"
   assert calls[1]["payload"]["configuration"][
     "reportTypeId"] == "spAdvertisedProduct"
+  assert calls[2]["payload"]["configuration"]["reportTypeId"] == "spSearchTerm"
 
 
 def test_get_reports_returns_report_for_each_report_id(monkeypatch):
@@ -294,6 +306,18 @@ def test_get_reports_returns_report_for_each_report_id(monkeypatch):
   assert upserted_report_ids == ["r1", "r2"]
   assert statuses[0].key == "r1-key"
   assert statuses[0].url == "https://example.com/r1.json.gz"
+
+
+def test_build_sp_search_term_report_payload_includes_keyword_type_filter():
+  payload = amazon._build_sp_search_term_report_payload(
+    start_date=datetime.date(2026, 2, 10),
+    end_date=datetime.date(2026, 2, 17),
+  )
+  config = payload["configuration"]
+
+  assert config["reportTypeId"] == "spSearchTerm"
+  assert config["groupBy"] == ["searchTerm"]
+  assert "keywordType" in [f["field"] for f in config["filters"]]
 
 
 def test_get_reports_with_empty_ids_returns_empty(monkeypatch):
@@ -349,6 +373,63 @@ def _upsert_report(report: models.AmazonAdsReport,
   upserted_report_ids.append(report.report_id)
   report.key = f"{report.report_id}-key"
   return report
+
+
+def test_get_search_term_daily_stats_from_report_parses_and_converts(monkeypatch):
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="CA",
+  )
+  report = _report_status(
+    report_id="search-report-id",
+    status="COMPLETED",
+    report_name="search-report-name",
+    report_type_id="spSearchTerm",
+    url="https://example.com/search.gz",
+    profile_id="profile-1",
+  )
+  monkeypatch.setattr(
+    amazon,
+    "_download_report_rows",
+    lambda _report: [{
+      "date": "2026-02-20",
+      "campaignId": "c1",
+      "campaignName": "Campaign 1",
+      "adGroupId": "ag1",
+      "adGroupName": "Ad Group 1",
+      "searchTerm": "dad jokes",
+      "keywordId": "k1",
+      "keyword": "dad joke",
+      "keywordType": "EXACT",
+      "matchType": "EXACT",
+      "impressions": 100,
+      "clicks": 10,
+      "cost": 20.0,
+      "sales14d": 50.0,
+      "purchases14d": 3,
+      "unitsSoldClicks14d": 3,
+      "kindleEditionNormalizedPagesRead14d": 12,
+      "kindleEditionNormalizedPagesRoyalties14d": 5.0,
+      "campaignBudgetCurrencyCode": "CAD",
+    }],
+  )
+
+  rows = amazon.get_search_term_daily_stats_from_report(
+    profile=profile,
+    search_term_report=report,
+  )
+
+  assert len(rows) == 1
+  assert rows[0].date == datetime.date(2026, 2, 20)
+  assert rows[0].search_term == "dad jokes"
+  assert rows[0].clicks == 10
+  assert rows[0].cost_usd == pytest.approx(14.64, rel=1e-6)
+  assert rows[0].sales14d_usd == pytest.approx(36.6, rel=1e-6)
+  assert rows[0].kenp_royalties14d_usd == pytest.approx(3.66, rel=1e-6)
+  assert rows[0].source_report_id == "search-report-id"
+  assert rows[0].key
 
 
 def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
@@ -790,8 +871,7 @@ def test_get_daily_campaign_stats_from_reports_ignores_total_advertised_fallback
   assert daily.sale_items[0].total_profit_usd == 0.0
 
 
-def test_sp_advertised_product_columns_include_campaign_budget_currency_code():
-  assert "campaignBudgetCurrencyCode" in amazon._SP_ADVERTISED_PRODUCT_COLUMNS
+def test_sp_advertised_product_columns_include_kenp_fields():
   assert "kindleEditionNormalizedPagesRead14d" in (
     amazon._SP_ADVERTISED_PRODUCT_COLUMNS)
   assert "kindleEditionNormalizedPagesRoyalties14d" in (
@@ -934,7 +1014,7 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
   monkeypatch.setattr(
     amazon,
     "_collect_expected_report_ids_for_profile",
-    lambda *, profile_id, reports_by_expected_key: ["r1", "r2"],
+    lambda *, profile_id, reports_by_expected_key: ["r1", "r2", "r3"],
   )
   monkeypatch.setattr(
     amazon,
@@ -952,12 +1032,18 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
         report_type_id="spAdvertisedProduct",
         profile_id=profile_id,
       ),
+      _report_status(
+        report_id="r3",
+        status="COMPLETED",
+        report_type_id="spSearchTerm",
+        profile_id=profile_id,
+      ),
     ],
   )
   monkeypatch.setattr(
     amazon,
     "_are_reports_complete",
-    lambda campaigns_report, advertised_products_report: True,
+    lambda campaigns_report, advertised_products_report, search_term_report: True,
   )
   monkeypatch.setattr(
     amazon,
@@ -983,8 +1069,18 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
     ],
   )
   monkeypatch.setattr(
+    amazon,
+    "get_search_term_daily_stats_from_report",
+    lambda **kwargs: [],
+  )
+  monkeypatch.setattr(
     amazon.firestore,
     "upsert_amazon_ads_daily_stats",
+    lambda stats: stats,
+  )
+  monkeypatch.setattr(
+    amazon.amazon_ads_firestore,
+    "upsert_amazon_ads_search_term_daily_stats",
     lambda stats: stats,
   )
   monkeypatch.setattr(
@@ -1084,6 +1180,27 @@ def test_get_latest_ads_reports_by_profile_type_picks_latest_window_and_rows():
       profile_id="profile-1",
     ),
     _report_status(
+      report_id="older-window-search",
+      report_name="older-window-search",
+      status="COMPLETED",
+      report_type_id="spSearchTerm",
+      start_date=datetime.date(2026, 1, 29),
+      end_date=datetime.date(2026, 2, 28),
+      created_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   5,
+                                   30,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   5,
+                                   31,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
+    _report_status(
       report_id="latest-window-campaigns",
       report_name="latest-window-campaigns",
       status="PENDING",
@@ -1125,6 +1242,27 @@ def test_get_latest_ads_reports_by_profile_type_picks_latest_window_and_rows():
                                    tzinfo=datetime.timezone.utc),
       profile_id="profile-1",
     ),
+    _report_status(
+      report_id="latest-window-search",
+      report_name="latest-window-search",
+      status="PENDING",
+      report_type_id="spSearchTerm",
+      start_date=datetime.date(2026, 1, 29),
+      end_date=datetime.date(2026, 2, 28),
+      created_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   7,
+                                   1,
+                                   tzinfo=datetime.timezone.utc),
+      updated_at=datetime.datetime(2026,
+                                   3,
+                                   1,
+                                   7,
+                                   2,
+                                   tzinfo=datetime.timezone.utc),
+      profile_id="profile-1",
+    ),
   ]
 
   selected = amazon.get_latest_ads_reports_by_profile_type(reports=reports)
@@ -1132,11 +1270,14 @@ def test_get_latest_ads_reports_by_profile_type_picks_latest_window_and_rows():
   assert set(selected.keys()) == {
     ("profile-1", "spCampaigns"),
     ("profile-1", "spAdvertisedProduct"),
+    ("profile-1", "spSearchTerm"),
   }
   assert selected[("profile-1",
                    "spCampaigns")].report_id == ("latest-window-campaigns")
   assert selected[("profile-1", "spAdvertisedProduct")].report_id == (
     "latest-window-advertised")
+  assert selected[("profile-1", "spSearchTerm")].report_id == (
+    "latest-window-search")
 
 
 def test_get_ads_stats_context_uses_latest_available_reports(monkeypatch):
@@ -1185,6 +1326,19 @@ def test_get_ads_stats_context_uses_latest_available_reports(monkeypatch):
           2026, 3, 1, 4, 2, tzinfo=datetime.timezone.utc),
         profile_id="profile-1",
       ),
+      _report_status(
+        report_id="search-id",
+        report_name="search-report",
+        status="PENDING",
+        report_type_id="spSearchTerm",
+        start_date=datetime.date(2026, 1, 29),
+        end_date=datetime.date(2026, 2, 28),
+        created_at=datetime.datetime(
+          2026, 3, 1, 4, 1, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(
+          2026, 3, 1, 4, 2, tzinfo=datetime.timezone.utc),
+        profile_id="profile-1",
+      ),
     ],
   )
 
@@ -1200,3 +1354,7 @@ def test_get_ads_stats_context_uses_latest_available_reports(monkeypatch):
     "profile-1",
     "spAdvertisedProduct",
   )].report_id == "advertised-id"
+  assert context.reports_by_expected_key[(
+    "profile-1",
+    "spSearchTerm",
+  )].report_id == "search-id"

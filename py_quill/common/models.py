@@ -894,6 +894,7 @@ class JokeSocialPost:
 
   pinterest_image_urls: list[str] = field(default_factory=list)
   pinterest_video_gcs_uri: str | None = None
+  preview_image_gcs_uri: str | None = None
   pinterest_post_id: str | None = None
   pinterest_post_time: datetime.datetime | None = None
   pinterest_title: str | None = None

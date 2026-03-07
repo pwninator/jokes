@@ -14,10 +14,11 @@ Changes to this file must be reflected immediately in the corresponding code.
 
 ### 1.1 Ads source reports (Amazon Ads API v3)
 
-Two Sponsored Products daily reports are requested per profile:
+Three Sponsored Products daily reports are requested per profile:
 
 1. `spCampaigns` (campaign-level spend/click/sales rollups)
 2. `spAdvertisedProduct` (advertised-product attributed units/sales + KENP)
+3. `spSearchTerm` (search-term metrics split by query/keyword/targeting)
 
 Reports are requested as `GZIP_JSON`, time unit `DAILY`, date range 30 days.
 
@@ -41,21 +42,23 @@ Daily reconciled docs split KDP ship-date outcomes into:
 
 ## 2. Firestore Collections and Ownership
 
-All Firestore operations are owned by `py_quill/services/firestore.py`.
+Ads report metadata/daily totals remain in `py_quill/services/firestore.py`.
+Search-term row storage is owned by `py_quill/storage/amazon_ads_firestore.py`.
 
 Collections:
 
 1. `amazon_ads_reports`
 2. `amazon_ads_daily_stats`
-3. `amazon_kdp_daily_stats`
-4. `amazon_sales_reconciled_daily_stats`
+3. `amazon_ads_search_term_daily_stats`
+4. `amazon_kdp_daily_stats`
+5. `amazon_sales_reconciled_daily_stats`
 
 Reconciled docs persist per-item data as nested ASIN+country maps:
 
 - `by_asin_country[asin][country_code] -> reconciled per-item stats`
 - `zzz_ending_unmatched_ads_lots_by_asin_country[asin][country_code] -> lots`
 
-Model classes live in `py_quill/common/models.py` and are the storage contract.
+Model classes for search-term rows live in `py_quill/models/amazon_ads_models.py`.
 
 ## 3. Ads Request/Fetch Lifecycle
 
@@ -70,9 +73,9 @@ Model classes live in `py_quill/common/models.py` and are the storage contract.
 3. Load recent report metadata from Firestore and keep latest report-per
    `(profile_id, report_type_id)` created today for the target window.
 4. For each selected profile:
-   - If both required report types already exist and are not all processed,
+   - If all required report types already exist and are not all processed,
      skip requesting.
-   - Else create both reports and upsert metadata docs.
+   - Else create all three reports and upsert metadata docs.
    - Report names and Firestore doc ids use the canonical format
      `YYYYMMDD_HHMMSS_[reportTypeId]_[country]` in Los Angeles local time.
 
@@ -84,12 +87,12 @@ Model classes live in `py_quill/common/models.py` and are the storage contract.
 2. Wait a short fixed delay (`ADS_STATS_REPORT_METADATA_WAIT_SEC`).
 3. For each selected profile:
    - Fetch latest report statuses by report id.
-   - If both reports are complete and at least one is unprocessed:
+   - If all three reports are complete and at least one is unprocessed:
      1. Download + parse rows from each report.
      2. Merge into `AmazonAdsDailyCampaignStats`.
-     3. Aggregate by date into `AmazonAdsDailyStats`.
-     4. Upsert daily stats.
-     5. Mark both reports `processed=true` and upsert.
+     3. Normalize `spSearchTerm` rows into `AmazonAdsSearchTermDailyStat`.
+     4. Upsert daily totals + search-term rows.
+     5. Mark all three reports `processed=true` and upsert.
 4. If any daily stats were upserted, run reconciliation with:
    - `earliest_changed_date = min(processed_ads_stat.date)`.
 
@@ -99,6 +102,8 @@ Model classes live in `py_quill/common/models.py` and are the storage contract.
 
 Downloaded report bytes are gzip-compressed JSON text. The unzipped text is
 persisted to `AmazonAdsReport.raw_report_text` exactly as downloaded.
+
+`spSearchTerm` raw payloads are persisted the same way as other report types.
 
 ### 4.2 Row decoding
 

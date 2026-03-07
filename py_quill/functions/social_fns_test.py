@@ -43,6 +43,15 @@ def _stub_recent_posts(monkeypatch: pytest.MonkeyPatch):
   )
 
 
+@pytest.fixture(autouse=True)
+def _stub_joke_link_updates(monkeypatch: pytest.MonkeyPatch):
+  monkeypatch.setattr(
+    social_fns.firestore,
+    "update_punny_joke",
+    lambda *_args, **_kwargs: {},
+  )
+
+
 def test_social_post_creation_process_success(monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(social_fns.utils, "is_emulator", lambda: True)
 
@@ -221,27 +230,19 @@ def test_social_post_creation_process_success_joke_video(
     "DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID",
     "char_listener",
   )
-  monkeypatch.setattr(
-    social_fns.social_operations.social_post_prompts,
-    "generate_joke_reel_dialog_scripts",
-    lambda **_kwargs:
-    ("Psst!", "I have no idea. What?", models.GenerationMetadata()),
-  )
-
-  def _fake_generate_joke_video(*_args, **_kwargs):
-    script_template = _kwargs["script_template"]
-    assert script_template[0].script == "[playfully] Psst!"
-    assert script_template[2].script == "[curiously] I have no idea. What?"
-    return Mock(
+  def _fake_ensure_joke_video(*_args, **_kwargs):
+    assert _kwargs["teller_character_def_id"] == "char_teller"
+    assert _kwargs["listener_character_def_id"] == "char_listener"
+    assert _kwargs["use_audio_cache"] is True
+    return models.JokeVideo(
+      joke_id="j1",
       video_gcs_uri="gs://bucket/social/video.mp4",
-      error=None,
-      error_stage=None,
     )
 
   monkeypatch.setattr(
     social_fns.social_operations.joke_media_operations,
-    "generate_joke_video",
-    _fake_generate_joke_video,
+    "ensure_joke_video",
+    _fake_ensure_joke_video,
   )
 
   def _fake_pin_prompt(image_bytes: list[bytes], *, post_type, recent_posts):
@@ -278,6 +279,12 @@ def test_social_post_creation_process_success_joke_video(
 
   monkeypatch.setattr(social_fns.firestore, "upsert_social_post",
                       Mock(side_effect=_fake_upsert))
+  update_calls: list[tuple[str, dict[str, str]]] = []
+  monkeypatch.setattr(
+    social_fns.firestore,
+    "update_punny_joke",
+    lambda joke_id, data, **_kwargs: update_calls.append((joke_id, data)),
+  )
 
   req = DummyReq(data={
     "op": joke_creation_fns.JokeCreationOp.SOCIAL.value,
@@ -297,8 +304,7 @@ def test_social_post_creation_process_success_joke_video(
   assert post_data["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert post_data["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert post_data["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
-  assert post_data["reel_intro_script"] == "Psst!"
-  assert post_data["reel_response_script"] == "I have no idea. What?"
+  assert update_calls == [("j1", {"joke_social_post_id": "post-video-1"})]
 
 
 def test_initialize_social_post_joke_grid_picks_most_shared_tag(

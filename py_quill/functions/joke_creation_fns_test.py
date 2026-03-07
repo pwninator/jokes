@@ -1173,14 +1173,19 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
     captured_video_args["allow_partial"] = allow_partial
     captured_video_args["use_audio_cache"] = use_audio_cache
     return joke_creation_fns.joke_media_operations.JokeVideoResult(
-      video_gcs_uri="gs://public/video/joke.mp4",
-      dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
-      intro_audio_gcs_uri="gs://public/audio/intro.wav",
-      setup_audio_gcs_uri="gs://public/audio/setup.wav",
-      response_audio_gcs_uri="gs://public/audio/response.wav",
-      punchline_audio_gcs_uri="gs://public/audio/punchline.wav",
-      audio_generation_metadata=audio_metadata,
-      video_generation_metadata=generation_metadata,
+      joke_video=models.JokeVideo(
+        key="video-1",
+        joke_id="j-video-1",
+        video_gcs_uri="gs://public/video/joke.mp4",
+        preview_image_gcs_uri="gs://public/video/joke_preview.png",
+        dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
+        intro_audio_gcs_uri="gs://public/audio/intro.wav",
+        setup_audio_gcs_uri="gs://public/audio/setup.wav",
+        response_audio_gcs_uri="gs://public/audio/response.wav",
+        punchline_audio_gcs_uri="gs://public/audio/punchline.wav",
+      ),
+      partial_audio=None,
+      generation_metadata=generation_metadata,
     )
 
   monkeypatch.setattr(
@@ -1230,11 +1235,12 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
   assert payload[
     "punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
-  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
-  assert payload["video_generation_metadata"]["total_cost"] == 0
-  assert payload["video_generation_metadata"]["costs_by_model"][
+  assert payload["preview_image_gcs_uri"] == "gs://public/video/joke_preview.png"
+  assert payload["generation_metadata"]["total_cost"] == 0
+  assert payload["generation_metadata"]["costs_by_model"][
     "gemini-tts"] == 0
-  assert payload["video_generation_metadata"]["costs_by_model"]["moviepy"] == 0
+  assert payload["generation_metadata"]["costs_by_model"]["moviepy"] == 0
+  assert payload["joke_video_data"]["joke_id"] == "j-video-1"
   turns = captured_video_args["script_template"]
   assert [(t.voice, t.script, t.pause_sec_after) for t in turns] == [
     (gen_audio.Voice.GEMINI_LEDA, "{setup_text}", 1.0),
@@ -1243,7 +1249,7 @@ def test_joke_creation_process_handles_joke_video_op(monkeypatch):
   ]
   assert captured_video_args[
     "audio_model"].value == "gemini-2.5-flash-preview-tts"
-  assert captured_video_args["temp_output"] is True
+  assert captured_video_args["temp_output"] is False
   assert captured_video_args["teller_character_def_id"] == "char-teller"
   assert captured_video_args["listener_character_def_id"] == "char-listener"
   assert captured_video_args["use_audio_cache"] is False
@@ -1369,14 +1375,13 @@ def test_joke_creation_process_handles_joke_video_op_allows_missing_listener_cha
     _ = allow_partial
     captured_video_args["use_audio_cache"] = use_audio_cache
     return joke_creation_fns.joke_media_operations.JokeVideoResult(
-      video_gcs_uri="gs://public/video/joke.mp4",
-      dialog_audio_gcs_uri=None,
-      intro_audio_gcs_uri=None,
-      setup_audio_gcs_uri=None,
-      response_audio_gcs_uri=None,
-      punchline_audio_gcs_uri=None,
-      audio_generation_metadata=None,
-      video_generation_metadata=models.GenerationMetadata(),
+      joke_video=models.JokeVideo(
+        key="video-optional-listener",
+        joke_id="j-video-optional-listener",
+        video_gcs_uri="gs://public/video/joke.mp4",
+      ),
+      partial_audio=None,
+      generation_metadata=models.GenerationMetadata(),
     )
 
   monkeypatch.setattr(
@@ -1428,14 +1433,16 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_
     "generate_joke_video",
     lambda *_args, **_kwargs: joke_creation_fns.joke_media_operations.
     JokeVideoResult(
-      video_gcs_uri=None,
-      dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
-      intro_audio_gcs_uri="gs://public/audio/intro.wav",
-      setup_audio_gcs_uri="gs://public/audio/setup.wav",
-      response_audio_gcs_uri="gs://public/audio/response.wav",
-      punchline_audio_gcs_uri="gs://public/audio/punchline.wav",
-      audio_generation_metadata=audio_metadata,
-      video_generation_metadata=generation_metadata,
+      joke_video=None,
+      partial_audio=joke_creation_fns.joke_media_operations.JokeAudioResult(
+        dialog_gcs_uri="gs://public/audio/dialog.wav",
+        intro_gcs_uri="gs://public/audio/intro.wav",
+        setup_gcs_uri="gs://public/audio/setup.wav",
+        response_gcs_uri="gs://public/audio/response.wav",
+        punchline_gcs_uri="gs://public/audio/punchline.wav",
+        generation_metadata=models.GenerationMetadata(),
+      ),
+      generation_metadata=generation_metadata,
       error="Error generating video: video boom",
       error_stage="video_generation",
     ),
@@ -1459,11 +1466,11 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_video_
   assert payload["response_audio_gcs_uri"] == "gs://public/audio/response.wav"
   assert payload[
     "punchline_audio_gcs_uri"] == "gs://public/audio/punchline.wav"
-  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
+  assert payload["generation_metadata"]["generations"][0][
+    "model_name"] == "gemini-tts"
   assert payload["error_stage"] == "video_generation"
   assert "Error generating video" in payload["error"]
-  assert payload["video_generation_metadata"]["generations"][0][
-    "model_name"] == "gemini-tts"
+  assert payload["preview_image_gcs_uri"] is None
 
 
 def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_split_fails(
@@ -1493,14 +1500,16 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_
     "generate_joke_video",
     lambda *_args, **_kwargs: joke_creation_fns.joke_media_operations.
     JokeVideoResult(
-      video_gcs_uri=None,
-      dialog_audio_gcs_uri="gs://public/audio/dialog.wav",
-      intro_audio_gcs_uri=None,
-      setup_audio_gcs_uri=None,
-      response_audio_gcs_uri=None,
-      punchline_audio_gcs_uri=None,
-      audio_generation_metadata=audio_metadata,
-      video_generation_metadata=generation_metadata,
+      joke_video=None,
+      partial_audio=joke_creation_fns.joke_media_operations.JokeAudioResult(
+        dialog_gcs_uri="gs://public/audio/dialog.wav",
+        intro_gcs_uri=None,
+        setup_gcs_uri=None,
+        response_gcs_uri=None,
+        punchline_gcs_uri=None,
+        generation_metadata=models.GenerationMetadata(),
+      ),
+      generation_metadata=generation_metadata,
       error=
       "Generated dialog audio but could not produce all four split clips.",
       error_stage="audio_split",
@@ -1524,7 +1533,8 @@ def test_joke_creation_process_handles_joke_video_op_returns_partial_when_audio_
   assert payload["setup_audio_gcs_uri"] is None
   assert payload["response_audio_gcs_uri"] is None
   assert payload["punchline_audio_gcs_uri"] is None
-  assert payload["audio_generation_metadata"]["model_name"] == "gemini-tts"
+  assert payload["generation_metadata"]["generations"][0][
+    "model_name"] == "gemini-tts"
   assert payload["error_stage"] == "audio_split"
 
 

@@ -8,10 +8,10 @@ import vertexai
 from common import config, firebase_init
 from firebase_functions.core import init
 # pylint: disable=no-name-in-module
-from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
-                       joke_book_fns, joke_creation_fns, joke_fns,
-                       joke_image_fns, joke_notification_fns, joke_trigger_fns,
-                       stats_fns, user_fns, util_fns, web_fns)
+from functions import (analytics_fns, dummy_fns, joke_auto_fns, joke_book_fns,
+                       joke_creation_fns, joke_fns, joke_image_fns,
+                       joke_notification_fns, joke_trigger_fns, stats_fns,
+                       user_fns, util_fns, web_fns)
 
 _BUNDLED_NLTK_DATA_DIR = Path(__file__).resolve().parent / "nltk_data"
 if _BUNDLED_NLTK_DATA_DIR.exists():
@@ -89,7 +89,7 @@ update_joke_book_files = joke_book_fns.update_joke_book_files
 # set_user_role = admin_fns.set_user_role
 
 # Export util functions
-# run_firestore_migration = util_fns.run_firestore_migration
+run_firestore_migration = util_fns.run_firestore_migration
 
 # Export the web functions
 web = web_fns.web

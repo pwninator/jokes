@@ -120,19 +120,14 @@ def test_generate_joke_reel_dialog_scripts_parses_fields(monkeypatch):
     social_post_prompts.generate_joke_reel_dialog_scripts(
       setup_text="Why did the chicken cross the road?",
       punchline_text="To get to the other side.",
-      recent_posts=[
-        models.JokeSocialPost(
-          type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
-          link_url="https://snickerdoodlejokes.com/jokes/chicken",
-          reel_intro_script="Hey!",
-          reel_response_script="I don't know. Why?",
-          jokes=[
-            models.PunnyJoke(
-              key="j1",
-              setup_text="Why did the chicken cross the road?",
-              punchline_text="To get to the other side.",
-            )
-          ],
+      recent_joke_videos=[
+        models.JokeVideo(
+          joke_id="j1",
+          video_gcs_uri="gs://bucket/video/j1.mp4",
+          script_intro="Hey!",
+          script_setup="Why did the chicken cross the road?",
+          script_response="I don't know. Why?",
+          script_punchline="To get to the other side.",
         )
       ],
     ))
@@ -162,5 +157,5 @@ def test_generate_joke_reel_dialog_scripts_requires_output(monkeypatch):
     social_post_prompts.generate_joke_reel_dialog_scripts(
       setup_text="What do you call fake spaghetti?",
       punchline_text="An impasta.",
-      recent_posts=[],
+      recent_joke_videos=[],
     )

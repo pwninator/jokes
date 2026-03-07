@@ -12,8 +12,10 @@ from common.posable_character_sequence import (
   PosableCharacterSequence, SequenceBooleanEvent, SequenceMouthEvent,
   SequenceSoundEvent, SequenceSubtitleEvent, SequenceTransformEvent)
 from firebase_functions import logger
+from functions.prompts import social_post_prompts
 from services import (audio_client, audio_voices, cloud_storage, firestore,
                       gen_video, mouth_event_detection)
+from services.storage import joke_videos_firestore
 
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0
@@ -27,6 +29,7 @@ _MIN_SPEECH_CLIP_DURATION_SEC = 0.05
 
 DEFAULT_JOKE_AUDIO_SPEAKER_1_VOICE = audio_voices.Voice.ELEVENLABS_LULU_LOLLIPOP
 DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE = audio_voices.Voice.ELEVENLABS_AERISITA
+NUM_RECENT_JOKE_VIDEOS_FOR_SCRIPT_PROMPT = 10
 
 # Preferred dialog template format (turn-based). Each script may include
 # {setup_text} and/or {punchline_text} placeholders.
@@ -168,14 +171,9 @@ class JokeLipSyncResult:
 class JokeVideoResult:
   """Result payload for joke video generation."""
 
-  video_gcs_uri: str | None
-  dialog_audio_gcs_uri: str | None
-  intro_audio_gcs_uri: str | None
-  setup_audio_gcs_uri: str | None
-  response_audio_gcs_uri: str | None
-  punchline_audio_gcs_uri: str | None
-  audio_generation_metadata: models.GenerationMetadata | None
-  video_generation_metadata: models.GenerationMetadata
+  joke_video: models.JokeVideo | None
+  partial_audio: JokeAudioResult | None
+  generation_metadata: models.GenerationMetadata
   error: str | None = None
   error_stage: str | None = None
 
@@ -203,8 +201,12 @@ def generate_joke_video(
     setup_image_url)
   punchline_image_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     punchline_image_url)
-  turns_template = script_template or DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
+  turns_template, script_generation_metadata = _resolve_joke_video_turns_template(
+    joke=joke,
+    script_template=script_template,
+  )
   rendered_turns = _render_dialog_turns_from_template(joke, turns_template)
+  transcripts = _resolve_clip_transcripts(rendered_turns, joke)
   teller_voice, listener_voice = _resolve_joke_video_voices(rendered_turns)
   teller_character = _create_video_character(
     teller_character_def_id,
@@ -220,18 +222,21 @@ def generate_joke_video(
     use_audio_cache=use_audio_cache,
   )
   generation_metadata = models.GenerationMetadata()
+  generation_metadata.add_generation(script_generation_metadata)
   generation_metadata.add_generation(lip_sync.audio_generation_metadata)
 
   if lip_sync.partial_error:
     return JokeVideoResult(
-      video_gcs_uri=None,
-      dialog_audio_gcs_uri=lip_sync.dialog_gcs_uri,
-      intro_audio_gcs_uri=lip_sync.intro_audio_gcs_uri,
-      setup_audio_gcs_uri=lip_sync.setup_audio_gcs_uri,
-      response_audio_gcs_uri=lip_sync.response_audio_gcs_uri,
-      punchline_audio_gcs_uri=lip_sync.punchline_audio_gcs_uri,
-      audio_generation_metadata=lip_sync.audio_generation_metadata,
-      video_generation_metadata=generation_metadata,
+      joke_video=None,
+      partial_audio=JokeAudioResult(
+        dialog_gcs_uri=lip_sync.dialog_gcs_uri,
+        intro_gcs_uri=lip_sync.intro_audio_gcs_uri,
+        setup_gcs_uri=lip_sync.setup_audio_gcs_uri,
+        response_gcs_uri=lip_sync.response_audio_gcs_uri,
+        punchline_gcs_uri=lip_sync.punchline_audio_gcs_uri,
+        generation_metadata=models.GenerationMetadata(),
+      ),
+      generation_metadata=generation_metadata,
       error=lip_sync.partial_error,
       error_stage="audio_split",
     )
@@ -270,32 +275,133 @@ def generate_joke_video(
       listener_character_def_id,
       role_name="Listener",
     )
-  video_gcs_uri, video_generation_metadata = gen_video.create_portrait_character_video(
-    setup_image_gcs_uri=setup_image_gcs_uri,
-    punchline_image_gcs_uri=punchline_image_gcs_uri,
-    teller_character=teller_character,
-    teller_voice=teller_voice,
-    listener_character=listener_character,
-    listener_voice=listener_voice if has_listener else None,
-    intro_sequence=lip_sync.intro_sequence,
-    setup_sequence=setup_sequence,
-    response_sequence=lip_sync.response_sequence,
-    punchline_sequence=punchline_sequence,
-    output_filename_base=
-    f"joke_video_{(joke.key or str(joke.random_id) or 'joke').strip()}",
-    temp_output=temp_output,
-  )
+  video_gcs_uri, preview_image_gcs_uri, video_generation_metadata = (
+    gen_video.create_portrait_character_video(
+      setup_image_gcs_uri=setup_image_gcs_uri,
+      punchline_image_gcs_uri=punchline_image_gcs_uri,
+      teller_character=teller_character,
+      teller_voice=teller_voice,
+      listener_character=listener_character,
+      listener_voice=listener_voice if has_listener else None,
+      intro_sequence=lip_sync.intro_sequence,
+      setup_sequence=setup_sequence,
+      response_sequence=lip_sync.response_sequence,
+      punchline_sequence=punchline_sequence,
+      output_filename_base=
+      f"joke_video_{(joke.key or str(joke.random_id) or 'joke').strip()}",
+      temp_output=temp_output,
+    ))
   generation_metadata.add_generation(video_generation_metadata)
-  return JokeVideoResult(
+  resolved_joke_id = (joke.key or str(joke.random_id or "")).strip()
+  if not resolved_joke_id:
+    raise ValueError("Joke key is required to persist joke video metadata")
+
+  joke_video = models.JokeVideo(
+    joke_id=resolved_joke_id,
     video_gcs_uri=video_gcs_uri,
+    preview_image_gcs_uri=preview_image_gcs_uri,
     dialog_audio_gcs_uri=lip_sync.dialog_gcs_uri,
     intro_audio_gcs_uri=lip_sync.intro_audio_gcs_uri,
     setup_audio_gcs_uri=lip_sync.setup_audio_gcs_uri,
     response_audio_gcs_uri=lip_sync.response_audio_gcs_uri,
     punchline_audio_gcs_uri=lip_sync.punchline_audio_gcs_uri,
-    audio_generation_metadata=lip_sync.audio_generation_metadata,
-    video_generation_metadata=generation_metadata,
+    script_intro=transcripts.intro,
+    script_setup=transcripts.setup,
+    script_response=transcripts.response,
+    script_punchline=transcripts.punchline,
+    teller_character_def_id=teller_character_def_id,
+    listener_character_def_id=listener_character_def_id,
+    generation_metadata=generation_metadata,
   )
+  saved_joke_video = joke_videos_firestore.create_joke_video(joke_video)
+  if not saved_joke_video:
+    raise ValueError(
+      f"Failed to create joke video for joke {(joke.key or '').strip()}")
+
+  return JokeVideoResult(
+    joke_video=saved_joke_video,
+    partial_audio=None,
+    generation_metadata=generation_metadata,
+  )
+
+
+def ensure_joke_video(
+  joke: models.PunnyJoke,
+  teller_character_def_id: str,
+  listener_character_def_id: str | None = None,
+  script_template: list[audio_client.DialogTurn] | None = None,
+  audio_model: audio_client.AudioModel | None = None,
+  use_audio_cache: bool = False,
+) -> models.JokeVideo:
+  """Return an existing joke video or generate and persist a new one."""
+  joke_id = (joke.key or "").strip()
+  if joke_id:
+    existing_video = joke_videos_firestore.get_latest_joke_video_for_joke(
+      joke_id)
+    if existing_video:
+      return existing_video
+
+  result = generate_joke_video(
+    joke,
+    teller_character_def_id=teller_character_def_id,
+    listener_character_def_id=listener_character_def_id,
+    script_template=script_template,
+    audio_model=audio_model,
+    use_audio_cache=use_audio_cache,
+  )
+  if not result.joke_video:
+    raise ValueError("Failed to generate joke video")
+  return result.joke_video
+
+
+def _resolve_joke_video_turns_template(
+  *,
+  joke: models.PunnyJoke,
+  script_template: list[audio_client.DialogTurn] | None,
+) -> tuple[list[audio_client.DialogTurn], models.GenerationMetadata | None]:
+  """Resolve script turns and optional script-generation metadata."""
+  if script_template:
+    return script_template, None
+
+  recent_joke_videos = [
+    video for video in joke_videos_firestore.get_recent_joke_videos(
+      limit=NUM_RECENT_JOKE_VIDEOS_FOR_SCRIPT_PROMPT)
+    if video.joke_id != (joke.key or "").strip()
+  ]
+  intro_script, response_script, generation_metadata = (
+    social_post_prompts.generate_joke_reel_dialog_scripts(
+      setup_text=joke.setup_text or "",
+      punchline_text=joke.punchline_text or "",
+      recent_joke_videos=recent_joke_videos,
+    ))
+  default_turns = DEFAULT_JOKE_AUDIO_TURNS_TEMPLATE
+  turns = [
+    audio_client.DialogTurn(
+      voice=default_turns[0].voice,
+      script=f"[playfully] {intro_script}",
+      pause_sec_before=default_turns[0].pause_sec_before,
+      pause_sec_after=default_turns[0].pause_sec_after,
+    ),
+    audio_client.DialogTurn(
+      voice=default_turns[1].voice,
+      script=default_turns[1].script,
+      pause_sec_before=default_turns[1].pause_sec_before,
+      pause_sec_after=default_turns[1].pause_sec_after,
+    ),
+    audio_client.DialogTurn(
+      voice=default_turns[2].voice,
+      script=f"[curiously] {response_script}",
+      pause_sec_before=default_turns[2].pause_sec_before,
+      pause_sec_after=default_turns[2].pause_sec_after,
+    ),
+    audio_client.DialogTurn(
+      voice=default_turns[3].voice,
+      script=default_turns[3].script,
+      pause_sec_before=default_turns[3].pause_sec_before,
+      pause_sec_after=default_turns[3].pause_sec_after,
+    ),
+  ]
+  return turns, generation_metadata
 
 
 def generate_joke_audio(

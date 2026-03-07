@@ -75,7 +75,7 @@ def generate_scene_video(
   output_gcs_uri: str,
   label: str,
   fps: int = _DEFAULT_VIDEO_FPS,
-) -> tuple[str, models.SingleGenerationMetadata]:
+) -> tuple[str, np.ndarray[Any, Any], models.SingleGenerationMetadata]:
   """Render a video from a fully declarative `SceneScript`."""
   print(f"Generating scene video for script: {script}")
 
@@ -105,6 +105,7 @@ def generate_scene_video(
           subtitle_schedule=subtitle_schedule,
           subtitle_rect=script.subtitle_rect,
         )
+      first_frame = make_frame(0.0)
 
       video_clip = VideoClip(make_frame, duration=script.duration_sec)
       if audio_paths:
@@ -150,7 +151,7 @@ def generate_scene_video(
         generation_time_sec=generation_time_sec,
         cost=0.0,
       )
-      return output_gcs_uri, metadata
+      return output_gcs_uri, first_frame, metadata
   finally:
     for clip in audio_clips:
       try:

@@ -4,6 +4,7 @@ import os
 import wave
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 from common import models
 from common.mouth_events import MouthEvent
@@ -410,17 +411,25 @@ def test_create_portrait_character_video_uploads_mp4():
       "num_characters": 2,
     },
   )
-  create_scene_mock = MagicMock(return_value=("gs://files/video/portrait.mp4",
-                                              metadata_stub))
+  create_scene_mock = MagicMock(return_value=(
+    "gs://files/video/portrait.mp4",
+    np.zeros((2, 2, 3), dtype=np.uint8),
+    metadata_stub,
+  ))
   get_uri_mock = MagicMock(return_value="gs://files/video/portrait.mp4")
+  get_image_uri_mock = MagicMock(return_value="gs://temp/portrait_preview.png")
+  upload_image_mock = MagicMock(
+    return_value=("gs://temp/portrait_preview.png", b"preview-bytes"))
 
   with patch.object(gen_video.utils, "is_emulator", return_value=False), \
       patch.object(gen_video.cloud_storage, "get_video_gcs_uri", get_uri_mock), \
+      patch.object(gen_video.cloud_storage, "get_temp_file_gcs_uri", get_image_uri_mock), \
+      patch.object(gen_video.cloud_storage, "upload_image_to_gcs", upload_image_mock), \
       patch.object(gen_video.joke_video_chars_on_top_script_builder,
                    "build_script",
                    return_value=script_stub) as build_script_mock, \
       patch.object(gen_video, "generate_scene_video", create_scene_mock):
-    gcs_uri, metadata = gen_video.create_portrait_character_video(
+    gcs_uri, preview_uri, metadata = gen_video.create_portrait_character_video(
       setup_image_gcs_uri="gs://bucket/image1.png",
       punchline_image_gcs_uri="gs://bucket/image2.png",
       teller_character=_DummyCharacter(),
@@ -434,6 +443,7 @@ def test_create_portrait_character_video_uploads_mp4():
     )
 
   assert gcs_uri == "gs://files/video/portrait.mp4"
+  assert preview_uri == "gs://temp/portrait_preview.png"
   assert metadata.model_name == "moviepy"
   assert metadata.token_counts["num_images"] == 5
   assert metadata.token_counts["num_audio_files"] == 2
@@ -444,6 +454,8 @@ def test_create_portrait_character_video_uploads_mp4():
   assert build_script_mock.call_args.kwargs[
     "listener_voice"] == audio_voices.Voice.GEMINI_PUCK
   create_scene_mock.assert_called_once()
+  upload_image_mock.assert_called_once()
 
   get_uri_mock.assert_called_once()
   assert get_uri_mock.call_args.kwargs["temp"] is True
+  get_image_uri_mock.assert_called_once()

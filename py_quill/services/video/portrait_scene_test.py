@@ -378,13 +378,14 @@ def test_generate_scene_video_reports_metadata():
       patch.object(scene_video_renderer, "VideoClip", _ProbingVideoClip), \
       patch.object(scene_video_renderer, "AudioFileClip", _FakeAudioClip), \
       patch.object(scene_video_renderer, "CompositeAudioClip", _FakeCompositeAudio):
-    _uri, metadata = scene_video_renderer.generate_scene_video(
+    _uri, first_frame, metadata = scene_video_renderer.generate_scene_video(
       script=script,
       output_gcs_uri="gs://files/video/test.mp4",
       label="create_portrait_character_video",
       fps=24,
     )
 
+  assert first_frame.shape == (1920, 1080, 3)
   assert metadata.label == "create_portrait_character_video"
   assert metadata.token_counts["num_characters"] == 1
 

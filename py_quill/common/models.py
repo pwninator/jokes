@@ -913,9 +913,6 @@ class JokeSocialPost:
   facebook_post_time: datetime.datetime | None = None
   facebook_message: str | None = None
 
-  reel_intro_script: str | None = None
-  reel_response_script: str | None = None
-
   def __post_init__(self) -> None:
     if not isinstance(self.link_url, str) or not self.link_url:
       raise ValueError("JokeSocialPost requires a link_url")
@@ -1007,6 +1004,59 @@ class JokeSocialPost:
     data['jokes'] = jokes
 
     data['key'] = key
+
+    allowed = {f.name for f in dataclasses.fields(cls)}
+    filtered = {k: v for k, v in data.items() if k in allowed}
+    return cls(**filtered)
+
+
+@dataclass(kw_only=True)
+class JokeVideo:
+  """Represents a generated joke video and its reusable metadata."""
+
+  key: str | None = None
+  joke_id: str
+  creation_time: datetime.datetime | None = None
+  video_gcs_uri: str
+  preview_image_gcs_uri: str | None = None
+  dialog_audio_gcs_uri: str | None = None
+  intro_audio_gcs_uri: str | None = None
+  setup_audio_gcs_uri: str | None = None
+  response_audio_gcs_uri: str | None = None
+  punchline_audio_gcs_uri: str | None = None
+  script_intro: str = ""
+  script_setup: str = ""
+  script_response: str = ""
+  script_punchline: str = ""
+  teller_character_def_id: str = ""
+  listener_character_def_id: str | None = None
+  generation_metadata: GenerationMetadata = field(
+    default_factory=GenerationMetadata)
+
+  def to_dict(self) -> dict[str, Any]:
+    """Serialize joke video fields for Firestore writes."""
+    data = dataclasses.asdict(self)
+    data["generation_metadata"] = (self.generation_metadata.as_dict
+                                   if self.generation_metadata else {})
+    data.pop("key", None)
+    data.pop("creation_time", None)
+    return data
+
+  @classmethod
+  def from_firestore_dict(cls, data: dict[str, Any], key: str) -> JokeVideo:
+    """Create a JokeVideo from a Firestore dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    generation_metadata_raw = data.get("generation_metadata")
+    generation_metadata_dict: dict[str, Any] | None = None
+    if isinstance(generation_metadata_raw, dict):
+      generation_metadata_dict = cast(dict[str, Any], generation_metadata_raw)
+    data["generation_metadata"] = GenerationMetadata.from_dict(
+      generation_metadata_dict)
+    data["key"] = key
 
     allowed = {f.name for f in dataclasses.fields(cls)}
     filtered = {k: v for k, v in data.items() if k in allowed}
@@ -1186,6 +1236,7 @@ class PunnyJoke:
   admin_rating: JokeAdminRating = JokeAdminRating.UNREVIEWED
 
   book_id: str | None = None
+  joke_social_post_id: str | None = None
   owner_user_id: str | None = None
   public_timestamp: datetime.datetime | None = None
   is_public: bool = False

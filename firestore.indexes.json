@@ -161,6 +161,25 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "joke_videos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "joke_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creation_time",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "jokes",
       "queryScope": "COLLECTION",
       "fields": [

@@ -580,25 +580,38 @@ def _run_joke_video_generation(req: flask.Request) -> flask.Response:
       joke,
       teller_character_def_id=teller_character_def_id,
       listener_character_def_id=listener_character_def_id,
-      temp_output=True,
+      temp_output=False,
       script_template=script_template,
       audio_model=audio_model,
       allow_partial=allow_partial,
       use_audio_cache=use_audio_cache,
     )
+    joke_video = result.joke_video
+    partial_audio = result.partial_audio
 
     return success_response(
       {
-        "video_gcs_uri": result.video_gcs_uri,
-        "dialog_audio_gcs_uri": result.dialog_audio_gcs_uri,
-        "intro_audio_gcs_uri": result.intro_audio_gcs_uri,
-        "setup_audio_gcs_uri": result.setup_audio_gcs_uri,
-        "response_audio_gcs_uri": result.response_audio_gcs_uri,
-        "punchline_audio_gcs_uri": result.punchline_audio_gcs_uri,
-        "audio_generation_metadata": result.audio_generation_metadata.as_dict
-        if result.audio_generation_metadata else {},
-        "video_generation_metadata": result.video_generation_metadata.as_dict
-        if result.video_generation_metadata else {},
+        "video_gcs_uri": joke_video.video_gcs_uri if joke_video else None,
+        "dialog_audio_gcs_uri": joke_video.dialog_audio_gcs_uri
+        if joke_video else partial_audio.dialog_gcs_uri
+        if partial_audio else None,
+        "intro_audio_gcs_uri": joke_video.intro_audio_gcs_uri
+        if joke_video else partial_audio.intro_gcs_uri
+        if partial_audio else None,
+        "setup_audio_gcs_uri": joke_video.setup_audio_gcs_uri
+        if joke_video else partial_audio.setup_gcs_uri
+        if partial_audio else None,
+        "response_audio_gcs_uri": joke_video.response_audio_gcs_uri
+        if joke_video else partial_audio.response_gcs_uri
+        if partial_audio else None,
+        "punchline_audio_gcs_uri": joke_video.punchline_audio_gcs_uri
+        if joke_video else partial_audio.punchline_gcs_uri
+        if partial_audio else None,
+        "preview_image_gcs_uri": joke_video.preview_image_gcs_uri
+        if joke_video else None,
+        "generation_metadata": result.generation_metadata.as_dict
+        if result.generation_metadata else {},
+        "joke_video_data": joke_video.to_dict() if joke_video else None,
         "error": result.error,
         "error_stage": result.error_stage,
       },

@@ -16,6 +16,7 @@ from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.video.VideoClip import ImageClip
+from PIL import Image
 from services import audio_voices, cloud_storage
 from services.video import joke_video_chars_on_top_script_builder
 from services.video.scene_video_renderer import generate_scene_video
@@ -179,7 +180,7 @@ def create_portrait_character_video(
   intro_sequence: PosableCharacterSequence | None = None,
   response_sequence: PosableCharacterSequence | None = None,
   temp_output: bool = False,
-) -> tuple[str, models.SingleGenerationMetadata]:
+) -> tuple[str, str, models.SingleGenerationMetadata]:
   """Create a portrait video with animated character(s) in the footer.
 
   Args:
@@ -191,13 +192,17 @@ def create_portrait_character_video(
     temp_output: Whether to output to the temp bucket.
 
   Returns:
-    (gcs_uri, metadata) tuple for the generated video.
+    (video_gcs_uri, preview_image_gcs_uri, metadata) tuple for the generated
+    video.
   """
   if utils.is_emulator():
     logger.info('Running in emulator mode. Returning a test video file.')
     random_suffix = f"{random.randint(1, 10):02d}"
     test_uri = f"gs://test_story_video_data/test_portrait_video_{random_suffix}.mp4"
-    return test_uri, models.SingleGenerationMetadata()
+    preview_uri = (
+      "gs://test_story_video_data/"
+      f"test_portrait_video_preview_{random_suffix}.png")
+    return test_uri, preview_uri, models.SingleGenerationMetadata()
 
   normalized_images = _normalize_timed_assets(
     [
@@ -244,12 +249,27 @@ def create_portrait_character_video(
     _validate_video_duration(script.duration_sec)
     _validate_image_timing(normalized_images, script.duration_sec)
     _validate_audio_timing(normalized_audio, script.duration_sec)
-    gcs_uri, metadata = generate_scene_video(
+    gcs_uri, preview_frame, metadata = generate_scene_video(
       script=script,
       output_gcs_uri=output_gcs_uri,
       label="create_portrait_character_video",
       fps=_DEFAULT_VIDEO_FPS,
     )
+    preview_base_name = f"{output_filename_base}_preview"
+    preview_target_gcs_uri = (
+      cloud_storage.get_temp_file_gcs_uri(preview_base_name, "png")
+      if temp_output else cloud_storage.get_image_gcs_uri(preview_base_name,
+                                                          "png"))
+    preview_image = Image.fromarray(preview_frame).convert("RGB")
+    try:
+      preview_gcs_uri, _ = cloud_storage.upload_image_to_gcs(
+        preview_image,
+        preview_base_name,
+        "png",
+        gcs_uri=preview_target_gcs_uri,
+      )
+    finally:
+      preview_image.close()
     _log_video_response(images=normalized_images,
                         audio_files=normalized_audio,
                         gcs_uri=gcs_uri,
@@ -257,8 +277,9 @@ def create_portrait_character_video(
                         extra_log_data={
                           "num_characters":
                           1 if listener_character is None else 2,
+                          "preview_image_gcs_uri": preview_gcs_uri,
                         })
-    return gcs_uri, metadata
+    return gcs_uri, preview_gcs_uri, metadata
   except Exception as e:
     logger.error(
       f"Portrait video generation failed:\n{traceback.format_exc()}")

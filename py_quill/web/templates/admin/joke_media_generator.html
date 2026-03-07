@@ -746,13 +746,10 @@
           videoRequestData,
         );
         const videoGcs = data.video_gcs_uri;
-        const meta = data.video_generation_metadata || {};
+        const meta = data.generation_metadata || {};
         const hasAnyAudio = populateAudioResults(data);
 
-        const directAudioMeta = data.audio_generation_metadata;
-        const audioMeta = hasPopulatedAudioMetadata(directAudioMeta)
-          ? directAudioMeta
-          : extractAudioGeneration(meta);
+        const audioMeta = extractAudioGeneration(meta);
         if (audioMeta) {
           populateAudioMeta(audioMeta);
         }

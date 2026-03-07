@@ -479,7 +479,7 @@ def generate_joke_reel_dialog_scripts(
   *,
   setup_text: str,
   punchline_text: str,
-  recent_posts: list[models.JokeSocialPost],
+  recent_joke_videos: list[models.JokeVideo],
 ) -> tuple[str, str, models.GenerationMetadata]:
   """Generate varied intro/response lines for a joke reel dialog."""
   normalized_setup = setup_text.strip()
@@ -496,7 +496,8 @@ def generate_joke_reel_dialog_scripts(
 """
   ]
 
-  recent_scripts_prompt = _get_recent_reel_scripts_prompt_str(recent_posts)
+  recent_scripts_prompt = _get_recent_reel_scripts_prompt_str(
+    recent_joke_videos)
   if recent_scripts_prompt:
     prompt_chunks.append(recent_scripts_prompt)
 
@@ -531,29 +532,27 @@ def _get_recent_posts_prompt_str(recent_posts: list[models.JokeSocialPost],
 
 
 def _get_recent_reel_scripts_prompt_str(
-    recent_posts: list[models.JokeSocialPost]) -> str | None:
+    recent_joke_videos: list[models.JokeVideo]) -> str | None:
   """Generate a prompt block describing recent reel intro/response pairs."""
-  if not recent_posts:
+  if not recent_joke_videos:
     return None
 
   summaries: list[str] = []
-  for index, post in enumerate(recent_posts, start=1):
-    intro_script = (post.reel_intro_script or "").strip()
-    response_script = (post.reel_response_script or "").strip()
-
-    if not post.jokes:
-      continue
-    joke = post.jokes[0]
-    if not (joke.setup_text and joke.punchline_text and intro_script
-            and response_script):
+  for index, joke_video in enumerate(recent_joke_videos, start=1):
+    intro_script = (joke_video.script_intro or "").strip()
+    setup_script = (joke_video.script_setup or "").strip()
+    response_script = (joke_video.script_response or "").strip()
+    punchline_script = (joke_video.script_punchline or "").strip()
+    if not (intro_script and setup_script and response_script and
+            punchline_script):
       continue
 
     summaries.append(f"""
 Recent script {index}:
 Intro: {intro_script}
-Setup: {joke.setup_text}
+Setup: {setup_script}
 Response: {response_script}
-Punchline: {joke.punchline_text}
+Punchline: {punchline_script}
 """.strip())
 
   return "\n\n".join(summaries) if summaries else None

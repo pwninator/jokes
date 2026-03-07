@@ -42,6 +42,7 @@ JOKE_FIELDS_TO_LOG = {
   "seasonal",
   "pun_word",
   "punned_word",
+  "joke_social_post_id",
 
   # State fields
   "state",

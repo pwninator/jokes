@@ -1,4 +1,5 @@
 """Social post cloud functions."""
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
@@ -174,6 +175,8 @@ def run_social_post_creation_process(req: Any) -> Any:
       )
 
     if saved_post := firestore.upsert_social_post(post, operation=operation):
+      if is_new and saved_post.key:
+        _link_jokes_to_social_post(saved_post)
       return success_response(
         {
           "post_id": saved_post.key,
@@ -200,6 +203,20 @@ def _serialize_social_post(post: models.JokeSocialPost) -> dict[str, Any]:
     if isinstance(value, datetime.datetime):
       data[key] = value.isoformat()
   return data
+
+
+def _link_jokes_to_social_post(post: models.JokeSocialPost) -> None:
+  """Set joke_social_post_id on all jokes included in a newly created post."""
+  if not post.key:
+    return
+  for joke in post.jokes:
+    joke_id = (joke.key or "").strip()
+    if not joke_id:
+      continue
+    _ = firestore.update_punny_joke(
+      joke_id,
+      {"joke_social_post_id": post.key},
+    )
 
 
 def _parse_platform(

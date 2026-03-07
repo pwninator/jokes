@@ -380,8 +380,6 @@ def test_joke_social_post_video_uri_fields_round_trip():
     pinterest_video_gcs_uri="gs://bucket/social/video.mp4",
     instagram_video_gcs_uri="gs://bucket/social/video.mp4",
     facebook_video_gcs_uri="gs://bucket/social/video.mp4",
-    reel_intro_script="Psst!",
-    reel_response_script="I have no idea. Why?",
   )
   post.key = "post-video-1"
 
@@ -390,8 +388,6 @@ def test_joke_social_post_video_uri_fields_round_trip():
   assert payload["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert payload["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert payload["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
-  assert payload["reel_intro_script"] == "Psst!"
-  assert payload["reel_response_script"] == "I have no idea. Why?"
 
   restored = models.JokeSocialPost.from_firestore_dict(payload,
                                                        key="post-video-1")
@@ -399,8 +395,70 @@ def test_joke_social_post_video_uri_fields_round_trip():
   assert restored.pinterest_video_gcs_uri == "gs://bucket/social/video.mp4"
   assert restored.instagram_video_gcs_uri == "gs://bucket/social/video.mp4"
   assert restored.facebook_video_gcs_uri == "gs://bucket/social/video.mp4"
-  assert restored.reel_intro_script == "Psst!"
-  assert restored.reel_response_script == "I have no idea. Why?"
+
+
+def test_joke_video_round_trip():
+  metadata = models.GenerationMetadata(
+    generations=[
+      models.SingleGenerationMetadata(
+        label="joke_video_script",
+        model_name="gemini-2.5-flash",
+        cost=0.01,
+      ),
+      models.SingleGenerationMetadata(
+        label="create_portrait_character_video",
+        model_name="moviepy",
+        cost=0.0,
+      ),
+    ])
+  joke_video = models.JokeVideo(
+    key="video-1",
+    joke_id="j1",
+    video_gcs_uri="gs://bucket/video/j1.mp4",
+    preview_image_gcs_uri="gs://bucket/video/j1_preview.png",
+    dialog_audio_gcs_uri="gs://bucket/audio/j1_dialog.wav",
+    intro_audio_gcs_uri="gs://bucket/audio/j1_intro.wav",
+    setup_audio_gcs_uri="gs://bucket/audio/j1_setup.wav",
+    response_audio_gcs_uri="gs://bucket/audio/j1_response.wav",
+    punchline_audio_gcs_uri="gs://bucket/audio/j1_punchline.wav",
+    script_intro="Psst!",
+    script_setup="Why did the bee",
+    script_response="I don't know. What?",
+    script_punchline="Because it had a buzz pass.",
+    teller_character_def_id="cat_orange_tabby",
+    listener_character_def_id="dog_beagle",
+    generation_metadata=metadata,
+  )
+
+  payload = joke_video.to_dict()
+  assert "key" not in payload
+  assert "creation_time" not in payload
+  assert payload["joke_id"] == "j1"
+  assert payload["preview_image_gcs_uri"] == "gs://bucket/video/j1_preview.png"
+  assert payload["script_intro"] == "Psst!"
+  assert payload["script_response"] == "I don't know. What?"
+  assert payload["generation_metadata"]["total_cost"] == 0.01
+
+  restored = models.JokeVideo.from_firestore_dict(payload, key="video-1")
+  assert restored.key == "video-1"
+  assert restored.joke_id == "j1"
+  assert restored.video_gcs_uri == "gs://bucket/video/j1.mp4"
+  assert restored.script_punchline == "Because it had a buzz pass."
+  assert len(restored.generation_metadata.generations) == 2
+
+
+def test_punny_joke_round_trip_includes_joke_social_post_id():
+  payload = {
+    "setup_text": "Setup",
+    "punchline_text": "Punchline",
+    "joke_social_post_id": "social-post-123",
+  }
+
+  joke = models.PunnyJoke.from_firestore_dict(payload, key="joke-1")
+  assert joke.joke_social_post_id == "social-post-123"
+
+  serialized = joke.to_dict(include_key=False)
+  assert serialized["joke_social_post_id"] == "social-post-123"
 
 
 def test_joke_social_post_platform_summary_pinterest_with_time():

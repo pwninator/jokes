@@ -20,7 +20,29 @@ def mock_firestore_fixture(monkeypatch):
       height=1,
     ))
   monkeypatch.setattr(joke_media_operations, 'firestore', mock_firestore)
+  monkeypatch.setattr(
+    joke_media_operations.social_post_prompts,
+    "generate_joke_reel_dialog_scripts",
+    lambda **_kwargs:
+    ("Psst!", "I don't know. What?", models.GenerationMetadata()),
+  )
   return mock_firestore
+
+
+@pytest.fixture(name='mock_joke_videos_firestore', autouse=True)
+def mock_joke_videos_firestore_fixture(monkeypatch):
+  """Fixture that mocks joke video Firestore storage operations."""
+  mock_joke_videos_firestore = Mock()
+  mock_joke_videos_firestore.get_recent_joke_videos.return_value = []
+  mock_joke_videos_firestore.get_latest_joke_video_for_joke.return_value = None
+  mock_joke_videos_firestore.create_joke_video.side_effect = (
+    lambda joke_video: joke_video)
+  monkeypatch.setattr(
+    joke_media_operations,
+    'joke_videos_firestore',
+    mock_joke_videos_firestore,
+  )
+  return mock_joke_videos_firestore
 
 
 @pytest.fixture(name='mock_cloud_storage')
@@ -29,6 +51,10 @@ def mock_cloud_storage_fixture(monkeypatch):
   mock_cloud_storage = Mock()
   mock_cloud_storage.get_and_convert_wave_bytes_from_gcs.side_effect = (
     lambda gcs_uri: mock_cloud_storage.download_bytes_from_gcs(gcs_uri))
+  mock_cloud_storage.get_image_gcs_uri.return_value = "gs://images/preview.png"
+  mock_cloud_storage.get_temp_file_gcs_uri.return_value = "gs://temp/preview.png"
+  mock_cloud_storage.upload_image_to_gcs.return_value = (
+    "gs://images/preview.png", b"preview-bytes")
   monkeypatch.setattr(joke_media_operations, 'cloud_storage',
                       mock_cloud_storage)
   return mock_cloud_storage
@@ -789,8 +815,12 @@ def test_get_joke_lip_sync_media_bypasses_cache_when_disabled(monkeypatch):
   )
 
 
-def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
-                                             mock_firestore):
+def test_generate_joke_video_builds_timeline(
+  monkeypatch,
+  mock_cloud_storage,
+  mock_firestore,
+  mock_joke_videos_firestore,
+):
   joke = models.PunnyJoke(
     key="joke-42",
     setup_text="Setup",
@@ -840,8 +870,11 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
     )),
   )
 
-  create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
-                                         video_metadata))
+  create_video_mock = Mock(return_value=(
+    "gs://videos/joke.mp4",
+    "gs://images/preview.png",
+    video_metadata,
+  ))
   monkeypatch.setattr(
     joke_media_operations.gen_video,
     "create_portrait_character_video",
@@ -858,13 +891,18 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
     listener_character_def_id="char-listener",
   )
 
-  assert result.video_gcs_uri == "gs://videos/joke.mp4"
+  assert result.joke_video is not None
+  assert result.joke_video.video_gcs_uri == "gs://videos/joke.mp4"
+  assert result.joke_video.preview_image_gcs_uri == "gs://images/preview.png"
   assert [
-    gen.model_name for gen in result.video_generation_metadata.generations
+    gen.model_name for gen in result.generation_metadata.generations
   ] == [
     "audio-model",
     "video-model",
   ]
+  assert result.joke_video.joke_id == "joke-42"
+  assert result.joke_video.video_gcs_uri == "gs://videos/joke.mp4"
+  assert result.joke_video.preview_image_gcs_uri == "gs://images/preview.png"
 
   create_video_mock.assert_called_once()
   call_kwargs = create_video_mock.call_args.kwargs
@@ -882,6 +920,7 @@ def test_generate_joke_video_builds_timeline(monkeypatch, mock_cloud_storage,
     "listener_voice"] == joke_media_operations.DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
   assert call_kwargs["temp_output"] is False
+  mock_joke_videos_firestore.create_joke_video.assert_called_once()
   assert mock_firestore.get_posable_character_def.call_count == 2
   mock_firestore.get_posable_character_def.assert_any_call("char-teller")
   mock_firestore.get_posable_character_def.assert_any_call("char-listener")
@@ -891,6 +930,7 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   monkeypatch,
   mock_cloud_storage,
   mock_firestore,
+  mock_joke_videos_firestore,
 ):
 
   joke = models.PunnyJoke(
@@ -932,8 +972,11 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
       audio_generation_metadata=audio_metadata,
     )))
 
-  create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
-                                         video_metadata))
+  create_video_mock = Mock(return_value=(
+    "gs://videos/joke.mp4",
+    "gs://images/preview.png",
+    video_metadata,
+  ))
   monkeypatch.setattr(
     joke_media_operations.gen_video,
     "create_portrait_character_video",
@@ -950,9 +993,10 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
     listener_character_def_id="char-listener",
   )
 
-  assert result.video_gcs_uri == "gs://videos/joke.mp4"
+  assert result.joke_video is not None
+  assert result.joke_video.video_gcs_uri == "gs://videos/joke.mp4"
   assert [
-    gen.model_name for gen in result.video_generation_metadata.generations
+    gen.model_name for gen in result.generation_metadata.generations
   ] == [
     "audio-model",
     "video-model",
@@ -967,6 +1011,7 @@ def test_generate_joke_video_splits_intro_and_setup_when_timing_available(
   assert call_kwargs[
     "listener_voice"] == joke_media_operations.DEFAULT_JOKE_AUDIO_SPEAKER_2_VOICE
   assert call_kwargs["output_filename_base"] == "joke_video_joke-42"
+  _ = mock_joke_videos_firestore
   assert mock_firestore.get_posable_character_def.call_count == 2
   mock_firestore.get_posable_character_def.assert_any_call("char-teller")
   mock_firestore.get_posable_character_def.assert_any_call("char-listener")
@@ -986,7 +1031,9 @@ def test_generate_joke_video_requires_images():
     )
 
 
-def test_generate_joke_video_requires_teller_character_id(mock_cloud_storage):
+def test_generate_joke_video_requires_teller_character_id(mock_cloud_storage,
+                                                          mock_firestore):
+  _ = mock_firestore
   joke = models.PunnyJoke(
     setup_text="Setup",
     punchline_text="Punchline",
@@ -1011,6 +1058,7 @@ def test_generate_joke_video_requires_listener_character_when_response_present(
   monkeypatch,
   mock_cloud_storage,
   mock_firestore,
+  mock_joke_videos_firestore,
 ):
   joke = models.PunnyJoke(
     key="joke-listener-required",
@@ -1056,6 +1104,7 @@ def test_generate_joke_video_requires_listener_character_when_response_present(
     )),
   )
 
+  _ = mock_joke_videos_firestore
   mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
     "gs://images/setup.png",
     "gs://images/punchline.png",
@@ -1074,6 +1123,7 @@ def test_generate_joke_video_allows_missing_listener_character_when_no_response(
   monkeypatch,
   mock_cloud_storage,
   mock_firestore,
+  mock_joke_videos_firestore,
 ):
   joke = models.PunnyJoke(
     key="joke-no-listener-needed",
@@ -1116,8 +1166,11 @@ def test_generate_joke_video_allows_missing_listener_character_when_no_response(
   )
 
   video_metadata = models.SingleGenerationMetadata(model_name="video-model")
-  create_video_mock = Mock(return_value=("gs://videos/joke.mp4",
-                                         video_metadata))
+  create_video_mock = Mock(return_value=(
+    "gs://videos/joke.mp4",
+    "gs://images/preview.png",
+    video_metadata,
+  ))
   monkeypatch.setattr(
     joke_media_operations.gen_video,
     "create_portrait_character_video",
@@ -1135,11 +1188,13 @@ def test_generate_joke_video_allows_missing_listener_character_when_no_response(
     listener_character_def_id=None,
   )
 
-  assert result.video_gcs_uri == "gs://videos/joke.mp4"
+  assert result.joke_video is not None
+  assert result.joke_video.video_gcs_uri == "gs://videos/joke.mp4"
   create_video_mock.assert_called_once()
   call_kwargs = create_video_mock.call_args.kwargs
   assert call_kwargs["listener_character"] is None
   assert call_kwargs["listener_voice"] is None
+  _ = mock_joke_videos_firestore
   assert mock_firestore.get_posable_character_def.call_count == 1
   mock_firestore.get_posable_character_def.assert_called_once_with(
     "char-teller")
@@ -1149,6 +1204,7 @@ def test_generate_joke_video_raises_when_character_def_not_found(
   monkeypatch,
   mock_cloud_storage,
   mock_firestore,
+  mock_joke_videos_firestore,
 ):
   joke = models.PunnyJoke(
     key="joke-404",
@@ -1190,6 +1246,7 @@ def test_generate_joke_video_raises_when_character_def_not_found(
     )),
   )
 
+  _ = mock_joke_videos_firestore
   mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
     "gs://images/setup.png",
     "gs://images/punchline.png",
@@ -1213,6 +1270,71 @@ def test_generate_joke_video_raises_when_character_def_not_found(
       teller_character_def_id="missing-char",
       listener_character_def_id="char-listener",
     )
+
+
+def test_ensure_joke_video_returns_existing_from_firestore(
+  monkeypatch,
+  mock_joke_videos_firestore,
+):
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punchline",
+  )
+  existing = models.JokeVideo(
+    key="video-1",
+    joke_id="joke-1",
+    video_gcs_uri="gs://bucket/video/joke-1.mp4",
+  )
+  mock_joke_videos_firestore.get_latest_joke_video_for_joke.return_value = (
+    existing)
+  generate_mock = Mock(
+    side_effect=AssertionError("generate_joke_video should not run"))
+  monkeypatch.setattr(joke_media_operations, "generate_joke_video",
+                      generate_mock)
+
+  resolved = joke_media_operations.ensure_joke_video(
+    joke,
+    teller_character_def_id="char-teller",
+    listener_character_def_id="char-listener",
+  )
+
+  assert resolved == existing
+  mock_joke_videos_firestore.get_latest_joke_video_for_joke.assert_called_once_with(
+    "joke-1")
+  generate_mock.assert_not_called()
+
+
+def test_ensure_joke_video_generates_when_missing(monkeypatch,
+                                                  mock_joke_videos_firestore):
+  joke = models.PunnyJoke(
+    key="joke-2",
+    setup_text="Setup",
+    punchline_text="Punchline",
+  )
+  mock_joke_videos_firestore.get_latest_joke_video_for_joke.return_value = None
+  generated = models.JokeVideo(
+    key="video-2",
+    joke_id="joke-2",
+    video_gcs_uri="gs://bucket/video/joke-2.mp4",
+  )
+  monkeypatch.setattr(
+    joke_media_operations,
+    "generate_joke_video",
+    Mock(return_value=joke_media_operations.JokeVideoResult(
+      joke_video=generated,
+      partial_audio=None,
+      generation_metadata=models.GenerationMetadata(),
+    )),
+  )
+
+  resolved = joke_media_operations.ensure_joke_video(
+    joke,
+    teller_character_def_id="char-teller",
+    listener_character_def_id="char-listener",
+  )
+
+  assert resolved == generated
 
 
 def test_generate_joke_audio_uses_scan_and_split_with_timing(

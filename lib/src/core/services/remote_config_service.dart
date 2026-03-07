@@ -160,7 +160,7 @@ enum RemoteParam {
 
 /// Default headline shown above the Book Promo Amazon CTA button.
 const String defaultBookPromoCardHeadlineText =
-    'We just launched a Snickerdoodle Jokes book!';
+    "There's a Snickerdoodle Jokes book!";
 
 // Enum used by share images mode configuration
 enum ShareImagesMode { auto, separate, stacked }

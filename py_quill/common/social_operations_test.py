@@ -105,50 +105,23 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
     "DEFAULT_SOCIAL_REEL_LISTENER_CHARACTER_DEF_ID",
     "char_listener",
   )
-  monkeypatch.setattr(
-    social_operations.firestore,
-    "get_joke_social_posts",
-    lambda **_kwargs: [
-      models.JokeSocialPost(
-        type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
-        link_url="https://snickerdoodlejokes.com/jokes/old-joke",
-        reel_intro_script="Hey!",
-        reel_response_script="I don't know. What?",
-      )
-    ],
-  )
-  prompt_call = {}
+  ensure_call = {}
 
-  def _fake_generate_dialog_scripts(*, setup_text, punchline_text,
-                                    recent_posts):
-    prompt_call["setup_text"] = setup_text
-    prompt_call["punchline_text"] = punchline_text
-    prompt_call["recent_posts"] = recent_posts
-    return "Psst!", "Hmm, why?", models.GenerationMetadata()
-
-  monkeypatch.setattr(
-    social_operations.social_post_prompts,
-    "generate_joke_reel_dialog_scripts",
-    _fake_generate_dialog_scripts,
-  )
-
-  def _fake_generate_joke_video(*_args, **_kwargs):
-    script_template = _kwargs["script_template"]
-    assert script_template[0].script == "[playfully] Psst!"
-    assert script_template[1].script == "{setup_text}"
-    assert script_template[2].script == "[curiously] Hmm, why?"
-    assert script_template[3].script == (
-      "[excitedly, holding back laughter] {punchline_text}")
-    return Mock(
+  def _fake_ensure_joke_video(*args, **kwargs):
+    ensure_call["joke"] = args[0]
+    ensure_call["teller_character_def_id"] = kwargs["teller_character_def_id"]
+    ensure_call[
+      "listener_character_def_id"] = kwargs["listener_character_def_id"]
+    ensure_call["use_audio_cache"] = kwargs["use_audio_cache"]
+    return models.JokeVideo(
+      joke_id="j1",
       video_gcs_uri="gs://bucket/social/joke_video.mp4",
-      error=None,
-      error_stage=None,
     )
 
   monkeypatch.setattr(
     social_operations.joke_media_operations,
-    "generate_joke_video",
-    _fake_generate_joke_video,
+    "ensure_joke_video",
+    _fake_ensure_joke_video,
   )
 
   updated_post, image_bytes_by_platform, updated = (
@@ -158,8 +131,10 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
   assert updated_post.instagram_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
   assert updated_post.facebook_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
   assert updated_post.pinterest_video_gcs_uri == "gs://bucket/social/joke_video.mp4"
-  assert updated_post.reel_intro_script == "Psst!"
-  assert updated_post.reel_response_script == "Hmm, why?"
+  assert ensure_call["joke"].key == "j1"
+  assert ensure_call["teller_character_def_id"] == "char_teller"
+  assert ensure_call["listener_character_def_id"] == "char_listener"
+  assert ensure_call["use_audio_cache"] is True
   assert image_bytes_by_platform[models.SocialPlatform.PINTEREST] == [
     b"bytes-setup.png",
     b"bytes-punch.png",
@@ -172,12 +147,9 @@ def test_generate_social_post_media_joke_video_sets_shared_video_uris(
     b"bytes-setup.png",
     b"bytes-punch.png",
   ]
-  assert prompt_call["setup_text"] == "Setup 1"
-  assert prompt_call["punchline_text"] == "Punchline 1"
-  assert len(prompt_call["recent_posts"]) == 1
 
 
-def test_generate_social_post_media_joke_video_reuses_persisted_scripts(
+def test_generate_social_post_media_joke_video_reuses_existing_video_uri(
   monkeypatch: pytest.MonkeyPatch, ):
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
@@ -191,8 +163,7 @@ def test_generate_social_post_media_joke_video_reuses_persisted_scripts(
       )
     ],
     link_url="https://snickerdoodlejokes.com/jokes/scarecrow",
-    reel_intro_script="Heya!",
-    reel_response_script="I have no idea. Why?",
+    instagram_video_gcs_uri="gs://bucket/social/already_exists.mp4",
   )
 
   monkeypatch.setattr(
@@ -206,36 +177,21 @@ def test_generate_social_post_media_joke_video_reuses_persisted_scripts(
     lambda gcs_uri: (f"bytes-{gcs_uri.rsplit('/', 1)[-1]}".encode("utf-8")),
   )
   monkeypatch.setattr(
-    social_operations.social_post_prompts,
-    "generate_joke_reel_dialog_scripts",
-    Mock(side_effect=AssertionError("LLM should not run")),
-  )
-
-  def _fake_generate_joke_video(*_args, **_kwargs):
-    script_template = _kwargs["script_template"]
-    assert script_template[0].script == "[playfully] Heya!"
-    assert script_template[2].script == "[curiously] I have no idea. Why?"
-    return Mock(
-      video_gcs_uri="gs://bucket/social/joke_video.mp4",
-      error=None,
-      error_stage=None,
-    )
-
-  monkeypatch.setattr(
     social_operations.joke_media_operations,
-    "generate_joke_video",
-    _fake_generate_joke_video,
+    "ensure_joke_video",
+    Mock(side_effect=AssertionError("ensure_joke_video should not run")),
   )
 
   updated_post, _image_bytes_by_platform, updated = (
     social_operations.generate_social_post_media(post))
 
   assert updated is True
-  assert updated_post.reel_intro_script == "Heya!"
-  assert updated_post.reel_response_script == "I have no idea. Why?"
+  assert updated_post.instagram_video_gcs_uri == "gs://bucket/social/already_exists.mp4"
+  assert updated_post.facebook_video_gcs_uri == "gs://bucket/social/already_exists.mp4"
+  assert updated_post.pinterest_video_gcs_uri == "gs://bucket/social/already_exists.mp4"
 
 
-def test_generate_social_post_media_joke_video_fails_when_script_llm_fails(
+def test_generate_social_post_media_joke_video_fails_when_video_generation_fails(
   monkeypatch: pytest.MonkeyPatch, ):
   post = models.JokeSocialPost(
     type=models.JokeSocialPostType.JOKE_REEL_VIDEO,
@@ -262,22 +218,12 @@ def test_generate_social_post_media_joke_video_fails_when_script_llm_fails(
     lambda gcs_uri: (f"bytes-{gcs_uri.rsplit('/', 1)[-1]}".encode("utf-8")),
   )
   monkeypatch.setattr(
-    social_operations.social_post_prompts,
-    "generate_joke_reel_dialog_scripts",
-    Mock(side_effect=ValueError("LLM failed")),
-  )
-  monkeypatch.setattr(
-    social_operations.firestore,
-    "get_joke_social_posts",
-    lambda **_kwargs: [],
-  )
-  monkeypatch.setattr(
     social_operations.joke_media_operations,
-    "generate_joke_video",
-    Mock(side_effect=AssertionError("Video generation should not run")),
+    "ensure_joke_video",
+    Mock(side_effect=ValueError("video failed")),
   )
 
-  with pytest.raises(ValueError, match="LLM failed"):
+  with pytest.raises(ValueError, match="video failed"):
     _ = social_operations.generate_social_post_media(post)
 
 

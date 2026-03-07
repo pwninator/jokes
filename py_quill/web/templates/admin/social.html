@@ -84,8 +84,8 @@
   }
 
   .social-posts-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
   }
 
@@ -97,6 +97,51 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    transition: border-color 0.2s;
+  }
+
+  .social-post-card.is-expanded {
+    grid-column: 1 / -1;
+  }
+
+  .social-post-card--unposted {
+    border-color: #1976d2;
+  }
+
+  .social-post-card__collapsed-media {
+    width: 100%;
+    min-height: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .social-post-card__collapsed-media .social-posts-thumb {
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+  }
+
+  .social-post-card__collapsed-media a {
+    display: block;
+    width: 100%;
+  }
+
+  .social-post-card__collapsed-media img.social-posts-thumb {
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+  }
+
+  .social-post-card:not(.is-collapsed) .social-post-card__collapsed-media {
+    display: none;
+  }
+
+  .social-post-card.is-collapsed .social-post-card__expanded {
+    display: none;
+  }
+
+  .social-post-card__expand-toggle {
+    align-self: flex-start;
   }
 
   .social-post-card__header {
@@ -512,7 +557,7 @@
       {% set facebook_locked = post.facebook_post_time or post.facebook_post_id %}
       {% set all_locked = pinterest_locked and instagram_locked and facebook_locked %}
       {% set any_posted = pinterest_locked or instagram_locked or facebook_locked %}
-      <article class="social-post-card" data-post-id="{{ post.key or '' }}"
+      <article class="social-post-card is-collapsed{% if not any_posted %} social-post-card--unposted{% endif %}" data-post-id="{{ post.key or '' }}"
         data-post-type="{{ post.type.value if post.type else '' }}"
         data-link-url="{{ (post.link_url or '') | e }}" data-pinterest-title="{{ (post.pinterest_title or '') | e }}"
         data-pinterest-description="{{ (post.pinterest_description or '') | e }}"
@@ -533,7 +578,24 @@
         data-facebook-video-gcs-uri="{{ (post.facebook_video_gcs_uri or '') | e }}"
         data-pinterest-video-gcs-uri="{{ (post.pinterest_video_gcs_uri or '') | e }}">
         {% set pinterest_preview_url = post.pinterest_image_urls[0] if post.pinterest_image_urls else '' %}
+        {% set pinterest_preview_video_gcs_uri = post.pinterest_video_gcs_uri or '' %}
         {% set carousel_grid_urls = post.instagram_image_urls or post.facebook_image_urls or post.pinterest_image_urls or [] %}
+        <div class="social-post-card__collapsed-media js-social-collapsed-media">
+          {% if pinterest_preview_video_gcs_uri %}
+          <video class="social-posts-thumb social-posts-video-thumb"
+            controls preload="metadata"
+            src="https://{{ pinterest_preview_video_gcs_uri | replace('gs://', '') }}"></video>
+          {% elif pinterest_preview_url %}
+          <a href="{{ pinterest_preview_url }}" target="_blank" rel="noopener">
+            <img class="social-posts-thumb"
+              src="{{ set_cdn_url_params(pinterest_preview_url, width=250, quality=50) }}"
+              alt="Pinterest image">
+          </a>
+          {% else %}
+          <span class="muted js-social-no-image">No media</span>
+          {% endif %}
+        </div>
+        <div class="social-post-card__expanded">
         <header class="social-post-card__header">
           <span class="social-post-card__timestamp js-social-created">
             {% if post.creation_time %}
@@ -799,6 +861,11 @@
           </button>
         </div>
         {% endif %}
+        </div>
+        <button type="button" class="text-button social-post-card__expand-toggle js-social-expand-toggle"
+          aria-expanded="false">
+          Expand
+        </button>
       </article>
       {% endfor %}
     </div>
@@ -885,6 +952,43 @@
         return '';
       }
       return 'https://' + String(gcsUri).replace(/^gs:\/\//, '');
+    }
+
+    function getCollapsedPreviewImageUrl(imageUrl) {
+      if (!imageUrl) {
+        return '';
+      }
+      const rawUrl = String(imageUrl).trim();
+      if (!rawUrl) {
+        return '';
+      }
+
+      let objectPath = '';
+      const cdnMatch = rawUrl.match(
+        /^https:\/\/images\.quillsstorybook\.com\/cdn-cgi\/image\/[^/]+\/(.+)$/,
+      );
+      if (cdnMatch) {
+        objectPath = cdnMatch[1];
+      } else if (rawUrl.startsWith('gs://')) {
+        const withoutPrefix = rawUrl.slice(5);
+        const firstSlashIndex = withoutPrefix.indexOf('/');
+        if (firstSlashIndex >= 0) {
+          objectPath = withoutPrefix.slice(firstSlashIndex + 1);
+        }
+      } else {
+        try {
+          const parsed = new URL(rawUrl);
+          objectPath = parsed.pathname.replace(/^\/+/, '');
+        } catch (_error) {
+          objectPath = '';
+        }
+      }
+
+      if (!objectPath) {
+        return rawUrl;
+      }
+
+      return `https://images.quillsstorybook.com/cdn-cgi/image/width=250,format=auto,quality=50/${objectPath}`;
     }
 
     async function runWithButtonState(button, actionText, action) {
@@ -1029,6 +1133,43 @@
       slot.appendChild(empty);
     }
 
+    function updateCollapsedMedia(card, imageUrls, videoGcsUri) {
+      const container = card.querySelector('.js-social-collapsed-media');
+      if (!container) {
+        return;
+      }
+      container.innerHTML = '';
+
+      if (videoGcsUri) {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.preload = 'metadata';
+        video.src = gcsToCdnUrl(videoGcsUri);
+        video.className = 'social-posts-thumb social-posts-video-thumb';
+        container.appendChild(video);
+        return;
+      }
+
+      if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+        const link = document.createElement('a');
+        link.href = imageUrls[0];
+        link.target = '_blank';
+        link.rel = 'noopener';
+        const img = document.createElement('img');
+        img.className = 'social-posts-thumb';
+        img.src = getCollapsedPreviewImageUrl(imageUrls[0]);
+        img.alt = 'Pinterest image';
+        link.appendChild(img);
+        container.appendChild(link);
+        return;
+      }
+
+      const empty = document.createElement('span');
+      empty.className = 'muted js-social-no-image';
+      empty.textContent = 'No media';
+      container.appendChild(empty);
+    }
+
     function renderCarouselPreview(slot, pinterestUrls, gridUrls) {
       if (!slot) {
         return;
@@ -1161,11 +1302,35 @@
       countLabel.textContent = `${cards.length} posts`;
     }
 
-    function updateCardActionsVisibility(card) {
-      const actions = card.querySelector('.social-post-card__actions');
-      if (!actions) {
+    function setCardExpanded(card, expanded) {
+      if (!card) {
         return;
       }
+      card.classList.toggle('is-collapsed', !expanded);
+      card.classList.toggle('is-expanded', expanded);
+      const expandToggle = card.querySelector('.js-social-expand-toggle');
+      if (expandToggle) {
+        expandToggle.textContent = expanded ? 'Collapse' : 'Expand';
+        expandToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+    }
+
+    function toggleCardExpanded(card) {
+      if (!card || !socialPostsList) {
+        return;
+      }
+      const expand = card.classList.contains('is-collapsed');
+      if (expand) {
+        socialPostsList.querySelectorAll('.social-post-card.is-expanded').forEach((otherCard) => {
+          if (otherCard !== card) {
+            setCardExpanded(otherCard, false);
+          }
+        });
+      }
+      setCardExpanded(card, expand);
+    }
+
+    function updateCardActionsVisibility(card) {
       const pinterestLocked = Boolean(
         card.dataset.pinterestPostTime || card.dataset.pinterestPostId);
       const instagramLocked = Boolean(
@@ -1173,6 +1338,11 @@
       const facebookLocked = Boolean(
         card.dataset.facebookPostTime || card.dataset.facebookPostId);
       const anyPosted = pinterestLocked || instagramLocked || facebookLocked;
+      card.classList.toggle('social-post-card--unposted', !anyPosted);
+      const actions = card.querySelector('.social-post-card__actions');
+      if (!actions) {
+        return;
+      }
       const deleteButton = card.querySelector('.js-social-delete');
       if (deleteButton) {
         deleteButton.hidden = anyPosted;
@@ -1347,6 +1517,11 @@
         carouselPreview.pinterestUrls,
         carouselPreview.gridUrls,
       );
+      updateCollapsedMedia(
+        card,
+        postData.pinterest_image_urls || [],
+        postData.pinterest_video_gcs_uri || '',
+      );
 
       updatePlatformMedia(
         card,
@@ -1388,6 +1563,7 @@
         Boolean(postData.facebook_post_time || postData.facebook_post_id),
       );
       updateCardActionsVisibility(card);
+      setCardExpanded(card, card.classList.contains('is-expanded'));
     }
 
     function createPostCard(postId, postData) {
@@ -1395,8 +1571,12 @@
         return null;
       }
       const card = document.createElement('article');
-      card.className = 'social-post-card';
+      card.className = 'social-post-card is-collapsed social-post-card--unposted';
       card.innerHTML = `
+        <div class="social-post-card__collapsed-media js-social-collapsed-media">
+          <span class="muted js-social-no-image">No media</span>
+        </div>
+        <div class="social-post-card__expanded">
         <header class="social-post-card__header">
           <span class="social-post-card__timestamp js-social-created">Just now</span>
           <span>:</span>
@@ -1528,6 +1708,11 @@
             Regenerate image + text
           </button>
         </div>
+        </div>
+        <button type="button" class="text-button social-post-card__expand-toggle js-social-expand-toggle"
+          aria-expanded="false">
+          Expand
+        </button>
       `;
 
       socialPostsList.insertBefore(card, socialPostsList.firstChild);
@@ -1613,17 +1798,28 @@
     }
 
       if (socialPostsList) {
+        socialPostsList.querySelectorAll('.social-post-card').forEach((card) => {
+          setCardExpanded(card, false);
+          updateCardActionsVisibility(card);
+        });
         socialPostsList.addEventListener('click', async (event) => {
           const editButton = event.target.closest('.js-social-edit-toggle');
           const regenButton = event.target.closest('.js-social-regenerate');
           const postButton = event.target.closest('.js-social-post-button');
           const manualPostButton = event.target.closest('.js-social-manual-post-button');
+          const expandButton = event.target.closest('.js-social-expand-toggle');
           const deleteButton = event.target.closest('.js-social-delete');
           const actionButton = editButton || regenButton || postButton || manualPostButton;
 
-        const card = (actionButton || deleteButton) ? (actionButton || deleteButton).closest('.social-post-card')
+        const card = (actionButton || deleteButton || expandButton)
+          ? (actionButton || deleteButton || expandButton).closest('.social-post-card')
           : event.target.closest('.social-post-card');
         if (!card || !card.dataset.postId) {
+          return;
+        }
+
+        if (expandButton) {
+          toggleCardExpanded(card);
           return;
         }
 

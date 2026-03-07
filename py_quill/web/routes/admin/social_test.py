@@ -64,12 +64,14 @@ def test_admin_social_renders_picker_shell(monkeypatch):
   assert 'id="admin-social-post-modal-title"' in html
   assert "postModalInput.focus()" in html
   assert "openPostModal(card, platform);" in html
-  assert ('class="text-button js-social-post-button" data-platform="pinterest">\n'
-          '                  Manual Post') in html
-  assert ('class="text-button js-social-manual-post-button" data-platform="instagram">\n'
-          '                  Manual Post') in html
-  assert ('class="text-button js-social-manual-post-button" data-platform="facebook">\n'
-          '                  Manual Post') in html
+  assert 'class="text-button js-social-post-button" data-platform="pinterest"' in html
+  assert ('class="text-button js-social-manual-post-button" data-platform="instagram"'
+          ) in html
+  assert ('class="text-button js-social-manual-post-button" data-platform="facebook"'
+          ) in html
+  assert 'class="text-button social-post-card__expand-toggle js-social-expand-toggle"' in html
+  assert "setCardExpanded(card, false);" in html
+  assert "toggleCardExpanded(card);" in html
   assert 'postModalTitle.textContent = `Mark ${formatPlatformName(platform)} as posted`;' in html
 
 
@@ -125,17 +127,19 @@ def test_admin_social_renders_social_posts(monkeypatch):
   assert "JOKE_GRID" in html
   assert "https://snickerdoodlejokes.com/jokes/social" in html
   assert "pin.png" in html
+  assert 'cdn-cgi/image/width=250,format=auto,quality=50/pin.png' in html_dom
+  assert 'class="social-post-card is-collapsed social-post-card--unposted"' in html_dom
+  assert 'class="social-post-card__collapsed-media js-social-collapsed-media"' in html_dom
+  assert 'class="text-button social-post-card__expand-toggle js-social-expand-toggle"' in html_dom
+  assert "Expand" in html_dom
   assert 'class="icon-button icon-button--danger js-social-delete"' in html_dom
-  assert ('class="text-button js-social-post-button" data-platform="pinterest">\n'
-          '                Manual Post') in html_dom
-  assert ('class="text-button js-social-post-button" data-platform="instagram">\n'
-          '                Post') in html_dom
-  assert ('class="text-button js-social-manual-post-button" data-platform="instagram">\n'
-          '                Manual Post') in html_dom
-  assert ('class="text-button js-social-post-button" data-platform="facebook">\n'
-          '                Post') in html_dom
-  assert ('class="text-button js-social-manual-post-button" data-platform="facebook">\n'
-          '                Manual Post') in html_dom
+  assert 'class="text-button js-social-post-button" data-platform="pinterest"' in html_dom
+  assert 'class="text-button js-social-post-button" data-platform="instagram"' in html_dom
+  assert ('class="text-button js-social-manual-post-button" data-platform="instagram"'
+          ) in html_dom
+  assert 'class="text-button js-social-post-button" data-platform="facebook"' in html_dom
+  assert ('class="text-button js-social-manual-post-button" data-platform="facebook"'
+          ) in html_dom
   assert "Edit" in html
   assert "Regenerate text" in html
   assert 'class="text-button js-social-manual-post-button" data-platform="instagram">' in html
@@ -183,6 +187,7 @@ def test_admin_social_hides_delete_when_posted(monkeypatch):
   html = resp.get_data(as_text=True)
   html_dom = html.split("<script>", 1)[0]
   assert "pin-123" in html
+  assert 'class="social-post-card is-collapsed social-post-card--unposted"' not in html_dom
   assert 'class="icon-button icon-button--danger js-social-delete"' not in html_dom
   assert 'class="text-button js-social-post-button" data-platform="pinterest">' not in html_dom
 

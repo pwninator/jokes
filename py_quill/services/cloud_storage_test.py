@@ -172,6 +172,27 @@ def test_set_cdn_url_params_multiple_changes(monkeypatch):
   assert 'quality=90' in result
 
 
+def test_set_cdn_url_params_accepts_non_cdn_url(monkeypatch):
+  """set_cdn_url_params should also work for non-CDN image URLs."""
+  monkeypatch.setattr("services.cloud_storage.config.IMAGE_BUCKET_NAME",
+                      "test-bucket")
+
+  input_url = "https://example.com/path/image.png"
+  result = cloud_storage.set_cdn_url_params(input_url, width=250, quality=50)
+
+  assert result == ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                    "width=250,format=auto,quality=50/image.png")
+
+
+def test_set_cdn_url_params_accepts_gcs_uri():
+  """set_cdn_url_params should also work for gs:// URIs."""
+  gcs_uri = "gs://test-bucket/path/to/image.png"
+  result = cloud_storage.set_cdn_url_params(gcs_uri, width=250, quality=50)
+
+  assert result == ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                    "width=250,format=auto,quality=50/path/to/image.png")
+
+
 def _make_png_bytes(color: str = "red",
                     size: tuple[int, int] = (4, 4)) -> bytes:
   """Helper to construct in-memory PNG bytes for image download tests."""

@@ -417,10 +417,10 @@ def set_cdn_url_params(
   image_format: str | None = None,
   quality: int | None = None,
 ) -> str:
-  """Modify CDN URL parameters, keeping existing values for unspecified params.
+  """Modify image CDN URL parameters for a GCS URI or image URL.
   
   Args:
-    cdn_url: The CDN URL to modify
+    cdn_url: A CDN URL, GCS URI, or image URL
     width: Optional new width value
     image_format: Optional new format value
     quality: Optional new quality value
@@ -428,11 +428,16 @@ def set_cdn_url_params(
   Returns:
     The modified CDN URL with updated parameters
   """
-  # Extract GCS URI from the URL
+  # Resolve an object path from any supported input URL format.
   gcs_uri = extract_gcs_uri_from_image_url(cdn_url)
 
-  # Build typed kwargs from existing URL params, then apply explicit overrides.
-  existing_params = get_cdn_url_params(cdn_url)
+  # Build typed kwargs from existing CDN params when present.
+  existing_params: dict[str, str] = {}
+  try:
+    existing_params = get_cdn_url_params(cdn_url)
+  except ValueError:
+    existing_params = {}
+
   kwargs: _CdnUrlKwargs = {}
   if 'width' in existing_params:
     kwargs['width'] = int(existing_params['width'])

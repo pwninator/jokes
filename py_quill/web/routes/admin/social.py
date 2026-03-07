@@ -5,7 +5,7 @@ from __future__ import annotations
 import flask
 from common import models, utils
 from functions import auth_helpers
-from services import firestore
+from services import cloud_storage, firestore
 from web.routes import web_bp
 
 
@@ -19,6 +19,7 @@ def admin_social():
     'admin/social.html',
     site_name='Snickerdoodle',
     joke_creation_url=utils.joke_creation_big_url(),
+    set_cdn_url_params=cloud_storage.set_cdn_url_params,
     social_posts=social_posts,
     post_type_options=[t.value for t in models.JokeSocialPostType],
     default_post_type=models.JokeSocialPostType.JOKE_REEL_VIDEO.value,

@@ -217,8 +217,8 @@ class ImageEditor:
   def enhance_image(
     self,
     image: Image.Image,
-    soft_clip_base: float = 0.6,
-    strong_clip_base: float = 1.8,
+    soft_clip_base: float = 0.2,
+    strong_clip_base: float = 1.0,
     edge_threshold: int = 180,
     mask_blur_ksize: int = 21,
     saturation_boost: float = 1.15,

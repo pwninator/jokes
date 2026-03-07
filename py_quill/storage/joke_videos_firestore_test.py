@@ -1,7 +1,7 @@
 """Tests for the joke_videos_firestore module."""
 
 from common import models
-from services.storage import joke_videos_firestore
+from storage import joke_videos_firestore
 
 
 def test_create_joke_video_creates_document(monkeypatch):
@@ -153,4 +153,3 @@ def test_get_recent_joke_videos_returns_list(monkeypatch):
   assert len(videos) == 2
   assert videos[0].key == "video-1"
   assert videos[1].key == "video-2"
-

@@ -15,7 +15,7 @@ from firebase_functions import logger
 from functions.prompts import social_post_prompts
 from services import (audio_client, audio_voices, cloud_storage, firestore,
                       gen_video, mouth_event_detection)
-from services.storage import joke_videos_firestore
+from storage import joke_videos_firestore
 
 _JOKE_AUDIO_RESPONSE_GAP_SEC = 0.8
 _JOKE_AUDIO_PUNCHLINE_GAP_SEC = 1.0

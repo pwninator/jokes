@@ -17,7 +17,7 @@ from google.cloud.firestore import FieldFilter, Query
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from PIL import Image
 from services import cloud_storage, firestore
-from services.storage import joke_videos_firestore
+from storage import joke_videos_firestore
 
 _DEFAULT_REEL_TELLER_CHARACTER_DEF_ID = "cat_orange_tabby"
 _DEFAULT_REEL_LISTENER_CHARACTER_DEF_ID = "dog_beagle"

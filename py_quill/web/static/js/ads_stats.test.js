@@ -27,7 +27,7 @@ const {
   buildPlacementAggregates,
   buildSearchTermAggregates,
   filterSearchTermAggregates,
-  getAdsEventTooltipLines,
+  getAdsEventLinesForLabel,
   getDailyStatsForCampaign,
   initAdsStatsPage,
   readAdsStatsPageOptionsFromDocument,
@@ -1160,20 +1160,23 @@ test('initAdsStatsPage placement timeline follows grouped row selection', async 
   }
 });
 
-test('initAdsStatsPage shares ads event hover behavior across dashboard and grouped charts', () => {
+test('initAdsStatsPage shares ads event tooltip lines across dashboard and grouped charts', () => {
   const originalWindow = global.window;
   const originalDocument = global.document;
   const chartCalls = [];
   const { document } = createFakeAdsStatsDom(TIMELINE_MODE);
 
   function FakeChart(ctx, config) {
-    const instance = {
+    return {
       destroy: () => {},
-      draw: () => {},
       canvas: ctx.canvas,
       data: config.data,
       options: config.options,
     };
+  }
+
+  function captureChart(ctx, config) {
+    const instance = FakeChart(ctx, config);
     chartCalls.push({
       canvasId: ctx.canvas.id,
       config,
@@ -1185,7 +1188,7 @@ test('initAdsStatsPage shares ads event hover behavior across dashboard and grou
   global.document = document;
   global.window = {
     document,
-    Chart: FakeChart,
+    Chart: captureChart,
     getSelection: () => ({ toString: () => '' }),
   };
 
@@ -1225,31 +1228,11 @@ test('initAdsStatsPage shares ads event hover behavior across dashboard and grou
 
     [mainChartCall, placementChartCall, searchTermChartCall].forEach((call) => {
       assert.equal(call.config.options.plugins.adsEventsOverlay.enabled, true);
-      call.instance.chartArea = {
-        left: 0,
-        right: 320,
-        top: 0,
-        bottom: 200,
-      };
-      call.instance.scales = {
-        x: {
-          getPixelForValue(value) {
-            return value === '2026-02-22' ? 120 : 220;
-          },
-        },
-      };
-
-      call.config.plugins[0].afterEvent(call.instance, {
-        event: {
-          type: 'mousemove',
-          x: 120,
-          y: 48,
-        },
-      });
-
-      assert.ok(call.instance.$adsEventsTooltipEl);
-      assert.equal(call.instance.$adsEventsTooltipEl.style.display, 'block');
-      assert.match(call.instance.$adsEventsTooltipEl.innerHTML, /Launch Day/);
+      const tooltipCallbacks = call.config.options.plugins.tooltip.callbacks;
+      assert.deepEqual(
+        tooltipCallbacks.afterTitle([{ label: '2026-02-22' }]),
+        ['EVENT: Launch Day'],
+      );
     });
   } finally {
     global.window = originalWindow;
@@ -1718,15 +1701,15 @@ test('groupAdsEventsByDate groups and sorts events by date', () => {
   ]);
 });
 
-test('getAdsEventTooltipLines returns date followed by one title per line', () => {
-  assert.deepEqual(getAdsEventTooltipLines(null), []);
-  assert.deepEqual(getAdsEventTooltipLines({ date: 'bad', titles: ['x'] }), []);
+test('getAdsEventLinesForLabel returns event-prefixed lines for matching dates', () => {
+  assert.deepEqual(getAdsEventLinesForLabel(null, []), []);
+  assert.deepEqual(getAdsEventLinesForLabel('bad', [{ date: 'bad', titles: ['x'] }]), []);
   assert.deepEqual(
-    getAdsEventTooltipLines({
+    getAdsEventLinesForLabel('2026-02-22', [{
       date: '2026-02-22',
       titles: ['Launch', 'Budget increase'],
-    }),
-    ['2026-02-22', 'Launch', 'Budget increase'],
+    }]),
+    ['EVENT: Launch', 'EVENT: Budget increase'],
   );
 });
 

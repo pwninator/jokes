@@ -179,18 +179,22 @@ class RequestedAdsStatsReports:
 
   @property
   def campaigns_report(self) -> models.AmazonAdsReport:
+    """Return the campaigns report."""
     return self.reports_by_key[_SP_CAMPAIGNS_REPORT_KEY]
 
   @property
   def advertised_products_report(self) -> models.AmazonAdsReport:
+    """Return the advertised products report."""
     return self.reports_by_key[_SP_ADVERTISED_PRODUCT_REPORT_KEY]
 
   @property
   def search_term_report(self) -> models.AmazonAdsReport | None:
+    """Return the search term report."""
     return self.reports_by_key.get(_SP_SEARCH_TERM_REPORT_KEY)
 
   @property
   def placement_report(self) -> models.AmazonAdsReport | None:
+    """Return the placement report."""
     return self.reports_by_key.get(_SP_CAMPAIGN_PLACEMENT_REPORT_KEY)
 
 
@@ -570,7 +574,9 @@ def fetch_ads_stats_reports(
       continue
     statuses = get_reports(
       profile_id=profile.profile_id,
-      report_ids=[report.report_id for report in expected_reports_by_key.values()],
+      report_ids=[
+        report.report_id for report in expected_reports_by_key.values()
+      ],
       region=profile.region,
       report_keys_by_id={
         report.report_id: report_key
@@ -589,7 +595,8 @@ def fetch_ads_stats_reports(
 
     reports_by_key = _reports_by_resolved_key(statuses)
     campaigns_report = reports_by_key.get(_SP_CAMPAIGNS_REPORT_KEY)
-    advertised_products_report = reports_by_key.get(_SP_ADVERTISED_PRODUCT_REPORT_KEY)
+    advertised_products_report = reports_by_key.get(
+      _SP_ADVERTISED_PRODUCT_REPORT_KEY)
     search_term_report = reports_by_key.get(_SP_SEARCH_TERM_REPORT_KEY)
     placement_report = reports_by_key.get(_SP_CAMPAIGN_PLACEMENT_REPORT_KEY)
     for status_row in report_metadata[-len(statuses):]:
@@ -604,8 +611,7 @@ def fetch_ads_stats_reports(
         placement_report.report_id if placement_report is not None else "")
 
     if (campaigns_report and advertised_products_report and search_term_report
-        and placement_report
-        and _are_reports_complete(
+        and placement_report and _are_reports_complete(
           campaigns_report,
           advertised_products_report,
           search_term_report,
@@ -797,8 +803,8 @@ def _build_ads_stats_report_request_metadata(
     "region": profile.region,
   }
   for spec in _ADS_STATS_REPORT_SPECS:
-    row[spec.request_metadata_field] = (
-      reports_by_key.get(spec.key).report_id if reports_by_key.get(spec.key) else "")
+    report = reports_by_key.get(spec.key)
+    row[spec.request_metadata_field] = report.report_id if report else ""
   return row
 
 
@@ -1814,8 +1820,7 @@ def _normalize_country_code(country_code: str) -> str:
 
 
 def _resolved_report_key(
-  report: models.AmazonAdsReport,
-) -> AmazonAdsReportKey | None:
+  report: models.AmazonAdsReport, ) -> AmazonAdsReportKey | None:
   """Return the stable report key for one stored report."""
   if report.report_key is not None:
     return report.report_key

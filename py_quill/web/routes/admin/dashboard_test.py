@@ -1111,6 +1111,8 @@ def test_admin_ads_stats_page_omits_refresh_button(monkeypatch):
 def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   """Ads stats page renders combined chart layout in the expected order."""
   _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(dashboard_routes, "_today_in_los_angeles",
+                      lambda: datetime.date(2026, 2, 20))
   monkeypatch.setattr(
     firestore_service,
     "list_amazon_ads_daily_stats",
@@ -1151,6 +1153,7 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="adsStatsCreateEventToggleButton"' in html
   assert 'id="adsStatsCreateEventForm"' in html
   assert 'id="adsStatsEventDateInput"' in html
+  assert 'id="adsStatsEventDateInput" type="text" value="2026-02-20"' in html
   assert 'id="adsStatsEventTitleInput"' in html
   assert 'id="kdpUploadForm"' in html
   assert 'id="kdpFileInput"' in html

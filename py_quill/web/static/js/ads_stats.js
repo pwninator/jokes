@@ -107,14 +107,18 @@
     });
   }
 
-  function getAdsEventTooltipLines(eventGroup) {
-    if (!eventGroup || !isIsoDateString(eventGroup.date)) {
+  function getAdsEventLinesForLabel(label, adsEventGroups) {
+    if (!isIsoDateString(label)) {
       return [];
     }
-    const titles = Array.isArray(eventGroup.titles)
-      ? eventGroup.titles.map((title) => String(title || '').trim()).filter(Boolean)
-      : [];
-    return [eventGroup.date, ...titles];
+    const eventGroup = arrayOrEmpty(adsEventGroups).find((group) => group && group.date === label);
+    if (!eventGroup) {
+      return [];
+    }
+    return arrayOrEmpty(eventGroup.titles)
+      .map((title) => String(title || '').trim())
+      .filter(Boolean)
+      .map((title) => `EVENT: ${title}`);
   }
 
   function chartDataToCsv(chart) {
@@ -1890,72 +1894,6 @@
       const charts = {};
       const adsEventsOverlayPlugin = {
         id: 'adsEventsOverlay',
-        afterEvent: function (chart, args) {
-          const pluginOptions = chart.options && chart.options.plugins
-            ? chart.options.plugins.adsEventsOverlay
-            : null;
-          if (!pluginOptions || !pluginOptions.enabled) {
-            hideAdsEventTooltip(chart);
-            if (chart.$adsEventsHoveredDate) {
-              chart.$adsEventsHoveredDate = '';
-              chart.draw();
-            }
-            return;
-          }
-
-          const chartEvent = args && args.event ? args.event : null;
-          if (!chartEvent || chartEvent.type === 'mouseout' || chartEvent.type === 'mouseleave') {
-            hideAdsEventTooltip(chart);
-            if (chart.$adsEventsHoveredDate) {
-              chart.$adsEventsHoveredDate = '';
-              chart.draw();
-            }
-            return;
-          }
-
-          const chartArea = chart.chartArea;
-          const xScale = chart.scales ? chart.scales.x : null;
-          if (!chartArea || !xScale || !Number.isFinite(chartEvent.x) || !Number.isFinite(chartEvent.y)) {
-            return;
-          }
-
-          const events = Array.isArray(pluginOptions.events) ? pluginOptions.events : [];
-          let nearestGroup = null;
-          let nearestPixelX = null;
-          let nearestDistance = Number.POSITIVE_INFINITY;
-          events.forEach((eventGroup) => {
-            const pixelX = xScale.getPixelForValue(eventGroup.date);
-            if (!Number.isFinite(pixelX) || pixelX < chartArea.left || pixelX > chartArea.right) {
-              return;
-            }
-            const distance = Math.abs(chartEvent.x - pixelX);
-            if (distance <= 8 && distance < nearestDistance) {
-              nearestDistance = distance;
-              nearestPixelX = pixelX;
-              nearestGroup = eventGroup;
-            }
-          });
-
-          const nextHoveredDate = nearestGroup ? nearestGroup.date : '';
-          if (chart.$adsEventsHoveredDate !== nextHoveredDate) {
-            chart.$adsEventsHoveredDate = nextHoveredDate;
-            chart.draw();
-          }
-
-          if (!nearestGroup
-            || chartEvent.y < chartArea.top
-            || chartEvent.y > chartArea.bottom) {
-            hideAdsEventTooltip(chart);
-            return;
-          }
-
-          showAdsEventTooltip(
-            chart,
-            nearestGroup,
-            Number.isFinite(nearestPixelX) ? nearestPixelX : chartEvent.x,
-            chartEvent.y,
-          );
-        },
         afterDraw: function (chart) {
           const pluginOptions = chart.options && chart.options.plugins
             ? chart.options.plugins.adsEventsOverlay
@@ -1978,80 +1916,27 @@
             if (!Number.isFinite(pixelX) || pixelX < chartArea.left || pixelX > chartArea.right) {
               return;
             }
-            const isHovered = chart.$adsEventsHoveredDate === eventGroup.date;
             ctx.beginPath();
             ctx.moveTo(pixelX, chartArea.top);
             ctx.lineTo(pixelX, chartArea.bottom);
-            ctx.lineWidth = isHovered ? 2 : 1;
-            ctx.strokeStyle = isHovered ? '#1f2937' : '#8d99ae';
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#8d99ae';
             ctx.stroke();
           });
           ctx.restore();
         },
       };
 
-      function getAdsEventTooltipElement(chart) {
-        if (chart.$adsEventsTooltipEl) {
-          return chart.$adsEventsTooltipEl;
-        }
-        const container = chart.canvas && chart.canvas.parentElement;
-        if (!container) {
-          return null;
-        }
-        const tooltipEl = document.createElement('div');
-        tooltipEl.style.position = 'absolute';
-        tooltipEl.style.display = 'none';
-        tooltipEl.style.padding = '8px 10px';
-        tooltipEl.style.borderRadius = '6px';
-        tooltipEl.style.border = '1px solid #cfd8dc';
-        tooltipEl.style.background = '#ffffff';
-        tooltipEl.style.color = '#1f2937';
-        tooltipEl.style.fontSize = '12px';
-        tooltipEl.style.lineHeight = '1.4';
-        tooltipEl.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.16)';
-        tooltipEl.style.pointerEvents = 'none';
-        tooltipEl.style.zIndex = '20';
-        container.appendChild(tooltipEl);
-        chart.$adsEventsTooltipEl = tooltipEl;
-        return tooltipEl;
-      }
-
-      function hideAdsEventTooltip(chart) {
-        const tooltipEl = chart.$adsEventsTooltipEl;
-        if (tooltipEl) {
-          tooltipEl.style.display = 'none';
-        }
-      }
-
-      function showAdsEventTooltip(chart, eventGroup, xPos, yPos) {
-        const lines = getAdsEventTooltipLines(eventGroup);
-        if (lines.length === 0) {
-          hideAdsEventTooltip(chart);
-          return;
-        }
-
-        const tooltipEl = getAdsEventTooltipElement(chart);
-        const container = chart.canvas && chart.canvas.parentElement;
-        if (!tooltipEl || !container) {
-          return;
-        }
-
-        tooltipEl.innerHTML = lines.map((line, index) => {
-          const fontWeight = index === 0 ? '700' : '400';
-          return `<div style="font-weight: ${fontWeight};">${escapeHtml(line)}</div>`;
-        }).join('');
-        tooltipEl.style.display = 'block';
-
-        const maxLeft = Math.max(8, container.clientWidth - tooltipEl.offsetWidth - 8);
-        const maxTop = Math.max(8, container.clientHeight - tooltipEl.offsetHeight - 8);
-        const left = Math.max(8, Math.min(maxLeft, xPos + 12));
-        const top = Math.max(8, Math.min(maxTop, yPos + 12));
-        tooltipEl.style.left = `${left}px`;
-        tooltipEl.style.top = `${top}px`;
-      }
-
       function buildDefaultTooltipCallbacks() {
         return {
+          title: function (tooltipItems) {
+            const firstItem = Array.isArray(tooltipItems) ? tooltipItems[0] : null;
+            return firstItem ? String(firstItem.label || '') : '';
+          },
+          afterTitle: function (tooltipItems) {
+            const firstItem = Array.isArray(tooltipItems) ? tooltipItems[0] : null;
+            return firstItem ? getAdsEventLinesForLabel(firstItem.label, adsEventGroups) : [];
+          },
           label: function (context) {
             const formatType = context.dataset.formatType || 'number';
             return `${context.dataset.label}: ${formatValueByType(
@@ -3188,7 +3073,7 @@
       isIsoDateString: isIsoDateString,
       normalizeAdsEvent: normalizeAdsEvent,
       groupAdsEventsByDate: groupAdsEventsByDate,
-      getAdsEventTooltipLines: getAdsEventTooltipLines,
+      getAdsEventLinesForLabel: getAdsEventLinesForLabel,
       normalizeSearchTermRow: normalizeSearchTermRow,
       buildSearchTermAggregates: buildSearchTermAggregates,
       filterSearchTermAggregates: filterSearchTermAggregates,

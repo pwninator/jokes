@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Iterable
+from typing import cast
 
-from google.cloud.firestore import FieldFilter, Query
+from google.cloud.firestore import DocumentSnapshot, FieldFilter, Query
 from models import amazon_ads_models
 from services import firestore
 
@@ -32,7 +34,7 @@ def upsert_amazon_ads_search_term_daily_stats(
       payload,
       merge=True,
     )
-  _ = batch.commit()
+  batch.commit()  # pyright: ignore[reportUnusedCallResult]
   return stats
 
 
@@ -45,7 +47,8 @@ def upsert_amazon_ads_placement_daily_stats(
 
   db_client = firestore.db()
   batch = db_client.batch()
-  collection_ref = db_client.collection(AMAZON_ADS_PLACEMENT_DAILY_STATS_COLLECTION)
+  collection_ref = db_client.collection(
+    AMAZON_ADS_PLACEMENT_DAILY_STATS_COLLECTION)
   for stat in stats:
     key = stat.ensure_key()
     payload = stat.to_dict(include_key=False)
@@ -54,7 +57,7 @@ def upsert_amazon_ads_placement_daily_stats(
       payload,
       merge=True,
     )
-  _ = batch.commit()
+  batch.commit()  # pyright: ignore[reportUnusedCallResult]
   return stats
 
 
@@ -74,13 +77,20 @@ def list_amazon_ads_search_term_daily_stats(
           "date",
           direction=Query.ASCENDING,
         )
-  docs = query.stream()
-  return [
-    amazon_ads_models.AmazonAdsSearchTermDailyStat.from_firestore_dict(
-      doc.to_dict(),
-      key=doc.id,
-    ) for doc in docs if doc.exists and doc.to_dict() is not None
-  ]
+  docs = cast(Iterable[DocumentSnapshot], query.stream())
+  result: list[amazon_ads_models.AmazonAdsSearchTermDailyStat] = []
+  for doc in docs:
+    if not doc.exists:
+      continue
+    data = doc.to_dict()
+    if data is None:
+      continue
+    result.append(
+      amazon_ads_models.AmazonAdsSearchTermDailyStat.from_firestore_dict(
+        data,
+        key=cast(str, doc.id),
+      ))
+  return result
 
 
 def list_amazon_ads_placement_daily_stats(
@@ -99,10 +109,17 @@ def list_amazon_ads_placement_daily_stats(
           "date",
           direction=Query.ASCENDING,
         )
-  docs = query.stream()
-  return [
-    amazon_ads_models.AmazonAdsPlacementDailyStat.from_firestore_dict(
-      doc.to_dict(),
-      key=doc.id,
-    ) for doc in docs if doc.exists and doc.to_dict() is not None
-  ]
+  docs = cast(Iterable[DocumentSnapshot], query.stream())
+  result: list[amazon_ads_models.AmazonAdsPlacementDailyStat] = []
+  for doc in docs:
+    if not doc.exists:
+      continue
+    data = doc.to_dict()
+    if data is None:
+      continue
+    result.append(
+      amazon_ads_models.AmazonAdsPlacementDailyStat.from_firestore_dict(
+        data,
+        key=cast(str, doc.id),
+      ))
+  return result

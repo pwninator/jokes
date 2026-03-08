@@ -12,7 +12,7 @@ import json
 import pprint
 import time
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Callable, cast
 from zoneinfo import ZoneInfo
 
 import requests
@@ -38,11 +38,6 @@ _REPORT_STATUS_FAILED = {"FAILED", "CANCELLED"}
 ADS_STATS_TARGET_COUNTRY_CODES = frozenset({"US", "CA", "UK", "GB"})
 ADS_STATS_REPORT_WINDOW_DAYS = 30
 ADS_STATS_REPORT_METADATA_WAIT_SEC = 5
-ADS_STATS_REQUIRED_REPORT_TYPES = (
-  "spCampaigns",
-  "spAdvertisedProduct",
-  "spSearchTerm",
-)
 _LOS_ANGELES_TIMEZONE = ZoneInfo("America/Los_Angeles")
 _KDP_PRICE_CANDIDATE_LOOKBACK_DAYS = 180
 _REQUEST_TIMEOUT_SEC = 30
@@ -63,6 +58,12 @@ _COUNTRY_CODE_TO_CURRENCY_CODE: dict[str, str] = {
   "UK": "GBP",
 }
 _COUNTRY_CODE_ALIASES: dict[str, str] = {"UK": "GB"}
+AmazonAdsReportKey = models.AmazonAdsReportKey
+_SP_CAMPAIGNS_REPORT_KEY = AmazonAdsReportKey.SP_CAMPAIGNS
+_SP_ADVERTISED_PRODUCT_REPORT_KEY = AmazonAdsReportKey.SP_ADVERTISED_PRODUCT
+_SP_SEARCH_TERM_REPORT_KEY = AmazonAdsReportKey.SP_SEARCH_TERM
+_SP_CAMPAIGN_PLACEMENT_REPORT_KEY = AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
+ADS_STATS_REQUIRED_REPORT_KEYS = tuple(AmazonAdsReportKey)
 
 # Valid columns for Sponsored Products campaigns report
 # https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/campaign
@@ -79,6 +80,25 @@ _SP_CAMPAIGNS_COLUMNS: list[str] = [
   "kindleEditionNormalizedPagesRead14d",  # Attributed KENP pages read (14d).
   "kindleEditionNormalizedPagesRoyalties14d",  # Attributed KENP royalties (14d).
   # "topOfSearchImpressionShare",  # Top-of-search impression share (campaign-level).
+]
+
+# Valid columns for Sponsored Products campaign placement report
+# https://advertising.amazon.com/API/docs/en-us/guides/reporting/v3/report-types/campaign
+_SP_CAMPAIGN_PLACEMENT_COLUMNS: list[str] = [
+  "date",  # Report date (YYYY-MM-DD).
+  "campaignId",  # Campaign identifier.
+  "campaignName",  # Campaign display name.
+  "campaignBudgetCurrencyCode",  # Currency code for spend/sales fields.
+  "placementClassification",  # Placement bucket (top of search, rest of search, product pages).
+  "impressions",  # Ad impressions.
+  "clicks",  # Ad clicks.
+  "cost",  # Spend in campaign currency.
+  "purchases14d",  # Attributed orders in the 14-day click window.
+  "sales14d",  # Attributed sales in the 14-day click window.
+  "unitsSoldClicks14d",  # Attributed units sold in the 14-day click window.
+  "kindleEditionNormalizedPagesRead14d",  # Attributed KENP pages read (14d).
+  "kindleEditionNormalizedPagesRoyalties14d",  # Attributed KENP royalties (14d).
+  "topOfSearchImpressionShare",  # Supplemental top-of-search impression share.
 ]
 
 # Valid columns for Sponsored Products advertised products report
@@ -118,6 +138,7 @@ _SP_SEARCH_TERM_COLUMNS: list[str] = [
   "kindleEditionNormalizedPagesRead14d",  # Attributed KENP pages read (14d).
   "kindleEditionNormalizedPagesRoyalties14d",  # Attributed KENP royalties (14d).
 ]
+
 _SP_SEARCH_TERM_KEYWORD_TYPE_FILTER_VALUES: tuple[str, ...] = (
   "BROAD",
   "PHRASE",
@@ -142,12 +163,35 @@ class AmazonAdsProfile:
 
 
 @dataclass(frozen=True, kw_only=True)
-class ReportPair:
-  """Set of reports required for daily campaign stat computation."""
+class _AdsStatsReportSpec:
+  """One report request required for the ads stats pipeline."""
 
-  campaigns_report: models.AmazonAdsReport
-  advertised_products_report: models.AmazonAdsReport
-  search_term_report: models.AmazonAdsReport | None = None
+  key: AmazonAdsReportKey
+  request_metadata_field: str
+  payload_builder: Callable[..., dict[str, Any]]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RequestedAdsStatsReports:
+  """Set of requested ads-stat reports keyed by stable report key."""
+
+  reports_by_key: dict[AmazonAdsReportKey, models.AmazonAdsReport]
+
+  @property
+  def campaigns_report(self) -> models.AmazonAdsReport:
+    return self.reports_by_key[_SP_CAMPAIGNS_REPORT_KEY]
+
+  @property
+  def advertised_products_report(self) -> models.AmazonAdsReport:
+    return self.reports_by_key[_SP_ADVERTISED_PRODUCT_REPORT_KEY]
+
+  @property
+  def search_term_report(self) -> models.AmazonAdsReport | None:
+    return self.reports_by_key.get(_SP_SEARCH_TERM_REPORT_KEY)
+
+  @property
+  def placement_report(self) -> models.AmazonAdsReport | None:
+    return self.reports_by_key.get(_SP_CAMPAIGN_PLACEMENT_REPORT_KEY)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -187,50 +231,27 @@ def request_daily_campaign_stats_reports(
   profile: AmazonAdsProfile,
   start_date: datetime.date,
   end_date: datetime.date,
-) -> ReportPair:
+) -> RequestedAdsStatsReports:
   """Kick off the DAILY reports needed for campaign profit stats."""
   _validate_report_date_range(start_date=start_date, end_date=end_date)
 
   access_token = _get_access_token()
   api_base = profile.api_base or _resolve_region_api_base(profile.region)
+  reports_by_key: dict[AmazonAdsReportKey, models.AmazonAdsReport] = {}
+  for spec in _ADS_STATS_REPORT_SPECS:
+    report = _create_report(
+      api_base=api_base,
+      access_token=access_token,
+      profile=profile,
+      report_key=spec.key,
+      payload=spec.payload_builder(
+        start_date=start_date,
+        end_date=end_date,
+      ),
+    )
+    reports_by_key[spec.key] = firestore.upsert_amazon_ads_report(report)
 
-  campaigns_report = _create_report(
-    api_base=api_base,
-    access_token=access_token,
-    profile=profile,
-    payload=_build_sp_campaigns_report_payload(
-      start_date=start_date,
-      end_date=end_date,
-    ),
-  )
-  advertised_products_report = _create_report(
-    api_base=api_base,
-    access_token=access_token,
-    profile=profile,
-    payload=_build_sp_advertised_product_report_payload(
-      start_date=start_date,
-      end_date=end_date,
-    ),
-  )
-  search_term_report = _create_report(
-    api_base=api_base,
-    access_token=access_token,
-    profile=profile,
-    payload=_build_sp_search_term_report_payload(
-      start_date=start_date,
-      end_date=end_date,
-    ),
-  )
-  campaigns_report = firestore.upsert_amazon_ads_report(campaigns_report)
-  advertised_products_report = firestore.upsert_amazon_ads_report(
-    advertised_products_report)
-  search_term_report = firestore.upsert_amazon_ads_report(search_term_report)
-
-  return ReportPair(
-    campaigns_report=campaigns_report,
-    advertised_products_report=advertised_products_report,
-    search_term_report=search_term_report,
-  )
+  return RequestedAdsStatsReports(reports_by_key=reports_by_key)
 
 
 def get_reports(
@@ -238,6 +259,7 @@ def get_reports(
   profile_id: str,
   report_ids: list[str],
   region: str = "na",
+  report_keys_by_id: dict[str, AmazonAdsReportKey] | None = None,
 ) -> list[models.AmazonAdsReport]:
   """Fetch reports by report IDs for a profile."""
 
@@ -256,6 +278,7 @@ def get_reports(
       access_token=access_token,
       profile_id=profile_id,
       report_id=report_id.strip(),
+      report_key=(report_keys_by_id or {}).get(report_id.strip()),
     )
     statuses.append(firestore.upsert_amazon_ads_report(status))
   return statuses
@@ -362,7 +385,73 @@ def get_search_term_daily_stats_from_report(
       created_at=now_utc,
       updated_at=now_utc,
     )
-    stat.ensure_key()
+    _ = stat.ensure_key()
+    output.append(stat)
+  return output
+
+
+def get_placement_daily_stats_from_report(
+  *,
+  profile: AmazonAdsProfile,
+  placement_report: models.AmazonAdsReport,
+) -> list[amazon_ads_models.AmazonAdsPlacementDailyStat]:
+  """Normalize placement report rows for Firestore upsert."""
+  _validate_report_profile_match(profile=profile, report=placement_report)
+  _raise_if_report_not_completed(placement_report)
+
+  rows = _download_report_rows(placement_report)
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  output: list[amazon_ads_models.AmazonAdsPlacementDailyStat] = []
+  for row in rows:
+    date_value = _parse_report_date(row.get("date"))
+    if date_value is None:
+      continue
+
+    campaign_id = _required_str(row.get("campaignId"))
+    placement_classification = _required_str(
+      row.get("placementClassification"))
+    if not campaign_id or not placement_classification:
+      continue
+
+    currency_code = _resolve_currency_code(
+      campaign_row=row,
+      profile_country_code=profile.country_code,
+    )
+    stat = amazon_ads_models.AmazonAdsPlacementDailyStat(
+      date=date_value,
+      profile_id=profile.profile_id,
+      profile_country=profile.country_code,
+      region=profile.region,
+      campaign_id=campaign_id,
+      campaign_name=_required_str(row.get("campaignName")),
+      placement_classification=placement_classification,
+      impressions=_as_int(row.get("impressions")),
+      clicks=_as_int(row.get("clicks")),
+      cost_usd=_convert_amount_to_usd(
+        _as_float(row.get("cost")),
+        currency_code=currency_code,
+      ),
+      sales14d_usd=_convert_amount_to_usd(
+        _as_float(row.get("sales14d")),
+        currency_code=currency_code,
+      ),
+      purchases14d=_as_int(row.get("purchases14d")),
+      units_sold_clicks14d=_as_int(row.get("unitsSoldClicks14d")),
+      kenp_pages_read14d=_as_int(
+        row.get("kindleEditionNormalizedPagesRead14d")),
+      kenp_royalties14d_usd=_convert_amount_to_usd(
+        _as_float(row.get("kindleEditionNormalizedPagesRoyalties14d")),
+        currency_code=currency_code,
+      ),
+      currency_code=currency_code,
+      top_of_search_impression_share=_parse_optional_percentage(
+        row.get("topOfSearchImpressionShare")),
+      source_report_id=placement_report.report_id,
+      source_report_name=placement_report.report_name,
+      created_at=now_utc,
+      updated_at=now_utc,
+    )
+    _ = stat.ensure_key()
     output.append(stat)
   return output
 
@@ -372,7 +461,8 @@ class AdsStatsContext:
   """Shared context for ads stats request and fetch phases."""
 
   selected_profiles: list[AmazonAdsProfile]
-  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport]
+  reports_by_expected_key: dict[tuple[str, AmazonAdsReportKey],
+                                models.AmazonAdsReport]
   report_end_date: datetime.date
   report_start_date: datetime.date
   profiles_considered: int
@@ -414,7 +504,8 @@ class AdsStatsRequestResult:
   """Result of requesting ads stats reports."""
 
   selected_profiles: list[AmazonAdsProfile]
-  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport]
+  reports_by_expected_key: dict[tuple[str, AmazonAdsReportKey],
+                                models.AmazonAdsReport]
   report_requests: list[dict[str, str]]
   report_end_date: datetime.date
   report_start_date: datetime.date
@@ -442,31 +533,13 @@ def request_ads_stats_reports(
       start_date=ctx.report_start_date,
       end_date=ctx.report_end_date,
     )
-    ctx.reports_by_expected_key[(profile.profile_id,
-                                 report_pair.campaigns_report.report_type_id
-                                 )] = report_pair.campaigns_report
-    ctx.reports_by_expected_key[(
-      profile.profile_id, report_pair.advertised_products_report.report_type_id
-    )] = report_pair.advertised_products_report
-    if report_pair.search_term_report is not None:
-      ctx.reports_by_expected_key[(
-        profile.profile_id, report_pair.search_term_report.report_type_id
-      )] = report_pair.search_term_report
-    report_requests.append({
-      "profile_id":
-      profile.profile_id,
-      "country_code":
-      profile.country_code,
-      "region":
-      profile.region,
-      "campaigns_report_id":
-      report_pair.campaigns_report.report_id,
-      "advertised_products_report_id":
-      report_pair.advertised_products_report.report_id,
-      "search_term_report_id":
-      report_pair.search_term_report.report_id
-      if report_pair.search_term_report is not None else "",
-    })
+    for report_key, report in report_pair.reports_by_key.items():
+      ctx.reports_by_expected_key[(profile.profile_id, report_key)] = report
+    report_requests.append(
+      _build_ads_stats_report_request_metadata(
+        profile=profile,
+        reports_by_key=report_pair.reports_by_key,
+      ))
 
   return AdsStatsRequestResult(
     selected_profiles=ctx.selected_profiles,
@@ -489,16 +562,20 @@ def fetch_ads_stats_reports(
   earliest_reconciled_date: datetime.date | None = None
 
   for profile in ctx.selected_profiles:
-    report_ids = _collect_expected_report_ids_for_profile(
+    expected_reports_by_key = _collect_expected_reports_for_profile(
       profile_id=profile.profile_id,
       reports_by_expected_key=ctx.reports_by_expected_key,
     )
-    if not report_ids:
+    if not expected_reports_by_key:
       continue
     statuses = get_reports(
       profile_id=profile.profile_id,
-      report_ids=report_ids,
+      report_ids=[report.report_id for report in expected_reports_by_key.values()],
       region=profile.region,
+      report_keys_by_id={
+        report.report_id: report_key
+        for report_key, report in expected_reports_by_key.items()
+      },
     )
     for status in statuses:
       status_row = status.to_dict(include_key=True)
@@ -510,10 +587,11 @@ def fetch_ads_stats_reports(
         status_row["api_base"] = profile.api_base
       report_metadata.append(status_row)
 
-    reports_by_type = {report.report_type_id: report for report in statuses}
-    campaigns_report = reports_by_type.get("spCampaigns")
-    advertised_products_report = reports_by_type.get("spAdvertisedProduct")
-    search_term_report = reports_by_type.get("spSearchTerm")
+    reports_by_key = _reports_by_resolved_key(statuses)
+    campaigns_report = reports_by_key.get(_SP_CAMPAIGNS_REPORT_KEY)
+    advertised_products_report = reports_by_key.get(_SP_ADVERTISED_PRODUCT_REPORT_KEY)
+    search_term_report = reports_by_key.get(_SP_SEARCH_TERM_REPORT_KEY)
+    placement_report = reports_by_key.get(_SP_CAMPAIGN_PLACEMENT_REPORT_KEY)
     for status_row in report_metadata[-len(statuses):]:
       status_row["campaigns_report_id"] = (
         campaigns_report.report_id if campaigns_report is not None else "")
@@ -522,15 +600,21 @@ def fetch_ads_stats_reports(
         if advertised_products_report is not None else "")
       status_row["search_term_report_id"] = (
         search_term_report.report_id if search_term_report is not None else "")
+      status_row["placement_report_id"] = (
+        placement_report.report_id if placement_report is not None else "")
 
     if (campaigns_report and advertised_products_report and search_term_report
+        and placement_report
         and _are_reports_complete(
           campaigns_report,
           advertised_products_report,
           search_term_report,
+          placement_report,
         )):
-      if (not campaigns_report.processed or not advertised_products_report.processed
-          or not search_term_report.processed):
+      if (not campaigns_report.processed
+          or not advertised_products_report.processed
+          or not search_term_report.processed
+          or not placement_report.processed):
 
         daily_campaign_stats = get_daily_campaign_stats_from_reports(
           profile=profile,
@@ -540,6 +624,10 @@ def fetch_ads_stats_reports(
         search_term_stats = get_search_term_daily_stats_from_report(
           profile=profile,
           search_term_report=search_term_report,
+        )
+        placement_stats = get_placement_daily_stats_from_report(
+          profile=profile,
+          placement_report=placement_report,
         )
 
         # Aggregate stats by date
@@ -568,6 +656,8 @@ def fetch_ads_stats_reports(
         _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
         _ = amazon_ads_firestore.upsert_amazon_ads_search_term_daily_stats(
           search_term_stats)
+        _ = amazon_ads_firestore.upsert_amazon_ads_placement_daily_stats(
+          placement_stats)
         if daily_stats_list:
           current_min_date = min(stat.date for stat in daily_stats_list)
           if (earliest_reconciled_date is None
@@ -578,9 +668,11 @@ def fetch_ads_stats_reports(
         campaigns_report.processed = True
         advertised_products_report.processed = True
         search_term_report.processed = True
+        placement_report.processed = True
         _ = firestore.upsert_amazon_ads_report(campaigns_report)
         _ = firestore.upsert_amazon_ads_report(advertised_products_report)
         _ = firestore.upsert_amazon_ads_report(search_term_report)
+        _ = firestore.upsert_amazon_ads_report(placement_report)
 
         # Flatten for logging and debugging response (keeping original format)
         for daily_stat in daily_stats_list:
@@ -608,14 +700,15 @@ def fetch_ads_stats_reports(
 def get_latest_ads_reports_by_profile_type(
   *,
   reports: list[models.AmazonAdsReport],
-) -> dict[tuple[str, str], models.AmazonAdsReport]:
+) -> dict[tuple[str, AmazonAdsReportKey], models.AmazonAdsReport]:
   """Pick the latest available report window and latest report per profile/type."""
   latest_window_key: tuple[datetime.date, datetime.date] | None = None
   for report in reports:
     profile_id = report.profile_id or ""
     if not profile_id:
       continue
-    if report.report_type_id not in ADS_STATS_REQUIRED_REPORT_TYPES:
+    report_key = _resolved_report_key(report)
+    if report_key is None or report_key not in ADS_STATS_REQUIRED_REPORT_KEYS:
       continue
 
     window_key = (report.end_date, report.start_date)
@@ -625,17 +718,18 @@ def get_latest_ads_reports_by_profile_type(
   if latest_window_key is None:
     return {}
 
-  selected: dict[tuple[str, str], models.AmazonAdsReport] = {}
+  selected: dict[tuple[str, AmazonAdsReportKey], models.AmazonAdsReport] = {}
   for report in reports:
     profile_id = report.profile_id or ""
     if not profile_id:
       continue
-    if report.report_type_id not in ADS_STATS_REQUIRED_REPORT_TYPES:
+    report_key = _resolved_report_key(report)
+    if report_key is None or report_key not in ADS_STATS_REQUIRED_REPORT_KEYS:
       continue
     if (report.end_date, report.start_date) != latest_window_key:
       continue
 
-    key = (profile_id, report.report_type_id)
+    key = (profile_id, report_key)
     existing = selected.get(key)
     if existing is None:
       selected[key] = report
@@ -653,39 +747,72 @@ def get_latest_ads_reports_by_profile_type(
 def _has_all_required_reports(
   *,
   profile_id: str,
-  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+  reports_by_expected_key: dict[tuple[str, AmazonAdsReportKey],
+                                models.AmazonAdsReport],
 ) -> bool:
   """Return whether all required report types exist for the profile."""
-  return all((profile_id, report_type) in reports_by_expected_key
-             for report_type in ADS_STATS_REQUIRED_REPORT_TYPES)
+  return all((profile_id, report_key) in reports_by_expected_key
+             for report_key in ADS_STATS_REQUIRED_REPORT_KEYS)
 
 
 def _are_all_reports_processed(
   *,
   profile_id: str,
-  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
+  reports_by_expected_key: dict[tuple[str, AmazonAdsReportKey],
+                                models.AmazonAdsReport],
 ) -> bool:
   """Return whether all required report types for the profile are processed."""
-  for report_type in ADS_STATS_REQUIRED_REPORT_TYPES:
-    report = reports_by_expected_key.get((profile_id, report_type))
+  for report_key in ADS_STATS_REQUIRED_REPORT_KEYS:
+    report = reports_by_expected_key.get((profile_id, report_key))
     if not report or not report.processed:
       return False
   return True
 
 
-def _collect_expected_report_ids_for_profile(
+def _collect_expected_reports_for_profile(
   *,
   profile_id: str,
-  reports_by_expected_key: dict[tuple[str, str], models.AmazonAdsReport],
-) -> list[str]:
-  """Collect report IDs in required report-type order for a profile."""
-  report_ids: list[str] = []
-  for report_type in ADS_STATS_REQUIRED_REPORT_TYPES:
-    report = reports_by_expected_key.get((profile_id, report_type))
+  reports_by_expected_key: dict[tuple[str, AmazonAdsReportKey],
+                                models.AmazonAdsReport],
+) -> dict[AmazonAdsReportKey, models.AmazonAdsReport]:
+  """Collect reports in required report-key order for a profile."""
+  reports_by_key: dict[AmazonAdsReportKey, models.AmazonAdsReport] = {}
+  for report_key in ADS_STATS_REQUIRED_REPORT_KEYS:
+    report = reports_by_expected_key.get((profile_id, report_key))
     if not report:
       continue
-    report_ids.append(report.report_id)
-  return report_ids
+    reports_by_key[report_key] = report
+  return reports_by_key
+
+
+def _build_ads_stats_report_request_metadata(
+  *,
+  profile: AmazonAdsProfile,
+  reports_by_key: dict[AmazonAdsReportKey, models.AmazonAdsReport],
+) -> dict[str, str]:
+  """Serialize one request batch for the admin report metadata view."""
+  row = {
+    "profile_id": profile.profile_id,
+    "country_code": profile.country_code,
+    "region": profile.region,
+  }
+  for spec in _ADS_STATS_REPORT_SPECS:
+    row[spec.request_metadata_field] = (
+      reports_by_key.get(spec.key).report_id if reports_by_key.get(spec.key) else "")
+  return row
+
+
+def _reports_by_resolved_key(
+  reports: list[models.AmazonAdsReport],
+) -> dict[AmazonAdsReportKey, models.AmazonAdsReport]:
+  """Index reports by explicit persisted report key, falling back for legacy rows."""
+  output: dict[AmazonAdsReportKey, models.AmazonAdsReport] = {}
+  for report in reports:
+    report_key = _resolved_report_key(report)
+    if report_key is None:
+      continue
+    output[report_key] = report
+  return output
 
 
 def _are_reports_complete(*reports: models.AmazonAdsReport) -> bool:
@@ -856,18 +983,73 @@ def _build_sp_search_term_report_payload(
     "startDate": start_date.isoformat(),
     "endDate": end_date.isoformat(),
     "configuration": {
-      "adProduct": "SPONSORED_PRODUCTS",
+      "adProduct":
+      "SPONSORED_PRODUCTS",
       "groupBy": ["searchTerm"],
-      "columns": _SP_SEARCH_TERM_COLUMNS,
+      "columns":
+      _SP_SEARCH_TERM_COLUMNS,
       "filters": [{
         "field": "keywordType",
         "values": list(_SP_SEARCH_TERM_KEYWORD_TYPE_FILTER_VALUES),
       }],
-      "reportTypeId": "spSearchTerm",
+      "reportTypeId":
+      "spSearchTerm",
+      "timeUnit":
+      _DAILY_TIME_UNIT,
+      "format":
+      _GZIP_JSON_FORMAT,
+    },
+  }
+
+
+def _build_sp_campaign_placement_report_payload(
+  *,
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, Any]:
+  """Construct the report payload for daily Sponsored Products placements."""
+  return {
+    "name":
+    f"spCampaignsPlacement {start_date.isoformat()} to {end_date.isoformat()}",
+    "startDate": start_date.isoformat(),
+    "endDate": end_date.isoformat(),
+    "configuration": {
+      "adProduct": "SPONSORED_PRODUCTS",
+      "groupBy": ["campaignPlacement"],
+      "columns": _SP_CAMPAIGN_PLACEMENT_COLUMNS,
+      "reportTypeId": "spCampaigns",
       "timeUnit": _DAILY_TIME_UNIT,
       "format": _GZIP_JSON_FORMAT,
     },
   }
+
+
+_ADS_STATS_REPORT_SPECS: tuple[_AdsStatsReportSpec, ...] = (
+  _AdsStatsReportSpec(
+    key=_SP_CAMPAIGNS_REPORT_KEY,
+    request_metadata_field="campaigns_report_id",
+    payload_builder=_build_sp_campaigns_report_payload,
+  ),
+  _AdsStatsReportSpec(
+    key=_SP_ADVERTISED_PRODUCT_REPORT_KEY,
+    request_metadata_field="advertised_products_report_id",
+    payload_builder=_build_sp_advertised_product_report_payload,
+  ),
+  _AdsStatsReportSpec(
+    key=_SP_SEARCH_TERM_REPORT_KEY,
+    request_metadata_field="search_term_report_id",
+    payload_builder=_build_sp_search_term_report_payload,
+  ),
+  _AdsStatsReportSpec(
+    key=_SP_CAMPAIGN_PLACEMENT_REPORT_KEY,
+    request_metadata_field="placement_report_id",
+    payload_builder=_build_sp_campaign_placement_report_payload,
+  ),
+)
+_ADS_STATS_REPORT_SPEC_BY_KEY = {
+  spec.key: spec
+  for spec in _ADS_STATS_REPORT_SPECS
+}
 
 
 def _create_report(
@@ -875,13 +1057,13 @@ def _create_report(
   api_base: str,
   access_token: str,
   profile: AmazonAdsProfile,
+  report_key: AmazonAdsReportKey,
   payload: dict[str, Any],
 ) -> models.AmazonAdsReport:
   """Create a report and return the full Amazon report metadata."""
-  report_type_id = _extract_report_type_id(payload)
   payload_with_name = dict(payload)
   payload_with_name["name"] = _build_report_name(
-    report_type_id=report_type_id,
+    report_key=report_key,
     profile_country=profile.country_code,
   )
   response = _request_json(
@@ -894,9 +1076,10 @@ def _create_report(
     ),
     json_payload=payload_with_name,
   )
-  parsed = _parse_report_status_payload(response)
+  parsed = _parse_report_status_payload(response, report_key=report_key)
   return dataclasses.replace(
     parsed,
+    report_key=report_key,
     profile_id=profile.profile_id,
     profile_country=profile.country_code,
     region=profile.region,
@@ -910,6 +1093,7 @@ def _fetch_report(
   access_token: str,
   profile_id: str,
   report_id: str,
+  report_key: AmazonAdsReportKey | None = None,
 ) -> models.AmazonAdsReport:
   """Fetch details for a single report ID."""
   response = _request_json(
@@ -918,9 +1102,10 @@ def _fetch_report(
     headers=_build_ads_headers(access_token=access_token,
                                profile_id=profile_id),
   )
-  parsed = _parse_report_status_payload(response)
+  parsed = _parse_report_status_payload(response, report_key=report_key)
   parsed_with_context = dataclasses.replace(
     parsed,
+    report_key=report_key or parsed.report_key,
     profile_id=profile_id,
     region=_region_from_api_base(api_base),
     api_base=api_base,
@@ -934,10 +1119,16 @@ def _fetch_report(
 
 
 def _parse_report_status_payload(
-  payload: dict[str, Any], ) -> models.AmazonAdsReport:
+  payload: dict[str, Any],
+  *,
+  report_key: AmazonAdsReportKey | None = None,
+) -> models.AmazonAdsReport:
   """Parse a report status payload from the Amazon Ads API."""
   try:
-    return models.AmazonAdsReport.from_amazon_payload(payload)
+    return models.AmazonAdsReport.from_amazon_payload(
+      payload,
+      report_key=report_key,
+    )
   except ValueError as exc:
     raise AmazonAdsError(
       f"Invalid report status payload: {exc}. payload={payload}") from exc
@@ -1622,30 +1813,33 @@ def _normalize_country_code(country_code: str) -> str:
   return _COUNTRY_CODE_ALIASES.get(normalized, normalized)
 
 
-def _extract_report_type_id(payload: dict[str, Any]) -> str:
-  """Extract reportTypeId from a create-report payload."""
-  configuration_raw = payload.get("configuration")
-  if not isinstance(configuration_raw, dict):
-    raise AmazonAdsError(
-      f"Report payload missing configuration object: {payload}")
-  configuration = cast(dict[str, Any], configuration_raw)
-  report_type_id = _required_str(configuration.get("reportTypeId"))
-  if not report_type_id:
-    raise AmazonAdsError(
-      f"Report payload missing configuration.reportTypeId: {payload}")
-  return report_type_id
+def _resolved_report_key(
+  report: models.AmazonAdsReport,
+) -> AmazonAdsReportKey | None:
+  """Return the stable report key for one stored report."""
+  if report.report_key is not None:
+    return report.report_key
+  report_name = _required_str(report.report_name)
+  for report_key in ADS_STATS_REQUIRED_REPORT_KEYS:
+    if f"_{report_key.value}_" in report_name:
+      return report_key
+  try:
+    return AmazonAdsReportKey(report.report_type_id)
+  except ValueError:
+    return None
 
 
 def _build_report_name(
   *,
-  report_type_id: str,
+  report_key: AmazonAdsReportKey,
   profile_country: str,
 ) -> str:
   """Build canonical report name in Los Angeles local time."""
   timestamp_los_angeles = datetime.datetime.now(
     _LOS_ANGELES_TIMEZONE).strftime("%Y%m%d_%H%M%S")
   country_code = _required_str(profile_country).upper() or "UNKNOWN"
-  return f"{timestamp_los_angeles}_{report_type_id}_{country_code}"
+  normalized_report_key = report_key.value
+  return f"{timestamp_los_angeles}_{normalized_report_key}_{country_code}"
 
 
 def _region_from_api_base(api_base: str) -> str | None:
@@ -1743,6 +1937,22 @@ def _as_float(value: Any) -> float:
     return float(str(value).strip())
   except (TypeError, ValueError):
     return 0.0
+
+
+def _parse_optional_percentage(value: Any) -> float | None:
+  """Parse optional percentage-like values as floats, preserving missing values."""
+  if value is None:
+    return None
+  if isinstance(value, (int, float)) and not isinstance(value, bool):
+    return float(value)
+  raw = _required_str(value)
+  if not raw:
+    return None
+  normalized = raw[:-1].strip() if raw.endswith("%") else raw
+  try:
+    return float(normalized)
+  except ValueError:
+    return None
 
 
 def _resolve_currency_code(

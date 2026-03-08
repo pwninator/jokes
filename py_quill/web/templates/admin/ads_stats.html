@@ -272,7 +272,8 @@
   .chart-container:last-child {
     margin-bottom: 0;
   }
-  .search-term-section {
+  .search-term-section,
+  .placement-section {
     margin: 0 0 24px;
     padding: 14px;
     border: 1px solid var(--color-border);
@@ -280,14 +281,17 @@
     background: var(--color-surface);
     box-shadow: 0 4px 12px var(--color-shadow);
   }
-  .search-term-controls {
+  .search-term-controls,
+  .placement-controls {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
     margin-bottom: 12px;
   }
   .search-term-controls input,
-  .search-term-controls select {
+  .search-term-controls select,
+  .placement-controls input,
+  .placement-controls select {
     width: 100%;
     min-height: 38px;
     padding: 8px 10px;
@@ -296,36 +300,42 @@
     background: var(--color-form-surface);
     color: var(--color-text);
   }
-  .search-term-summary-grid {
+  .search-term-summary-grid,
+  .placement-summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     margin-bottom: 14px;
   }
-  .search-term-summary-card {
+  .search-term-summary-card,
+  .placement-summary-card {
     border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 10px;
     background: var(--color-form-surface);
   }
-  .search-term-summary-label {
+  .search-term-summary-label,
+  .placement-summary-label {
     font-size: 0.74rem;
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 700;
   }
-  .search-term-summary-value {
+  .search-term-summary-value,
+  .placement-summary-value {
     font-size: 1.1rem;
     font-weight: 700;
   }
-  .search-term-dimension-chips {
+  .search-term-dimension-chips,
+  .placement-dimension-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin: 0 0 12px;
   }
-  .search-term-dimension-chip {
+  .search-term-dimension-chip,
+  .placement-dimension-chip {
     border: 1px solid var(--color-border);
     background: var(--color-form-surface);
     color: var(--color-text);
@@ -336,26 +346,32 @@
     letter-spacing: 0.03em;
     cursor: pointer;
   }
-  .search-term-dimension-chip[aria-pressed="true"] {
+  .search-term-dimension-chip[aria-pressed="true"],
+  .placement-dimension-chip[aria-pressed="true"] {
     background: color-mix(in srgb, #2f6fdf 18%, transparent);
     border-color: color-mix(in srgb, #2f6fdf 45%, var(--color-border));
   }
-  .search-term-trend-wrap {
+  .search-term-trend-wrap,
+  .placement-trend-wrap {
     margin-bottom: 14px;
     height: 280px;
   }
-  .search-term-table-wrap {
+  .search-term-table-wrap,
+  .placement-table-wrap {
     overflow: auto;
     border: 1px solid var(--color-border);
     border-radius: 10px;
   }
-  .search-term-table {
+  .search-term-table,
+  .placement-table {
     width: 100%;
     border-collapse: collapse;
     min-width: 1080px;
   }
   .search-term-table th,
-  .search-term-table td {
+  .search-term-table td,
+  .placement-table th,
+  .placement-table td {
     text-align: left;
     padding: 8px 10px;
     border-bottom: 1px solid var(--color-border);
@@ -363,14 +379,16 @@
     white-space: nowrap;
     vertical-align: top;
   }
-  .search-term-table th {
+  .search-term-table th,
+  .placement-table th {
     font-size: 0.76rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
     background: color-mix(in srgb, var(--color-surface) 86%, var(--color-border) 14%);
   }
-  .search-term-sort-button {
+  .search-term-sort-button,
+  .placement-sort-button {
     border: none;
     background: transparent;
     color: inherit;
@@ -380,17 +398,22 @@
     padding: 0;
     cursor: pointer;
   }
-  .search-term-row {
+  .search-term-row,
+  .placement-row {
     cursor: pointer;
   }
   .search-term-row:hover td,
-  .search-term-row:focus td {
+  .search-term-row:focus td,
+  .placement-row:hover td,
+  .placement-row:focus td {
     background: color-mix(in srgb, var(--color-border) 24%, transparent);
   }
-  .search-term-row--selected td {
+  .search-term-row--selected td,
+  .placement-row--selected td {
     background: color-mix(in srgb, #2f6fdf 18%, transparent);
   }
-  .search-term-empty {
+  .search-term-empty,
+  .placement-empty {
     margin: 8px 0 0;
   }
   @media (max-width: 900px) {
@@ -440,7 +463,8 @@
       right: auto;
       min-width: min(100%, 520px);
     }
-    .search-term-section {
+    .search-term-section,
+    .placement-section {
       padding: 12px;
     }
   }
@@ -556,6 +580,70 @@
   </div>
 </section>
 
+<section class="placement-section" aria-label="Placement insights">
+  <div class="chart-header">
+    <h3>Placement Insights</h3>
+  </div>
+  <div class="placement-controls">
+    <div class="ads-stats-field">
+      <label for="placementCampaignSelector">Campaign</label>
+      <select id="placementCampaignSelector">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <div class="ads-stats-field">
+      <label for="placementPlacementSelector">Placement</label>
+      <select id="placementPlacementSelector">
+        <option value="All">All</option>
+      </select>
+    </div>
+    <div class="ads-stats-field">
+      <label for="placementTextFilter">Search</label>
+      <input id="placementTextFilter" type="text" placeholder="Campaign name">
+    </div>
+  </div>
+  <div class="placement-summary-grid">
+    <div class="placement-summary-card">
+      <div class="placement-summary-label">Rows</div>
+      <div class="placement-summary-value" id="placementSummaryRows">0</div>
+    </div>
+    <div class="placement-summary-card">
+      <div class="placement-summary-label">Clicks</div>
+      <div class="placement-summary-value" id="placementSummaryClicks">0</div>
+    </div>
+    <div class="placement-summary-card">
+      <div class="placement-summary-label">Cost</div>
+      <div class="placement-summary-value" id="placementSummaryCost">$0.00</div>
+    </div>
+    <div class="placement-summary-card">
+      <div class="placement-summary-label">Sales</div>
+      <div class="placement-summary-value" id="placementSummarySales">$0.00</div>
+    </div>
+    <div class="placement-summary-card">
+      <div class="placement-summary-label">ACOS</div>
+      <div class="placement-summary-value" id="placementSummaryAcos">0.0%</div>
+    </div>
+    <div class="placement-summary-card">
+      <div class="placement-summary-label">ROAS</div>
+      <div class="placement-summary-value" id="placementSummaryRoas">0.00</div>
+    </div>
+  </div>
+  <div class="placement-dimension-chips" id="placementDimensionChips" aria-label="Placement grouping dimensions">
+    <button class="placement-dimension-chip" type="button" data-dimension-key="placement_classification" aria-pressed="true">Placement</button>
+    <button class="placement-dimension-chip" type="button" data-dimension-key="campaign_name" aria-pressed="false">Campaign</button>
+  </div>
+  <div class="placement-trend-wrap">
+    <canvas id="placementTrendChart"></canvas>
+  </div>
+  <div class="placement-table-wrap">
+    <table class="placement-table">
+      <thead id="placementInsightsTableHead"></thead>
+      <tbody id="placementInsightsTableBody"></tbody>
+    </table>
+  </div>
+  <p class="muted placement-empty" id="placementInsightsEmptyState" hidden>No rows match the current filters.</p>
+</section>
+
 <section class="search-term-section" aria-label="Search term insights">
   <div class="chart-header">
     <h3>Search Term Insights</h3>
@@ -636,6 +724,7 @@
   const adsStatsPage = window.initAdsStatsPage
     ? window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
+      placementData: {{ placement_data | tojson }},
       searchTermData: {{ search_term_data | tojson }},
       reconciledClickDateChartData: {{ reconciled_click_date_chart_data | tojson }},
       reconciliationDebugCsv: {{ reconciliation_debug_csv | tojson }},

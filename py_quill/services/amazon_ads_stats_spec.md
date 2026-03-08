@@ -71,13 +71,13 @@ Model classes for search-term rows live in `py_quill/models/amazon_ads_models.py
    - `report_start_date = report_end_date - 30 days`
 2. List all profiles and keep allowed countries (`US`, `CA`, `UK`, `GB`).
 3. Load recent report metadata from Firestore and keep latest report-per
-   `(profile_id, report_type_id)` created today for the target window.
+   `(profile_id, report_key)` created today for the target window.
 4. For each selected profile:
-   - If all required report types already exist and are not all processed,
+   - If all required report keys already exist and are not all processed,
      skip requesting.
-   - Else create all three reports and upsert metadata docs.
+   - Else create all four reports and upsert metadata docs.
    - Report names and Firestore doc ids use the canonical format
-     `YYYYMMDD_HHMMSS_[reportTypeId]_[country]` in Los Angeles local time.
+     `YYYYMMDD_HHMMSS_[reportKey]_[country]` in Los Angeles local time.
 
 ### 3.2 Fetch phase
 
@@ -87,7 +87,7 @@ Model classes for search-term rows live in `py_quill/models/amazon_ads_models.py
 2. Wait a short fixed delay (`ADS_STATS_REPORT_METADATA_WAIT_SEC`).
 3. For each selected profile:
    - Fetch latest report statuses by report id.
-   - If all three reports are complete and at least one is unprocessed:
+   - If all four reports are complete and at least one is unprocessed:
      1. Download + parse rows from each report.
      2. Merge into `AmazonAdsDailyCampaignStats`.
      3. Normalize `spSearchTerm` rows into `AmazonAdsSearchTermDailyStat`.

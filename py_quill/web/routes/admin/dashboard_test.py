@@ -43,6 +43,16 @@ def _mock_search_term_daily_stats_default(monkeypatch):
   )
 
 
+@pytest.fixture(autouse=True)
+def _mock_placement_daily_stats_default(monkeypatch):
+  """Default placement stats stub for ads-stats route tests."""
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_ads_placement_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+
+
 def _make_ads_report(
   *,
   report_id: str,
@@ -474,6 +484,7 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
     "updated_at": None,
   }]
   assert captured["search_term_data"]["rows"] == []
+  assert captured["placement_data"]["rows"] == []
 
   chart_data = captured["chart_data"]
   assert len(chart_data["labels"]) == 30
@@ -1233,6 +1244,9 @@ def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
   assert 'id="searchTermCampaignSelector"' in html
   assert 'id="searchTermInsightsTableBody"' in html
   assert 'id="searchTermTrendChart"' in html
+  assert 'id="placementCampaignSelector"' in html
+  assert 'id="placementInsightsTableBody"' in html
+  assert 'id="placementTrendChart"' in html
   assert '>Data</button>' in html
   assert 'chart-data-popup' in html
   assert 'aria-live="polite"' in html
@@ -1332,6 +1346,96 @@ def test_admin_ads_stats_filtering(monkeypatch):
   # Find index of the stats date
   date_idx = chart_data["labels"].index("2026-02-20")
   assert chart_data["units_sold"][date_idx] == 2
+
+
+def test_admin_ads_stats_page_includes_placement_data(monkeypatch):
+  """Ads stats page serializes placement stats for the placement insights UI."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+  monkeypatch.setattr(dashboard_routes, "_today_in_los_angeles",
+                      lambda: datetime.date(2026, 2, 20))
+
+  captured: dict = {}
+
+  def _fake_render(template_name, **context):
+    captured["template"] = template_name
+    captured.update(context)
+    return "OK"
+
+  monkeypatch.setattr(dashboard_routes.flask, "render_template", _fake_render)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_ads_placement_daily_stats",
+    lambda *, start_date, end_date: [
+      dashboard_routes.amazon_ads_models.AmazonAdsPlacementDailyStat(
+        date=datetime.date(2026, 2, 19),
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="c1",
+        campaign_name="Campaign A",
+        placement_classification="Top of Search",
+        impressions=100,
+        clicks=10,
+        cost_usd=5.0,
+        sales14d_usd=20.0,
+        purchases14d=2,
+        units_sold_clicks14d=2,
+        kenp_pages_read14d=0,
+        kenp_royalties14d_usd=0.0,
+        currency_code="USD",
+        top_of_search_impression_share=0.25,
+        source_report_id="report-1",
+        source_report_name="placement-report",
+      ),
+    ],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  assert captured["template"] == "admin/ads_stats.html"
+  placement_data = captured["placement_data"]
+  assert placement_data["labels"][0] == "2026-01-22"
+  expected_key = dashboard_routes.amazon_ads_models.build_placement_stat_key(
+    date=datetime.date(2026, 2, 19),
+    profile_id="profile-1",
+    campaign_id="c1",
+    placement_classification="Top of Search",
+  )
+  assert placement_data["rows"] == [{
+    "key": expected_key,
+    "date": "2026-02-19",
+    "campaign_id": "c1",
+    "campaign_name": "Campaign A",
+    "placement_classification": "Top of Search",
+    "impressions": 100,
+    "clicks": 10,
+    "cost_usd": 5.0,
+    "sales14d_usd": 20.0,
+    "purchases14d": 2,
+    "units_sold_clicks14d": 2,
+    "kenp_pages_read14d": 0,
+    "kenp_royalties14d_usd": 0.0,
+    "currency_code": "USD",
+    "top_of_search_impression_share": 0.25,
+  }]
 
 
 def test_admin_ads_stats_create_event_success(monkeypatch):

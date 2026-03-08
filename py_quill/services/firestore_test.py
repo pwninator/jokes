@@ -2846,6 +2846,7 @@ def test_upsert_amazon_ads_report_uses_report_name_as_doc_id(monkeypatch):
     report_name="20260219_053012_spCampaigns_US",
     status="PENDING",
     report_type_id="spCampaigns",
+    report_key=models.AmazonAdsReportKey.SP_CAMPAIGNS,
     start_date=datetime.date(2026, 2, 18),
     end_date=datetime.date(2026, 2, 18),
     created_at=datetime.datetime(
@@ -2875,6 +2876,7 @@ def test_upsert_amazon_ads_report_uses_report_name_as_doc_id(monkeypatch):
   assert captured["doc_id"] == "20260219_053012_spCampaigns_US"
   assert captured["merge"] is True
   assert isinstance(captured["data"], dict)
+  assert captured["data"]["report_key"] == "spCampaigns"
 
 
 def test_list_amazon_ads_reports_filters_by_created_at(monkeypatch):
@@ -3482,4 +3484,3 @@ def test_upsert_amazon_sales_reconciled_daily_stats_uses_date_as_key(
   assert captured["data"]["organic_units_total"] == 3
   assert captured["data"]["zzz_ending_unmatched_ads_lots_by_asin_country"][
     "ASIN1"]["US"][0]["units_remaining"] == 1
-

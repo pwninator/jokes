@@ -2392,6 +2392,15 @@ class AmazonSalesReconciledDailyStats:
     return cls.from_dict(data, key=key)
 
 
+class AmazonAdsReportKey(str, Enum):
+  """Stable orchestration key for one Amazon Ads report shape."""
+
+  SP_CAMPAIGNS = "spCampaigns"
+  SP_ADVERTISED_PRODUCT = "spAdvertisedProduct"
+  SP_SEARCH_TERM = "spSearchTerm"
+  SP_CAMPAIGNS_PLACEMENT = "spCampaignsPlacement"
+
+
 @dataclass(kw_only=True)
 class AmazonAdsReport:
   """Amazon Ads report metadata persisted in Firestore."""
@@ -2401,6 +2410,7 @@ class AmazonAdsReport:
   report_name: str
   status: str
   report_type_id: str
+  report_key: AmazonAdsReportKey | None = None
   start_date: datetime.date
   end_date: datetime.date
   created_at: datetime.datetime
@@ -2429,6 +2439,7 @@ class AmazonAdsReport:
       "report_name": self.report_name,
       "status": self.status,
       "report_type_id": self.report_type_id,
+      "report_key": self.report_key.value if self.report_key else None,
       "start_date": self.start_date.isoformat(),
       "end_date": self.end_date.isoformat(),
       "created_at": self.created_at,
@@ -2505,6 +2516,11 @@ class AmazonAdsReport:
       raise ValueError("AmazonAdsReport.status is required")
     if not report_type_id:
       raise ValueError("AmazonAdsReport.report_type_id is required")
+    report_key = _parse_amazon_ads_report_key(
+      data.get("report_key"),
+      report_name=report_name,
+      report_type_id=report_type_id,
+    )
 
     created_at = _parse_datetime(data.get("created_at"), "created_at")
     updated_at = _parse_datetime(data.get("updated_at"), "updated_at")
@@ -2523,6 +2539,7 @@ class AmazonAdsReport:
       report_name=report_name,
       status=status,
       report_type_id=report_type_id,
+      report_key=report_key,
       start_date=_parse_date(
         data.get("start_date"),
         "start_date",
@@ -2559,6 +2576,7 @@ class AmazonAdsReport:
     data: dict[str, Any],
     *,
     key: str | None = None,
+    report_key: AmazonAdsReportKey | None = None,
   ) -> AmazonAdsReport:
     """Create an Amazon Ads report model from API response payload."""
     if not data:
@@ -2581,6 +2599,7 @@ class AmazonAdsReport:
       "report_name": data.get("name"),
       "status": data.get("status"),
       "report_type_id": report_type_id,
+      "report_key": report_key.value if report_key is not None else None,
       "start_date": data.get("startDate"),
       "end_date": data.get("endDate"),
       "created_at": data.get("createdAt"),
@@ -2601,6 +2620,33 @@ class AmazonAdsReport:
   ) -> AmazonAdsReport:
     """Create an Amazon Ads report model from Firestore data."""
     return cls.from_dict(data, key=key)
+
+
+def _parse_amazon_ads_report_key(
+  value: Any,
+  *,
+  report_name: str,
+  report_type_id: str,
+) -> AmazonAdsReportKey | None:
+  """Parse or infer the persisted Amazon Ads report key."""
+  if isinstance(value, AmazonAdsReportKey):
+    return value
+
+  raw_value = str(value or "").strip()
+  if raw_value:
+    try:
+      return AmazonAdsReportKey(raw_value)
+    except ValueError as exc:
+      raise ValueError(
+        f"AmazonAdsReport.report_key is invalid: {raw_value}") from exc
+
+  for report_key in AmazonAdsReportKey:
+    if f"_{report_key.value}_" in report_name:
+      return report_key
+  try:
+    return AmazonAdsReportKey(report_type_id)
+  except ValueError:
+    return None
 
 
 @dataclass(kw_only=True)

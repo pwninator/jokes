@@ -648,12 +648,14 @@ def test_amazon_ads_report_from_amazon_payload_supports_camel_case_fields():
       "failureReason": "",
     },
     key="doc-key",
+    report_key=models.AmazonAdsReportKey.SP_CAMPAIGNS,
   )
 
   assert report.key == "doc-key"
   assert report.report_id == "r-1"
   assert report.report_name == "20260219_060000_spCampaigns_US"
   assert report.report_type_id == "spCampaigns"
+  assert report.report_key == models.AmazonAdsReportKey.SP_CAMPAIGNS
   assert report.start_date == datetime.date(2026, 2, 18)
   assert report.end_date == datetime.date(2026, 2, 18)
   assert report.created_at == datetime.datetime(
@@ -682,6 +684,21 @@ def test_amazon_ads_report_from_dict_rejects_camel_case_fields():
         "createdAt": "2026-02-19T06:00:00Z",
         "updatedAt": "2026-02-19T06:05:00Z",
       }, )
+
+
+def test_amazon_ads_report_from_dict_infers_report_key_from_canonical_name():
+  report = models.AmazonAdsReport.from_dict({
+    "report_id": "r-placement",
+    "report_name": "20260301_040100_spCampaignsPlacement_US",
+    "status": "COMPLETED",
+    "report_type_id": "spCampaigns",
+    "start_date": "2026-02-18",
+    "end_date": "2026-02-18",
+    "created_at": "2026-02-19T06:00:00Z",
+    "updated_at": "2026-02-19T06:05:00Z",
+  })
+
+  assert report.report_key == models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
 
 
 def test_amazon_ads_event_to_and_from_dict():

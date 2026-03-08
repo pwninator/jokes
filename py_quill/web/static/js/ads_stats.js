@@ -40,6 +40,23 @@
     { key: 'acos', label: 'ACOS', format: 'percent' },
     { key: 'roas', label: 'ROAS', format: 'ratio' },
   ]);
+  const PLACEMENT_DIMENSION_COLUMNS = Object.freeze([
+    { key: 'placement_classification', label: 'Placement' },
+    { key: 'campaign_name', label: 'Campaign' },
+  ]);
+  const PLACEMENT_DIMENSION_DEFAULTS = Object.freeze(['placement_classification']);
+  const PLACEMENT_METRIC_COLUMNS = Object.freeze([
+    { key: 'impressions', label: 'Impr', format: 'number' },
+    { key: 'clicks', label: 'Clicks', format: 'number' },
+    { key: 'ctr', label: 'CTR', format: 'percent' },
+    { key: 'cpc', label: 'CPC', format: 'currency' },
+    { key: 'cost_usd', label: 'Cost', format: 'currency' },
+    { key: 'sales14d_usd', label: 'Sales', format: 'currency' },
+    { key: 'purchases14d', label: 'Orders', format: 'number' },
+    { key: 'cvr', label: 'CVR', format: 'percent' },
+    { key: 'acos', label: 'ACOS', format: 'percent' },
+    { key: 'roas', label: 'ROAS', format: 'ratio' },
+  ]);
 
   function getChartTypeForMode(mode) {
     return mode === DAYS_OF_WEEK_MODE ? 'bar' : 'line';
@@ -1380,9 +1397,184 @@
     });
   }
 
+  function normalizePlacementClassification(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      return '';
+    }
+    const upperValue = raw.toUpperCase();
+    if ((upperValue.includes('TOP') && upperValue.includes('SEARCH'))
+      || upperValue === 'PLACEMENT_TOP') {
+      return 'Top of Search';
+    }
+    if (upperValue.includes('REST') && upperValue.includes('SEARCH')) {
+      return 'Rest of Search';
+    }
+    if ((upperValue.includes('PRODUCT') && upperValue.includes('PAGE'))
+      || upperValue.includes('DETAIL_PAGE')) {
+      return 'Product Pages';
+    }
+    return raw
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  function normalizePlacementRow(rawRow) {
+    if (!rawRow || typeof rawRow !== 'object') {
+      return null;
+    }
+
+    const dateValue = String(rawRow.date || '').trim();
+    const campaignName = String(rawRow.campaign_name || '').trim();
+    const placementClassification = normalizePlacementClassification(
+      rawRow.placement_classification,
+    );
+    if (!isIsoDateString(dateValue) || !campaignName || !placementClassification) {
+      return null;
+    }
+
+    return {
+      key: String(rawRow.key || '').trim(),
+      date: dateValue,
+      campaign_id: String(rawRow.campaign_id || '').trim(),
+      campaign_name: campaignName,
+      placement_classification: placementClassification,
+      impressions: Math.max(0, Math.round(toNumber(rawRow.impressions))),
+      clicks: Math.max(0, Math.round(toNumber(rawRow.clicks))),
+      cost_usd: toNumber(rawRow.cost_usd),
+      sales14d_usd: toNumber(rawRow.sales14d_usd),
+      purchases14d: Math.max(0, Math.round(toNumber(rawRow.purchases14d))),
+      units_sold_clicks14d: Math.max(0, Math.round(toNumber(rawRow.units_sold_clicks14d))),
+      kenp_pages_read14d: Math.max(0, Math.round(toNumber(rawRow.kenp_pages_read14d))),
+      kenp_royalties14d_usd: toNumber(rawRow.kenp_royalties14d_usd),
+      currency_code: String(rawRow.currency_code || '').trim() || 'USD',
+      top_of_search_impression_share: rawRow.top_of_search_impression_share == null
+        ? null
+        : toNumber(rawRow.top_of_search_impression_share),
+    };
+  }
+
+  function buildPlacementAggregateKey(row, dimensionKeys) {
+    const keys = Array.isArray(dimensionKeys) && dimensionKeys.length > 0
+      ? dimensionKeys
+      : PLACEMENT_DIMENSION_DEFAULTS;
+    return keys.map((key) => String(row[key] || '').trim()).join('\u001f');
+  }
+
+  function buildPlacementAggregates(rows, dimensionKeys) {
+    const keys = Array.isArray(dimensionKeys) && dimensionKeys.length > 0
+      ? dimensionKeys
+      : ['placement_classification', 'campaign_name'];
+    const aggregateByKey = {};
+    (rows || []).forEach((rawRow) => {
+      const row = normalizePlacementRow(rawRow);
+      if (!row) {
+        return;
+      }
+      const aggregateKey = buildPlacementAggregateKey(row, keys);
+      if (!aggregateByKey[aggregateKey]) {
+        aggregateByKey[aggregateKey] = {
+          aggregate_key: aggregateKey,
+          campaign_id: row.campaign_id,
+          campaign_name: row.campaign_name,
+          placement_classification: row.placement_classification,
+          impressions: 0,
+          clicks: 0,
+          cost_usd: 0,
+          sales14d_usd: 0,
+          purchases14d: 0,
+          units_sold_clicks14d: 0,
+          top_of_search_impression_share_sum: 0,
+          top_of_search_impression_share_count: 0,
+          daily: {},
+        };
+        keys.forEach((key) => {
+          aggregateByKey[aggregateKey][key] = row[key];
+        });
+      }
+
+      const aggregate = aggregateByKey[aggregateKey];
+      aggregate.impressions += row.impressions;
+      aggregate.clicks += row.clicks;
+      aggregate.cost_usd += row.cost_usd;
+      aggregate.sales14d_usd += row.sales14d_usd;
+      aggregate.purchases14d += row.purchases14d;
+      aggregate.units_sold_clicks14d += row.units_sold_clicks14d;
+      if (row.top_of_search_impression_share != null) {
+        aggregate.top_of_search_impression_share_sum += row.top_of_search_impression_share;
+        aggregate.top_of_search_impression_share_count += 1;
+      }
+
+      if (!aggregate.daily[row.date]) {
+        aggregate.daily[row.date] = {
+          impressions: 0,
+          clicks: 0,
+          cost_usd: 0,
+          sales14d_usd: 0,
+          purchases14d: 0,
+          units_sold_clicks14d: 0,
+        };
+      }
+      aggregate.daily[row.date].impressions += row.impressions;
+      aggregate.daily[row.date].clicks += row.clicks;
+      aggregate.daily[row.date].cost_usd += row.cost_usd;
+      aggregate.daily[row.date].sales14d_usd += row.sales14d_usd;
+      aggregate.daily[row.date].purchases14d += row.purchases14d;
+      aggregate.daily[row.date].units_sold_clicks14d += row.units_sold_clicks14d;
+    });
+
+    return Object.values(aggregateByKey).map((aggregate) => {
+      const clicks = toNumber(aggregate.clicks);
+      const impressions = toNumber(aggregate.impressions);
+      const cost = toNumber(aggregate.cost_usd);
+      const sales = toNumber(aggregate.sales14d_usd);
+      const orders = toNumber(aggregate.purchases14d);
+      const impressionShareCount = toNumber(aggregate.top_of_search_impression_share_count);
+      return {
+        ...aggregate,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        cpc: clicks > 0 ? cost / clicks : 0,
+        cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+        acos: sales > 0 ? (cost / sales) * 100 : 0,
+        roas: cost > 0 ? sales / cost : 0,
+        top_of_search_impression_share: impressionShareCount > 0
+          ? aggregate.top_of_search_impression_share_sum / impressionShareCount
+          : null,
+      };
+    });
+  }
+
+  function filterPlacementRows(rows, filters) {
+    const filterConfig = filters || {};
+    const campaignFilter = String(filterConfig.campaign || 'All').trim();
+    const placementFilter = normalizePlacementClassification(filterConfig.placement || 'All');
+    const textFilter = String(filterConfig.text || '').trim().toLowerCase();
+
+    return (rows || []).map((rawRow) => normalizePlacementRow(rawRow)).filter((row) => {
+      if (!row) {
+        return false;
+      }
+      if (campaignFilter !== 'All' && row.campaign_name !== campaignFilter) {
+        return false;
+      }
+      if (placementFilter !== 'All' && row.placement_classification !== placementFilter) {
+        return false;
+      }
+      if (!textFilter) {
+        return true;
+      }
+      return row.campaign_name.toLowerCase().includes(textFilter);
+    });
+  }
+
   function initAdsStatsPage(options) {
     const config = options || {};
     const adsStatsData = config.chartData || {};
+    const placementData = config.placementData || {};
     const searchTermData = config.searchTermData || {};
     const reconciledClickDateChartData = config.reconciledClickDateChartData || {};
     const reconciliationDebugCsv = buildReconciliationDebugCsv(config.reconciliationDebugCsv);
@@ -2178,26 +2370,45 @@
         }
       }
 
-      function initSearchTermInsights() {
-        const campaignFilterEl = document.getElementById('searchTermCampaignSelector');
-        const keywordTypeFilterEl = document.getElementById('searchTermKeywordTypeSelector');
-        const matchTypeFilterEl = document.getElementById('searchTermMatchTypeSelector');
-        const textFilterEl = document.getElementById('searchTermTextFilter');
-        const dimensionChipsEl = document.getElementById('searchTermDimensionChips');
-        const tableHeadEl = document.getElementById('searchTermInsightsTableHead');
-        const tableBodyEl = document.getElementById('searchTermInsightsTableBody');
-        const emptyStateEl = document.getElementById('searchTermInsightsEmptyState');
-        const trendCanvasEl = document.getElementById('searchTermTrendChart');
-        if (!campaignFilterEl || !keywordTypeFilterEl || !matchTypeFilterEl
-          || !textFilterEl || !dimensionChipsEl || !tableHeadEl || !tableBodyEl || !trendCanvasEl) {
+      function appendUniqueOptions(selectEl, values) {
+        const uniqueValues = Array.from(new Set((values || []).filter(Boolean))).sort();
+        uniqueValues.forEach((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          selectEl.appendChild(option);
+        });
+      }
+
+      function initGroupedInsights(config) {
+        const textFilterEl = document.getElementById(config.textFilterId);
+        const dimensionChipsEl = document.getElementById(config.dimensionChipsId);
+        const tableHeadEl = document.getElementById(config.tableHeadId);
+        const tableBodyEl = document.getElementById(config.tableBodyId);
+        const emptyStateEl = document.getElementById(config.emptyStateId);
+        const trendCanvasEl = document.getElementById(config.trendCanvasId);
+        const filterSelects = config.filterSelects.map((filterConfig) => ({
+          ...filterConfig,
+          element: document.getElementById(filterConfig.elementId),
+        }));
+        const summaryElements = {
+          rows: document.getElementById(config.summaryElementIds.rows),
+          clicks: document.getElementById(config.summaryElementIds.clicks),
+          cost: document.getElementById(config.summaryElementIds.cost),
+          sales: document.getElementById(config.summaryElementIds.sales),
+          acos: document.getElementById(config.summaryElementIds.acos),
+          roas: document.getElementById(config.summaryElementIds.roas),
+        };
+        if (!textFilterEl || !dimensionChipsEl || !tableHeadEl || !tableBodyEl || !trendCanvasEl
+          || filterSelects.some((filterConfig) => !filterConfig.element)) {
           return;
         }
 
-        const normalizedRows = (Array.isArray(searchTermData.rows) ? searchTermData.rows : [])
-          .map((rawRow) => normalizeSearchTermRow(rawRow))
+        const normalizedRows = (Array.isArray(config.data.rows) ? config.data.rows : [])
+          .map((rawRow) => config.normalizeRow(rawRow))
           .filter(Boolean);
-        const trendLabels = Array.isArray(searchTermData.labels)
-          ? searchTermData.labels
+        const trendLabels = Array.isArray(config.data.labels)
+          ? config.data.labels
           : Array.from(new Set(normalizedRows.map((item) => item.date))).sort();
         const chipButtons = Array.from(
           dimensionChipsEl.querySelectorAll('[data-dimension-key]'),
@@ -2208,12 +2419,12 @@
             .filter(Boolean),
         );
         if (activeDimensionKeys.size === 0) {
-          SEARCH_TERM_DIMENSION_DEFAULTS.forEach((key) => activeDimensionKeys.add(key));
+          config.defaultDimensions.forEach((key) => activeDimensionKeys.add(key));
         }
 
         let selectedAggregateKey = '';
-        let sortField = 'sales14d_usd';
-        let sortDirection = 'desc';
+        let sortField = config.defaultSortField || 'sales14d_usd';
+        let sortDirection = config.defaultSortDirection || 'desc';
 
         function syncChipStates() {
           chipButtons.forEach((chip) => {
@@ -2225,27 +2436,19 @@
           });
         }
 
-        function appendOptions(selectEl, values) {
-          const uniqueValues = Array.from(new Set((values || []).filter(Boolean))).sort();
-          uniqueValues.forEach((value) => {
-            const option = document.createElement('option');
-            option.value = value;
-            option.textContent = value;
-            selectEl.appendChild(option);
-          });
-        }
-
-        appendOptions(campaignFilterEl, normalizedRows.map((row) => row.campaign_name));
-        appendOptions(keywordTypeFilterEl, normalizedRows.map((row) => row.keyword_type));
-        appendOptions(matchTypeFilterEl, normalizedRows.map((row) => row.match_type));
+        filterSelects.forEach((filterConfig) => {
+          appendUniqueOptions(
+            filterConfig.element,
+            normalizedRows.map((row) => filterConfig.rowValue(row)),
+          );
+        });
 
         function currentFilters() {
-          return {
-            campaign: campaignFilterEl.value || 'All',
-            keywordType: keywordTypeFilterEl.value || 'All',
-            matchType: matchTypeFilterEl.value || 'All',
-            text: textFilterEl.value || '',
-          };
+          const filters = { text: textFilterEl.value || '' };
+          filterSelects.forEach((filterConfig) => {
+            filters[filterConfig.filterKey] = filterConfig.element.value || 'All';
+          });
+          return filters;
         }
 
         function sortAggregates(rows) {
@@ -2265,21 +2468,28 @@
         }
 
         function getVisibleColumns() {
-          const dimensionColumns = SEARCH_TERM_DIMENSION_COLUMNS.filter(
+          const dimensionColumns = config.dimensionColumns.filter(
             (column) => activeDimensionKeys.has(column.key),
           );
-          return [...dimensionColumns, ...SEARCH_TERM_METRIC_COLUMNS];
+          return [
+            ...dimensionColumns,
+            ...config.metricColumns,
+            ...config.extraColumnsBuilder(activeDimensionKeys),
+          ];
         }
 
         function renderTableHead(columns) {
           tableHeadEl.innerHTML = `<tr>${
             columns.map((column) => {
-              const sortIndicator = sortField === column.key
-                ? (sortDirection === 'asc' ? ' ▲' : ' ▼')
+              const isSortable = column.sortable !== false;
+              const sortIndicator = isSortable && sortField === column.key
+                ? (sortDirection === 'asc' ? ' ?' : ' ?')
+                : '';
+              const sortFieldAttr = isSortable
+                ? ` ${config.sortFieldAttribute}="${escapeHtml(column.key)}"`
                 : '';
               return (
-                `<th><button class="search-term-sort-button" type="button"`
-                + ` data-search-term-sort-field="${escapeHtml(column.key)}">`
+                `<th><button class="${config.sortButtonClassName}" type="button"${sortFieldAttr}>`
                 + `${escapeHtml(column.label)}${sortIndicator}</button></th>`
               );
             }).join('')
@@ -2288,7 +2498,7 @@
 
         function formatDimensionValue(value) {
           const normalized = String(value || '').trim();
-          return normalized || '—';
+          return normalized || '-';
         }
 
         function formatColumnValue(column, row) {
@@ -2297,7 +2507,7 @@
             return formatCurrency(value);
           }
           if (column.format === 'percent') {
-            return formatPercentage(value);
+            return value == null ? '-' : formatPercentage(value);
           }
           if (column.format === 'ratio') {
             return formatRatio(value);
@@ -2308,7 +2518,7 @@
           return formatDimensionValue(value);
         }
 
-        function updateSearchTermSummary(rows) {
+        function updateSummary(rows) {
           const totals = rows.reduce((acc, row) => {
             acc.rows += 1;
             acc.clicks += toNumber(row.clicks);
@@ -2323,29 +2533,23 @@
           });
           const acos = totals.sales > 0 ? (totals.cost / totals.sales) * 100 : 0;
           const roas = totals.cost > 0 ? totals.sales / totals.cost : 0;
-          const summaryRowsEl = document.getElementById('searchTermSummaryRows');
-          const summaryClicksEl = document.getElementById('searchTermSummaryClicks');
-          const summaryCostEl = document.getElementById('searchTermSummaryCost');
-          const summarySalesEl = document.getElementById('searchTermSummarySales');
-          const summaryAcosEl = document.getElementById('searchTermSummaryAcos');
-          const summaryRoasEl = document.getElementById('searchTermSummaryRoas');
-          if (summaryRowsEl) {
-            summaryRowsEl.textContent = formatNumber(totals.rows);
+          if (summaryElements.rows) {
+            summaryElements.rows.textContent = formatNumber(totals.rows);
           }
-          if (summaryClicksEl) {
-            summaryClicksEl.textContent = formatNumber(totals.clicks);
+          if (summaryElements.clicks) {
+            summaryElements.clicks.textContent = formatNumber(totals.clicks);
           }
-          if (summaryCostEl) {
-            summaryCostEl.textContent = formatCurrency(totals.cost);
+          if (summaryElements.cost) {
+            summaryElements.cost.textContent = formatCurrency(totals.cost);
           }
-          if (summarySalesEl) {
-            summarySalesEl.textContent = formatCurrency(totals.sales);
+          if (summaryElements.sales) {
+            summaryElements.sales.textContent = formatCurrency(totals.sales);
           }
-          if (summaryAcosEl) {
-            summaryAcosEl.textContent = formatPercentage(acos);
+          if (summaryElements.acos) {
+            summaryElements.acos.textContent = formatPercentage(acos);
           }
-          if (summaryRoasEl) {
-            summaryRoasEl.textContent = formatRatio(roas);
+          if (summaryElements.roas) {
+            summaryElements.roas.textContent = formatRatio(roas);
           }
         }
 
@@ -2364,9 +2568,9 @@
           const selected = visibleRows.find((row) => row.aggregate_key === selectedAggregateKey)
             || visibleRows[0];
           if (!selected) {
-            if (charts.searchTermTrendChart) {
-              charts.searchTermTrendChart.destroy();
-              delete charts.searchTermTrendChart;
+            if (charts[config.chartStateKey]) {
+              charts[config.chartStateKey].destroy();
+              delete charts[config.chartStateKey];
             }
             return;
           }
@@ -2376,10 +2580,10 @@
           if (!ctx) {
             return;
           }
-          if (charts.searchTermTrendChart) {
-            charts.searchTermTrendChart.destroy();
+          if (charts[config.chartStateKey]) {
+            charts[config.chartStateKey].destroy();
           }
-          charts.searchTermTrendChart = new chartCtor(ctx, {
+          charts[config.chartStateKey] = new chartCtor(ctx, {
             type: 'line',
             data: {
               labels: trendLabels,
@@ -2418,19 +2622,19 @@
           });
         }
 
-        function renderSearchTermTable() {
-          const filteredRows = filterSearchTermRows(normalizedRows, currentFilters());
-          const aggregates = buildSearchTermAggregates(
+        function renderTable() {
+          const filteredRows = config.filterRows(normalizedRows, currentFilters());
+          const aggregates = config.buildAggregates(
             filteredRows,
             Array.from(activeDimensionKeys),
           );
           const visibleColumns = getVisibleColumns();
           if (!visibleColumns.some((column) => column.key === sortField)) {
-            sortField = 'sales14d_usd';
-            sortDirection = 'desc';
+            sortField = config.defaultSortField || 'sales14d_usd';
+            sortDirection = config.defaultSortDirection || 'desc';
           }
           const sortedRows = sortAggregates(aggregates);
-          updateSearchTermSummary(sortedRows);
+          updateSummary(sortedRows);
           renderTableHead(visibleColumns);
 
           tableBodyEl.innerHTML = '';
@@ -2445,9 +2649,9 @@
 
           sortedRows.slice(0, 200).forEach((row) => {
             const tr = document.createElement('tr');
-            tr.className = `search-term-row${
-              row.aggregate_key === selectedAggregateKey ? ' search-term-row--selected' : ''
-            }`;
+            tr.className = row.aggregate_key === selectedAggregateKey
+              ? `${config.rowClassName} ${config.selectedRowClassName}`
+              : config.rowClassName;
             tr.tabIndex = 0;
             tr.dataset.aggregateKey = row.aggregate_key;
             tr.innerHTML = visibleColumns.map((column) => {
@@ -2461,7 +2665,9 @@
 
         tableBodyEl.addEventListener('click', (event) => {
           const target = event.target instanceof Element ? event.target : null;
-          const row = target ? target.closest('.search-term-row[data-aggregate-key]') : null;
+          const row = target
+            ? target.closest(`.${config.rowClassName}[data-aggregate-key]`)
+            : null;
           if (!row) {
             return;
           }
@@ -2472,26 +2678,28 @@
             }
           }
           selectedAggregateKey = row.dataset.aggregateKey || '';
-          renderSearchTermTable();
+          renderTable();
         });
 
         tableBodyEl.addEventListener('keydown', (event) => {
           const target = event.target instanceof Element ? event.target : null;
-          const row = target ? target.closest('.search-term-row[data-aggregate-key]') : null;
+          const row = target
+            ? target.closest(`.${config.rowClassName}[data-aggregate-key]`)
+            : null;
           if (!row) {
             return;
           }
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             selectedAggregateKey = row.dataset.aggregateKey || '';
-            renderSearchTermTable();
+            renderTable();
           }
         });
 
-        [campaignFilterEl, keywordTypeFilterEl, matchTypeFilterEl].forEach((filterEl) => {
-          filterEl.addEventListener('change', renderSearchTermTable);
+        filterSelects.forEach((filterConfig) => {
+          filterConfig.element.addEventListener('change', renderTable);
         });
-        textFilterEl.addEventListener('input', renderSearchTermTable);
+        textFilterEl.addEventListener('input', renderTable);
 
         chipButtons.forEach((chipButton) => {
           chipButton.addEventListener('click', () => {
@@ -2509,17 +2717,17 @@
             }
             syncChipStates();
             selectedAggregateKey = '';
-            renderSearchTermTable();
+            renderTable();
           });
         });
 
         tableHeadEl.addEventListener('click', (event) => {
           const target = event.target instanceof Element ? event.target : null;
-          const button = target ? target.closest('[data-search-term-sort-field]') : null;
+          const button = target ? target.closest(`[${config.sortFieldAttribute}]`) : null;
           if (!button) {
             return;
           }
-          const requestedField = String(button.getAttribute('data-search-term-sort-field') || '');
+          const requestedField = String(button.getAttribute(config.sortFieldAttribute) || '');
           if (!requestedField) {
             return;
           }
@@ -2527,17 +2735,122 @@
             sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
           } else {
             sortField = requestedField;
-            sortDirection = SEARCH_TERM_DIMENSION_COLUMNS.some((column) => column.key === requestedField)
-              ? 'asc'
-              : 'desc';
+            sortDirection = config.dimensionColumns.some(
+              (column) => column.key === requestedField,
+            ) ? 'asc' : 'desc';
           }
-          renderSearchTermTable();
+          renderTable();
         });
 
         syncChipStates();
-        renderSearchTermTable();
+        renderTable();
       }
 
+      function initSearchTermInsights() {
+        initGroupedInsights({
+          data: searchTermData,
+          normalizeRow: normalizeSearchTermRow,
+          filterRows: filterSearchTermRows,
+          buildAggregates: buildSearchTermAggregates,
+          dimensionColumns: SEARCH_TERM_DIMENSION_COLUMNS,
+          defaultDimensions: SEARCH_TERM_DIMENSION_DEFAULTS,
+          metricColumns: SEARCH_TERM_METRIC_COLUMNS,
+          filterSelects: [
+            {
+              elementId: 'searchTermCampaignSelector',
+              filterKey: 'campaign',
+              rowValue: (row) => row.campaign_name,
+            },
+            {
+              elementId: 'searchTermKeywordTypeSelector',
+              filterKey: 'keywordType',
+              rowValue: (row) => row.keyword_type,
+            },
+            {
+              elementId: 'searchTermMatchTypeSelector',
+              filterKey: 'matchType',
+              rowValue: (row) => row.match_type,
+            },
+          ],
+          textFilterId: 'searchTermTextFilter',
+          dimensionChipsId: 'searchTermDimensionChips',
+          tableHeadId: 'searchTermInsightsTableHead',
+          tableBodyId: 'searchTermInsightsTableBody',
+          emptyStateId: 'searchTermInsightsEmptyState',
+          trendCanvasId: 'searchTermTrendChart',
+          chartStateKey: 'searchTermTrendChart',
+          rowClassName: 'search-term-row',
+          selectedRowClassName: 'search-term-row--selected',
+          sortButtonClassName: 'search-term-sort-button',
+          sortFieldAttribute: 'data-search-term-sort-field',
+          summaryElementIds: {
+            rows: 'searchTermSummaryRows',
+            clicks: 'searchTermSummaryClicks',
+            cost: 'searchTermSummaryCost',
+            sales: 'searchTermSummarySales',
+            acos: 'searchTermSummaryAcos',
+            roas: 'searchTermSummaryRoas',
+          },
+          extraColumnsBuilder: () => [],
+          defaultSortField: 'sales14d_usd',
+          defaultSortDirection: 'desc',
+        });
+      }
+
+      function initPlacementInsights() {
+        initGroupedInsights({
+          data: placementData,
+          normalizeRow: normalizePlacementRow,
+          filterRows: filterPlacementRows,
+          buildAggregates: buildPlacementAggregates,
+          dimensionColumns: PLACEMENT_DIMENSION_COLUMNS,
+          defaultDimensions: PLACEMENT_DIMENSION_DEFAULTS,
+          metricColumns: PLACEMENT_METRIC_COLUMNS,
+          filterSelects: [
+            {
+              elementId: 'placementCampaignSelector',
+              filterKey: 'campaign',
+              rowValue: (row) => row.campaign_name,
+            },
+            {
+              elementId: 'placementPlacementSelector',
+              filterKey: 'placement',
+              rowValue: (row) => row.placement_classification,
+            },
+          ],
+          textFilterId: 'placementTextFilter',
+          dimensionChipsId: 'placementDimensionChips',
+          tableHeadId: 'placementInsightsTableHead',
+          tableBodyId: 'placementInsightsTableBody',
+          emptyStateId: 'placementInsightsEmptyState',
+          trendCanvasId: 'placementTrendChart',
+          chartStateKey: 'placementTrendChart',
+          rowClassName: 'placement-row',
+          selectedRowClassName: 'placement-row--selected',
+          sortButtonClassName: 'placement-sort-button',
+          sortFieldAttribute: 'data-placement-sort-field',
+          summaryElementIds: {
+            rows: 'placementSummaryRows',
+            clicks: 'placementSummaryClicks',
+            cost: 'placementSummaryCost',
+            sales: 'placementSummarySales',
+            acos: 'placementSummaryAcos',
+            roas: 'placementSummaryRoas',
+          },
+          extraColumnsBuilder: (activeDimensionKeys) => (
+            activeDimensionKeys.has('campaign_name')
+              ? [{
+                key: 'top_of_search_impression_share',
+                label: 'Top of Search IS',
+                format: 'percent',
+                sortable: false,
+              }]
+              : []
+          ),
+          defaultSortField: 'sales14d_usd',
+          defaultSortDirection: 'desc',
+        });
+      }
       const campaignNames = new Set();
       Object.values(adsStatsData.daily_campaigns || {}).forEach((campaignList) => {
         if (!Array.isArray(campaignList)) {
@@ -2564,6 +2877,7 @@
       campaignSelector.addEventListener('change', renderSelectedView);
       modeSelector.addEventListener('change', renderSelectedView);
       renderSelectedView();
+      initPlacementInsights();
       initSearchTermInsights();
 
       document.addEventListener('click', async (event) => {
@@ -2634,6 +2948,8 @@
       normalizeSearchTermRow: normalizeSearchTermRow,
       buildSearchTermAggregates: buildSearchTermAggregates,
       filterSearchTermAggregates: filterSearchTermAggregates,
+      normalizePlacementRow: normalizePlacementRow,
+      buildPlacementAggregates: buildPlacementAggregates,
       chartDataToCsv: chartDataToCsv,
       copyTextToClipboard: copyTextToClipboard,
       showCopyFeedback: showCopyFeedback,
@@ -2652,3 +2968,4 @@
     };
   }
 })();
+

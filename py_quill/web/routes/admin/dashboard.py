@@ -7,7 +7,7 @@ import datetime
 import io
 import json
 import re
-from typing import Any, cast
+from typing import Any, Callable, cast
 from zoneinfo import ZoneInfo
 
 import flask
@@ -184,6 +184,10 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  placement_stats = amazon_ads_firestore.list_amazon_ads_placement_daily_stats(
+    start_date=start_date,
+    end_date=end_date,
+  )
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
     start_date=start_date,
@@ -191,6 +195,11 @@ def admin_ads_stats():
   )
   search_term_data = _build_ads_search_term_data(
     stats_list=search_term_stats,
+    start_date=start_date,
+    end_date=end_date,
+  )
+  placement_data = _build_ads_placement_data(
+    stats_list=placement_stats,
     start_date=start_date,
     end_date=end_date,
   )
@@ -212,6 +221,7 @@ def admin_ads_stats():
     site_name='Snickerdoodle',
     chart_data=chart_data,
     search_term_data=search_term_data,
+    placement_data=placement_data,
     reconciled_click_date_chart_data=reconciled_click_date_chart_data,
     reconciliation_debug_csv=reconciliation_debug_csv,
     ads_events=[_serialize_amazon_ads_event(event) for event in ads_events],
@@ -385,6 +395,8 @@ def _serialize_amazon_ads_report(
     'report_name': report.report_name,
     'status': report.status,
     'report_type_id': report.report_type_id,
+    'report_key': report.report_key.value if report.report_key else "",
+    'report_label': report.report_key.value if report.report_key else report.report_type_id,
     'profile_id': report.profile_id or "",
     'profile_country': report.profile_country or "",
     'start_date': report.start_date.isoformat(),
@@ -545,6 +557,10 @@ def _build_cached_ads_report_table(
     report.report_name,
     'report_type_id':
     report.report_type_id,
+    'report_key':
+    report.report_key.value if report.report_key else "",
+    'report_label':
+    report.report_key.value if report.report_key else report.report_type_id,
     'profile_id':
     report.profile_id or "",
     'profile_country':
@@ -590,23 +606,35 @@ def _format_ads_report_table_cell(value: object) -> str:
   return str(value)
 
 
-def _build_ads_search_term_data(
+def _build_ads_stat_labels(
   *,
-  stats_list: list[amazon_ads_models.AmazonAdsSearchTermDailyStat],
   start_date: datetime.date,
   end_date: datetime.date,
-) -> dict[str, object]:
-  """Serialize search-term rows for ads-stats filtering and charting."""
+) -> list[str]:
+  """Build one ISO label per day across an inclusive date range."""
   labels: list[str] = []
   current_date = start_date
   while current_date <= end_date:
     labels.append(current_date.isoformat())
     current_date += datetime.timedelta(days=1)
+  return labels
 
+
+def _build_ads_insights_data(
+  *,
+  stats_list: list[object],
+  start_date: datetime.date,
+  end_date: datetime.date,
+  sort_key: Callable[[object], tuple[object, ...]],
+  row_builder: Callable[[object], dict[str, object]],
+  filter_value_extractors: dict[str, Callable[[object], str]],
+) -> dict[str, object]:
+  """Serialize row-level insights data with shared totals/filter buckets."""
   rows: list[dict[str, object]] = []
-  campaign_names: set[str] = set()
-  keyword_types: set[str] = set()
-  match_types: set[str] = set()
+  filter_values = {
+    field_name: set()
+    for field_name in filter_value_extractors
+  }
   totals = {
     "impressions": 0,
     "clicks": 0,
@@ -615,50 +643,23 @@ def _build_ads_search_term_data(
     "purchases14d": 0,
     "units_sold_clicks14d": 0,
   }
-  for stat in sorted(stats_list,
-                     key=lambda row: (row.date, row.campaign_name,
-                                      row.search_term)):
-    row = {
-      "key": stat.ensure_key(),
-      "date": stat.date.isoformat(),
-      "campaign_id": stat.campaign_id,
-      "campaign_name": stat.campaign_name,
-      "ad_group_id": stat.ad_group_id,
-      "ad_group_name": stat.ad_group_name,
-      "search_term": stat.search_term,
-      "keyword_id": stat.keyword_id,
-      "keyword": stat.keyword,
-      "targeting": stat.targeting,
-      "keyword_type": stat.keyword_type,
-      "match_type": stat.match_type,
-      "ad_keyword_status": stat.ad_keyword_status,
-      "impressions": stat.impressions,
-      "clicks": stat.clicks,
-      "cost_usd": round(stat.cost_usd, 4),
-      "sales14d_usd": round(stat.sales14d_usd, 4),
-      "purchases14d": stat.purchases14d,
-      "units_sold_clicks14d": stat.units_sold_clicks14d,
-      "kenp_pages_read14d": stat.kenp_pages_read14d,
-      "kenp_royalties14d_usd": round(stat.kenp_royalties14d_usd, 4),
-      "currency_code": stat.currency_code,
-    }
+  for stat in sorted(stats_list, key=sort_key):
+    row = row_builder(stat)
     rows.append(row)
-    campaign_names.add(stat.campaign_name)
-    keyword_types.add(stat.keyword_type)
-    match_types.add(stat.match_type)
-    totals["impressions"] += stat.impressions
-    totals["clicks"] += stat.clicks
-    totals["cost_usd"] += stat.cost_usd
-    totals["sales14d_usd"] += stat.sales14d_usd
-    totals["purchases14d"] += stat.purchases14d
-    totals["units_sold_clicks14d"] += stat.units_sold_clicks14d
+    for field_name, extractor in filter_value_extractors.items():
+      value = extractor(stat)
+      if value:
+        filter_values[field_name].add(value)
+    totals["impressions"] += int(row.get("impressions", 0))
+    totals["clicks"] += int(row.get("clicks", 0))
+    totals["cost_usd"] += float(row.get("cost_usd", 0.0))
+    totals["sales14d_usd"] += float(row.get("sales14d_usd", 0.0))
+    totals["purchases14d"] += int(row.get("purchases14d", 0))
+    totals["units_sold_clicks14d"] += int(row.get("units_sold_clicks14d", 0))
 
-  return {
-    "labels": labels,
+  output: dict[str, object] = {
+    "labels": _build_ads_stat_labels(start_date=start_date, end_date=end_date),
     "rows": rows,
-    "campaign_names": sorted(name for name in campaign_names if name),
-    "keyword_types": sorted(name for name in keyword_types if name),
-    "match_types": sorted(name for name in match_types if name),
     "totals": {
       "impressions": totals["impressions"],
       "clicks": totals["clicks"],
@@ -668,6 +669,178 @@ def _build_ads_search_term_data(
       "units_sold_clicks14d": totals["units_sold_clicks14d"],
     },
   }
+  for field_name, values in filter_values.items():
+    output[field_name] = sorted(value for value in values if value)
+  return output
+
+
+def _build_ads_search_term_data(
+  *,
+  stats_list: list[amazon_ads_models.AmazonAdsSearchTermDailyStat],
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, object]:
+  """Serialize search-term rows for ads-stats filtering and charting."""
+  return _build_ads_insights_data(
+    stats_list=cast(list[object], stats_list),
+    start_date=start_date,
+    end_date=end_date,
+    sort_key=lambda row: (
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, row).date,
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, row).campaign_name,
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, row).search_term,
+    ),
+    row_builder=lambda raw_stat: {
+      "key": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                  raw_stat).ensure_key(),
+      "date": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                   raw_stat).date.isoformat(),
+      "campaign_id": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                          raw_stat).campaign_id,
+      "campaign_name": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                            raw_stat).campaign_name,
+      "ad_group_id": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                          raw_stat).ad_group_id,
+      "ad_group_name": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                            raw_stat).ad_group_name,
+      "search_term": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                          raw_stat).search_term,
+      "keyword_id": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                         raw_stat).keyword_id,
+      "keyword": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                      raw_stat).keyword,
+      "targeting": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                        raw_stat).targeting,
+      "keyword_type": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                           raw_stat).keyword_type,
+      "match_type": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                         raw_stat).match_type,
+      "ad_keyword_status": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                                raw_stat).ad_keyword_status,
+      "impressions": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                          raw_stat).impressions,
+      "clicks": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                     raw_stat).clicks,
+      "cost_usd": round(
+        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).cost_usd,
+        4,
+      ),
+      "sales14d_usd": round(
+        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+             raw_stat).sales14d_usd,
+        4,
+      ),
+      "purchases14d": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                           raw_stat).purchases14d,
+      "units_sold_clicks14d": cast(
+        amazon_ads_models.AmazonAdsSearchTermDailyStat,
+        raw_stat,
+      ).units_sold_clicks14d,
+      "kenp_pages_read14d": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                                 raw_stat).kenp_pages_read14d,
+      "kenp_royalties14d_usd": round(
+        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+             raw_stat).kenp_royalties14d_usd,
+        4,
+      ),
+      "currency_code": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
+                            raw_stat).currency_code,
+    },
+    filter_value_extractors={
+      "campaign_names": lambda raw_stat: cast(
+        amazon_ads_models.AmazonAdsSearchTermDailyStat,
+        raw_stat,
+      ).campaign_name,
+      "keyword_types": lambda raw_stat: cast(
+        amazon_ads_models.AmazonAdsSearchTermDailyStat,
+        raw_stat,
+      ).keyword_type,
+      "match_types": lambda raw_stat: cast(
+        amazon_ads_models.AmazonAdsSearchTermDailyStat,
+        raw_stat,
+      ).match_type,
+    },
+  )
+
+
+def _build_ads_placement_data(
+  *,
+  stats_list: list[amazon_ads_models.AmazonAdsPlacementDailyStat],
+  start_date: datetime.date,
+  end_date: datetime.date,
+) -> dict[str, object]:
+  """Serialize placement rows for ads-stats filtering and charting."""
+  return _build_ads_insights_data(
+    stats_list=cast(list[object], stats_list),
+    start_date=start_date,
+    end_date=end_date,
+    sort_key=lambda row: (
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, row).date,
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+           row).placement_classification,
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, row).campaign_name,
+    ),
+    row_builder=lambda raw_stat: {
+      "key": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                  raw_stat).ensure_key(),
+      "date": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                   raw_stat).date.isoformat(),
+      "campaign_id": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                          raw_stat).campaign_id,
+      "campaign_name": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                            raw_stat).campaign_name,
+      "placement_classification": cast(
+        amazon_ads_models.AmazonAdsPlacementDailyStat,
+        raw_stat,
+      ).placement_classification,
+      "impressions": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                          raw_stat).impressions,
+      "clicks": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                     raw_stat).clicks,
+      "cost_usd": round(
+        cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).cost_usd,
+        4,
+      ),
+      "sales14d_usd": round(
+        cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+             raw_stat).sales14d_usd,
+        4,
+      ),
+      "purchases14d": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                           raw_stat).purchases14d,
+      "units_sold_clicks14d": cast(
+        amazon_ads_models.AmazonAdsPlacementDailyStat,
+        raw_stat,
+      ).units_sold_clicks14d,
+      "kenp_pages_read14d": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                                 raw_stat).kenp_pages_read14d,
+      "kenp_royalties14d_usd": round(
+        cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+             raw_stat).kenp_royalties14d_usd,
+        4,
+      ),
+      "currency_code": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                            raw_stat).currency_code,
+      "top_of_search_impression_share": (
+        round(
+          cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+               raw_stat).top_of_search_impression_share,
+          4,
+        )
+        if cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
+                raw_stat).top_of_search_impression_share is not None else None),
+    },
+    filter_value_extractors={
+      "campaign_names": lambda raw_stat: cast(
+        amazon_ads_models.AmazonAdsPlacementDailyStat,
+        raw_stat,
+      ).campaign_name,
+      "placement_classifications": lambda raw_stat: cast(
+        amazon_ads_models.AmazonAdsPlacementDailyStat,
+        raw_stat,
+      ).placement_classification,
+    },
+  )
 
 
 def _build_ads_stats_chart_data(

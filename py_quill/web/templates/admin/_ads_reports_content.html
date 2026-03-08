@@ -59,7 +59,7 @@
                 aria-pressed="{% if report.report_name == selected_report_name %}true{% else %}false{% endif %}">
                 <td>{{ report.created_at_display }}</td>
                 <td>{{ report.report_name }}</td>
-                <td>{{ report.report_type_id }}</td>
+                <td>{{ report.report_label }}</td>
                 <td>{{ report.status }}</td>
                 <td>{{ report.profile_id }}</td>
                 <td>{{ report.profile_country }}</td>
@@ -90,7 +90,7 @@
     {% if reports %}
       {% if selected_cached_report_table %}
         <p class="muted ads-reports-meta">
-          <strong>{{ selected_cached_report_table.report_type_id }}</strong> - {{ selected_cached_report_table.report_name }}
+          <strong>{{ selected_cached_report_table.report_label }}</strong> - {{ selected_cached_report_table.report_name }}
           - profile {{ selected_cached_report_table.profile_id }} {{ selected_cached_report_table.profile_country }}
           - range {{ selected_cached_report_table.start_date }} to {{ selected_cached_report_table.end_date }}
           - created {{ selected_cached_report_table.created_at }}

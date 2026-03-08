@@ -19,8 +19,10 @@ const {
   formatUnmatchedAdsTooltipLine,
   isIsoDateString,
   normalizeAdsEvent,
+  normalizePlacementRow,
   normalizeSearchTermRow,
   groupAdsEventsByDate,
+  buildPlacementAggregates,
   buildSearchTermAggregates,
   filterSearchTermAggregates,
   getAdsEventTooltipLines,
@@ -72,6 +74,20 @@ function createFakeAdsStatsDom(initialMode) {
     adsProfitBreakdownChart: createFakeCanvas('adsProfitBreakdownChart'),
     salesBreakdownChart: createFakeCanvas('salesBreakdownChart'),
     kenpBreakdownChart: createFakeCanvas('kenpBreakdownChart'),
+    placementCampaignSelector: new FakeElement({ id: 'placementCampaignSelector', tagName: 'select' }),
+    placementPlacementSelector: new FakeElement({ id: 'placementPlacementSelector', tagName: 'select' }),
+    placementTextFilter: new FakeElement({ id: 'placementTextFilter', tagName: 'input' }),
+    placementDimensionChips: new FakeElement({ id: 'placementDimensionChips' }),
+    placementInsightsTableHead: new FakeElement({ id: 'placementInsightsTableHead', tagName: 'thead' }),
+    placementInsightsTableBody: new FakeElement({ id: 'placementInsightsTableBody', tagName: 'tbody' }),
+    placementInsightsEmptyState: new FakeElement({ id: 'placementInsightsEmptyState', tagName: 'p' }),
+    placementTrendChart: createFakeCanvas('placementTrendChart'),
+    placementSummaryRows: new FakeElement({ id: 'placementSummaryRows' }),
+    placementSummaryClicks: new FakeElement({ id: 'placementSummaryClicks' }),
+    placementSummaryCost: new FakeElement({ id: 'placementSummaryCost' }),
+    placementSummarySales: new FakeElement({ id: 'placementSummarySales' }),
+    placementSummaryAcos: new FakeElement({ id: 'placementSummaryAcos' }),
+    placementSummaryRoas: new FakeElement({ id: 'placementSummaryRoas' }),
     searchTermCampaignSelector: new FakeElement({ id: 'searchTermCampaignSelector', tagName: 'select' }),
     searchTermKeywordTypeSelector: new FakeElement({
       id: 'searchTermKeywordTypeSelector',
@@ -96,9 +112,26 @@ function createFakeAdsStatsDom(initialMode) {
   };
   elements.campaignSelector.value = 'All';
   elements.modeSelector.value = initialMode;
+  elements.placementCampaignSelector.value = 'All';
+  elements.placementPlacementSelector.value = 'All';
   elements.searchTermCampaignSelector.value = 'All';
   elements.searchTermKeywordTypeSelector.value = 'All';
   elements.searchTermMatchTypeSelector.value = 'All';
+
+  const placementChipConfigs = [
+    { key: 'placement_classification', pressed: true },
+    { key: 'campaign_name', pressed: false },
+  ];
+  placementChipConfigs.forEach((config) => {
+    const chip = new FakeElement({
+      tagName: 'button',
+      className: 'placement-dimension-chip',
+    });
+    chip.setAttribute('data-dimension-key', config.key);
+    chip.setAttribute('aria-pressed', config.pressed ? 'true' : 'false');
+    chip.textContent = config.key;
+    append(elements.placementDimensionChips, chip);
+  });
 
   const dimensionChipConfigs = [
     { key: 'campaign_name', pressed: false },
@@ -187,6 +220,50 @@ function createFakeSearchTermData() {
         cost_usd: 4,
         sales14d_usd: 40,
         purchases14d: 3,
+      },
+    ],
+  };
+}
+
+function createFakePlacementData() {
+  return {
+    labels: ['2026-02-22', '2026-02-23'],
+    rows: [
+      {
+        date: '2026-02-22',
+        campaign_id: 'c-a',
+        campaign_name: 'Campaign A',
+        placement_classification: 'PLACEMENT_TOP',
+        impressions: 100,
+        clicks: 10,
+        cost_usd: 5,
+        sales14d_usd: 30,
+        purchases14d: 3,
+        top_of_search_impression_share: 0.21,
+      },
+      {
+        date: '2026-02-23',
+        campaign_id: 'c-b',
+        campaign_name: 'Campaign B',
+        placement_classification: 'Top of search',
+        impressions: 80,
+        clicks: 8,
+        cost_usd: 4,
+        sales14d_usd: 28,
+        purchases14d: 2,
+        top_of_search_impression_share: 0.34,
+      },
+      {
+        date: '2026-02-22',
+        campaign_id: 'c-a',
+        campaign_name: 'Campaign A',
+        placement_classification: 'rest of search',
+        impressions: 60,
+        clicks: 3,
+        cost_usd: 2,
+        sales14d_usd: 8,
+        purchases14d: 1,
+        top_of_search_impression_share: 0.21,
       },
     ],
   };
@@ -693,6 +770,25 @@ test('normalizeSearchTermRow validates required fields and normalizes numbers', 
   assert.equal(normalized.cost_usd, 5.25);
 });
 
+test('normalizePlacementRow validates required fields and normalizes placement labels', () => {
+  assert.equal(normalizePlacementRow(null), null);
+  assert.equal(normalizePlacementRow({ date: 'bad' }), null);
+
+  const normalized = normalizePlacementRow({
+    date: '2026-02-20',
+    campaign_name: 'Campaign A',
+    placement_classification: 'PLACEMENT_TOP',
+    clicks: '4',
+    cost_usd: '5.25',
+  });
+
+  assert.equal(normalized.date, '2026-02-20');
+  assert.equal(normalized.campaign_name, 'Campaign A');
+  assert.equal(normalized.placement_classification, 'Top of Search');
+  assert.equal(normalized.clicks, 4);
+  assert.equal(normalized.cost_usd, 5.25);
+});
+
 test('buildSearchTermAggregates computes totals and derived metrics', () => {
   const aggregates = buildSearchTermAggregates([
     {
@@ -739,6 +835,48 @@ test('buildSearchTermAggregates computes totals and derived metrics', () => {
   assertClose(aggregates[0].cvr, 20);
   assertClose(aggregates[0].acos, 25);
   assertClose(aggregates[0].roas, 4);
+});
+
+test('buildPlacementAggregates computes totals and derived metrics', () => {
+  const aggregates = buildPlacementAggregates([
+    {
+      date: '2026-02-20',
+      campaign_id: 'c-a',
+      campaign_name: 'Campaign A',
+      placement_classification: 'Top of Search',
+      impressions: 100,
+      clicks: 10,
+      cost_usd: 5,
+      sales14d_usd: 20,
+      purchases14d: 2,
+      top_of_search_impression_share: 0.25,
+    },
+    {
+      date: '2026-02-21',
+      campaign_id: 'c-b',
+      campaign_name: 'Campaign B',
+      placement_classification: 'Top of Search',
+      impressions: 50,
+      clicks: 5,
+      cost_usd: 3,
+      sales14d_usd: 12,
+      purchases14d: 1,
+      top_of_search_impression_share: 0.35,
+    },
+  ], ['placement_classification']);
+
+  assert.equal(aggregates.length, 1);
+  assert.equal(aggregates[0].placement_classification, 'Top of Search');
+  assert.equal(aggregates[0].impressions, 150);
+  assert.equal(aggregates[0].clicks, 15);
+  assert.equal(aggregates[0].cost_usd, 8);
+  assert.equal(aggregates[0].sales14d_usd, 32);
+  assertClose(aggregates[0].ctr, 10);
+  assertClose(aggregates[0].cpc, 8 / 15);
+  assertClose(aggregates[0].cvr, 20);
+  assertClose(aggregates[0].acos, 25);
+  assertClose(aggregates[0].roas, 4);
+  assertClose(aggregates[0].top_of_search_impression_share, 0.3);
 });
 
 test('filterSearchTermAggregates applies campaign/type/match/text filters', () => {
@@ -863,6 +1001,103 @@ test('initAdsStatsPage search term timeline follows grouped row selection', asyn
     assert.deepEqual(alphaCampaignChart.config.data.datasets[0].data, [0, 2]);
     assert.deepEqual(alphaCampaignChart.config.data.datasets[1].data, [0, 20]);
     assert.deepEqual(alphaCampaignChart.config.data.datasets[2].data, [0, 2]);
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+    global.Element = originalElement;
+  }
+});
+
+test('initAdsStatsPage placement timeline follows grouped row selection', async () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const originalElement = global.Element;
+  const chartCalls = [];
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  global.document = document;
+  global.Element = FakeElement;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage({
+      chartData: createFakeChartData(),
+      reconciledClickDateChartData: createFakeReconciledChartData(),
+      searchTermData: createFakeSearchTermData(),
+      placementData: createFakePlacementData(),
+      adsEvents: [],
+    });
+
+    const tableBody = elements.placementInsightsTableBody;
+    const campaignChip = elements.placementDimensionChips.children[1];
+    const syncAggregateKeyAttributes = () => {
+      tableBody.children.forEach((row) => {
+        if (row && row.dataset && row.dataset.aggregateKey) {
+          row.setAttribute('data-aggregate-key', row.dataset.aggregateKey);
+        }
+      });
+    };
+
+    syncAggregateKeyAttributes();
+    assert.ok(campaignChip);
+    assert.equal(campaignChip.getAttribute('aria-pressed'), 'false');
+    assert.match(elements.placementInsightsTableHead.innerHTML, /Placement/i);
+    assert.doesNotMatch(elements.placementInsightsTableHead.innerHTML, /Top of Search IS/i);
+
+    const topPlacementRow = tableBody.children.find(
+      (row) => row.dataset.aggregateKey === 'Top of Search',
+    );
+    assert.ok(topPlacementRow);
+    await tableBody.dispatch('click', { target: topPlacementRow });
+
+    const placementChartsAfterPlacementOnly = chartCalls.filter(
+      (call) => call.canvasId === 'placementTrendChart',
+    );
+    assert.ok(placementChartsAfterPlacementOnly.length >= 1);
+    const placementOnlyChart = placementChartsAfterPlacementOnly[
+      placementChartsAfterPlacementOnly.length - 1
+    ];
+    assert.deepEqual(placementOnlyChart.config.data.datasets[0].data, [5, 4]);
+    assert.deepEqual(placementOnlyChart.config.data.datasets[1].data, [30, 28]);
+    assert.deepEqual(placementOnlyChart.config.data.datasets[2].data, [10, 8]);
+
+    await campaignChip.dispatch('click');
+    assert.equal(campaignChip.getAttribute('aria-pressed'), 'true');
+    syncAggregateKeyAttributes();
+    assert.match(elements.placementInsightsTableHead.innerHTML, /Top of Search IS/i);
+
+    const topCampaignBRow = tableBody.children.find((row) => {
+      return row.dataset.aggregateKey === `Top of Search${String.fromCharCode(31)}Campaign B`;
+    });
+    assert.ok(topCampaignBRow);
+    await tableBody.dispatch('click', { target: topCampaignBRow });
+
+    const placementChartsAfterCampaignGrouping = chartCalls.filter(
+      (call) => call.canvasId === 'placementTrendChart',
+    );
+    const campaignPlacementChart = placementChartsAfterCampaignGrouping[
+      placementChartsAfterCampaignGrouping.length - 1
+    ];
+    assert.deepEqual(campaignPlacementChart.config.data.datasets[0].data, [0, 4]);
+    assert.deepEqual(campaignPlacementChart.config.data.datasets[1].data, [0, 28]);
+    assert.deepEqual(campaignPlacementChart.config.data.datasets[2].data, [0, 8]);
   } finally {
     global.window = originalWindow;
     global.document = originalDocument;

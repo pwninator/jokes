@@ -39,6 +39,24 @@ def build_search_term_stat_key(
   return f"{date.isoformat()}__{profile_id.strip()}__{digest}"
 
 
+def build_placement_stat_key(
+  *,
+  date: datetime.date,
+  profile_id: str,
+  campaign_id: str,
+  placement_classification: str,
+) -> str:
+  """Build a deterministic Firestore doc id for one placement daily row."""
+  identity = "|".join([
+    date.isoformat(),
+    profile_id.strip(),
+    campaign_id.strip(),
+    placement_classification.strip().upper(),
+  ])
+  digest = hashlib.sha1(identity.encode("utf-8")).hexdigest()[:24]
+  return f"{date.isoformat()}__{profile_id.strip()}__{digest}"
+
+
 @dataclass(kw_only=True)
 class AmazonAdsSearchTermDailyStat:
   """One normalized sponsored-products search-term row for one day."""
@@ -204,6 +222,140 @@ class AmazonAdsSearchTermDailyStat:
     return cls.from_dict(data, key=key)
 
 
+@dataclass(kw_only=True)
+class AmazonAdsPlacementDailyStat:
+  """One normalized sponsored-products campaign-placement row for one day."""
+
+  key: str | None = None
+  date: datetime.date
+  profile_id: str
+  profile_country: str
+  region: str
+  campaign_id: str
+  campaign_name: str
+  placement_classification: str
+  impressions: int = 0
+  clicks: int = 0
+  cost_usd: float = 0.0
+  sales14d_usd: float = 0.0
+  purchases14d: int = 0
+  units_sold_clicks14d: int = 0
+  kenp_pages_read14d: int = 0
+  kenp_royalties14d_usd: float = 0.0
+  currency_code: str = "USD"
+  top_of_search_impression_share: float | None = None
+  source_report_id: str = ""
+  source_report_name: str = ""
+  created_at: datetime.datetime | None = None
+  updated_at: datetime.datetime | None = None
+
+  def ensure_key(self) -> str:
+    """Assign and return a deterministic Firestore document key."""
+    if self.key:
+      return self.key
+    self.key = build_placement_stat_key(
+      date=self.date,
+      profile_id=self.profile_id,
+      campaign_id=self.campaign_id,
+      placement_classification=self.placement_classification,
+    )
+    return self.key
+
+  def to_dict(self, include_key: bool = False) -> dict[str, Any]:
+    """Serialize for Firestore storage."""
+    data: dict[str, Any] = {
+      "date": self.date.isoformat(),
+      "profile_id": self.profile_id,
+      "profile_country": self.profile_country,
+      "region": self.region,
+      "campaign_id": self.campaign_id,
+      "campaign_name": self.campaign_name,
+      "placement_classification": self.placement_classification,
+      "impressions": self.impressions,
+      "clicks": self.clicks,
+      "cost_usd": self.cost_usd,
+      "sales14d_usd": self.sales14d_usd,
+      "purchases14d": self.purchases14d,
+      "units_sold_clicks14d": self.units_sold_clicks14d,
+      "kenp_pages_read14d": self.kenp_pages_read14d,
+      "kenp_royalties14d_usd": self.kenp_royalties14d_usd,
+      "currency_code": self.currency_code,
+      "top_of_search_impression_share": self.top_of_search_impression_share,
+      "source_report_id": self.source_report_id,
+      "source_report_name": self.source_report_name,
+      "created_at": self.created_at,
+      "updated_at": self.updated_at,
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    *,
+    key: str | None = None,
+  ) -> AmazonAdsPlacementDailyStat:
+    """Deserialize from snake_case dictionaries."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    profile_id = _as_str(data.get("profile_id"))
+    campaign_id = _as_str(data.get("campaign_id"))
+    placement_classification = _as_str(data.get("placement_classification"))
+    if not profile_id:
+      raise ValueError("AmazonAdsPlacementDailyStat.profile_id is required")
+    if not campaign_id:
+      raise ValueError("AmazonAdsPlacementDailyStat.campaign_id is required")
+    if not placement_classification:
+      raise ValueError(
+        "AmazonAdsPlacementDailyStat.placement_classification is required")
+
+    stat = cls(
+      key=key,
+      date=_parse_date(
+        data.get("date"),
+        field_name="AmazonAdsPlacementDailyStat.date",
+      ),
+      profile_id=profile_id,
+      profile_country=_as_str(data.get("profile_country")),
+      region=_as_str(data.get("region")),
+      campaign_id=campaign_id,
+      campaign_name=_as_str(data.get("campaign_name")),
+      placement_classification=placement_classification,
+      impressions=_as_int(data.get("impressions")),
+      clicks=_as_int(data.get("clicks")),
+      cost_usd=_as_float(data.get("cost_usd")),
+      sales14d_usd=_as_float(data.get("sales14d_usd")),
+      purchases14d=_as_int(data.get("purchases14d")),
+      units_sold_clicks14d=_as_int(data.get("units_sold_clicks14d")),
+      kenp_pages_read14d=_as_int(data.get("kenp_pages_read14d")),
+      kenp_royalties14d_usd=_as_float(data.get("kenp_royalties14d_usd")),
+      currency_code=_as_str(data.get("currency_code")) or "USD",
+      top_of_search_impression_share=_parse_optional_float(
+        data.get("top_of_search_impression_share")),
+      source_report_id=_as_str(data.get("source_report_id")),
+      source_report_name=_as_str(data.get("source_report_name")),
+      created_at=_parse_optional_datetime(data.get("created_at")),
+      updated_at=_parse_optional_datetime(data.get("updated_at")),
+    )
+    _ = stat.ensure_key()
+    return stat
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    *,
+    key: str,
+  ) -> AmazonAdsPlacementDailyStat:
+    """Deserialize from Firestore dictionaries."""
+    return cls.from_dict(data, key=key)
+
+
 def to_serializable_dicts(
   stats: list[AmazonAdsSearchTermDailyStat], ) -> list[dict[str, Any]]:
   """Serialize a list of stats, always including key."""
@@ -243,6 +395,21 @@ def _as_str(value: Any) -> str:
   if value is None:
     return ""
   return str(value).strip()
+
+
+def _parse_optional_float(value: Any) -> float | None:
+  """Parse optional floats from numbers or strings."""
+  if value is None:
+    return None
+  if isinstance(value, (int, float)) and not isinstance(value, bool):
+    return float(value)
+  try:
+    stripped = str(value).strip()
+    if not stripped:
+      return None
+    return float(stripped)
+  except (TypeError, ValueError):
+    return None
 
 
 def _parse_date(value: Any, *, field_name: str) -> datetime.date:

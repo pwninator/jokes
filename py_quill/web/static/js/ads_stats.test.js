@@ -52,6 +52,8 @@ function createFakeCanvas(id) {
 
 function createFakeAdsStatsDom(initialMode) {
   const body = new FakeElement({ tagName: 'body' });
+  body.clientWidth = 960;
+  body.clientHeight = 720;
   const elements = {
     campaignSelector: new FakeElement({ id: 'campaignSelector' }),
     modeSelector: new FakeElement({ id: 'modeSelector' }),
@@ -1102,6 +1104,103 @@ test('initAdsStatsPage placement timeline follows grouped row selection', async 
     global.window = originalWindow;
     global.document = originalDocument;
     global.Element = originalElement;
+  }
+});
+
+test('initAdsStatsPage shares ads event hover behavior across dashboard and grouped charts', () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const chartCalls = [];
+  const { document } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    const instance = {
+      destroy: () => {},
+      draw: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+      instance,
+    });
+    return instance;
+  }
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage({
+      chartData: createFakeChartData(),
+      reconciledClickDateChartData: createFakeReconciledChartData(),
+      placementData: createFakePlacementData(),
+      searchTermData: createFakeSearchTermData(),
+      adsEvents: [{
+        date: '2026-02-22',
+        title: 'Launch Day',
+      }],
+    });
+
+    const mainChartCall = chartCalls.find(
+      (call) => call.canvasId === 'reconciledProfitTimelineChart',
+    );
+    const placementChartCall = chartCalls.filter(
+      (call) => call.canvasId === 'placementTrendChart',
+    ).at(-1);
+    const searchTermChartCall = chartCalls.filter(
+      (call) => call.canvasId === 'searchTermTrendChart',
+    ).at(-1);
+
+    assert.ok(mainChartCall);
+    assert.ok(placementChartCall);
+    assert.ok(searchTermChartCall);
+    assert.strictEqual(
+      mainChartCall.config.plugins[0],
+      placementChartCall.config.plugins[0],
+    );
+    assert.strictEqual(
+      mainChartCall.config.plugins[0],
+      searchTermChartCall.config.plugins[0],
+    );
+
+    [mainChartCall, placementChartCall, searchTermChartCall].forEach((call) => {
+      assert.equal(call.config.options.plugins.adsEventsOverlay.enabled, true);
+      call.instance.chartArea = {
+        left: 0,
+        right: 320,
+        top: 0,
+        bottom: 200,
+      };
+      call.instance.scales = {
+        x: {
+          getPixelForValue(value) {
+            return value === '2026-02-22' ? 120 : 220;
+          },
+        },
+      };
+
+      call.config.plugins[0].afterEvent(call.instance, {
+        event: {
+          type: 'mousemove',
+          x: 120,
+          y: 48,
+        },
+      });
+
+      assert.ok(call.instance.$adsEventsTooltipEl);
+      assert.equal(call.instance.$adsEventsTooltipEl.style.display, 'block');
+      assert.match(call.instance.$adsEventsTooltipEl.innerHTML, /Launch Day/);
+    });
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
   }
 });
 

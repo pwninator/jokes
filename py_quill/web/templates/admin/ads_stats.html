@@ -9,14 +9,17 @@
     <p class="muted ads-stats-title-subtitle">Manage filters, imports, and event markers in one place.</p>
   </div>
   <div class="ads-stats-top-data">
-    <button class="button-secondary text-button chart-data-button" id="adsStatsTopDataButton" type="button" data-popup-id="adsStatsTopDataPopup">Data</button>
-    <div class="chart-data-popup ads-stats-top-data-popup" id="adsStatsTopDataPopup" role="status" aria-live="polite" aria-hidden="true"></div>
+    <button class="button-secondary text-button chart-data-button" id="adsStatsTopDataButton" type="button"
+      data-popup-id="adsStatsTopDataPopup">Data</button>
+    <div class="chart-data-popup ads-stats-top-data-popup" id="adsStatsTopDataPopup" role="status" aria-live="polite"
+      aria-hidden="true"></div>
   </div>
 </div>
 
 <section class="ads-stats-control-panel" aria-label="Ads stats controls">
   <div class="ads-stats-actions-row">
-    <button id="adsStatsCreateEventToggleButton" class="button-secondary text-button" type="button" aria-controls="adsStatsCreateEventForm" aria-expanded="false">Create Event</button>
+    <button id="adsStatsCreateEventToggleButton" class="button-secondary text-button" type="button"
+      aria-controls="adsStatsCreateEventForm" aria-expanded="false">Create Event</button>
     <form id="kdpUploadForm" class="ads-stats-upload-form">
       <label class="sr-only" for="kdpFileInput">Upload KDP xlsx</label>
       <input id="kdpFileInput" name="file" type="file" accept=".xlsx" required>
@@ -47,8 +50,10 @@
     <div class="ads-stats-field ads-stats-field--narrow">
       <label for="modeSelector">Mode</label>
       <div class="ads-stats-mode-toggle" role="group" aria-label="Chart mode">
-        <button id="adsStatsModeTimelineButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="true">Timeline</button>
-        <button id="adsStatsModeDaysOfWeekButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="false">Days of Week</button>
+        <button id="adsStatsModeTimelineButton" class="button-secondary text-button ads-stats-mode-button" type="button"
+          aria-pressed="true">Timeline</button>
+        <button id="adsStatsModeDaysOfWeekButton" class="button-secondary text-button ads-stats-mode-button"
+          type="button" aria-pressed="false">Days of Week</button>
       </div>
       <input id="modeSelector" type="hidden" value="Timeline">
     </div>
@@ -59,6 +64,7 @@
   .main-container {
     gap: 0;
   }
+
   .ads-stats-header {
     display: flex;
     justify-content: space-between;
@@ -66,13 +72,16 @@
     gap: 12px;
     margin-bottom: 14px;
   }
+
   .ads-stats-title-block h2 {
     margin: 0;
   }
+
   .ads-stats-title-subtitle {
     margin: 6px 0 0;
     font-size: 0.95rem;
   }
+
   .ads-stats-control-panel {
     display: flex;
     flex-direction: column;
@@ -84,6 +93,7 @@
     background: var(--color-surface);
     box-shadow: 0 4px 12px var(--color-shadow);
   }
+
   .ads-stats-filters-row {
     display: grid;
     grid-template-columns: minmax(260px, 1fr) minmax(180px, 220px);
@@ -92,12 +102,14 @@
     width: 100%;
     min-width: 0;
   }
+
   .ads-stats-field {
     display: flex;
     flex-direction: column;
     gap: 6px;
     min-width: 0;
   }
+
   .ads-stats-field label {
     font-size: 0.72rem;
     font-weight: 700;
@@ -105,6 +117,7 @@
     text-transform: uppercase;
     color: var(--color-text);
   }
+
   .ads-stats-field select,
   .ads-stats-create-event-form input[type="text"],
   .ads-stats-upload-form input[type="file"] {
@@ -116,25 +129,30 @@
     background: var(--color-form-surface);
     color: var(--color-text);
   }
+
   .ads-stats-field--narrow {
     max-width: 220px;
     justify-self: end;
   }
+
   .ads-stats-actions-row {
     display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
   }
+
   .ads-stats-top-data {
     position: relative;
     flex-shrink: 0;
   }
+
   .ads-stats-top-data-popup {
     top: 42px;
     right: 0;
     z-index: 40;
   }
+
   .ads-stats-create-event-form {
     display: flex;
     align-items: flex-end;
@@ -143,29 +161,36 @@
     padding-top: 10px;
     border-top: 1px dashed var(--color-border);
   }
+
   .ads-stats-create-event-form[hidden] {
     display: none;
   }
+
   .ads-stats-mode-toggle {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
+
   .ads-stats-mode-button {
     width: 100%;
     justify-content: center;
   }
+
   .ads-stats-mode-button[aria-pressed="true"] {
     background: var(--color-primary);
     border-color: var(--color-primary);
     color: var(--color-text);
   }
+
   .ads-stats-event-field {
     width: min(220px, 100%);
   }
+
   .ads-stats-event-field--title {
     width: min(340px, 100%);
   }
+
   .ads-stats-upload-form {
     display: flex;
     align-items: center;
@@ -174,27 +199,32 @@
     flex: 1 1 340px;
     min-width: min(340px, 100%);
   }
+
   .ads-stats-filters-row {
     padding-top: 10px;
     border-top: 1px dashed var(--color-border);
   }
+
   .ads-stats-upload-form input[type="file"] {
     flex: 1 1 260px;
     min-width: min(260px, 100%);
     padding: 6px 8px;
     background: var(--color-surface);
   }
+
   .ads-stats-upload-form #kdpUploadStatus {
     font-size: 0.9rem;
     min-height: 1.1rem;
     min-width: 96px;
   }
+
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
   }
+
   .stat-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -205,6 +235,7 @@
     gap: 4px;
     box-shadow: 0 4px 12px var(--color-shadow);
   }
+
   .stat-card__label {
     font-size: 0.8rem;
     color: var(--color-text-muted);
@@ -212,29 +243,35 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
+
   .stat-card__value {
     font-size: 1.4rem;
     font-weight: 700;
     color: var(--color-text);
   }
+
   .chart-container {
     position: relative;
     height: 320px;
     width: 100%;
     margin-bottom: 56px;
   }
+
   .chart-container--tall {
     height: 500px;
   }
+
   .chart-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
   }
+
   .chart-container h3 {
     margin: 0;
   }
+
   .chart-data-popup {
     position: absolute;
     top: 44px;
@@ -257,23 +294,26 @@
     transform: translateY(4px);
     pointer-events: none;
   }
+
   .chart-data-popup.is-visible {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
     transition: opacity 0.12s ease-out, transform 0.12s ease-out;
   }
+
   .chart-data-popup.is-fading {
     opacity: 0;
     visibility: visible;
     transform: translateY(-2px);
     transition: opacity 1s ease-out, transform 1s ease-out;
   }
+
   .chart-container:last-child {
     margin-bottom: 0;
   }
-  .search-term-section,
-  .placement-section {
+
+  .stats-section {
     margin: 0 0 24px;
     padding: 14px;
     border: 1px solid var(--color-border);
@@ -281,6 +321,7 @@
     background: var(--color-surface);
     box-shadow: 0 4px 12px var(--color-shadow);
   }
+
   .search-term-controls,
   .placement-controls {
     display: grid;
@@ -288,6 +329,7 @@
     gap: 10px;
     margin-bottom: 12px;
   }
+
   .search-term-controls input,
   .search-term-controls select,
   .placement-controls input,
@@ -300,6 +342,7 @@
     background: var(--color-form-surface);
     color: var(--color-text);
   }
+
   .search-term-summary-grid,
   .placement-summary-grid {
     display: grid;
@@ -307,6 +350,7 @@
     gap: 10px;
     margin-bottom: 14px;
   }
+
   .search-term-summary-card,
   .placement-summary-card {
     border: 1px solid var(--color-border);
@@ -314,6 +358,7 @@
     padding: 10px;
     background: var(--color-form-surface);
   }
+
   .search-term-summary-label,
   .placement-summary-label {
     font-size: 0.74rem;
@@ -322,11 +367,13 @@
     letter-spacing: 0.05em;
     font-weight: 700;
   }
+
   .search-term-summary-value,
   .placement-summary-value {
     font-size: 1.1rem;
     font-weight: 700;
   }
+
   .search-term-dimension-chips,
   .placement-dimension-chips {
     display: flex;
@@ -334,6 +381,7 @@
     gap: 8px;
     margin: 0 0 12px;
   }
+
   .search-term-dimension-chip,
   .placement-dimension-chip {
     border: 1px solid var(--color-border);
@@ -346,28 +394,34 @@
     letter-spacing: 0.03em;
     cursor: pointer;
   }
+
   .search-term-dimension-chip[aria-pressed="true"],
   .placement-dimension-chip[aria-pressed="true"] {
     background: color-mix(in srgb, #2f6fdf 18%, transparent);
     border-color: color-mix(in srgb, #2f6fdf 45%, var(--color-border));
   }
+
   .search-term-trend-wrap,
   .placement-trend-wrap {
+    position: relative;
     margin-bottom: 14px;
     height: 280px;
   }
+
   .search-term-table-wrap,
   .placement-table-wrap {
     overflow: auto;
     border: 1px solid var(--color-border);
     border-radius: 10px;
   }
+
   .search-term-table,
   .placement-table {
     width: 100%;
     border-collapse: collapse;
     min-width: 1080px;
   }
+
   .search-term-table th,
   .search-term-table td,
   .placement-table th,
@@ -379,6 +433,7 @@
     white-space: nowrap;
     vertical-align: top;
   }
+
   .search-term-table th,
   .placement-table th {
     font-size: 0.76rem;
@@ -387,6 +442,7 @@
     color: var(--color-text-muted);
     background: color-mix(in srgb, var(--color-surface) 86%, var(--color-border) 14%);
   }
+
   .search-term-sort-button,
   .placement-sort-button {
     border: none;
@@ -398,41 +454,50 @@
     padding: 0;
     cursor: pointer;
   }
+
   .search-term-row,
   .placement-row {
     cursor: pointer;
   }
+
   .search-term-row:hover td,
   .search-term-row:focus td,
   .placement-row:hover td,
   .placement-row:focus td {
     background: color-mix(in srgb, var(--color-border) 24%, transparent);
   }
+
   .search-term-row--selected td,
   .placement-row--selected td {
     background: color-mix(in srgb, #2f6fdf 18%, transparent);
   }
+
   .search-term-empty,
   .placement-empty {
     margin: 8px 0 0;
   }
+
   @media (max-width: 900px) {
     .ads-stats-header {
       align-items: stretch;
       flex-direction: column;
     }
+
     .ads-stats-filters-row {
       grid-template-columns: 1fr;
     }
+
     .ads-stats-field--narrow {
       max-width: none;
       justify-self: stretch;
     }
   }
+
   @media (max-width: 640px) {
     .ads-stats-control-panel {
       padding: 12px;
     }
+
     .ads-stats-actions-row .button-primary,
     .ads-stats-actions-row .button-secondary,
     .ads-stats-create-event-form .button-primary,
@@ -441,30 +506,36 @@
       width: 100%;
       justify-content: center;
     }
+
     .ads-stats-create-event-form {
       align-items: stretch;
     }
+
     .ads-stats-event-field,
     .ads-stats-event-field--title {
       width: 100%;
     }
+
     .ads-stats-upload-form {
       min-width: 100%;
       width: 100%;
     }
+
     .ads-stats-upload-form input[type="file"] {
       width: 100%;
     }
+
     .ads-stats-mode-toggle {
       grid-template-columns: 1fr;
     }
+
     .ads-stats-top-data-popup {
       left: 0;
       right: auto;
       min-width: min(100%, 520px);
     }
-    .search-term-section,
-    .placement-section {
+
+    .stats-section {
       padding: 12px;
     }
   }
@@ -497,15 +568,20 @@
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Profit Before Ads (ads)</div>
-    <div class="stat-card__value" id="stat-profit-before-ads-ads">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd) }}</div>
+    <div class="stat-card__value" id="stat-profit-before-ads-ads">{{
+      "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Profit Before Ads (reconciled)</div>
-    <div class="stat-card__value" id="stat-profit-before-ads-reconciled">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd + reconciled_click_date_chart_data.total_organic_profit_usd) }}</div>
+    <div class="stat-card__value" id="stat-profit-before-ads-reconciled">{{
+      "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd +
+      reconciled_click_date_chart_data.total_organic_profit_usd) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Gross Profit</div>
-    <div class="stat-card__value" id="stat-gross-profit">{{ "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd + reconciled_click_date_chart_data.total_organic_profit_usd - chart_data.total_cost) }}</div>
+    <div class="stat-card__value" id="stat-gross-profit">{{
+      "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd +
+      reconciled_click_date_chart_data.total_organic_profit_usd - chart_data.total_cost) }}</div>
   </div>
 </div>
 
@@ -513,74 +589,90 @@
   Aggregated daily Amazon Ads performance for {{ start_date }} to {{ end_date }}.
 </p>
 
-<section class="stats-charts">
+<section class="stats-section">
   <div class="chart-container chart-container--tall">
     <div class="chart-header">
       <h3>Profit (Reconciled)</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="reconciledProfitTimelineChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="reconciledProfitTimelineChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="reconciledProfitTimelineChart-data-popup" data-canvas-id="reconciledProfitTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="reconciledProfitTimelineChart-data-popup"
+      data-canvas-id="reconciledProfitTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="reconciledProfitTimelineChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>POAS (Reconciled)</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="reconciledPoasTimelineChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="reconciledPoasTimelineChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="reconciledPoasTimelineChart-data-popup" data-canvas-id="reconciledPoasTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="reconciledPoasTimelineChart-data-popup"
+      data-canvas-id="reconciledPoasTimelineChart" role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="reconciledPoasTimelineChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>CPC / Conversion Rate</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="cpcAndConversionRateChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="cpcAndConversionRateChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="cpcAndConversionRateChart-data-popup" data-canvas-id="cpcAndConversionRateChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="cpcAndConversionRateChart-data-popup" data-canvas-id="cpcAndConversionRateChart"
+      role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="cpcAndConversionRateChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>CTR</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="ctrChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="ctrChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="ctrChart-data-popup" data-canvas-id="ctrChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="ctrChart-data-popup" data-canvas-id="ctrChart" role="status" aria-live="polite"
+      aria-hidden="true"></div>
     <canvas id="ctrChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>Impressions / Clicks</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="impressionsAndClicksChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="impressionsAndClicksChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="impressionsAndClicksChart-data-popup" data-canvas-id="impressionsAndClicksChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="impressionsAndClicksChart-data-popup" data-canvas-id="impressionsAndClicksChart"
+      role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="impressionsAndClicksChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>Profit Breakdown</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="adsProfitBreakdownChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="adsProfitBreakdownChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="adsProfitBreakdownChart-data-popup" data-canvas-id="adsProfitBreakdownChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="adsProfitBreakdownChart-data-popup" data-canvas-id="adsProfitBreakdownChart"
+      role="status" aria-live="polite" aria-hidden="true"></div>
     <canvas id="adsProfitBreakdownChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>Sales Breakdown</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="salesBreakdownChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="salesBreakdownChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="salesBreakdownChart-data-popup" data-canvas-id="salesBreakdownChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="salesBreakdownChart-data-popup" data-canvas-id="salesBreakdownChart" role="status"
+      aria-live="polite" aria-hidden="true"></div>
     <canvas id="salesBreakdownChart"></canvas>
   </div>
   <div class="chart-container">
     <div class="chart-header">
       <h3>KENP Breakdown</h3>
-      <button class="button-secondary text-button chart-data-button" type="button" data-canvas-id="kenpBreakdownChart">Data</button>
+      <button class="button-secondary text-button chart-data-button" type="button"
+        data-canvas-id="kenpBreakdownChart">Data</button>
     </div>
-    <div class="chart-data-popup" id="kenpBreakdownChart-data-popup" data-canvas-id="kenpBreakdownChart" role="status" aria-live="polite" aria-hidden="true"></div>
+    <div class="chart-data-popup" id="kenpBreakdownChart-data-popup" data-canvas-id="kenpBreakdownChart" role="status"
+      aria-live="polite" aria-hidden="true"></div>
     <canvas id="kenpBreakdownChart"></canvas>
   </div>
 </section>
 
-<section class="placement-section" aria-label="Placement insights">
+<section class="stats-section" aria-label="Placement insights">
   <div class="chart-header">
     <h3>Placement Insights</h3>
   </div>
@@ -629,8 +721,10 @@
     </div>
   </div>
   <div class="placement-dimension-chips" id="placementDimensionChips" aria-label="Placement grouping dimensions">
-    <button class="placement-dimension-chip" type="button" data-dimension-key="placement_classification" aria-pressed="true">Placement</button>
-    <button class="placement-dimension-chip" type="button" data-dimension-key="campaign_name" aria-pressed="false">Campaign</button>
+    <button class="placement-dimension-chip" type="button" data-dimension-key="placement_classification"
+      aria-pressed="true">Placement</button>
+    <button class="placement-dimension-chip" type="button" data-dimension-key="campaign_name"
+      aria-pressed="false">Campaign</button>
   </div>
   <div class="placement-trend-wrap">
     <canvas id="placementTrendChart"></canvas>
@@ -644,7 +738,7 @@
   <p class="muted placement-empty" id="placementInsightsEmptyState" hidden>No rows match the current filters.</p>
 </section>
 
-<section class="search-term-section" aria-label="Search term insights">
+<section class="stats-section" aria-label="Search term insights">
   <div class="chart-header">
     <h3>Search Term Insights</h3>
   </div>
@@ -699,12 +793,18 @@
     </div>
   </div>
   <div class="search-term-dimension-chips" id="searchTermDimensionChips" aria-label="Search term grouping dimensions">
-    <button class="search-term-dimension-chip" type="button" data-dimension-key="campaign_name" aria-pressed="false">Campaign</button>
-    <button class="search-term-dimension-chip" type="button" data-dimension-key="search_term" aria-pressed="true">Search Term</button>
-    <button class="search-term-dimension-chip" type="button" data-dimension-key="targeting" aria-pressed="false">Targeting</button>
-    <button class="search-term-dimension-chip" type="button" data-dimension-key="keyword" aria-pressed="false">Keyword</button>
-    <button class="search-term-dimension-chip" type="button" data-dimension-key="keyword_type" aria-pressed="false">Keyword Type</button>
-    <button class="search-term-dimension-chip" type="button" data-dimension-key="match_type" aria-pressed="false">Match Type</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="campaign_name"
+      aria-pressed="false">Campaign</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="search_term" aria-pressed="true">Search
+      Term</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="targeting"
+      aria-pressed="false">Targeting</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="keyword"
+      aria-pressed="false">Keyword</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="keyword_type"
+      aria-pressed="false">Keyword Type</button>
+    <button class="search-term-dimension-chip" type="button" data-dimension-key="match_type" aria-pressed="false">Match
+      Type</button>
   </div>
   <div class="search-term-trend-wrap">
     <canvas id="searchTermTrendChart"></canvas>
@@ -724,11 +824,11 @@
   const adsStatsPage = window.initAdsStatsPage
     ? window.initAdsStatsPage({
       chartData: {{ chart_data | tojson }},
-      placementData: {{ placement_data | tojson }},
-      searchTermData: {{ search_term_data | tojson }},
-      reconciledClickDateChartData: {{ reconciled_click_date_chart_data | tojson }},
-      reconciliationDebugCsv: {{ reconciliation_debug_csv | tojson }},
-      adsEvents: {{ ads_events | tojson }},
+  placementData: { { placement_data | tojson } },
+  searchTermData: { { search_term_data | tojson } },
+  reconciledClickDateChartData: { { reconciled_click_date_chart_data | tojson } },
+  reconciliationDebugCsv: { { reconciliation_debug_csv | tojson } },
+  adsEvents: { { ads_events | tojson } },
     })
     : null;
 

@@ -1830,19 +1830,82 @@
         tooltipEl.style.top = `${top}px`;
       }
 
-      function createMultiLineChart(canvasId, labels, datasets, scales, mode) {
-        const canvas = document.getElementById(canvasId);
-        if (!canvas || typeof canvas.getContext !== 'function') {
-          return;
-        }
-        const ctx = canvas.getContext('2d');
-        const chartType = getChartTypeForMode(mode);
+      function buildDefaultTooltipCallbacks() {
+        return {
+          label: function (context) {
+            const formatType = context.dataset.formatType || 'number';
+            return `${context.dataset.label}: ${formatValueByType(
+              formatType,
+              context.parsed.y,
+            )}`;
+          },
+          afterLabel: function (context) {
+            const tooltipLinesByIndex = context.dataset.tooltipLinesByIndex;
+            if (!Array.isArray(tooltipLinesByIndex)) {
+              return [];
+            }
+            const lines = tooltipLinesByIndex[context.dataIndex];
+            return Array.isArray(lines) ? lines : [];
+          },
+        };
+      }
+
+      function buildSharedChartOptions(scales, mode, labels, enableAdsEvents, extraOptions) {
+        const resolvedOptions = {
+          ...(extraOptions || {}),
+        };
+        delete resolvedOptions.enableAdsEvents;
+        const existingPlugins = resolvedOptions.plugins || {};
+        const existingTooltip = existingPlugins.tooltip || {};
+        const existingLayout = resolvedOptions.layout || {};
+        const existingPadding = existingLayout.padding || {};
         const hasVisibleRightAxis = Boolean(
           scales
           && Object.values(scales).some((scale) => {
             return scale && scale.position === 'right' && scale.display !== false;
           }),
         );
+        const hasTimelineLabels = Array.isArray(labels) && labels.every((label) => isIsoDateString(label));
+        const shouldEnableAdsEvents = Boolean(enableAdsEvents)
+          && mode === TIMELINE_MODE
+          && hasTimelineLabels;
+
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          ...resolvedOptions,
+          layout: {
+            ...existingLayout,
+            padding: {
+              right: hasVisibleRightAxis ? 0 : RESERVED_RIGHT_GUTTER_PX,
+              ...existingPadding,
+            },
+          },
+          scales: scales,
+          plugins: {
+            ...existingPlugins,
+            tooltip: {
+              ...existingTooltip,
+              callbacks: {
+                ...buildDefaultTooltipCallbacks(),
+                ...(existingTooltip.callbacks || {}),
+              },
+            },
+            adsEventsOverlay: {
+              ...(existingPlugins.adsEventsOverlay || {}),
+              enabled: shouldEnableAdsEvents,
+              events: adsEventGroups,
+            },
+          },
+        };
+      }
+
+      function createSharedChart(canvasId, chartType, labels, datasets, scales, mode, extraOptions) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || typeof canvas.getContext !== 'function') {
+          return;
+        }
+        const ctx = canvas.getContext('2d');
 
         if (charts[canvasId]) {
           charts[canvasId].destroy();
@@ -1854,43 +1917,29 @@
             labels: labels,
             datasets: datasets,
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            layout: {
-              padding: {
-                right: hasVisibleRightAxis ? 0 : RESERVED_RIGHT_GUTTER_PX,
-              },
-            },
-            scales: scales,
-            plugins: {
-              tooltip: {
-                callbacks: {
-                  label: function (context) {
-                    const formatType = context.dataset.formatType || 'number';
-                    return `${context.dataset.label}: ${formatValueByType(
-                      formatType,
-                      context.parsed.y,
-                    )}`;
-                  },
-                  afterLabel: function (context) {
-                    const tooltipLinesByIndex = context.dataset.tooltipLinesByIndex;
-                    if (!Array.isArray(tooltipLinesByIndex)) {
-                      return [];
-                    }
-                    const lines = tooltipLinesByIndex[context.dataIndex];
-                    return Array.isArray(lines) ? lines : [];
-                  },
-                },
-              },
-              adsEventsOverlay: {
-                enabled: mode === TIMELINE_MODE,
-                events: adsEventGroups,
-              },
-            },
-          },
+          options: buildSharedChartOptions(
+            scales,
+            mode,
+            labels,
+            extraOptions && extraOptions.enableAdsEvents,
+            extraOptions,
+          ),
           plugins: [adsEventsOverlayPlugin],
         });
+      }
+
+      function createMultiLineChart(canvasId, labels, datasets, scales, mode) {
+        createSharedChart(
+          canvasId,
+          getChartTypeForMode(mode),
+          labels,
+          datasets,
+          scales,
+          mode,
+          {
+            enableAdsEvents: true,
+          },
+        );
       }
 
       function createLineDataset(config, mode) {
@@ -2576,50 +2625,39 @@
           }
           selectedAggregateKey = selected.aggregate_key;
           const series = trendSeriesForAggregate(selected);
-          const ctx = trendCanvasEl.getContext('2d');
-          if (!ctx) {
-            return;
-          }
-          if (charts[config.chartStateKey]) {
-            charts[config.chartStateKey].destroy();
-          }
-          charts[config.chartStateKey] = new chartCtor(ctx, {
-            type: 'line',
-            data: {
-              labels: trendLabels,
-              datasets: [
-                {
-                  label: 'Cost',
-                  data: series.map((item) => item.cost_usd),
-                  borderColor: '#c62828',
-                  backgroundColor: '#c6282822',
-                  yAxisID: 'y',
-                  tension: 0.2,
-                },
-                {
-                  label: 'Sales',
-                  data: series.map((item) => item.sales14d_usd),
-                  borderColor: '#2e7d32',
-                  backgroundColor: '#2e7d3222',
-                  yAxisID: 'y',
-                  tension: 0.2,
-                },
-                {
-                  label: 'Clicks',
-                  data: series.map((item) => item.clicks),
-                  borderColor: '#1565c0',
-                  backgroundColor: '#1565c022',
-                  yAxisID: 'y1',
-                  tension: 0.2,
-                },
-              ],
+          createSharedChart(
+            config.chartStateKey,
+            'line',
+            trendLabels,
+            [
+              createLineDataset({
+                label: 'Cost',
+                data: series.map((item) => item.cost_usd),
+                borderColor: '#c62828',
+                yAxisID: 'y',
+                formatType: 'currency',
+              }, TIMELINE_MODE),
+              createLineDataset({
+                label: 'Sales',
+                data: series.map((item) => item.sales14d_usd),
+                borderColor: '#2e7d32',
+                yAxisID: 'y',
+                formatType: 'currency',
+              }, TIMELINE_MODE),
+              createLineDataset({
+                label: 'Clicks',
+                data: series.map((item) => item.clicks),
+                borderColor: '#1565c0',
+                yAxisID: 'y1',
+                formatType: 'number',
+              }, TIMELINE_MODE),
+            ],
+            buildDualAxis('currency', 'number'),
+            TIMELINE_MODE,
+            {
+              enableAdsEvents: true,
             },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: buildDualAxis('currency', 'number'),
-            },
-          });
+          );
         }
 
         function renderTable() {

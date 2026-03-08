@@ -1140,9 +1140,10 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert "<h3>Gross Profit</h3>" not in html
   assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
   assert '/static/js/ads_stats.js' in html
-  assert 'window.initAdsStatsPage' in html
-  assert 'chartData:' in html
-  assert 'reconciledClickDateChartData:' in html
+  assert 'id="adsStatsPageData"' in html
+  assert 'type="application/json"' in html
+  assert '"chartData"' in html
+  assert '"reconciledClickDateChartData"' in html
   assert 'id="modeSelector"' in html
   assert 'id="modeSelector" type="hidden" value="Timeline"' in html
   assert 'id="adsStatsModeTimelineButton"' in html
@@ -1163,8 +1164,10 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="stat-gross-profit"' in html
   assert 'id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden' in html
   assert '<canvas id="ctrChart"></canvas>' in html
-  assert 'id="adsStatsModeTimelineButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="true">Timeline</button>' in html
-  assert 'id="adsStatsModeDaysOfWeekButton" class="button-secondary text-button ads-stats-mode-button" type="button" aria-pressed="false">Days of Week</button>' in html
+  assert 'id="adsStatsModeTimelineButton"' in html
+  assert 'aria-pressed="true">Timeline</button>' in html
+  assert 'id="adsStatsModeDaysOfWeekButton"' in html
+  assert 'aria-pressed="false">Days of Week</button>' in html
   assert 'class="ads-stats-filters-row"' in html
   assert "gap: 0;" in html
   assert "flex-wrap: wrap;" in html

@@ -13,6 +13,7 @@
     'Sat',
   ]);
   const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const ADS_STATS_PAGE_DATA_ELEMENT_ID = 'adsStatsPageData';
   const RESERVED_RIGHT_GUTTER_PX = 56;
   const COLOR_ADS = '#ef6c00';
   const COLOR_MATCHED = '#1565c0';
@@ -1571,8 +1572,31 @@
     });
   }
 
+  function readAdsStatsPageOptionsFromDocument(doc) {
+    const sourceDocument = doc || (typeof document !== 'undefined' ? document : null);
+    if (!sourceDocument || typeof sourceDocument.getElementById !== 'function') {
+      return null;
+    }
+    const dataElement = sourceDocument.getElementById(ADS_STATS_PAGE_DATA_ELEMENT_ID);
+    if (!dataElement) {
+      return null;
+    }
+    const rawText = String(dataElement.textContent || '').trim();
+    if (!rawText) {
+      return null;
+    }
+    try {
+      return JSON.parse(rawText);
+    } catch (error) {
+      if (typeof console !== 'undefined' && typeof console.error === 'function') {
+        console.error('Failed to parse ads stats page data', error);
+      }
+      return null;
+    }
+  }
+
   function initAdsStatsPage(options) {
-    const config = options || {};
+    const config = options || readAdsStatsPageOptionsFromDocument() || {};
     const adsStatsData = config.chartData || {};
     const placementData = config.placementData || {};
     const searchTermData = config.searchTermData || {};
@@ -1652,17 +1676,213 @@
       return value;
     }
 
+    function setCreateEventToggleExpandedState(button, isExpanded) {
+      if (!button) {
+        return;
+      }
+      button.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+    }
+
+    function applyModeToggleState(timelineButton, daysOfWeekButton, modeValue) {
+      const selectedMode = modeValue === DAYS_OF_WEEK_MODE ? DAYS_OF_WEEK_MODE : TIMELINE_MODE;
+      if (timelineButton) {
+        timelineButton.setAttribute('aria-pressed', selectedMode === TIMELINE_MODE ? 'true' : 'false');
+      }
+      if (daysOfWeekButton) {
+        daysOfWeekButton.setAttribute('aria-pressed', selectedMode === DAYS_OF_WEEK_MODE ? 'true' : 'false');
+      }
+    }
+
+    function bindModeControls(modeSelectorInput) {
+      const timelineButton = document.getElementById('adsStatsModeTimelineButton');
+      const daysOfWeekButton = document.getElementById('adsStatsModeDaysOfWeekButton');
+      if (!modeSelectorInput || modeSelectorInput.dataset.adsStatsModeBound === 'true') {
+        return;
+      }
+
+      function updateMode(modeValue) {
+        const selectedMode = modeValue === DAYS_OF_WEEK_MODE ? DAYS_OF_WEEK_MODE : TIMELINE_MODE;
+        const hasChanged = modeSelectorInput.value !== selectedMode;
+        modeSelectorInput.value = selectedMode;
+        applyModeToggleState(timelineButton, daysOfWeekButton, selectedMode);
+        if (!hasChanged) {
+          return;
+        }
+        if (typeof modeSelectorInput.dispatchEvent === 'function' && typeof Event === 'function') {
+          modeSelectorInput.dispatchEvent(new Event('change'));
+          return;
+        }
+        if (typeof modeSelectorInput.dispatch === 'function') {
+          modeSelectorInput.dispatch('change');
+        }
+      }
+
+      modeSelectorInput.dataset.adsStatsModeBound = 'true';
+      applyModeToggleState(timelineButton, daysOfWeekButton, modeSelectorInput.value);
+      modeSelectorInput.addEventListener('change', () => {
+        applyModeToggleState(timelineButton, daysOfWeekButton, modeSelectorInput.value);
+      });
+      if (timelineButton) {
+        timelineButton.addEventListener('click', () => {
+          updateMode(TIMELINE_MODE);
+        });
+      }
+      if (daysOfWeekButton) {
+        daysOfWeekButton.addEventListener('click', () => {
+          updateMode(DAYS_OF_WEEK_MODE);
+        });
+      }
+    }
+
+    function bindCreateEventControls() {
+      const createEventToggleButton = document.getElementById('adsStatsCreateEventToggleButton');
+      const createEventForm = document.getElementById('adsStatsCreateEventForm');
+      const createEventDateInput = document.getElementById('adsStatsEventDateInput');
+      const createEventTitleInput = document.getElementById('adsStatsEventTitleInput');
+      const createEventSubmitButton = document.getElementById('adsStatsEventCreateButton');
+      const createEventStatus = document.getElementById('adsStatsCreateEventStatus');
+      if (!createEventToggleButton || !createEventForm) {
+        return;
+      }
+      if (createEventToggleButton.dataset.adsStatsCreateEventBound !== 'true') {
+        setCreateEventToggleExpandedState(createEventToggleButton, !createEventForm.hidden);
+        createEventToggleButton.addEventListener('click', () => {
+          const isNowHidden = !createEventForm.hidden;
+          createEventForm.hidden = isNowHidden;
+          setCreateEventToggleExpandedState(createEventToggleButton, !isNowHidden);
+          if (!isNowHidden && createEventDateInput) {
+            createEventDateInput.focus();
+          }
+        });
+        createEventToggleButton.dataset.adsStatsCreateEventBound = 'true';
+      }
+
+      if (!createEventDateInput
+        || !createEventTitleInput
+        || !createEventSubmitButton
+        || !createEventStatus
+        || createEventForm.dataset.adsStatsCreateEventSubmitBound === 'true') {
+        return;
+      }
+
+      createEventForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const dateValue = createEventDateInput.value.trim();
+        const titleValue = createEventTitleInput.value.trim();
+        if (!ISO_DATE_RE.test(dateValue)) {
+          createEventStatus.textContent = 'Date must be YYYY-MM-DD';
+          return;
+        }
+        if (!titleValue) {
+          createEventStatus.textContent = 'Title is required';
+          return;
+        }
+
+        createEventSubmitButton.disabled = true;
+        createEventStatus.textContent = 'Saving...';
+        try {
+          const response = await fetch('/admin/ads-stats/events', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              date: dateValue,
+              title: titleValue,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to save event');
+          }
+          upsertAdsEvent(data.event || {});
+          createEventTitleInput.value = '';
+          createEventStatus.textContent = 'Saved';
+        } catch (error) {
+          createEventStatus.textContent = error && error.message
+            ? error.message
+            : 'Failed to save event';
+        } finally {
+          createEventSubmitButton.disabled = false;
+        }
+      });
+      createEventForm.dataset.adsStatsCreateEventSubmitBound = 'true';
+    }
+
+    function bindKdpUploadControls() {
+      const kdpUploadForm = document.getElementById('kdpUploadForm');
+      const kdpFileInput = document.getElementById('kdpFileInput');
+      const kdpUploadStatus = document.getElementById('kdpUploadStatus');
+      if (!kdpUploadForm || !kdpFileInput || !kdpUploadStatus) {
+        return;
+      }
+      if (kdpUploadForm.dataset.adsStatsKdpUploadBound === 'true') {
+        return;
+      }
+
+      let kdpUploadInFlight = false;
+
+      async function uploadSelectedKdpFile() {
+        if (!kdpFileInput.files
+          || kdpFileInput.files.length === 0
+          || kdpUploadInFlight) {
+          return;
+        }
+        const formData = new FormData();
+        formData.append('file', kdpFileInput.files[0]);
+        kdpUploadInFlight = true;
+        kdpFileInput.disabled = true;
+        kdpUploadStatus.textContent = 'Uploading...';
+        try {
+          const response = await fetch('/admin/ads-stats/upload-kdp', {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Upload failed');
+          }
+          kdpUploadStatus.textContent = `Saved ${data.days_saved} days`;
+          if (window.location && typeof window.location.reload === 'function') {
+            window.location.reload();
+          }
+        } catch (error) {
+          kdpUploadStatus.textContent = error && error.message
+            ? error.message
+            : 'Upload failed';
+        } finally {
+          kdpUploadInFlight = false;
+          kdpFileInput.disabled = false;
+          kdpFileInput.value = '';
+        }
+      }
+
+      kdpUploadForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await uploadSelectedKdpFile();
+      });
+      kdpFileInput.addEventListener('change', async () => {
+        await uploadSelectedKdpFile();
+      });
+      kdpUploadForm.dataset.adsStatsKdpUploadBound = 'true';
+    }
+
     function setup() {
       if (typeof window === 'undefined' || !window.document) {
         return;
       }
+      const modeSelector = document.getElementById('modeSelector');
+      bindModeControls(modeSelector);
+      bindCreateEventControls();
+      bindKdpUploadControls();
+
       const chartCtor = window.Chart;
       if (typeof chartCtor !== 'function') {
         return;
       }
 
       const campaignSelector = document.getElementById('campaignSelector');
-      const modeSelector = document.getElementById('modeSelector');
       if (!campaignSelector || !modeSelector) {
         return;
       }
@@ -1850,62 +2070,28 @@
         };
       }
 
-      function buildSharedChartOptions(scales, mode, labels, enableAdsEvents, extraOptions) {
-        const resolvedOptions = {
-          ...(extraOptions || {}),
+      function buildAdsEventsOverlayOptions(mode, labels) {
+        const hasTimelineLabels = Array.isArray(labels)
+          && labels.every((label) => isIsoDateString(label));
+        return {
+          enabled: mode === TIMELINE_MODE && hasTimelineLabels,
+          events: adsEventGroups,
         };
-        delete resolvedOptions.enableAdsEvents;
-        const existingPlugins = resolvedOptions.plugins || {};
-        const existingTooltip = existingPlugins.tooltip || {};
-        const existingLayout = resolvedOptions.layout || {};
-        const existingPadding = existingLayout.padding || {};
+      }
+
+      function createMultiLineChart(canvasId, labels, datasets, scales, mode) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || typeof canvas.getContext !== 'function') {
+          return;
+        }
+        const ctx = canvas.getContext('2d');
+        const chartType = getChartTypeForMode(mode);
         const hasVisibleRightAxis = Boolean(
           scales
           && Object.values(scales).some((scale) => {
             return scale && scale.position === 'right' && scale.display !== false;
           }),
         );
-        const hasTimelineLabels = Array.isArray(labels) && labels.every((label) => isIsoDateString(label));
-        const shouldEnableAdsEvents = Boolean(enableAdsEvents)
-          && mode === TIMELINE_MODE
-          && hasTimelineLabels;
-
-        return {
-          responsive: true,
-          maintainAspectRatio: false,
-          ...resolvedOptions,
-          layout: {
-            ...existingLayout,
-            padding: {
-              right: hasVisibleRightAxis ? 0 : RESERVED_RIGHT_GUTTER_PX,
-              ...existingPadding,
-            },
-          },
-          scales: scales,
-          plugins: {
-            ...existingPlugins,
-            tooltip: {
-              ...existingTooltip,
-              callbacks: {
-                ...buildDefaultTooltipCallbacks(),
-                ...(existingTooltip.callbacks || {}),
-              },
-            },
-            adsEventsOverlay: {
-              ...(existingPlugins.adsEventsOverlay || {}),
-              enabled: shouldEnableAdsEvents,
-              events: adsEventGroups,
-            },
-          },
-        };
-      }
-
-      function createSharedChart(canvasId, chartType, labels, datasets, scales, mode, extraOptions) {
-        const canvas = document.getElementById(canvasId);
-        if (!canvas || typeof canvas.getContext !== 'function') {
-          return;
-        }
-        const ctx = canvas.getContext('2d');
 
         if (charts[canvasId]) {
           charts[canvasId].destroy();
@@ -1917,29 +2103,24 @@
             labels: labels,
             datasets: datasets,
           },
-          options: buildSharedChartOptions(
-            scales,
-            mode,
-            labels,
-            extraOptions && extraOptions.enableAdsEvents,
-            extraOptions,
-          ),
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+              padding: {
+                right: hasVisibleRightAxis ? 0 : RESERVED_RIGHT_GUTTER_PX,
+              },
+            },
+            scales: scales,
+            plugins: {
+              tooltip: {
+                callbacks: buildDefaultTooltipCallbacks(),
+              },
+              adsEventsOverlay: buildAdsEventsOverlayOptions(mode, labels),
+            },
+          },
           plugins: [adsEventsOverlayPlugin],
         });
-      }
-
-      function createMultiLineChart(canvasId, labels, datasets, scales, mode) {
-        createSharedChart(
-          canvasId,
-          getChartTypeForMode(mode),
-          labels,
-          datasets,
-          scales,
-          mode,
-          {
-            enableAdsEvents: true,
-          },
-        );
       }
 
       function createLineDataset(config, mode) {
@@ -2625,39 +2806,60 @@
           }
           selectedAggregateKey = selected.aggregate_key;
           const series = trendSeriesForAggregate(selected);
-          createSharedChart(
-            config.chartStateKey,
-            'line',
-            trendLabels,
-            [
-              createLineDataset({
-                label: 'Cost',
-                data: series.map((item) => item.cost_usd),
-                borderColor: '#c62828',
-                yAxisID: 'y',
-                formatType: 'currency',
-              }, TIMELINE_MODE),
-              createLineDataset({
-                label: 'Sales',
-                data: series.map((item) => item.sales14d_usd),
-                borderColor: '#2e7d32',
-                yAxisID: 'y',
-                formatType: 'currency',
-              }, TIMELINE_MODE),
-              createLineDataset({
-                label: 'Clicks',
-                data: series.map((item) => item.clicks),
-                borderColor: '#1565c0',
-                yAxisID: 'y1',
-                formatType: 'number',
-              }, TIMELINE_MODE),
-            ],
-            buildDualAxis('currency', 'number'),
-            TIMELINE_MODE,
-            {
-              enableAdsEvents: true,
+          const ctx = trendCanvasEl.getContext('2d');
+          if (!ctx) {
+            return;
+          }
+          if (charts[config.chartStateKey]) {
+            charts[config.chartStateKey].destroy();
+          }
+          charts[config.chartStateKey] = new chartCtor(ctx, {
+            type: 'line',
+            data: {
+              labels: trendLabels,
+              datasets: [
+                {
+                  label: 'Cost',
+                  data: series.map((item) => item.cost_usd),
+                  borderColor: '#c62828',
+                  backgroundColor: '#c6282822',
+                  yAxisID: 'y',
+                  tension: 0.2,
+                  formatType: 'currency',
+                },
+                {
+                  label: 'Sales',
+                  data: series.map((item) => item.sales14d_usd),
+                  borderColor: '#2e7d32',
+                  backgroundColor: '#2e7d3222',
+                  yAxisID: 'y',
+                  tension: 0.2,
+                  formatType: 'currency',
+                },
+                {
+                  label: 'Clicks',
+                  data: series.map((item) => item.clicks),
+                  borderColor: '#1565c0',
+                  backgroundColor: '#1565c022',
+                  yAxisID: 'y1',
+                  tension: 0.2,
+                  formatType: 'number',
+                },
+              ],
             },
-          );
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: buildDualAxis('currency', 'number'),
+              plugins: {
+                tooltip: {
+                  callbacks: buildDefaultTooltipCallbacks(),
+                },
+                adsEventsOverlay: buildAdsEventsOverlayOptions(TIMELINE_MODE, trendLabels),
+              },
+            },
+            plugins: [adsEventsOverlayPlugin],
+          });
         }
 
         function renderTable() {
@@ -2972,10 +3174,14 @@
 
   if (typeof window !== 'undefined') {
     window.initAdsStatsPage = initAdsStatsPage;
+    if (window.document && window.document.getElementById(ADS_STATS_PAGE_DATA_ELEMENT_ID)) {
+      window.adsStatsPage = initAdsStatsPage();
+    }
   }
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
+      ADS_STATS_PAGE_DATA_ELEMENT_ID: ADS_STATS_PAGE_DATA_ELEMENT_ID,
       DAYS_OF_WEEK_MODE: DAYS_OF_WEEK_MODE,
       TIMELINE_MODE: TIMELINE_MODE,
       DAYS_OF_WEEK_LABELS: DAYS_OF_WEEK_LABELS,
@@ -2990,6 +3196,7 @@
       buildPlacementAggregates: buildPlacementAggregates,
       chartDataToCsv: chartDataToCsv,
       copyTextToClipboard: copyTextToClipboard,
+      readAdsStatsPageOptionsFromDocument: readAdsStatsPageOptionsFromDocument,
       showCopyFeedback: showCopyFeedback,
       toNumber: toNumber,
       dayOfWeekIndexForDate: dayOfWeekIndexForDate,

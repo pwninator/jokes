@@ -5,9 +5,11 @@ const {
   FakeDocument,
   FakeElement,
   append,
+  createFetchMock,
   createFakeClock,
 } = require('./test_utils.js');
 const {
+  ADS_STATS_PAGE_DATA_ELEMENT_ID,
   DAYS_OF_WEEK_MODE,
   DAYS_OF_WEEK_LABELS,
   TIMELINE_MODE,
@@ -28,6 +30,7 @@ const {
   getAdsEventTooltipLines,
   getDailyStatsForCampaign,
   initAdsStatsPage,
+  readAdsStatsPageOptionsFromDocument,
   reserveScaleWidth,
   showCopyFeedback,
 } = require('./ads_stats.js');
@@ -55,8 +58,47 @@ function createFakeAdsStatsDom(initialMode) {
   body.clientWidth = 960;
   body.clientHeight = 720;
   const elements = {
+    adsStatsPageData: new FakeElement({
+      id: ADS_STATS_PAGE_DATA_ELEMENT_ID,
+      tagName: 'script',
+    }),
     campaignSelector: new FakeElement({ id: 'campaignSelector' }),
     modeSelector: new FakeElement({ id: 'modeSelector' }),
+    adsStatsModeTimelineButton: new FakeElement({
+      id: 'adsStatsModeTimelineButton',
+      tagName: 'button',
+    }),
+    adsStatsModeDaysOfWeekButton: new FakeElement({
+      id: 'adsStatsModeDaysOfWeekButton',
+      tagName: 'button',
+    }),
+    adsStatsCreateEventToggleButton: new FakeElement({
+      id: 'adsStatsCreateEventToggleButton',
+      tagName: 'button',
+    }),
+    adsStatsCreateEventForm: new FakeElement({
+      id: 'adsStatsCreateEventForm',
+      tagName: 'form',
+    }),
+    adsStatsEventDateInput: new FakeElement({
+      id: 'adsStatsEventDateInput',
+      tagName: 'input',
+    }),
+    adsStatsEventTitleInput: new FakeElement({
+      id: 'adsStatsEventTitleInput',
+      tagName: 'input',
+    }),
+    adsStatsEventCreateButton: new FakeElement({
+      id: 'adsStatsEventCreateButton',
+      tagName: 'button',
+    }),
+    adsStatsCreateEventStatus: new FakeElement({
+      id: 'adsStatsCreateEventStatus',
+      tagName: 'span',
+    }),
+    kdpUploadForm: new FakeElement({ id: 'kdpUploadForm', tagName: 'form' }),
+    kdpFileInput: new FakeElement({ id: 'kdpFileInput', tagName: 'input' }),
+    kdpUploadStatus: new FakeElement({ id: 'kdpUploadStatus', tagName: 'span' }),
     'stat-impressions': new FakeElement({ id: 'stat-impressions' }),
     'stat-clicks': new FakeElement({ id: 'stat-clicks' }),
     'stat-cost': new FakeElement({ id: 'stat-cost' }),
@@ -114,11 +156,18 @@ function createFakeAdsStatsDom(initialMode) {
   };
   elements.campaignSelector.value = 'All';
   elements.modeSelector.value = initialMode;
+  elements.adsStatsModeTimelineButton.setAttribute('aria-pressed', 'true');
+  elements.adsStatsModeDaysOfWeekButton.setAttribute('aria-pressed', 'false');
+  elements.adsStatsCreateEventForm.hidden = true;
   elements.placementCampaignSelector.value = 'All';
   elements.placementPlacementSelector.value = 'All';
   elements.searchTermCampaignSelector.value = 'All';
   elements.searchTermKeywordTypeSelector.value = 'All';
   elements.searchTermMatchTypeSelector.value = 'All';
+  append(elements.adsStatsCreateEventForm, elements.adsStatsEventDateInput);
+  append(elements.adsStatsCreateEventForm, elements.adsStatsEventTitleInput);
+  append(elements.adsStatsCreateEventForm, elements.adsStatsEventCreateButton);
+  append(elements.adsStatsCreateEventForm, elements.adsStatsCreateEventStatus);
 
   const placementChipConfigs = [
     { key: 'placement_classification', pressed: true },
@@ -158,6 +207,10 @@ function createFakeAdsStatsDom(initialMode) {
 
   const document = new FakeDocument(body);
   return { document, elements };
+}
+
+function setEmbeddedAdsStatsPageData(elements, data) {
+  elements.adsStatsPageData.textContent = JSON.stringify(data);
 }
 
 function createFakeChartData() {
@@ -1677,6 +1730,230 @@ test('getAdsEventTooltipLines returns date followed by one title per line', () =
   );
 });
 
+test('readAdsStatsPageOptionsFromDocument parses embedded JSON payload', () => {
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+  const embeddedData = {
+    chartData: createFakeChartData(),
+    placementData: createFakePlacementData(),
+    searchTermData: createFakeSearchTermData(),
+    reconciledClickDateChartData: createFakeReconciledChartData(),
+    reconciliationDebugCsv: 'alpha,beta',
+    adsEvents: [{ date: '2026-02-22', title: 'Launch Day' }],
+  };
+  setEmbeddedAdsStatsPageData(elements, embeddedData);
+
+  assert.deepEqual(
+    readAdsStatsPageOptionsFromDocument(document),
+    embeddedData,
+  );
+});
+
+test('initAdsStatsPage reads embedded page data and mode buttons update charts', async () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const chartCalls = [];
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  setEmbeddedAdsStatsPageData(elements, {
+    chartData: createFakeChartData(),
+    placementData: createFakePlacementData(),
+    searchTermData: createFakeSearchTermData(),
+    reconciledClickDateChartData: createFakeReconciledChartData(),
+    reconciliationDebugCsv: '',
+    adsEvents: [],
+  });
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage();
+    assert.equal(chartCalls.length, 10);
+    assert.equal(elements.modeSelector.value, TIMELINE_MODE);
+    assert.equal(elements.adsStatsModeTimelineButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(elements.adsStatsModeDaysOfWeekButton.getAttribute('aria-pressed'), 'false');
+
+    await elements.adsStatsModeDaysOfWeekButton.dispatch('click');
+
+    assert.equal(elements.modeSelector.value, DAYS_OF_WEEK_MODE);
+    assert.equal(elements.adsStatsModeTimelineButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(elements.adsStatsModeDaysOfWeekButton.getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(
+      chartCalls.slice(-8).map((call) => call.config.type),
+      Array(8).fill('bar'),
+    );
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
+});
+
+test('initAdsStatsPage create event controls post and update status when moved logic runs from ads_stats.js', async () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const originalFetch = global.fetch;
+  const chartCalls = [];
+  const fetchMock = createFetchMock([{
+    ok: true,
+    json: {
+      event: {
+        key: 'launch',
+        date: '2026-02-24',
+        title: 'Launch Day',
+      },
+    },
+  }]);
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  setEmbeddedAdsStatsPageData(elements, {
+    chartData: createFakeChartData(),
+    placementData: createFakePlacementData(),
+    searchTermData: createFakeSearchTermData(),
+    reconciledClickDateChartData: createFakeReconciledChartData(),
+    reconciliationDebugCsv: '',
+    adsEvents: [],
+  });
+
+  global.fetch = fetchMock;
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage();
+
+    assert.equal(elements.adsStatsCreateEventForm.hidden, true);
+    await elements.adsStatsCreateEventToggleButton.dispatch('click');
+    assert.equal(elements.adsStatsCreateEventForm.hidden, false);
+    assert.equal(elements.adsStatsCreateEventToggleButton.getAttribute('aria-expanded'), 'true');
+    assert.equal(elements.adsStatsEventDateInput.focused, true);
+
+    elements.adsStatsEventDateInput.value = '2026-02-24';
+    elements.adsStatsEventTitleInput.value = 'Launch Day';
+    await elements.adsStatsCreateEventForm.dispatch('submit');
+
+    assert.equal(fetchMock.calls.length, 1);
+    assert.equal(fetchMock.calls[0].url, '/admin/ads-stats/events');
+    assert.equal(fetchMock.calls[0].options.method, 'POST');
+    assert.deepEqual(
+      JSON.parse(fetchMock.calls[0].options.body),
+      { date: '2026-02-24', title: 'Launch Day' },
+    );
+    assert.equal(elements.adsStatsCreateEventStatus.textContent, 'Saved');
+    assert.equal(elements.adsStatsEventTitleInput.value, '');
+    assert.ok(chartCalls.length > 10);
+  } finally {
+    global.fetch = originalFetch;
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
+});
+
+test('initAdsStatsPage KDP upload controls post selected file and reload on success', async () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const originalFetch = global.fetch;
+  const originalFormData = global.FormData;
+  const fetchMock = createFetchMock([{
+    ok: true,
+    json: {
+      days_saved: 2,
+    },
+  }]);
+  const formDataEntries = [];
+  let reloaded = false;
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  class FakeFormData {
+    append(name, value) {
+      formDataEntries.push([name, value]);
+    }
+  }
+
+  setEmbeddedAdsStatsPageData(elements, {
+    chartData: createFakeChartData(),
+    placementData: createFakePlacementData(),
+    searchTermData: createFakeSearchTermData(),
+    reconciledClickDateChartData: createFakeReconciledChartData(),
+    reconciliationDebugCsv: '',
+    adsEvents: [],
+  });
+
+  elements.kdpFileInput.files = [{ name: 'report.xlsx' }];
+  global.fetch = fetchMock;
+  global.FormData = FakeFormData;
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    getSelection: () => ({ toString: () => '' }),
+    location: {
+      reload() {
+        reloaded = true;
+      },
+    },
+  };
+
+  try {
+    initAdsStatsPage();
+    await elements.kdpFileInput.dispatch('change');
+
+    assert.equal(fetchMock.calls.length, 1);
+    assert.equal(fetchMock.calls[0].url, '/admin/ads-stats/upload-kdp');
+    assert.equal(fetchMock.calls[0].options.method, 'POST');
+    assert.deepEqual(formDataEntries, [['file', elements.kdpFileInput.files[0]]]);
+    assert.equal(elements.kdpUploadStatus.textContent, 'Saved 2 days');
+    assert.equal(reloaded, true);
+  } finally {
+    global.fetch = originalFetch;
+    global.FormData = originalFormData;
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
+});
+
 test('chartDataToCsv returns empty string for null or missing data', () => {
   assert.equal(chartDataToCsv(null), '');
   assert.equal(chartDataToCsv(undefined), '');
@@ -1785,7 +2062,7 @@ test('showCopyFeedback keeps confirmation visible, then fades and hides it', () 
   }
 });
 
-test('initAdsStatsPage switches chart configs from line to bar in Days of Week mode', () => {
+test('initAdsStatsPage switches chart configs from line to bar in Days of Week mode', async () => {
   const originalWindow = global.window;
   const originalDocument = global.document;
   const chartCalls = [];
@@ -1824,7 +2101,7 @@ test('initAdsStatsPage switches chart configs from line to bar in Days of Week m
     );
 
     elements.modeSelector.value = DAYS_OF_WEEK_MODE;
-    elements.modeSelector.dispatch('change');
+    await elements.modeSelector.dispatch('change');
 
     assert.equal(chartCalls.length, 16);
     assert.deepEqual(

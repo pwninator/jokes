@@ -611,6 +611,89 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert "Section,kdp_sale_items" in captured["reconciliation_debug_csv"]
 
 
+def test_reconciled_click_date_chart_data_includes_kenp_only_count_details():
+  """KENP-only rows are retained in ads/matched/reconciled count details."""
+  test_date = datetime.date(2026, 2, 20)
+  chart_data = dashboard_routes._build_reconciled_click_date_chart_data(
+    stats_list=[
+      models.AmazonAdsDailyStats(
+        date=test_date,
+        spend=2.0,
+        kenp_pages_read=120,
+        kenp_royalties_usd=6.0,
+        gross_profit_before_ads_usd=6.0,
+        gross_profit_usd=4.0,
+        campaigns_by_id={
+          "campaign-1":
+          models.AmazonAdsDailyCampaignStats(
+            campaign_id="campaign-1",
+            campaign_name="Campaign 1",
+            date=test_date,
+            kenp_pages_read=120,
+            kenp_royalties_usd=6.0,
+            sale_items_by_asin_country={
+              "B0G9765J19": {
+                "US":
+                models.AmazonProductStats(
+                  asin="B0G9765J19",
+                  units_sold=0,
+                  kenp_pages_read=120,
+                  total_profit_usd=0.0,
+                  kenp_royalties_usd=6.0,
+                ),
+              },
+            },
+          ),
+        },
+      ),
+    ],
+    reconciled_stats_list=[
+      models.AmazonSalesReconciledDailyStats(
+        date=test_date,
+        by_asin_country={
+          "B0G9765J19": {
+            "US":
+            models.AmazonSalesReconciledAsinStats(
+              asin="B0G9765J19",
+              country_code="US",
+              ads_click_date_units=0,
+              ads_click_date_kenp_pages_read=80,
+              organic_kenp_pages_read=40,
+            ),
+          },
+        },
+      ),
+    ],
+    start_date=test_date,
+    end_date=test_date,
+  )
+
+  assert chart_data["ads_sales_details"] == [[{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "count": 120,
+    "is_kenp": True,
+  }]]
+  assert chart_data["matched_ads_sales_details"] == [[{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "count": 80,
+    "is_kenp": True,
+  }]]
+  assert chart_data["reconciled_sales_details"] == [[{
+    "country_code": "US",
+    "asin": "B0G9765J19",
+    "book_key": "animal-jokes",
+    "book_format": "Ebook",
+    "count": 120,
+    "is_kenp": True,
+  }]]
+
+
 def test_admin_dashboard_includes_ads_stats_link(monkeypatch):
   """Admin dashboard includes the ads stats tile."""
   _mock_admin_session(monkeypatch)

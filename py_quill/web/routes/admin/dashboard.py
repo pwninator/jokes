@@ -877,6 +877,7 @@ def _build_reconciled_click_date_chart_data(
       _serialize_count_details(
         rows=reconciled_asin_rows,
         count_key="ads_sales_count",
+        kenp_pages_key="ads_kenp_pages_count",
       ))
     matched_ads_sales_details.append(
       _serialize_count_details(
@@ -1221,26 +1222,28 @@ def _serialize_count_details(
   details: list[dict[str, object]] = []
   for row in rows:
     count_value = cast(int, row[count_key])
-    if count_value <= 0:
+    kenp_pages_count = (
+      cast(int, row[kenp_pages_key])
+      if kenp_pages_key is not None else 0)
+    if count_value <= 0 and kenp_pages_count <= 0:
       continue
-    details.append({
-      "country_code": row["country_code"],
-      "asin": row["asin"],
-      "book_key": row["book_key"],
-      "book_format": row["book_format"],
-      "count": count_value,
-    })
-    if kenp_pages_key is not None:
-      kenp_pages_count = cast(int, row[kenp_pages_key])
-      if kenp_pages_count > 0:
-        details.append({
-          "country_code": row["country_code"],
-          "asin": row["asin"],
-          "book_key": row["book_key"],
-          "book_format": row["book_format"],
-          "count": kenp_pages_count,
-          "is_kenp": True,
-        })
+    if count_value > 0:
+      details.append({
+        "country_code": row["country_code"],
+        "asin": row["asin"],
+        "book_key": row["book_key"],
+        "book_format": row["book_format"],
+        "count": count_value,
+      })
+    if kenp_pages_key is not None and kenp_pages_count > 0:
+      details.append({
+        "country_code": row["country_code"],
+        "asin": row["asin"],
+        "book_key": row["book_key"],
+        "book_format": row["book_format"],
+        "count": kenp_pages_count,
+        "is_kenp": True,
+      })
 
   details.sort(
     key=lambda item: (

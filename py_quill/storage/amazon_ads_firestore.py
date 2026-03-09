@@ -1,4 +1,4 @@
-"""Firestore helpers for Amazon Ads search-term stats."""
+"""Firestore helpers for Amazon Ads campaign and insights stats."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from services import firestore
 AMAZON_ADS_SEARCH_TERM_DAILY_STATS_COLLECTION = (
   "amazon_ads_search_term_daily_stats")
 AMAZON_ADS_PLACEMENT_DAILY_STATS_COLLECTION = "amazon_ads_placement_daily_stats"
+AMAZON_CAMPAIGNS_COLLECTION = "amazon_campaigns"
 
 
 def upsert_amazon_ads_search_term_daily_stats(
@@ -59,6 +60,28 @@ def upsert_amazon_ads_placement_daily_stats(
     )
   batch.commit()  # pyright: ignore[reportUnusedCallResult]
   return stats
+
+
+def upsert_amazon_campaigns(
+  campaigns: list[amazon_ads_models.AmazonCampaign],
+) -> list[amazon_ads_models.AmazonCampaign]:
+  """Batch upsert latest-known campaign metadata keyed by campaign identity."""
+  if not campaigns:
+    return []
+
+  db_client = firestore.db()
+  batch = db_client.batch()
+  collection_ref = db_client.collection(AMAZON_CAMPAIGNS_COLLECTION)
+  for campaign in campaigns:
+    key = campaign.ensure_key()
+    payload = campaign.to_dict(include_key=False)
+    batch.set(
+      collection_ref.document(key),
+      payload,
+      merge=True,
+    )
+  batch.commit()  # pyright: ignore[reportUnusedCallResult]
+  return campaigns
 
 
 def list_amazon_ads_search_term_daily_stats(
@@ -123,3 +146,31 @@ def list_amazon_ads_placement_daily_stats(
         key=cast(str, doc.id),
       ))
   return result
+
+
+def list_amazon_campaigns() -> list[amazon_ads_models.AmazonCampaign]:
+  """List latest-known Amazon campaign metadata rows."""
+  docs = cast(
+    Iterable[DocumentSnapshot],
+    firestore.db().collection(AMAZON_CAMPAIGNS_COLLECTION).stream(),
+  )
+  result: list[amazon_ads_models.AmazonCampaign] = []
+  for doc in docs:
+    if not doc.exists:
+      continue
+    data = doc.to_dict()
+    if data is None:
+      continue
+    result.append(
+      amazon_ads_models.AmazonCampaign.from_firestore_dict(
+        data,
+        key=cast(str, doc.id),
+      ))
+  return sorted(
+    result,
+    key=lambda campaign: (
+      campaign.profile_id,
+      campaign.campaign_name,
+      campaign.campaign_id,
+    ),
+  )

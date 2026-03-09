@@ -47,13 +47,16 @@
         <option value="All">All</option>
       </select>
     </div>
+    <div class="ads-stats-field">
+      <label for="campaignStatusFilters">Campaign Status</label>
+      <div id="campaignStatusFilters" class="ads-stats-status-toggle-group" role="group"
+        aria-label="Campaign status filters"></div>
+    </div>
     <div class="ads-stats-field ads-stats-field--narrow">
-      <label for="modeSelector">Mode</label>
-      <div class="ads-stats-mode-toggle" role="group" aria-label="Chart mode">
-        <button id="adsStatsModeTimelineButton" class="button-secondary text-button ads-stats-mode-button" type="button"
-          aria-pressed="true">Timeline</button>
-        <button id="adsStatsModeDaysOfWeekButton" class="button-secondary text-button ads-stats-mode-button"
-          type="button" aria-pressed="false">Days of Week</button>
+      <label for="adsStatsModeToggleButton">Mode</label>
+      <div class="ads-stats-mode-toggle">
+        <button id="adsStatsModeToggleButton" class="button-secondary text-button ads-stats-mode-button" type="button"
+          aria-pressed="false">Timeline</button>
       </div>
       <input id="modeSelector" type="hidden" value="Timeline">
     </div>
@@ -96,7 +99,7 @@
 
   .ads-stats-filters-row {
     display: grid;
-    grid-template-columns: minmax(260px, 1fr) minmax(180px, 220px);
+    grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(180px, 220px);
     align-items: end;
     gap: 12px;
     width: 100%;
@@ -167,9 +170,7 @@
   }
 
   .ads-stats-mode-toggle {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    display: flex;
   }
 
   .ads-stats-mode-button {
@@ -178,6 +179,31 @@
   }
 
   .ads-stats-mode-button[aria-pressed="true"] {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-text);
+  }
+
+  .ads-stats-status-toggle-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+    align-items: center;
+  }
+
+  .ads-stats-status-toggle {
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--color-form-border-strong);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  }
+
+  .ads-stats-status-toggle[aria-pressed="true"] {
     background: var(--color-primary);
     border-color: var(--color-primary);
     color: var(--color-text);
@@ -526,7 +552,7 @@
     }
 
     .ads-stats-mode-toggle {
-      grid-template-columns: 1fr;
+      width: 100%;
     }
 
     .ads-stats-top-data-popup {
@@ -592,7 +618,7 @@
 <section class="stats-section">
   <div class="chart-container chart-container--tall">
     <div class="chart-header">
-      <h3>Profit (Reconciled)</h3>
+      <h3>Profit</h3>
       <button class="button-secondary text-button chart-data-button" type="button"
         data-canvas-id="reconciledProfitTimelineChart">Data</button>
     </div>
@@ -602,7 +628,7 @@
   </div>
   <div class="chart-container">
     <div class="chart-header">
-      <h3>POAS (Reconciled)</h3>
+      <h3>POAS</h3>
       <button class="button-secondary text-button chart-data-button" type="button"
         data-canvas-id="reconciledPoasTimelineChart">Data</button>
     </div>

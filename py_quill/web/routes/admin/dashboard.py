@@ -188,6 +188,7 @@ def admin_ads_stats():
     start_date=start_date,
     end_date=end_date,
   )
+  campaigns = amazon_ads_firestore.list_amazon_campaigns()
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
     start_date=start_date,
@@ -202,6 +203,18 @@ def admin_ads_stats():
     stats_list=placement_stats,
     start_date=start_date,
     end_date=end_date,
+  )
+  chart_data = _attach_campaign_statuses_to_chart_data(
+    chart_data=chart_data,
+    campaigns=campaigns,
+  )
+  search_term_data = _attach_campaign_statuses_to_insights_data(
+    insights_data=search_term_data,
+    campaigns=campaigns,
+  )
+  placement_data = _attach_campaign_statuses_to_insights_data(
+    insights_data=placement_data,
+    campaigns=campaigns,
   )
   reconciled_click_date_chart_data = _build_reconciled_click_date_chart_data(
     stats_list=stats_list,
@@ -396,7 +409,8 @@ def _serialize_amazon_ads_report(
     'status': report.status,
     'report_type_id': report.report_type_id,
     'report_key': report.report_key.value if report.report_key else "",
-    'report_label': report.report_key.value if report.report_key else report.report_type_id,
+    'report_label':
+    report.report_key.value if report.report_key else report.report_type_id,
     'profile_id': report.profile_id or "",
     'profile_country': report.profile_country or "",
     'start_date': report.start_date.isoformat(),
@@ -620,6 +634,88 @@ def _build_ads_stat_labels(
   return labels
 
 
+def _build_campaign_status_lookups(
+  campaigns: list[amazon_ads_models.AmazonCampaign],
+) -> tuple[dict[tuple[str, str], str], dict[str, str]]:
+  """Build campaign-status lookup maps by profile+campaign and unique campaign id."""
+  by_profile_campaign: dict[tuple[str, str], str] = {}
+  by_campaign_id_candidates: dict[str, set[str]] = {}
+  for campaign in campaigns:
+    normalized_status = campaign.campaign_status.strip().upper()
+    if not normalized_status:
+      continue
+    by_profile_campaign[(campaign.profile_id,
+                         campaign.campaign_id)] = (normalized_status)
+    by_campaign_id_candidates.setdefault(campaign.campaign_id,
+                                         set()).add(normalized_status)
+
+  by_campaign_id: dict[str, str] = {}
+  for campaign_id, statuses in by_campaign_id_candidates.items():
+    if len(statuses) == 1:
+      by_campaign_id[campaign_id] = next(iter(statuses))
+  return by_profile_campaign, by_campaign_id
+
+
+def _attach_campaign_statuses_to_chart_data(
+  *,
+  chart_data: dict[str, object],
+  campaigns: list[amazon_ads_models.AmazonCampaign],
+) -> dict[str, object]:
+  """Attach latest campaign status to top-level chart campaign rows."""
+  _, by_campaign_id = _build_campaign_status_lookups(campaigns)
+  daily_campaigns_raw = chart_data.get("daily_campaigns")
+  if not isinstance(daily_campaigns_raw, dict):
+    return chart_data
+
+  daily_campaigns = cast(dict[str, object], daily_campaigns_raw)
+  for date_key, campaign_rows_raw in daily_campaigns.items():
+    if not isinstance(campaign_rows_raw, list):
+      continue
+    campaign_rows = cast(list[dict[str, object]], campaign_rows_raw)
+    updated_rows: list[dict[str, object]] = []
+    for campaign_row in campaign_rows:
+      campaign_id = str(campaign_row.get("campaign_id", "")).strip()
+      campaign_status = by_campaign_id.get(campaign_id, "")
+      updated_row = dict(campaign_row)
+      updated_row["campaign_status"] = campaign_status
+      updated_rows.append(updated_row)
+    daily_campaigns[date_key] = updated_rows
+  return chart_data
+
+
+def _attach_campaign_statuses_to_insights_data(
+  *,
+  insights_data: dict[str, object],
+  campaigns: list[amazon_ads_models.AmazonCampaign],
+) -> dict[str, object]:
+  """Attach latest campaign status to search-term or placement rows."""
+  by_profile_campaign, by_campaign_id = _build_campaign_status_lookups(
+    campaigns)
+  rows_raw = insights_data.get("rows")
+  if not isinstance(rows_raw, list):
+    return insights_data
+
+  rows = cast(list[dict[str, object]], rows_raw)
+  updated_rows: list[dict[str, object]] = []
+  for row in rows:
+    profile_id = str(row.get("profile_id", "")).strip()
+    campaign_id = str(row.get("campaign_id", "")).strip()
+    campaign_status = by_profile_campaign.get((profile_id, campaign_id))
+    if campaign_status is None:
+      campaign_status = by_campaign_id.get(campaign_id, "")
+    updated_row = dict(row)
+    updated_row["campaign_status"] = campaign_status
+    updated_rows.append(updated_row)
+
+  insights_data["rows"] = updated_rows
+  campaign_statuses = sorted(value for value in {
+    str(row.get("campaign_status", "")).strip().upper()
+    for row in updated_rows
+  } if value)
+  insights_data["campaign_statuses"] = campaign_statuses
+  return insights_data
+
+
 def _build_ads_insights_data(
   *,
   stats_list: list[object],
@@ -631,10 +727,7 @@ def _build_ads_insights_data(
 ) -> dict[str, object]:
   """Serialize row-level insights data with shared totals/filter buckets."""
   rows: list[dict[str, object]] = []
-  filter_values = {
-    field_name: set()
-    for field_name in filter_value_extractors
-  }
+  filter_values = {field_name: set() for field_name in filter_value_extractors}
   totals = {
     "impressions": 0,
     "clicks": 0,
@@ -691,71 +784,97 @@ def _build_ads_search_term_data(
       cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, row).search_term,
     ),
     row_builder=lambda raw_stat: {
-      "key": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                  raw_stat).ensure_key(),
-      "date": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                   raw_stat).date.isoformat(),
-      "campaign_id": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                          raw_stat).campaign_id,
-      "campaign_name": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                            raw_stat).campaign_name,
-      "ad_group_id": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                          raw_stat).ad_group_id,
-      "ad_group_name": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                            raw_stat).ad_group_name,
-      "search_term": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                          raw_stat).search_term,
-      "keyword_id": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                         raw_stat).keyword_id,
-      "keyword": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                      raw_stat).keyword,
-      "targeting": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                        raw_stat).targeting,
-      "keyword_type": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                           raw_stat).keyword_type,
-      "match_type": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                         raw_stat).match_type,
-      "ad_keyword_status": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                                raw_stat).ad_keyword_status,
-      "impressions": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                          raw_stat).impressions,
-      "clicks": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                     raw_stat).clicks,
-      "cost_usd": round(
-        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).cost_usd,
+      "key":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).ensure_key(),
+      "date":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).date.isoformat(),
+      "profile_id":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).
+      profile_id,
+      "campaign_id":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).campaign_id,
+      "campaign_name":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).campaign_name,
+      "ad_group_id":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).ad_group_id,
+      "ad_group_name":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).ad_group_name,
+      "search_term":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).search_term,
+      "keyword_id":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).keyword_id,
+      "keyword":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).keyword,
+      "targeting":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).targeting,
+      "keyword_type":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).keyword_type,
+      "match_type":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).match_type,
+      "ad_keyword_status":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).ad_keyword_status,
+      "impressions":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).impressions,
+      "clicks":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).clicks,
+      "cost_usd":
+      round(
+        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).
+        cost_usd,
         4,
       ),
-      "sales14d_usd": round(
-        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-             raw_stat).sales14d_usd,
+      "sales14d_usd":
+      round(
+        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).
+        sales14d_usd,
         4,
       ),
-      "purchases14d": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                           raw_stat).purchases14d,
-      "units_sold_clicks14d": cast(
+      "purchases14d":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).purchases14d,
+      "units_sold_clicks14d":
+      cast(
         amazon_ads_models.AmazonAdsSearchTermDailyStat,
         raw_stat,
       ).units_sold_clicks14d,
-      "kenp_pages_read14d": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                                 raw_stat).kenp_pages_read14d,
-      "kenp_royalties14d_usd": round(
-        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-             raw_stat).kenp_royalties14d_usd,
+      "kenp_pages_read14d":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).kenp_pages_read14d,
+      "kenp_royalties14d_usd":
+      round(
+        cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat).
+        kenp_royalties14d_usd,
         4,
       ),
-      "currency_code": cast(amazon_ads_models.AmazonAdsSearchTermDailyStat,
-                            raw_stat).currency_code,
+      "currency_code":
+      cast(amazon_ads_models.AmazonAdsSearchTermDailyStat, raw_stat
+           ).currency_code,
     },
     filter_value_extractors={
-      "campaign_names": lambda raw_stat: cast(
+      "campaign_names":
+      lambda raw_stat: cast(
         amazon_ads_models.AmazonAdsSearchTermDailyStat,
         raw_stat,
       ).campaign_name,
-      "keyword_types": lambda raw_stat: cast(
+      "keyword_types":
+      lambda raw_stat: cast(
         amazon_ads_models.AmazonAdsSearchTermDailyStat,
         raw_stat,
       ).keyword_type,
-      "match_types": lambda raw_stat: cast(
+      "match_types":
+      lambda raw_stat: cast(
         amazon_ads_models.AmazonAdsSearchTermDailyStat,
         raw_stat,
       ).match_type,
@@ -776,66 +895,81 @@ def _build_ads_placement_data(
     end_date=end_date,
     sort_key=lambda row: (
       cast(amazon_ads_models.AmazonAdsPlacementDailyStat, row).date,
-      cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-           row).placement_classification,
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, row).
+      placement_classification,
       cast(amazon_ads_models.AmazonAdsPlacementDailyStat, row).campaign_name,
     ),
     row_builder=lambda raw_stat: {
-      "key": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                  raw_stat).ensure_key(),
-      "date": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                   raw_stat).date.isoformat(),
-      "campaign_id": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                          raw_stat).campaign_id,
-      "campaign_name": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                            raw_stat).campaign_name,
-      "placement_classification": cast(
+      "key":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).ensure_key(
+      ),
+      "date":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).date.
+      isoformat(),
+      "profile_id":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).profile_id,
+      "campaign_id":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+           ).campaign_id,
+      "campaign_name":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+           ).campaign_name,
+      "placement_classification":
+      cast(
         amazon_ads_models.AmazonAdsPlacementDailyStat,
         raw_stat,
       ).placement_classification,
-      "impressions": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                          raw_stat).impressions,
-      "clicks": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                     raw_stat).clicks,
-      "cost_usd": round(
+      "impressions":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+           ).impressions,
+      "clicks":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).clicks,
+      "cost_usd":
+      round(
         cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).cost_usd,
         4,
       ),
-      "sales14d_usd": round(
-        cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-             raw_stat).sales14d_usd,
+      "sales14d_usd":
+      round(
+        cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).
+        sales14d_usd,
         4,
       ),
-      "purchases14d": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                           raw_stat).purchases14d,
-      "units_sold_clicks14d": cast(
+      "purchases14d":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+           ).purchases14d,
+      "units_sold_clicks14d":
+      cast(
         amazon_ads_models.AmazonAdsPlacementDailyStat,
         raw_stat,
       ).units_sold_clicks14d,
-      "kenp_pages_read14d": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                                 raw_stat).kenp_pages_read14d,
-      "kenp_royalties14d_usd": round(
-        cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-             raw_stat).kenp_royalties14d_usd,
+      "kenp_pages_read14d":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+           ).kenp_pages_read14d,
+      "kenp_royalties14d_usd":
+      round(
+        cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).
+        kenp_royalties14d_usd,
         4,
       ),
-      "currency_code": cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                            raw_stat).currency_code,
-      "top_of_search_impression_share": (
-        round(
-          cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-               raw_stat).top_of_search_impression_share,
-          4,
-        )
-        if cast(amazon_ads_models.AmazonAdsPlacementDailyStat,
-                raw_stat).top_of_search_impression_share is not None else None),
+      "currency_code":
+      cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+           ).currency_code,
+      "top_of_search_impression_share": (round(
+        cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat).
+        top_of_search_impression_share,
+        4,
+      ) if cast(amazon_ads_models.AmazonAdsPlacementDailyStat, raw_stat
+                ).top_of_search_impression_share is not None else None),
     },
     filter_value_extractors={
-      "campaign_names": lambda raw_stat: cast(
+      "campaign_names":
+      lambda raw_stat: cast(
         amazon_ads_models.AmazonAdsPlacementDailyStat,
         raw_stat,
       ).campaign_name,
-      "placement_classifications": lambda raw_stat: cast(
+      "placement_classifications":
+      lambda raw_stat: cast(
         amazon_ads_models.AmazonAdsPlacementDailyStat,
         raw_stat,
       ).placement_classification,
@@ -1029,23 +1163,27 @@ def _build_reconciled_click_date_chart_data(
       for row in reconciled_asin_rows)
 
     cost.append(round(ads_cost, 2))
-    gross_profit_before_ads_usd.append(round(day_matched_ads_profit_before_ads,
-                                             2))
+    gross_profit_before_ads_usd.append(
+      round(day_matched_ads_profit_before_ads, 2))
     reconciled_matched_profit_before_ads_usd.append(
       round(day_reconciled_matched_profit_before_ads, 2))
     gross_profit_usd.append(round(total_gross_profit, 2))
     organic_profit_usd.append(round(organic_profit, 2))
     matched_ads_sales_count.append(
-      sum(cast(int, row["matched_ads_sales_count"]) for row in
-          reconciled_asin_rows))
+      sum(
+        cast(int, row["matched_ads_sales_count"])
+        for row in reconciled_asin_rows))
     organic_sales_count.append(
-      sum(cast(int, row["organic_sales_count"]) for row in reconciled_asin_rows))
+      sum(
+        cast(int, row["organic_sales_count"]) for row in reconciled_asin_rows))
     reconciled_sales_count.append(
-      sum(cast(int, row["reconciled_sales_count"]) for row in
-          reconciled_asin_rows))
+      sum(
+        cast(int, row["reconciled_sales_count"])
+        for row in reconciled_asin_rows))
     unmatched_ads_sales_count.append(
-      sum(cast(int, row["unmatched_ads_sales_count"]) for row in
-          reconciled_asin_rows))
+      sum(
+        cast(int, row["unmatched_ads_sales_count"])
+        for row in reconciled_asin_rows))
     ads_sales_details.append(
       _serialize_count_details(
         rows=reconciled_asin_rows,
@@ -1187,49 +1325,79 @@ def _build_reconciled_asin_rows(
     book_key = book_defs.BOOK_KEY_BY_VARIANT_ASIN.get(asin)
     book_variant = book_defs.find_book_variant(asin)
     row: dict[str, object] = {
-      "country_code": country_code,
-      "asin": asin,
-      "book_key": book_key.value if book_key is not None else "unknown",
-      "book_format": (book_variant.format.label
-                       if book_variant is not None else "Unknown"),
-      "ads_sales_count": 0,
-      "matched_ads_sales_count": 0,
-      "organic_sales_count": 0,
-      "reconciled_sales_count": 0,
-      "unmatched_ads_sales_count": 0,
-      "ads_kenp_pages_count": 0,
-      "matched_ads_kenp_pages_count": 0,
-      "organic_kenp_pages_count": 0,
-      "reconciled_kenp_pages_count": 0,
-      "unmatched_ads_kenp_pages_count": 0,
-      "ads_book_profit_before_ads_usd": 0.0,
-      "matched_ads_book_profit_before_ads_usd": 0.0,
-      "organic_profit_before_ads_usd": 0.0,
-      "unmatched_ads_book_profit_before_ads_usd": 0.0,
-      "reconciled_matched_book_profit_before_ads_usd": 0.0,
-      "reconciled_book_profit_before_ads_usd": 0.0,
-      "ads_kenp_profit_before_ads_usd": 0.0,
-      "matched_ads_kenp_profit_before_ads_usd": 0.0,
-      "unmatched_ads_kenp_profit_before_ads_usd": 0.0,
-      "reconciled_matched_kenp_profit_before_ads_usd": 0.0,
-      "reconciled_kenp_profit_before_ads_usd": 0.0,
-      "matched_ads_profit_before_ads_usd": 0.0,
-      "reconciled_matched_profit_before_ads_usd": 0.0,
-      "reconciled_profit_before_ads_usd": 0.0,
-      "unmatched_pre_ad_profit_usd": 0.0,
+      "country_code":
+      country_code,
+      "asin":
+      asin,
+      "book_key":
+      book_key.value if book_key is not None else "unknown",
+      "book_format":
+      (book_variant.format.label if book_variant is not None else "Unknown"),
+      "ads_sales_count":
+      0,
+      "matched_ads_sales_count":
+      0,
+      "organic_sales_count":
+      0,
+      "reconciled_sales_count":
+      0,
+      "unmatched_ads_sales_count":
+      0,
+      "ads_kenp_pages_count":
+      0,
+      "matched_ads_kenp_pages_count":
+      0,
+      "organic_kenp_pages_count":
+      0,
+      "reconciled_kenp_pages_count":
+      0,
+      "unmatched_ads_kenp_pages_count":
+      0,
+      "ads_book_profit_before_ads_usd":
+      0.0,
+      "matched_ads_book_profit_before_ads_usd":
+      0.0,
+      "organic_profit_before_ads_usd":
+      0.0,
+      "unmatched_ads_book_profit_before_ads_usd":
+      0.0,
+      "reconciled_matched_book_profit_before_ads_usd":
+      0.0,
+      "reconciled_book_profit_before_ads_usd":
+      0.0,
+      "ads_kenp_profit_before_ads_usd":
+      0.0,
+      "matched_ads_kenp_profit_before_ads_usd":
+      0.0,
+      "unmatched_ads_kenp_profit_before_ads_usd":
+      0.0,
+      "reconciled_matched_kenp_profit_before_ads_usd":
+      0.0,
+      "reconciled_kenp_profit_before_ads_usd":
+      0.0,
+      "matched_ads_profit_before_ads_usd":
+      0.0,
+      "reconciled_matched_profit_before_ads_usd":
+      0.0,
+      "reconciled_profit_before_ads_usd":
+      0.0,
+      "unmatched_pre_ad_profit_usd":
+      0.0,
     }
     rows_by_key[row_key] = row
     return row
 
   if ads_stat is not None:
     for campaign_stat in ads_stat.campaigns_by_id.values():
-      for asin, country_map in campaign_stat.sale_items_by_asin_country.items():
+      for asin, country_map in campaign_stat.sale_items_by_asin_country.items(
+      ):
         for country_code, sale_item in country_map.items():
           row = _get_or_create_row(asin, country_code)
           row["ads_sales_count"] = cast(int, row["ads_sales_count"]) + max(
             0, int(sale_item.units_sold))
-          row["ads_kenp_pages_count"] = cast(int, row["ads_kenp_pages_count"]) + max(
-            0, int(sale_item.kenp_pages_read))
+          row["ads_kenp_pages_count"] = cast(
+            int, row["ads_kenp_pages_count"]) + max(
+              0, int(sale_item.kenp_pages_read))
           row["ads_book_profit_before_ads_usd"] = (
             cast(float, row["ads_book_profit_before_ads_usd"]) +
             float(sale_item.total_profit_usd))
@@ -1242,23 +1410,22 @@ def _build_reconciled_asin_rows(
       for country_code, asin_stats in country_map.items():
         row = _get_or_create_row(asin, country_code)
         row["matched_ads_sales_count"] = (
-          cast(int, row["matched_ads_sales_count"]) + max(
-            0, int(asin_stats.ads_click_date_units)))
-        row["organic_sales_count"] = (
-          cast(int, row["organic_sales_count"]) + max(
-            0, int(asin_stats.organic_units)))
+          cast(int, row["matched_ads_sales_count"]) +
+          max(0, int(asin_stats.ads_click_date_units)))
+        row["organic_sales_count"] = (cast(int, row["organic_sales_count"]) +
+                                      max(0, int(asin_stats.organic_units)))
         row["unmatched_ads_sales_count"] = (
-          cast(int, row["unmatched_ads_sales_count"]) + max(
-            0, int(asin_stats.unmatched_ads_click_date_units)))
+          cast(int, row["unmatched_ads_sales_count"]) +
+          max(0, int(asin_stats.unmatched_ads_click_date_units)))
         row["matched_ads_kenp_pages_count"] = (
-          cast(int, row["matched_ads_kenp_pages_count"]) + max(
-            0, int(asin_stats.ads_click_date_kenp_pages_read)))
+          cast(int, row["matched_ads_kenp_pages_count"]) +
+          max(0, int(asin_stats.ads_click_date_kenp_pages_read)))
         row["organic_kenp_pages_count"] = (
-          cast(int, row["organic_kenp_pages_count"]) + max(
-            0, int(asin_stats.organic_kenp_pages_read)))
+          cast(int, row["organic_kenp_pages_count"]) +
+          max(0, int(asin_stats.organic_kenp_pages_read)))
         row["unmatched_ads_kenp_pages_count"] = (
-          cast(int, row["unmatched_ads_kenp_pages_count"]) + max(
-            0, int(asin_stats.unmatched_ads_click_date_kenp_pages_read)))
+          cast(int, row["unmatched_ads_kenp_pages_count"]) +
+          max(0, int(asin_stats.unmatched_ads_click_date_kenp_pages_read)))
         row["matched_ads_book_profit_before_ads_usd"] = (
           cast(float, row["matched_ads_book_profit_before_ads_usd"]) +
           float(asin_stats.ads_click_date_royalty_usd_est))
@@ -1281,21 +1448,18 @@ def _build_reconciled_asin_rows(
 
   rows = [
     row for row in rows
-    if (
-      cast(int, row["ads_sales_count"]) > 0
-      or cast(int, row["reconciled_sales_count"]) > 0
-      or cast(int, row["unmatched_ads_sales_count"]) > 0
-      or cast(int, row["ads_kenp_pages_count"]) > 0
-      or abs(cast(float, row["matched_ads_book_profit_before_ads_usd"])) > 1e-9
-      or abs(cast(float, row["organic_profit_before_ads_usd"])) > 1e-9
-      or abs(cast(float, row["ads_kenp_profit_before_ads_usd"])) > 1e-9
-    )
+    if (cast(int, row["ads_sales_count"]) > 0
+        or cast(int, row["reconciled_sales_count"]) > 0
+        or cast(int, row["unmatched_ads_sales_count"]) > 0
+        or cast(int, row["ads_kenp_pages_count"]) > 0 or abs(
+          cast(float, row["matched_ads_book_profit_before_ads_usd"])) > 1e-9
+        or abs(cast(float, row["organic_profit_before_ads_usd"])) > 1e-9
+        or abs(cast(float, row["ads_kenp_profit_before_ads_usd"])) > 1e-9)
   ]
-  rows.sort(
-    key=lambda item: (
-      cast(str, item["country_code"]),
-      cast(str, item["asin"]),
-    ))
+  rows.sort(key=lambda item: (
+    cast(str, item["country_code"]),
+    cast(str, item["asin"]),
+  ))
   return rows
 
 
@@ -1340,8 +1504,8 @@ def _allocate_unmatched_book_profit_by_units(
   allocated_running_total = 0.0
   for index in indices_with_units[:-1]:
     unmatched_units = cast(int, rows[index]["unmatched_ads_sales_count"])
-    allocated_amount = (unmatched_book_profit_before_ads_usd * unmatched_units /
-                        total_unmatched_units)
+    allocated_amount = (unmatched_book_profit_before_ads_usd *
+                        unmatched_units / total_unmatched_units)
     allocations[index] = allocated_amount
     allocated_running_total += allocated_amount
   last_index = indices_with_units[-1]
@@ -1358,19 +1522,22 @@ def _populate_row_profit_fields(
   """Populate per-row profit fields after unmatched-book allocation."""
   for index, row in enumerate(rows):
     unmatched_book_profit = float(unmatched_book_profit_allocations[index])
-    matched_book_profit = cast(float, row["matched_ads_book_profit_before_ads_usd"])
+    matched_book_profit = cast(float,
+                               row["matched_ads_book_profit_before_ads_usd"])
     organic_profit = cast(float, row["organic_profit_before_ads_usd"])
-    matched_kenp_profit = cast(float, row["matched_ads_kenp_profit_before_ads_usd"])
-    unmatched_kenp_profit = cast(float, row["unmatched_ads_kenp_profit_before_ads_usd"])
+    matched_kenp_profit = cast(float,
+                               row["matched_ads_kenp_profit_before_ads_usd"])
+    unmatched_kenp_profit = cast(
+      float, row["unmatched_ads_kenp_profit_before_ads_usd"])
     ads_kenp_profit = cast(float, row["ads_kenp_profit_before_ads_usd"])
 
     row["unmatched_ads_book_profit_before_ads_usd"] = unmatched_book_profit
-    row["matched_ads_profit_before_ads_usd"] = (
-      matched_book_profit + matched_kenp_profit)
-    row["unmatched_pre_ad_profit_usd"] = (
-      unmatched_book_profit + unmatched_kenp_profit)
-    row["ads_book_profit_before_ads_usd"] = (
-      matched_book_profit + unmatched_book_profit)
+    row["matched_ads_profit_before_ads_usd"] = (matched_book_profit +
+                                                matched_kenp_profit)
+    row["unmatched_pre_ad_profit_usd"] = (unmatched_book_profit +
+                                          unmatched_kenp_profit)
+    row["ads_book_profit_before_ads_usd"] = (matched_book_profit +
+                                             unmatched_book_profit)
     row["ads_profit_before_ads_usd"] = (
       cast(float, row["ads_book_profit_before_ads_usd"]) + ads_kenp_profit)
     row["reconciled_matched_book_profit_before_ads_usd"] = (
@@ -1395,9 +1562,8 @@ def _serialize_count_details(
   details: list[dict[str, object]] = []
   for row in rows:
     count_value = cast(int, row[count_key])
-    kenp_pages_count = (
-      cast(int, row[kenp_pages_key])
-      if kenp_pages_key is not None else 0)
+    kenp_pages_count = (cast(int, row[kenp_pages_key])
+                        if kenp_pages_key is not None else 0)
     if count_value <= 0 and kenp_pages_count <= 0:
       continue
     if count_value > 0:
@@ -1418,13 +1584,12 @@ def _serialize_count_details(
         "is_kenp": True,
       })
 
-  details.sort(
-    key=lambda item: (
-      -cast(int, item["count"]),
-      cast(bool, item.get("is_kenp", False)),
-      cast(str, item["country_code"]),
-      cast(str, item["asin"]),
-    ))
+  details.sort(key=lambda item: (
+    -cast(int, item["count"]),
+    cast(bool, item.get("is_kenp", False)),
+    cast(str, item["country_code"]),
+    cast(str, item["asin"]),
+  ))
   return details
 
 
@@ -1450,9 +1615,8 @@ def _serialize_amount_details(
     })
     if kenp_amount_key is not None:
       kenp_amount_value = round(float(row[kenp_amount_key]), 2)
-      kenp_pages_count = (
-        cast(int, row[kenp_pages_key])
-        if kenp_pages_key is not None else 0)
+      kenp_pages_count = (cast(int, row[kenp_pages_key])
+                          if kenp_pages_key is not None else 0)
       if abs(kenp_amount_value) >= 1e-9 or kenp_pages_count > 0:
         details.append({
           "country_code": row["country_code"],
@@ -1464,13 +1628,12 @@ def _serialize_amount_details(
           "kenp_pages_count": kenp_pages_count,
         })
 
-  details.sort(
-    key=lambda item: (
-      -abs(cast(float, item["amount_usd"])),
-      cast(bool, item.get("is_kenp", False)),
-      cast(str, item["country_code"]),
-      cast(str, item["asin"]),
-    ))
+  details.sort(key=lambda item: (
+    -abs(cast(float, item["amount_usd"])),
+    cast(bool, item.get("is_kenp", False)),
+    cast(str, item["country_code"]),
+    cast(str, item["asin"]),
+  ))
   return details
 
 

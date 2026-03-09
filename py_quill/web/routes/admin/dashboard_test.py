@@ -53,6 +53,16 @@ def _mock_placement_daily_stats_default(monkeypatch):
   )
 
 
+@pytest.fixture(autouse=True)
+def _mock_campaigns_default(monkeypatch):
+  """Default campaign metadata stub for ads-stats route tests."""
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_campaigns",
+    lambda: [],
+  )
+
+
 def _make_ads_report(
   *,
   report_id: str,
@@ -514,46 +524,76 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["matched_ads_sales_count"][idx_0217] == 1
   assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0217] == 1
   assert reconciled_chart_data["ads_sales_details"][idx_0217] == [{
-    "country_code": "US",
-    "asin": "B0GNMFVYC5",
-    "book_key": "valentine-jokes",
-    "book_format": "Ebook",
-    "count": 2,
+    "country_code":
+    "US",
+    "asin":
+    "B0GNMFVYC5",
+    "book_key":
+    "valentine-jokes",
+    "book_format":
+    "Ebook",
+    "count":
+    2,
   }]
   assert reconciled_chart_data["matched_ads_sales_details"][idx_0217] == [{
-    "country_code": "US",
-    "asin": "B0GNMFVYC5",
-    "book_key": "valentine-jokes",
-    "book_format": "Ebook",
-    "count": 1,
+    "country_code":
+    "US",
+    "asin":
+    "B0GNMFVYC5",
+    "book_key":
+    "valentine-jokes",
+    "book_format":
+    "Ebook",
+    "count":
+    1,
   }]
   assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0217] == [{
-    "country_code": "US",
-    "asin": "B0GNMFVYC5",
-    "book_key": "valentine-jokes",
-    "book_format": "Ebook",
-    "count": 1,
+    "country_code":
+    "US",
+    "asin":
+    "B0GNMFVYC5",
+    "book_key":
+    "valentine-jokes",
+    "book_format":
+    "Ebook",
+    "count":
+    1,
   }]
   assert reconciled_chart_data["ads_profit_details"][idx_0217] == [{
-    "country_code": "US",
-    "asin": "B0GNMFVYC5",
-    "book_key": "valentine-jokes",
-    "book_format": "Ebook",
-    "amount_usd": 9.0,
+    "country_code":
+    "US",
+    "asin":
+    "B0GNMFVYC5",
+    "book_key":
+    "valentine-jokes",
+    "book_format":
+    "Ebook",
+    "amount_usd":
+    9.0,
   }]
   assert reconciled_chart_data["matched_ads_profit_details"][idx_0217] == [{
-    "country_code": "US",
-    "asin": "B0GNMFVYC5",
-    "book_key": "valentine-jokes",
-    "book_format": "Ebook",
-    "amount_usd": 4.0,
+    "country_code":
+    "US",
+    "asin":
+    "B0GNMFVYC5",
+    "book_key":
+    "valentine-jokes",
+    "book_format":
+    "Ebook",
+    "amount_usd":
+    4.0,
   }]
   assert reconciled_chart_data["unmatched_ads_profit_details"][idx_0217] == [{
-    "country_code": "US",
-    "asin": "B0GNMFVYC5",
-    "book_key": "valentine-jokes",
-    "book_format": "Ebook",
-    "amount_usd": 5.0,
+    "country_code":
+    "US",
+    "asin":
+    "B0GNMFVYC5",
+    "book_key":
+    "valentine-jokes",
+    "book_format":
+    "Ebook",
+    "amount_usd":
+    5.0,
   }]
   assert reconciled_chart_data["poas"][idx_0217] == 2.0
   assert reconciled_chart_data["tpoas"][idx_0217] == 2.4444
@@ -563,46 +603,76 @@ def test_admin_ads_stats_page_aggregates_daily_stats(monkeypatch):
   assert reconciled_chart_data["matched_ads_sales_count"][idx_0219] == 5
   assert reconciled_chart_data["unmatched_ads_sales_count"][idx_0219] == 2
   assert reconciled_chart_data["ads_sales_details"][idx_0219] == [{
-    "country_code": "US",
-    "asin": "B0G9765J19",
-    "book_key": "animal-jokes",
-    "book_format": "Ebook",
-    "count": 7,
+    "country_code":
+    "US",
+    "asin":
+    "B0G9765J19",
+    "book_key":
+    "animal-jokes",
+    "book_format":
+    "Ebook",
+    "count":
+    7,
   }]
   assert reconciled_chart_data["matched_ads_sales_details"][idx_0219] == [{
-    "country_code": "US",
-    "asin": "B0G9765J19",
-    "book_key": "animal-jokes",
-    "book_format": "Ebook",
-    "count": 5,
+    "country_code":
+    "US",
+    "asin":
+    "B0G9765J19",
+    "book_key":
+    "animal-jokes",
+    "book_format":
+    "Ebook",
+    "count":
+    5,
   }]
   assert reconciled_chart_data["unmatched_ads_sales_details"][idx_0219] == [{
-    "country_code": "US",
-    "asin": "B0G9765J19",
-    "book_key": "animal-jokes",
-    "book_format": "Ebook",
-    "count": 2,
+    "country_code":
+    "US",
+    "asin":
+    "B0G9765J19",
+    "book_key":
+    "animal-jokes",
+    "book_format":
+    "Ebook",
+    "count":
+    2,
   }]
   assert reconciled_chart_data["ads_profit_details"][idx_0219] == [{
-    "country_code": "US",
-    "asin": "B0G9765J19",
-    "book_key": "animal-jokes",
-    "book_format": "Ebook",
-    "amount_usd": 60.0,
+    "country_code":
+    "US",
+    "asin":
+    "B0G9765J19",
+    "book_key":
+    "animal-jokes",
+    "book_format":
+    "Ebook",
+    "amount_usd":
+    60.0,
   }]
   assert reconciled_chart_data["matched_ads_profit_details"][idx_0219] == [{
-    "country_code": "US",
-    "asin": "B0G9765J19",
-    "book_key": "animal-jokes",
-    "book_format": "Ebook",
-    "amount_usd": 31.0,
+    "country_code":
+    "US",
+    "asin":
+    "B0G9765J19",
+    "book_key":
+    "animal-jokes",
+    "book_format":
+    "Ebook",
+    "amount_usd":
+    31.0,
   }]
   assert reconciled_chart_data["unmatched_ads_profit_details"][idx_0219] == [{
-    "country_code": "US",
-    "asin": "B0G9765J19",
-    "book_key": "animal-jokes",
-    "book_format": "Ebook",
-    "amount_usd": 29.0,
+    "country_code":
+    "US",
+    "asin":
+    "B0G9765J19",
+    "book_key":
+    "animal-jokes",
+    "book_format":
+    "Ebook",
+    "amount_usd":
+    29.0,
   }]
   assert reconciled_chart_data["poas"][idx_0219] == 2.4
   assert reconciled_chart_data["tpoas"][idx_0219] == 2.68
@@ -1147,9 +1217,9 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert '"chartData"' in html
   assert '"reconciledClickDateChartData"' in html
   assert 'id="modeSelector"' in html
+  assert 'id="campaignStatusFilters"' in html
   assert 'id="modeSelector" type="hidden" value="Timeline"' in html
-  assert 'id="adsStatsModeTimelineButton"' in html
-  assert 'id="adsStatsModeDaysOfWeekButton"' in html
+  assert 'id="adsStatsModeToggleButton"' in html
   assert 'id="adsStatsCreateEventToggleButton"' in html
   assert 'id="adsStatsCreateEventForm"' in html
   assert 'id="adsStatsEventDateInput"' in html
@@ -1167,10 +1237,8 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="stat-gross-profit"' in html
   assert 'id="adsStatsCreateEventForm" class="ads-stats-create-event-form" hidden' in html
   assert '<canvas id="ctrChart"></canvas>' in html
-  assert 'id="adsStatsModeTimelineButton"' in html
-  assert 'aria-pressed="true">Timeline</button>' in html
-  assert 'id="adsStatsModeDaysOfWeekButton"' in html
-  assert 'aria-pressed="false">Days of Week</button>' in html
+  assert 'id="adsStatsModeToggleButton"' in html
+  assert 'aria-pressed="false">Timeline</button>' in html
   assert 'class="ads-stats-filters-row"' in html
   assert "gap: 0;" in html
   assert "flex-wrap: wrap;" in html
@@ -1326,6 +1394,30 @@ def test_admin_ads_stats_filtering(monkeypatch):
     "list_amazon_ads_events",
     lambda *, start_date, end_date: [],
   )
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_campaigns",
+    lambda: [
+      dashboard_routes.amazon_ads_models.AmazonCampaign(
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="c1",
+        campaign_name="Campaign A",
+        campaign_status="ENABLED",
+        currency_code="USD",
+      ),
+      dashboard_routes.amazon_ads_models.AmazonCampaign(
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="c2",
+        campaign_name="Campaign B",
+        campaign_status="PAUSED",
+        currency_code="USD",
+      ),
+    ],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -1345,6 +1437,10 @@ def test_admin_ads_stats_filtering(monkeypatch):
   assert camp_a["clicks"] == 6
   assert camp_a["spend"] == 3.0
   assert camp_a["total_units_sold"] == 1
+  assert camp_a["campaign_status"] == "ENABLED"
+
+  camp_b = next(c for c in campaign_list if c["campaign_name"] == "Campaign B")
+  assert camp_b["campaign_status"] == "PAUSED"
 
   # Verify top-level aggregation includes units_sold
   assert chart_data["total_units_sold"] == 2
@@ -1411,6 +1507,21 @@ def test_admin_ads_stats_page_includes_placement_data(monkeypatch):
       ),
     ],
   )
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_campaigns",
+    lambda: [
+      dashboard_routes.amazon_ads_models.AmazonCampaign(
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="c1",
+        campaign_name="Campaign A",
+        campaign_status="PAUSED",
+        currency_code="USD",
+      ),
+    ],
+  )
 
   with app.test_client() as client:
     resp = client.get('/admin/ads-stats')
@@ -1428,8 +1539,10 @@ def test_admin_ads_stats_page_includes_placement_data(monkeypatch):
   assert placement_data["rows"] == [{
     "key": expected_key,
     "date": "2026-02-19",
+    "profile_id": "profile-1",
     "campaign_id": "c1",
     "campaign_name": "Campaign A",
+    "campaign_status": "PAUSED",
     "placement_classification": "Top of Search",
     "impressions": 100,
     "clicks": 10,
@@ -1442,6 +1555,156 @@ def test_admin_ads_stats_page_includes_placement_data(monkeypatch):
     "currency_code": "USD",
     "top_of_search_impression_share": 0.25,
   }]
+
+
+def test_admin_ads_stats_page_includes_search_term_campaign_status(
+    monkeypatch):
+  """Ads stats page joins latest campaign status onto search-term rows."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: True)
+  monkeypatch.setattr(dashboard_routes, "_today_in_los_angeles",
+                      lambda: datetime.date(2026, 2, 20))
+
+  captured: dict = {}
+
+  def _fake_render(template_name, **context):
+    captured["template"] = template_name
+    captured.update(context)
+    return "OK"
+
+  monkeypatch.setattr(dashboard_routes.flask, "render_template", _fake_render)
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_sales_reconciled_daily_stats",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_ads_events",
+    lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_ads_search_term_daily_stats",
+    lambda *, start_date, end_date: [
+      dashboard_routes.amazon_ads_models.AmazonAdsSearchTermDailyStat(
+        date=datetime.date(2026, 2, 19),
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="c1",
+        campaign_name="Campaign A",
+        ad_group_id="ag1",
+        ad_group_name="Ad Group 1",
+        search_term="dad jokes",
+        keyword="dad joke",
+        keyword_id="kw1",
+        keyword_type="KEYWORD",
+        match_type="EXACT",
+        targeting="",
+        impressions=100,
+        clicks=10,
+        cost_usd=5.0,
+        sales14d_usd=20.0,
+        purchases14d=2,
+        units_sold_clicks14d=2,
+        kenp_pages_read14d=0,
+        kenp_royalties14d_usd=0.0,
+        currency_code="USD",
+        source_report_id="report-1",
+        source_report_name="search-report",
+        ad_keyword_status="enabled",
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    dashboard_routes.amazon_ads_firestore,
+    "list_amazon_campaigns",
+    lambda: [
+      dashboard_routes.amazon_ads_models.AmazonCampaign(
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="c1",
+        campaign_name="Campaign A",
+        campaign_status="ARCHIVED",
+        currency_code="USD",
+      ),
+    ],
+  )
+
+  with app.test_client() as client:
+    resp = client.get('/admin/ads-stats')
+
+  assert resp.status_code == 200
+  assert captured["template"] == "admin/ads_stats.html"
+  assert captured["search_term_data"]["rows"] == [{
+    "key":
+    dashboard_routes.amazon_ads_models.build_search_term_stat_key(
+      date=datetime.date(2026, 2, 19),
+      profile_id="profile-1",
+      campaign_id="c1",
+      ad_group_id="ag1",
+      search_term="dad jokes",
+      keyword_type="KEYWORD",
+      match_type="EXACT",
+      keyword_id="kw1",
+      keyword="dad joke",
+      targeting="",
+    ),
+    "date":
+    "2026-02-19",
+    "profile_id":
+    "profile-1",
+    "campaign_id":
+    "c1",
+    "campaign_name":
+    "Campaign A",
+    "campaign_status":
+    "ARCHIVED",
+    "ad_group_id":
+    "ag1",
+    "ad_group_name":
+    "Ad Group 1",
+    "search_term":
+    "dad jokes",
+    "keyword":
+    "dad joke",
+    "keyword_id":
+    "kw1",
+    "keyword_type":
+    "KEYWORD",
+    "match_type":
+    "EXACT",
+    "targeting":
+    "",
+    "impressions":
+    100,
+    "clicks":
+    10,
+    "cost_usd":
+    5.0,
+    "sales14d_usd":
+    20.0,
+    "purchases14d":
+    2,
+    "units_sold_clicks14d":
+    2,
+    "kenp_pages_read14d":
+    0,
+    "kenp_royalties14d_usd":
+    0.0,
+    "currency_code":
+    "USD",
+    "ad_keyword_status":
+    "enabled",
+  }]
+  assert captured["search_term_data"]["campaign_statuses"] == ["ARCHIVED"]
 
 
 def test_admin_ads_stats_create_event_success(monkeypatch):

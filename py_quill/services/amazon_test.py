@@ -210,7 +210,8 @@ def test_request_daily_campaign_stats_reports_requests_four_reports(
     country_code="US",
   )
 
-  def _fake_create_report(*, api_base, access_token, profile, report_key, payload):
+  def _fake_create_report(*, api_base, access_token, profile, report_key,
+                          payload):
     calls.append({
       "api_base": api_base,
       "access_token": access_token,
@@ -294,12 +295,17 @@ def test_request_daily_campaign_stats_reports_requests_four_reports(
   assert calls[0]["profile_country"] == "US"
   assert calls[0]["access_token"] == "access-token"
   assert calls[0]["payload"]["configuration"]["reportTypeId"] == "spCampaigns"
+  assert "campaignStatus" in calls[0]["payload"]["configuration"]["columns"]
   assert calls[1]["payload"]["configuration"][
     "reportTypeId"] == "spAdvertisedProduct"
   assert calls[2]["payload"]["configuration"]["reportTypeId"] == "spSearchTerm"
-  assert calls[3]["report_key"] == models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
+  assert calls[3][
+    "report_key"] == models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
   assert calls[3]["payload"]["configuration"]["reportTypeId"] == "spCampaigns"
-  assert calls[3]["payload"]["configuration"]["groupBy"] == ["campaignPlacement"]
+  assert calls[3]["payload"]["configuration"]["groupBy"] == [
+    "campaignPlacement"
+  ]
+  assert "campaignStatus" in calls[3]["payload"]["configuration"]["columns"]
 
 
 def test_get_reports_returns_report_for_each_report_id(monkeypatch):
@@ -360,8 +366,21 @@ def test_build_sp_campaign_placement_report_payload_uses_campaign_placement():
 
   assert config["reportTypeId"] == "spCampaigns"
   assert config["groupBy"] == ["campaignPlacement"]
+  assert "campaignStatus" in config["columns"]
   assert "placementClassification" in config["columns"]
   assert "topOfSearchImpressionShare" in config["columns"]
+
+
+def test_build_sp_campaigns_report_payload_includes_campaign_status():
+  payload = amazon._build_sp_campaigns_report_payload(
+    start_date=datetime.date(2026, 2, 10),
+    end_date=datetime.date(2026, 2, 17),
+  )
+  config = payload["configuration"]
+
+  assert config["reportTypeId"] == "spCampaigns"
+  assert config["groupBy"] == ["campaign"]
+  assert "campaignStatus" in config["columns"]
 
 
 def test_get_reports_with_empty_ids_returns_empty(monkeypatch):
@@ -419,7 +438,8 @@ def _upsert_report(report: models.AmazonAdsReport,
   return report
 
 
-def test_get_search_term_daily_stats_from_report_parses_and_converts(monkeypatch):
+def test_get_search_term_daily_stats_from_report_parses_and_converts(
+    monkeypatch):
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
     region="na",
@@ -476,7 +496,8 @@ def test_get_search_term_daily_stats_from_report_parses_and_converts(monkeypatch
   assert rows[0].key
 
 
-def test_get_placement_daily_stats_from_report_parses_and_converts(monkeypatch):
+def test_get_placement_daily_stats_from_report_parses_and_converts(
+    monkeypatch):
   profile = amazon.AmazonAdsProfile(
     profile_id="profile-1",
     region="na",
@@ -525,9 +546,65 @@ def test_get_placement_daily_stats_from_report_parses_and_converts(monkeypatch):
   assert rows[0].cost_usd == pytest.approx(14.64, rel=1e-6)
   assert rows[0].sales14d_usd == pytest.approx(36.6, rel=1e-6)
   assert rows[0].kenp_royalties14d_usd == pytest.approx(3.66, rel=1e-6)
-  assert rows[0].top_of_search_impression_share == pytest.approx(0.42, rel=1e-6)
+  assert rows[0].top_of_search_impression_share == pytest.approx(0.42,
+                                                                 rel=1e-6)
   assert rows[0].source_report_id == "placement-report-id"
   assert rows[0].key
+
+
+def test_get_campaigns_from_report_returns_latest_campaign_rows():
+  profile = amazon.AmazonAdsProfile(
+    profile_id="profile-1",
+    region="na",
+    api_base="https://advertising-api.amazon.com",
+    country_code="CA",
+  )
+  report = _report_status(
+    report_id="campaign-report-id",
+    status="COMPLETED",
+    report_name="campaign-report-name",
+    report_type_id="spCampaigns",
+    profile_id="profile-1",
+  )
+  report.raw_report_text = json.dumps([
+    {
+      "date": "2026-02-20",
+      "campaignId": "c2",
+      "campaignName": "Campaign 2",
+      "campaignStatus": "enabled",
+      "campaignBudgetCurrencyCode": "CAD",
+    },
+    {
+      "date": "2026-02-21",
+      "campaignId": "c1",
+      "campaignName": "Campaign 1",
+      "campaignStatus": "paused",
+      "campaignBudgetCurrencyCode": "CAD",
+    },
+    {
+      "date": "2026-02-22",
+      "campaignId": "c1",
+      "campaignName": "Campaign 1 updated",
+      "campaignStatus": "archived",
+      "campaignBudgetCurrencyCode": "CAD",
+    },
+  ])
+
+  rows = amazon.get_campaigns_from_report(
+    profile=profile,
+    campaigns_report=report,
+  )
+
+  assert [row.campaign_id for row in rows] == ["c1", "c2"]
+  assert rows[0].profile_id == "profile-1"
+  assert rows[0].profile_country == "CA"
+  assert rows[0].region == "na"
+  assert rows[0].campaign_name == "Campaign 1 updated"
+  assert rows[0].campaign_status == "ARCHIVED"
+  assert rows[0].currency_code == "CAD"
+  assert rows[0].key == "profile-1__c1"
+  assert rows[0].created_at is not None
+  assert rows[0].updated_at is not None
 
 
 def test_get_daily_campaign_stats_from_reports_merges_rows(monkeypatch):
@@ -1113,7 +1190,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
     amazon,
     "_collect_expected_reports_for_profile",
     lambda *, profile_id, reports_by_expected_key: {
-      models.AmazonAdsReportKey.SP_CAMPAIGNS: _report_status(
+      models.AmazonAdsReportKey.SP_CAMPAIGNS:
+      _report_status(
         report_id="r1",
         status="PENDING",
         report_name="20260226_010100_spCampaigns_US",
@@ -1121,7 +1199,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
         report_key=models.AmazonAdsReportKey.SP_CAMPAIGNS,
         profile_id=profile_id,
       ),
-      models.AmazonAdsReportKey.SP_ADVERTISED_PRODUCT: _report_status(
+      models.AmazonAdsReportKey.SP_ADVERTISED_PRODUCT:
+      _report_status(
         report_id="r2",
         status="PENDING",
         report_name="20260226_010100_spAdvertisedProduct_US",
@@ -1129,7 +1208,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
         report_key=models.AmazonAdsReportKey.SP_ADVERTISED_PRODUCT,
         profile_id=profile_id,
       ),
-      models.AmazonAdsReportKey.SP_SEARCH_TERM: _report_status(
+      models.AmazonAdsReportKey.SP_SEARCH_TERM:
+      _report_status(
         report_id="r3",
         status="PENDING",
         report_name="20260226_010100_spSearchTerm_US",
@@ -1137,7 +1217,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
         report_key=models.AmazonAdsReportKey.SP_SEARCH_TERM,
         profile_id=profile_id,
       ),
-      models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT: _report_status(
+      models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT:
+      _report_status(
         report_id="r4",
         status="PENDING",
         report_name="20260226_010100_spCampaignsPlacement_US",
@@ -1188,7 +1269,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
   monkeypatch.setattr(
     amazon,
     "_are_reports_complete",
-    lambda campaigns_report, advertised_products_report, search_term_report, placement_report: True,
+    lambda campaigns_report, advertised_products_report, search_term_report,
+    placement_report: True,
   )
   monkeypatch.setattr(
     amazon,
@@ -1215,6 +1297,21 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
   )
   monkeypatch.setattr(
     amazon,
+    "get_campaigns_from_report",
+    lambda **kwargs: [
+      amazon.amazon_ads_models.AmazonCampaign(
+        profile_id="profile-1",
+        profile_country="US",
+        region="na",
+        campaign_id="campaign-1",
+        campaign_name="Campaign 1",
+        campaign_status="ENABLED",
+        currency_code="USD",
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    amazon,
     "get_search_term_daily_stats_from_report",
     lambda **kwargs: [],
   )
@@ -1227,6 +1324,20 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
     amazon.firestore,
     "upsert_amazon_ads_daily_stats",
     lambda stats: stats,
+  )
+  captured_campaign_upserts: list[list[
+    amazon.amazon_ads_models.AmazonCampaign]] = []
+
+  def _capture_campaign_upserts(
+    campaigns: list[amazon.amazon_ads_models.AmazonCampaign],
+  ) -> list[amazon.amazon_ads_models.AmazonCampaign]:
+    captured_campaign_upserts.append(campaigns)
+    return campaigns
+
+  monkeypatch.setattr(
+    amazon.amazon_ads_firestore,
+    "upsert_amazon_campaigns",
+    _capture_campaign_upserts,
   )
   monkeypatch.setattr(
     amazon.amazon_ads_firestore,
@@ -1267,6 +1378,8 @@ def test_fetch_ads_stats_reports_triggers_sales_reconciliation(monkeypatch):
     20,
   )
   assert captured_reconciliation[0]["run_time_utc"] == run_time_utc
+  assert len(captured_campaign_upserts) == 1
+  assert captured_campaign_upserts[0][0].campaign_status == "ENABLED"
 
 
 def test_get_latest_ads_reports_by_profile_type_picks_latest_window_and_rows():
@@ -1471,13 +1584,16 @@ def test_get_latest_ads_reports_by_profile_type_picks_latest_window_and_rows():
     ("profile-1", models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT),
   }
   assert selected[("profile-1",
-                   models.AmazonAdsReportKey.SP_CAMPAIGNS)].report_id == ("latest-window-campaigns")
-  assert selected[("profile-1", models.AmazonAdsReportKey.SP_ADVERTISED_PRODUCT)].report_id == (
-    "latest-window-advertised")
-  assert selected[("profile-1", models.AmazonAdsReportKey.SP_SEARCH_TERM)].report_id == (
-    "latest-window-search")
-  assert selected[("profile-1", models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT)].report_id == (
-    "latest-window-placement")
+                   models.AmazonAdsReportKey.SP_CAMPAIGNS)].report_id == (
+                     "latest-window-campaigns")
+  assert selected[("profile-1", models.AmazonAdsReportKey.SP_ADVERTISED_PRODUCT
+                   )].report_id == ("latest-window-advertised")
+  assert selected[("profile-1",
+                   models.AmazonAdsReportKey.SP_SEARCH_TERM)].report_id == (
+                     "latest-window-search")
+  assert selected[("profile-1",
+                   models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
+                   )].report_id == ("latest-window-placement")
 
 
 def test_get_ads_stats_context_uses_latest_available_reports(monkeypatch):

@@ -57,6 +57,15 @@ def build_placement_stat_key(
   return f"{date.isoformat()}__{profile_id.strip()}__{digest}"
 
 
+def build_campaign_key(
+  *,
+  profile_id: str,
+  campaign_id: str,
+) -> str:
+  """Build a deterministic Firestore doc id for one campaign metadata row."""
+  return f"{profile_id.strip()}__{campaign_id.strip()}"
+
+
 @dataclass(kw_only=True)
 class AmazonAdsSearchTermDailyStat:
   """One normalized sponsored-products search-term row for one day."""
@@ -352,6 +361,100 @@ class AmazonAdsPlacementDailyStat:
     *,
     key: str,
   ) -> AmazonAdsPlacementDailyStat:
+    """Deserialize from Firestore dictionaries."""
+    return cls.from_dict(data, key=key)
+
+
+@dataclass(kw_only=True)
+class AmazonCampaign:
+  """Latest known metadata for one Amazon Ads campaign."""
+
+  key: str | None = None
+  profile_id: str
+  profile_country: str
+  region: str
+  campaign_id: str
+  campaign_name: str
+  campaign_status: str
+  currency_code: str = "USD"
+  created_at: datetime.datetime | None = None
+  updated_at: datetime.datetime | None = None
+
+  def ensure_key(self) -> str:
+    """Assign and return a deterministic Firestore document key."""
+    if self.key:
+      return self.key
+    self.key = build_campaign_key(
+      profile_id=self.profile_id,
+      campaign_id=self.campaign_id,
+    )
+    return self.key
+
+  def to_dict(self, include_key: bool = False) -> dict[str, Any]:
+    """Serialize for Firestore storage."""
+    data: dict[str, Any] = {
+      "profile_id": self.profile_id,
+      "profile_country": self.profile_country,
+      "region": self.region,
+      "campaign_id": self.campaign_id,
+      "campaign_name": self.campaign_name,
+      "campaign_status": self.campaign_status,
+      "currency_code": self.currency_code,
+      "created_at": self.created_at,
+      "updated_at": self.updated_at,
+    }
+    if include_key:
+      data["key"] = self.key
+    return data
+
+  @classmethod
+  def from_dict(
+    cls,
+    data: dict[str, Any],
+    *,
+    key: str | None = None,
+  ) -> AmazonCampaign:
+    """Deserialize from snake_case dictionaries."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    profile_id = _as_str(data.get("profile_id"))
+    campaign_id = _as_str(data.get("campaign_id"))
+    campaign_name = _as_str(data.get("campaign_name"))
+    campaign_status = _as_str(data.get("campaign_status")).upper()
+    if not profile_id:
+      raise ValueError("AmazonCampaign.profile_id is required")
+    if not campaign_id:
+      raise ValueError("AmazonCampaign.campaign_id is required")
+    if not campaign_name:
+      raise ValueError("AmazonCampaign.campaign_name is required")
+    if not campaign_status:
+      raise ValueError("AmazonCampaign.campaign_status is required")
+
+    campaign = cls(
+      key=key,
+      profile_id=profile_id,
+      profile_country=_as_str(data.get("profile_country")),
+      region=_as_str(data.get("region")),
+      campaign_id=campaign_id,
+      campaign_name=campaign_name,
+      campaign_status=campaign_status,
+      currency_code=_as_str(data.get("currency_code")) or "USD",
+      created_at=_parse_optional_datetime(data.get("created_at")),
+      updated_at=_parse_optional_datetime(data.get("updated_at")),
+    )
+    _ = campaign.ensure_key()
+    return campaign
+
+  @classmethod
+  def from_firestore_dict(
+    cls,
+    data: dict[str, Any],
+    *,
+    key: str,
+  ) -> AmazonCampaign:
     """Deserialize from Firestore dictionaries."""
     return cls.from_dict(data, key=key)
 

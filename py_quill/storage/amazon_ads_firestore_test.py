@@ -72,6 +72,35 @@ def _build_placement_stat(
   )
 
 
+def _build_campaign(
+  *,
+  campaign_id: str = "c1",
+  campaign_name: str = "Campaign 1",
+  campaign_status: str = "ENABLED",
+) -> amazon_ads_models.AmazonCampaign:
+  return amazon_ads_models.AmazonCampaign(
+    profile_id="profile-1",
+    profile_country="US",
+    region="na",
+    campaign_id=campaign_id,
+    campaign_name=campaign_name,
+    campaign_status=campaign_status,
+    currency_code="USD",
+    created_at=datetime.datetime(2026,
+                                 2,
+                                 20,
+                                 12,
+                                 0,
+                                 tzinfo=datetime.timezone.utc),
+    updated_at=datetime.datetime(2026,
+                                 2,
+                                 20,
+                                 12,
+                                 5,
+                                 tzinfo=datetime.timezone.utc),
+  )
+
+
 def test_upsert_amazon_ads_search_term_daily_stats_uses_stat_key(monkeypatch):
   captured: dict[str, object] = {}
 
@@ -103,7 +132,8 @@ def test_upsert_amazon_ads_search_term_daily_stats_uses_stat_key(monkeypatch):
   monkeypatch.setattr(amazon_ads_firestore.firestore, "db", lambda: DummyDB())
   stat = _build_stat()
 
-  saved = amazon_ads_firestore.upsert_amazon_ads_search_term_daily_stats([stat])
+  saved = amazon_ads_firestore.upsert_amazon_ads_search_term_daily_stats(
+    [stat])
 
   assert len(saved) == 1
   assert saved[0].key
@@ -118,7 +148,8 @@ def test_upsert_amazon_ads_search_term_daily_stats_uses_stat_key(monkeypatch):
   assert captured["data"]["cost_usd"] == 15.0
 
 
-def test_upsert_amazon_ads_search_term_daily_stats_is_deterministic(monkeypatch):
+def test_upsert_amazon_ads_search_term_daily_stats_is_deterministic(
+    monkeypatch):
   writes: list[str] = []
 
   class DummyBatch:
@@ -215,7 +246,8 @@ def test_list_amazon_ads_search_term_daily_stats_filters_by_date(monkeypatch):
 
 
 def test_list_amazon_ads_search_term_daily_stats_invalid_range_raises():
-  with pytest.raises(ValueError, match="end_date must be on or after start_date"):
+  with pytest.raises(ValueError,
+                     match="end_date must be on or after start_date"):
     _ = amazon_ads_firestore.list_amazon_ads_search_term_daily_stats(
       start_date=datetime.date(2026, 3, 1),
       end_date=datetime.date(2026, 2, 1),
@@ -266,6 +298,51 @@ def test_upsert_amazon_ads_placement_daily_stats_uses_stat_key(monkeypatch):
   assert isinstance(captured["data"], dict)
   assert captured["data"]["placement_classification"] == "TOP_OF_SEARCH"
   assert captured["data"]["top_of_search_impression_share"] == 0.42
+
+
+def test_upsert_amazon_campaigns_uses_campaign_key(monkeypatch):
+  captured: dict[str, object] = {}
+
+  class DummyBatch:
+
+    def set(self, doc_ref, data, merge=False):
+      captured["doc_ref"] = doc_ref
+      captured["data"] = data
+      captured["merge"] = merge
+
+    def commit(self):
+      captured["committed"] = True
+
+  class DummyCollection:
+
+    def document(self, doc_id):
+      captured["doc_id"] = doc_id
+      return f"doc::{doc_id}"
+
+  class DummyDB:
+
+    def batch(self):
+      return DummyBatch()
+
+    def collection(self, name):
+      captured["collection"] = name
+      return DummyCollection()
+
+  monkeypatch.setattr(amazon_ads_firestore.firestore, "db", lambda: DummyDB())
+  campaign = _build_campaign()
+
+  saved = amazon_ads_firestore.upsert_amazon_campaigns([campaign])
+
+  assert len(saved) == 1
+  assert saved[0].key == "profile-1__c1"
+  assert captured[
+    "collection"] == amazon_ads_firestore.AMAZON_CAMPAIGNS_COLLECTION
+  assert captured["doc_id"] == "profile-1__c1"
+  assert captured["doc_ref"] == "doc::profile-1__c1"
+  assert captured["merge"] is True
+  assert captured["committed"] is True
+  assert isinstance(captured["data"], dict)
+  assert captured["data"]["campaign_status"] == "ENABLED"
 
 
 def test_list_amazon_ads_placement_daily_stats_filters_by_date(monkeypatch):
@@ -330,8 +407,48 @@ def test_list_amazon_ads_placement_daily_stats_filters_by_date(monkeypatch):
 
 
 def test_list_amazon_ads_placement_daily_stats_invalid_range_raises():
-  with pytest.raises(ValueError, match="end_date must be on or after start_date"):
+  with pytest.raises(ValueError,
+                     match="end_date must be on or after start_date"):
     _ = amazon_ads_firestore.list_amazon_ads_placement_daily_stats(
       start_date=datetime.date(2026, 3, 1),
       end_date=datetime.date(2026, 2, 1),
     )
+
+
+def test_list_amazon_campaigns_returns_sorted_models(monkeypatch):
+
+  class DummyDoc:
+    exists = True
+
+    def __init__(self, key, campaign_name):
+      self.id = key
+      self._campaign_name = campaign_name
+
+    def to_dict(self):
+      return _build_campaign(
+        campaign_id=self.id.split("__", 1)[1],
+        campaign_name=self._campaign_name,
+      ).to_dict()
+
+  class DummyCollection:
+
+    def stream(self):
+      return [
+        DummyDoc("profile-1__c2", "Campaign B"),
+        DummyDoc("profile-1__c1", "Campaign A"),
+      ]
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCollection()
+
+  monkeypatch.setattr(amazon_ads_firestore.firestore, "db", lambda: DummyDB())
+
+  campaigns = amazon_ads_firestore.list_amazon_campaigns()
+
+  assert [campaign.key for campaign in campaigns] == [
+    "profile-1__c1",
+    "profile-1__c2",
+  ]
+  assert campaigns[0].campaign_status == "ENABLED"

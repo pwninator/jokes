@@ -46,6 +46,24 @@ function createFakePopup() {
   return new FakeElement();
 }
 
+function createLocalStorageMock(initialEntries = {}) {
+  const store = new Map(Object.entries(initialEntries));
+  return {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(key, String(value));
+    },
+    removeItem(key) {
+      store.delete(key);
+    },
+    dump() {
+      return Object.fromEntries(store.entries());
+    },
+  };
+}
+
 function createFakeCanvas(id) {
   const canvas = new FakeElement({ id, tagName: 'canvas' });
   const ctx = { canvas };
@@ -63,13 +81,10 @@ function createFakeAdsStatsDom(initialMode) {
       tagName: 'script',
     }),
     campaignSelector: new FakeElement({ id: 'campaignSelector' }),
+    campaignStatusFilters: new FakeElement({ id: 'campaignStatusFilters' }),
     modeSelector: new FakeElement({ id: 'modeSelector' }),
-    adsStatsModeTimelineButton: new FakeElement({
-      id: 'adsStatsModeTimelineButton',
-      tagName: 'button',
-    }),
-    adsStatsModeDaysOfWeekButton: new FakeElement({
-      id: 'adsStatsModeDaysOfWeekButton',
+    adsStatsModeToggleButton: new FakeElement({
+      id: 'adsStatsModeToggleButton',
       tagName: 'button',
     }),
     adsStatsCreateEventToggleButton: new FakeElement({
@@ -156,8 +171,11 @@ function createFakeAdsStatsDom(initialMode) {
   };
   elements.campaignSelector.value = 'All';
   elements.modeSelector.value = initialMode;
-  elements.adsStatsModeTimelineButton.setAttribute('aria-pressed', 'true');
-  elements.adsStatsModeDaysOfWeekButton.setAttribute('aria-pressed', 'false');
+  elements.adsStatsModeToggleButton.setAttribute(
+    'aria-pressed',
+    initialMode === DAYS_OF_WEEK_MODE ? 'true' : 'false',
+  );
+  elements.adsStatsModeToggleButton.textContent = initialMode;
   elements.adsStatsCreateEventForm.hidden = true;
   elements.placementCampaignSelector.value = 'All';
   elements.placementPlacementSelector.value = 'All';
@@ -224,8 +242,58 @@ function createFakeChartData() {
     gross_profit_before_ads_usd: [40, 48],
     gross_profit_usd: [20, 24],
     daily_campaigns: {
-      '2026-02-22': [],
-      '2026-02-23': [],
+      '2026-02-22': [
+        {
+          campaign_id: 'c-a',
+          campaign_name: 'Campaign A',
+          campaign_status: 'ENABLED',
+          impressions: 40,
+          clicks: 4,
+          spend: 8,
+          total_attributed_sales_usd: 20,
+          total_units_sold: 1,
+          gross_profit_before_ads_usd: 16,
+          gross_profit_usd: 8,
+        },
+        {
+          campaign_id: 'c-b',
+          campaign_name: 'Campaign B',
+          campaign_status: 'PAUSED',
+          impressions: 60,
+          clicks: 6,
+          spend: 12,
+          total_attributed_sales_usd: 30,
+          total_units_sold: 1,
+          gross_profit_before_ads_usd: 24,
+          gross_profit_usd: 12,
+        },
+      ],
+      '2026-02-23': [
+        {
+          campaign_id: 'c-a',
+          campaign_name: 'Campaign A',
+          campaign_status: 'ENABLED',
+          impressions: 50,
+          clicks: 5,
+          spend: 10,
+          total_attributed_sales_usd: 25,
+          total_units_sold: 1,
+          gross_profit_before_ads_usd: 20,
+          gross_profit_usd: 10,
+        },
+        {
+          campaign_id: 'c-b',
+          campaign_name: 'Campaign B',
+          campaign_status: 'PAUSED',
+          impressions: 70,
+          clicks: 7,
+          spend: 14,
+          total_attributed_sales_usd: 35,
+          total_units_sold: 2,
+          gross_profit_before_ads_usd: 28,
+          gross_profit_usd: 14,
+        },
+      ],
     },
   };
 }
@@ -237,6 +305,7 @@ function createFakeSearchTermData() {
       {
         date: '2026-02-22',
         campaign_name: 'Campaign A',
+        campaign_status: 'ENABLED',
         search_term: 'alpha',
         keyword_type: 'EXACT',
         match_type: 'EXACT',
@@ -251,6 +320,7 @@ function createFakeSearchTermData() {
       {
         date: '2026-02-23',
         campaign_name: 'Campaign B',
+        campaign_status: 'PAUSED',
         search_term: 'alpha',
         keyword_type: 'EXACT',
         match_type: 'EXACT',
@@ -265,6 +335,7 @@ function createFakeSearchTermData() {
       {
         date: '2026-02-22',
         campaign_name: 'Campaign A',
+        campaign_status: 'ENABLED',
         search_term: 'beta',
         keyword_type: 'EXACT',
         match_type: 'EXACT',
@@ -288,6 +359,7 @@ function createFakePlacementData() {
         date: '2026-02-22',
         campaign_id: 'c-a',
         campaign_name: 'Campaign A',
+        campaign_status: 'ENABLED',
         placement_classification: 'PLACEMENT_TOP',
         impressions: 100,
         clicks: 10,
@@ -300,6 +372,7 @@ function createFakePlacementData() {
         date: '2026-02-23',
         campaign_id: 'c-b',
         campaign_name: 'Campaign B',
+        campaign_status: 'PAUSED',
         placement_classification: 'Top of search',
         impressions: 80,
         clicks: 8,
@@ -312,6 +385,7 @@ function createFakePlacementData() {
         date: '2026-02-22',
         campaign_id: 'c-a',
         campaign_name: 'Campaign A',
+        campaign_status: 'ENABLED',
         placement_classification: 'rest of search',
         impressions: 60,
         clicks: 3,
@@ -811,6 +885,7 @@ test('normalizeSearchTermRow validates required fields and normalizes numbers', 
   const normalized = normalizeSearchTermRow({
     date: '2026-02-20',
     campaign_name: 'Campaign A',
+    campaign_status: 'enabled',
     search_term: 'dad jokes',
     keyword_type: 'EXACT',
     clicks: '4',
@@ -819,6 +894,7 @@ test('normalizeSearchTermRow validates required fields and normalizes numbers', 
 
   assert.equal(normalized.date, '2026-02-20');
   assert.equal(normalized.campaign_name, 'Campaign A');
+  assert.equal(normalized.campaign_status, 'ENABLED');
   assert.equal(normalized.search_term, 'dad jokes');
   assert.equal(normalized.keyword_type, 'EXACT');
   assert.equal(normalized.clicks, 4);
@@ -832,6 +908,7 @@ test('normalizePlacementRow validates required fields and normalizes placement l
   const normalized = normalizePlacementRow({
     date: '2026-02-20',
     campaign_name: 'Campaign A',
+    campaign_status: 'paused',
     placement_classification: 'PLACEMENT_TOP',
     clicks: '4',
     cost_usd: '5.25',
@@ -839,6 +916,7 @@ test('normalizePlacementRow validates required fields and normalizes placement l
 
   assert.equal(normalized.date, '2026-02-20');
   assert.equal(normalized.campaign_name, 'Campaign A');
+  assert.equal(normalized.campaign_status, 'PAUSED');
   assert.equal(normalized.placement_classification, 'Top of Search');
   assert.equal(normalized.clicks, 4);
   assert.equal(normalized.cost_usd, 5.25);
@@ -938,6 +1016,7 @@ test('filterSearchTermAggregates applies campaign/type/match/text filters', () =
   const aggregates = [
     {
       campaign_name: 'Campaign A',
+      campaign_status: 'ENABLED',
       keyword_type: 'EXACT',
       match_type: 'EXACT',
       search_term: 'dad jokes',
@@ -946,6 +1025,7 @@ test('filterSearchTermAggregates applies campaign/type/match/text filters', () =
     },
     {
       campaign_name: 'Campaign B',
+      campaign_status: 'PAUSED',
       keyword_type: 'TARGETING_EXPRESSION',
       match_type: '',
       search_term: 'book',
@@ -957,6 +1037,7 @@ test('filterSearchTermAggregates applies campaign/type/match/text filters', () =
   assert.equal(
     filterSearchTermAggregates(aggregates, {
       campaign: 'Campaign A',
+      campaignStatus: 'ENABLED',
       keywordType: 'EXACT',
       matchType: 'EXACT',
       text: 'dad',
@@ -966,6 +1047,7 @@ test('filterSearchTermAggregates applies campaign/type/match/text filters', () =
   assert.equal(
     filterSearchTermAggregates(aggregates, {
       campaign: 'All',
+      campaignStatus: 'PAUSED',
       keywordType: 'TARGETING_EXPRESSION',
       matchType: 'All',
       text: 'asin=',
@@ -1298,6 +1380,18 @@ test('getDailyStatsForCampaign prefers campaign sums for All when campaign rows 
   assert.equal(campaignA[0].impressions, 40);
   assert.equal(campaignA[0].cost, 8);
   assert.equal(campaignA[1].impressions, 0);
+});
+
+test('getDailyStatsForCampaign filters All totals by campaign status', () => {
+  const chartData = createFakeChartData();
+
+  const enabled = getDailyStatsForCampaign(chartData, 'All', 'ENABLED');
+  const paused = getDailyStatsForCampaign(chartData, 'All', 'PAUSED');
+
+  assert.deepEqual(enabled.map((day) => day.impressions), [40, 50]);
+  assert.deepEqual(enabled.map((day) => day.cost), [8, 10]);
+  assert.deepEqual(paused.map((day) => day.impressions), [60, 70]);
+  assert.deepEqual(paused.map((day) => day.cost), [12, 14]);
 });
 
 test('buildChartStats keeps totals stable while Days of Week series skips zero-impression days', () => {
@@ -1735,6 +1829,7 @@ test('initAdsStatsPage reads embedded page data and mode buttons update charts',
   const originalWindow = global.window;
   const originalDocument = global.document;
   const chartCalls = [];
+  const localStorage = createLocalStorageMock();
   const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
 
   function FakeChart(ctx, config) {
@@ -1763,6 +1858,7 @@ test('initAdsStatsPage reads embedded page data and mode buttons update charts',
   global.window = {
     document,
     Chart: FakeChart,
+    localStorage,
     getSelection: () => ({ toString: () => '' }),
   };
 
@@ -1770,18 +1866,139 @@ test('initAdsStatsPage reads embedded page data and mode buttons update charts',
     initAdsStatsPage();
     assert.equal(chartCalls.length, 10);
     assert.equal(elements.modeSelector.value, TIMELINE_MODE);
-    assert.equal(elements.adsStatsModeTimelineButton.getAttribute('aria-pressed'), 'true');
-    assert.equal(elements.adsStatsModeDaysOfWeekButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(elements.adsStatsModeToggleButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(elements.adsStatsModeToggleButton.textContent, TIMELINE_MODE);
 
-    await elements.adsStatsModeDaysOfWeekButton.dispatch('click');
+    await elements.adsStatsModeToggleButton.dispatch('click');
 
     assert.equal(elements.modeSelector.value, DAYS_OF_WEEK_MODE);
-    assert.equal(elements.adsStatsModeTimelineButton.getAttribute('aria-pressed'), 'false');
-    assert.equal(elements.adsStatsModeDaysOfWeekButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(elements.adsStatsModeToggleButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(elements.adsStatsModeToggleButton.textContent, DAYS_OF_WEEK_MODE);
     assert.deepEqual(
       chartCalls.slice(-8).map((call) => call.config.type),
       Array(8).fill('bar'),
     );
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
+});
+
+test('initAdsStatsPage populates campaign status toggles and filters charts and insight tables', async () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const chartCalls = [];
+  const localStorage = createLocalStorageMock();
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    chartCalls.push({
+      canvasId: ctx.canvas.id,
+      config,
+    });
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  setEmbeddedAdsStatsPageData(elements, {
+    chartData: createFakeChartData(),
+    placementData: createFakePlacementData(),
+    searchTermData: createFakeSearchTermData(),
+    reconciledClickDateChartData: createFakeReconciledChartData(),
+    reconciliationDebugCsv: '',
+    adsEvents: [],
+  });
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    localStorage,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage();
+
+    assert.deepEqual(
+      elements.campaignStatusFilters.children.map((child) => child.textContent),
+      ['ENABLED', 'PAUSED'],
+    );
+    assert.equal(elements.searchTermInsightsTableBody.children.length, 2);
+    assert.equal(elements.placementInsightsTableBody.children.length, 2);
+
+    await elements.campaignStatusFilters.children[0].dispatch('click');
+
+    assert.equal(elements.searchTermInsightsTableBody.children.length, 1);
+    assert.equal(elements.placementInsightsTableBody.children.length, 1);
+    assert.deepEqual(
+      JSON.parse(localStorage.getItem('adsStatsCampaignStatuses')),
+      ['PAUSED'],
+    );
+
+    const impressionsChart = chartCalls.filter(
+      (call) => call.canvasId === 'impressionsAndClicksChart',
+    ).at(-1);
+    assert.ok(impressionsChart);
+    assert.deepEqual(impressionsChart.config.data.datasets[0].data, [60, 70]);
+    assert.deepEqual(impressionsChart.config.data.datasets[1].data, [6, 7]);
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
+  }
+});
+
+test('initAdsStatsPage restores campaign status selection from localStorage', () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const localStorage = createLocalStorageMock({
+    adsStatsCampaignStatuses: JSON.stringify(['PAUSED']),
+  });
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  setEmbeddedAdsStatsPageData(elements, {
+    chartData: createFakeChartData(),
+    placementData: createFakePlacementData(),
+    searchTermData: createFakeSearchTermData(),
+    reconciledClickDateChartData: createFakeReconciledChartData(),
+    reconciliationDebugCsv: '',
+    adsEvents: [],
+  });
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+    localStorage,
+    getSelection: () => ({ toString: () => '' }),
+  };
+
+  try {
+    initAdsStatsPage();
+
+    assert.equal(
+      elements.campaignStatusFilters.children[0].getAttribute('aria-pressed'),
+      'false',
+    );
+    assert.equal(
+      elements.campaignStatusFilters.children[1].getAttribute('aria-pressed'),
+      'true',
+    );
+    assert.equal(elements.searchTermInsightsTableBody.children.length, 1);
+    assert.equal(elements.placementInsightsTableBody.children.length, 1);
   } finally {
     global.window = originalWindow;
     global.document = originalDocument;

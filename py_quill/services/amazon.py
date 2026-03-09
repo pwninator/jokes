@@ -71,6 +71,7 @@ _SP_CAMPAIGNS_COLUMNS: list[str] = [
   "date",  # Report date (YYYY-MM-DD).
   "campaignId",  # Campaign identifier.
   "campaignName",  # Campaign display name.
+  "campaignStatus",  # Current campaign lifecycle state.
   "campaignBudgetCurrencyCode",  # Currency code for spend/sales fields.
   "impressions",  # Ad impressions.
   "clicks",  # Ad clicks.
@@ -88,6 +89,7 @@ _SP_CAMPAIGN_PLACEMENT_COLUMNS: list[str] = [
   "date",  # Report date (YYYY-MM-DD).
   "campaignId",  # Campaign identifier.
   "campaignName",  # Campaign display name.
+  "campaignStatus",  # Current campaign lifecycle state.
   "campaignBudgetCurrencyCode",  # Currency code for spend/sales fields.
   "placementClassification",  # Placement bucket (top of search, rest of search, product pages).
   "impressions",  # Ad impressions.
@@ -318,6 +320,59 @@ def get_daily_campaign_stats_from_reports(
       kdp_price_candidates_by_country_asin),
   )
   return merged_stats
+
+
+def get_campaigns_from_report(
+  *,
+  profile: AmazonAdsProfile,
+  campaigns_report: models.AmazonAdsReport,
+) -> list[amazon_ads_models.AmazonCampaign]:
+  """Extract latest-known campaign metadata from a campaigns report."""
+  _validate_report_profile_match(profile=profile, report=campaigns_report)
+  _raise_if_report_not_completed(campaigns_report)
+
+  report_text = (campaigns_report.raw_report_text or "").strip()
+  rows = (parse_report_rows_text(
+    campaigns_report.report_name, report_text, enable_logging=False)
+          if report_text else _download_report_rows(campaigns_report))
+  now_utc = datetime.datetime.now(datetime.timezone.utc)
+  latest_rows_by_key: dict[str, tuple[datetime.date,
+                                      amazon_ads_models.AmazonCampaign]] = {}
+  for row in rows:
+    campaign_id = _required_str(row.get("campaignId"))
+    campaign_name = _required_str(row.get("campaignName"))
+    if not campaign_name:
+      campaign_name = _required_str(row.get("name"))
+    campaign_status = _required_str(row.get("campaignStatus")).upper()
+    if not campaign_id or not campaign_name or not campaign_status:
+      continue
+
+    row_date = _parse_report_date(row.get("date")) or campaigns_report.end_date
+    currency_code = _resolve_currency_code(
+      campaign_row=row,
+      profile_country_code=profile.country_code,
+    )
+    campaign = amazon_ads_models.AmazonCampaign(
+      profile_id=profile.profile_id,
+      profile_country=profile.country_code,
+      region=profile.region,
+      campaign_id=campaign_id,
+      campaign_name=campaign_name,
+      campaign_status=campaign_status,
+      currency_code=currency_code,
+      created_at=now_utc,
+      updated_at=now_utc,
+    )
+    key = campaign.ensure_key()
+    existing = latest_rows_by_key.get(key)
+    if existing is None or row_date >= existing[0]:
+      latest_rows_by_key[key] = (row_date, campaign)
+
+  return sorted(
+    (campaign for _, campaign in latest_rows_by_key.values()),
+    key=lambda campaign:
+    (campaign.profile_id, campaign.campaign_name, campaign.campaign_id),
+  )
 
 
 def get_search_term_daily_stats_from_report(
@@ -627,6 +682,10 @@ def fetch_ads_stats_reports(
           campaigns_report=campaigns_report,
           advertised_products_report=advertised_products_report,
         )
+        campaigns = get_campaigns_from_report(
+          profile=profile,
+          campaigns_report=campaigns_report,
+        )
         search_term_stats = get_search_term_daily_stats_from_report(
           profile=profile,
           search_term_report=search_term_report,
@@ -660,6 +719,7 @@ def fetch_ads_stats_reports(
         # Upsert aggregated stats
         daily_stats_list = list(stats_by_date.values())
         _ = firestore.upsert_amazon_ads_daily_stats(daily_stats_list)
+        _ = amazon_ads_firestore.upsert_amazon_campaigns(campaigns)
         _ = amazon_ads_firestore.upsert_amazon_ads_search_term_daily_stats(
           search_term_stats)
         _ = amazon_ads_firestore.upsert_amazon_ads_placement_daily_stats(

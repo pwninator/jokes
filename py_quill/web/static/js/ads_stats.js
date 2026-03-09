@@ -19,6 +19,7 @@
   const COLOR_MATCHED = '#1565c0';
   const COLOR_UNMATCHED = '#c62828';
   const COLOR_RECONCILED = '#2e7d32';
+  const CAMPAIGN_STATUS_STORAGE_KEY = 'adsStatsCampaignStatuses';
   const INLINE_KENP_PROFIT_TOOLTIP_OPTIONS = Object.freeze({ inlineKenpPages: true });
   const SEARCH_TERM_DIMENSION_COLUMNS = Object.freeze([
     { key: 'campaign_name', label: 'Campaign' },
@@ -341,9 +342,69 @@
       : 0;
   }
 
-  function getDailyStatsForCampaign(adsStatsData, campaignName) {
+  function normalizeCampaignStatus(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      return 'Unknown';
+    }
+    if (raw.toUpperCase() === 'ALL') {
+      return 'All';
+    }
+    return raw.toUpperCase();
+  }
+
+  function normalizeCampaignStatusSelection(value) {
+    if (Array.isArray(value)) {
+      return Array.from(new Set(value
+        .map((item) => normalizeCampaignStatus(item))
+        .filter((item) => item && item !== 'All')));
+    }
+    const normalized = normalizeCampaignStatus(value || 'All');
+    return normalized === 'All' ? null : [normalized];
+  }
+
+  function areSameStringSets(leftValues, rightValues) {
+    const leftSet = new Set(leftValues || []);
+    const rightSet = new Set(rightValues || []);
+    if (leftSet.size !== rightSet.size) {
+      return false;
+    }
+    return Array.from(leftSet).every((value) => rightSet.has(value));
+  }
+
+  function getEffectiveCampaignStatusFilter(campaignStatuses, availableCampaignStatuses) {
+    const normalizedSelection = normalizeCampaignStatusSelection(campaignStatuses);
+    if (normalizedSelection === null) {
+      return null;
+    }
+    const normalizedAvailable = normalizeCampaignStatusSelection(availableCampaignStatuses) || [];
+    if (normalizedAvailable.length > 0
+      && areSameStringSets(normalizedSelection, normalizedAvailable)) {
+      return null;
+    }
+    return normalizedSelection;
+  }
+
+  function matchesCampaignStatusFilter(campaign, campaignStatuses, availableCampaignStatuses) {
+    const activeStatuses = getEffectiveCampaignStatusFilter(
+      campaignStatuses,
+      availableCampaignStatuses,
+    );
+    if (activeStatuses === null) {
+      return true;
+    }
+    return activeStatuses.includes(normalizeCampaignStatus(campaign && campaign.campaign_status));
+  }
+
+  function getDailyStatsForCampaign(
+    adsStatsData, campaignName, campaignStatuses, availableCampaignStatuses,
+  ) {
     const data = adsStatsData || {};
     const labels = Array.isArray(data.labels) ? data.labels : [];
+    const activeStatusFilter = getEffectiveCampaignStatusFilter(
+      campaignStatuses,
+      availableCampaignStatuses,
+    );
     return labels.map((dateKey, index) => {
       let dayImpressions = 0;
       let dayClicks = 0;
@@ -358,6 +419,13 @@
       if (campaignName === 'All') {
         if (campaigns.length > 0) {
           campaigns.forEach((camp) => {
+            if (!matchesCampaignStatusFilter(
+              camp,
+              campaignStatuses,
+              availableCampaignStatuses,
+            )) {
+              return;
+            }
             dayImpressions += toNumber(camp.impressions);
             dayClicks += toNumber(camp.clicks);
             dayCost += toNumber(camp.spend);
@@ -366,7 +434,7 @@
             dayGpPreAd += toNumber(camp.gross_profit_before_ads_usd);
             dayGp += toNumber(camp.gross_profit_usd);
           });
-        } else {
+        } else if (activeStatusFilter === null) {
           const impressions = Array.isArray(data.impressions) ? data.impressions : [];
           const clicks = Array.isArray(data.clicks) ? data.clicks : [];
           const cost = Array.isArray(data.cost) ? data.cost : [];
@@ -386,7 +454,12 @@
         }
       } else {
         campaigns.forEach((camp) => {
-          if (camp.campaign_name === campaignName) {
+          if (camp.campaign_name === campaignName
+            && matchesCampaignStatusFilter(
+              camp,
+              campaignStatuses,
+              availableCampaignStatuses,
+            )) {
             dayImpressions += toNumber(camp.impressions);
             dayClicks += toNumber(camp.clicks);
             dayCost += toNumber(camp.spend);
@@ -596,8 +669,19 @@
     };
   }
 
-  function buildChartStats(adsStatsData, campaignName, mode) {
-    const dailyStats = getDailyStatsForCampaign(adsStatsData, campaignName);
+  function buildChartStats(
+    adsStatsData, campaignName, campaignStatuses, mode, availableCampaignStatuses,
+  ) {
+    if (mode === undefined) {
+      mode = campaignStatuses; // eslint-disable-line no-param-reassign
+      campaignStatuses = 'All'; // eslint-disable-line no-param-reassign
+    }
+    const dailyStats = getDailyStatsForCampaign(
+      adsStatsData,
+      campaignName,
+      campaignStatuses,
+      availableCampaignStatuses,
+    );
     return buildStatsFromDaily(adsStatsData, dailyStats, mode);
   }
 
@@ -960,7 +1044,14 @@
     };
   }
 
-  function buildReconciledChartStats(adsStatsData, campaignName, mode, reconciledChartData) {
+  function buildReconciledChartStats(
+    adsStatsData, campaignName, campaignStatuses, mode, reconciledChartData, availableCampaignStatuses,
+  ) {
+    if (reconciledChartData === undefined) {
+      reconciledChartData = mode; // eslint-disable-line no-param-reassign
+      mode = campaignStatuses; // eslint-disable-line no-param-reassign
+      campaignStatuses = 'All'; // eslint-disable-line no-param-reassign
+    }
     if (campaignName !== 'All') {
       return {
         labels: [],
@@ -1008,7 +1099,12 @@
       };
     }
 
-    const baseDailyStats = getDailyStatsForCampaign(adsStatsData, 'All');
+    const baseDailyStats = getDailyStatsForCampaign(
+      adsStatsData,
+      'All',
+      campaignStatuses,
+      availableCampaignStatuses,
+    );
     const reconciledDailyStats = getReconciledDailyStats(baseDailyStats, reconciledChartData).map(
       (day, index) => ({
         dateKey: day.dateKey,
@@ -1223,6 +1319,7 @@
       date: dateValue,
       campaign_id: String(rawRow.campaign_id || '').trim(),
       campaign_name: campaignName,
+      campaign_status: normalizeCampaignStatus(rawRow.campaign_status),
       ad_group_id: String(rawRow.ad_group_id || '').trim(),
       ad_group_name: String(rawRow.ad_group_name || '').trim(),
       search_term: searchTerm,
@@ -1275,6 +1372,7 @@
           aggregate_key: aggregateKey,
           campaign_id: row.campaign_id,
           campaign_name: row.campaign_name,
+          campaign_status: row.campaign_status,
           ad_group_id: row.ad_group_id,
           ad_group_name: row.ad_group_name,
           search_term: row.search_term,
@@ -1342,6 +1440,10 @@
   function filterSearchTermRows(rows, filters) {
     const filterConfig = filters || {};
     const campaignFilter = String(filterConfig.campaign || 'All').trim();
+    const campaignStatusFilter = getEffectiveCampaignStatusFilter(
+      filterConfig.campaignStatuses ?? filterConfig.campaignStatus ?? 'All',
+      filterConfig.availableCampaignStatuses,
+    );
     const keywordTypeFilter = String(filterConfig.keywordType || 'All').trim();
     const matchTypeFilter = String(filterConfig.matchType || 'All').trim();
     const textFilter = String(filterConfig.text || '').trim().toLowerCase();
@@ -1351,6 +1453,9 @@
         return false;
       }
       if (campaignFilter !== 'All' && row.campaign_name !== campaignFilter) {
+        return false;
+      }
+      if (campaignStatusFilter !== null && !campaignStatusFilter.includes(row.campaign_status)) {
         return false;
       }
       if (keywordTypeFilter !== 'All' && row.keyword_type !== keywordTypeFilter) {
@@ -1375,12 +1480,20 @@
   function filterSearchTermAggregates(aggregates, filters) {
     const filterConfig = filters || {};
     const campaignFilter = String(filterConfig.campaign || 'All').trim();
+    const campaignStatusFilter = getEffectiveCampaignStatusFilter(
+      filterConfig.campaignStatuses ?? filterConfig.campaignStatus ?? 'All',
+      filterConfig.availableCampaignStatuses,
+    );
     const keywordTypeFilter = String(filterConfig.keywordType || 'All').trim();
     const matchTypeFilter = String(filterConfig.matchType || 'All').trim();
     const textFilter = String(filterConfig.text || '').trim().toLowerCase();
 
     return (aggregates || []).filter((aggregate) => {
       if (campaignFilter !== 'All' && aggregate.campaign_name !== campaignFilter) {
+        return false;
+      }
+      if (campaignStatusFilter !== null
+        && !campaignStatusFilter.includes(aggregate.campaign_status)) {
         return false;
       }
       if (keywordTypeFilter !== 'All' && aggregate.keyword_type !== keywordTypeFilter) {
@@ -1447,6 +1560,7 @@
       date: dateValue,
       campaign_id: String(rawRow.campaign_id || '').trim(),
       campaign_name: campaignName,
+      campaign_status: normalizeCampaignStatus(rawRow.campaign_status),
       placement_classification: placementClassification,
       impressions: Math.max(0, Math.round(toNumber(rawRow.impressions))),
       clicks: Math.max(0, Math.round(toNumber(rawRow.clicks))),
@@ -1486,6 +1600,7 @@
           aggregate_key: aggregateKey,
           campaign_id: row.campaign_id,
           campaign_name: row.campaign_name,
+          campaign_status: row.campaign_status,
           placement_classification: row.placement_classification,
           impressions: 0,
           clicks: 0,
@@ -1556,6 +1671,10 @@
   function filterPlacementRows(rows, filters) {
     const filterConfig = filters || {};
     const campaignFilter = String(filterConfig.campaign || 'All').trim();
+    const campaignStatusFilter = getEffectiveCampaignStatusFilter(
+      filterConfig.campaignStatuses ?? filterConfig.campaignStatus ?? 'All',
+      filterConfig.availableCampaignStatuses,
+    );
     const placementFilter = normalizePlacementClassification(filterConfig.placement || 'All');
     const textFilter = String(filterConfig.text || '').trim().toLowerCase();
 
@@ -1564,6 +1683,9 @@
         return false;
       }
       if (campaignFilter !== 'All' && row.campaign_name !== campaignFilter) {
+        return false;
+      }
+      if (campaignStatusFilter !== null && !campaignStatusFilter.includes(row.campaign_status)) {
         return false;
       }
       if (placementFilter !== 'All' && row.placement_classification !== placementFilter) {
@@ -1687,19 +1809,77 @@
       button.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
     }
 
-    function applyModeToggleState(timelineButton, daysOfWeekButton, modeValue) {
-      const selectedMode = modeValue === DAYS_OF_WEEK_MODE ? DAYS_OF_WEEK_MODE : TIMELINE_MODE;
-      if (timelineButton) {
-        timelineButton.setAttribute('aria-pressed', selectedMode === TIMELINE_MODE ? 'true' : 'false');
+    function getStorage() {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return null;
       }
-      if (daysOfWeekButton) {
-        daysOfWeekButton.setAttribute('aria-pressed', selectedMode === DAYS_OF_WEEK_MODE ? 'true' : 'false');
+      return window.localStorage;
+    }
+
+    function loadStoredCampaignStatuses() {
+      const storage = getStorage();
+      if (!storage || typeof storage.getItem !== 'function') {
+        return null;
+      }
+      try {
+        const rawValue = storage.getItem(CAMPAIGN_STATUS_STORAGE_KEY);
+        if (!rawValue) {
+          return null;
+        }
+        const parsedValue = JSON.parse(rawValue);
+        return Array.isArray(parsedValue) ? normalizeCampaignStatusSelection(parsedValue) || [] : null;
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function persistCampaignStatuses(selectedStatuses) {
+      const storage = getStorage();
+      if (!storage || typeof storage.setItem !== 'function') {
+        return;
+      }
+      try {
+        storage.setItem(
+          CAMPAIGN_STATUS_STORAGE_KEY,
+          JSON.stringify(normalizeCampaignStatusSelection(selectedStatuses) || []),
+        );
+      } catch (_error) {
+        // Ignore storage failures. The filter still works for the current session.
+      }
+    }
+
+    function notifyCampaignStatusFilterChanged() {
+      if (typeof document.dispatchEvent === 'function' && typeof Event === 'function') {
+        document.dispatchEvent(new Event('adsstats:campaign-status-change'));
+        return;
+      }
+      if (typeof document.dispatch === 'function') {
+        document.dispatch('adsstats:campaign-status-change');
+      }
+    }
+
+    function applyModeToggleState(modeToggleButton, modeValue) {
+      const selectedMode = modeValue === DAYS_OF_WEEK_MODE ? DAYS_OF_WEEK_MODE : TIMELINE_MODE;
+      if (modeToggleButton) {
+        const nextMode = selectedMode === TIMELINE_MODE ? DAYS_OF_WEEK_MODE : TIMELINE_MODE;
+        modeToggleButton.textContent = selectedMode;
+        modeToggleButton.setAttribute(
+          'aria-label',
+          `Switch chart mode to ${nextMode}`,
+        );
+        modeToggleButton.setAttribute(
+          'title',
+          `Switch to ${nextMode}`,
+        );
+        modeToggleButton.setAttribute(
+          'aria-pressed',
+          selectedMode === DAYS_OF_WEEK_MODE ? 'true' : 'false',
+        );
       }
     }
 
     function bindModeControls(modeSelectorInput) {
-      const timelineButton = document.getElementById('adsStatsModeTimelineButton');
-      const daysOfWeekButton = document.getElementById('adsStatsModeDaysOfWeekButton');
+      const modeToggleButton = document.getElementById('adsStatsModeToggleButton');
       if (!modeSelectorInput || modeSelectorInput.dataset.adsStatsModeBound === 'true') {
         return;
       }
@@ -1708,7 +1888,7 @@
         const selectedMode = modeValue === DAYS_OF_WEEK_MODE ? DAYS_OF_WEEK_MODE : TIMELINE_MODE;
         const hasChanged = modeSelectorInput.value !== selectedMode;
         modeSelectorInput.value = selectedMode;
-        applyModeToggleState(timelineButton, daysOfWeekButton, selectedMode);
+        applyModeToggleState(modeToggleButton, selectedMode);
         if (!hasChanged) {
           return;
         }
@@ -1722,18 +1902,17 @@
       }
 
       modeSelectorInput.dataset.adsStatsModeBound = 'true';
-      applyModeToggleState(timelineButton, daysOfWeekButton, modeSelectorInput.value);
+      applyModeToggleState(modeToggleButton, modeSelectorInput.value);
       modeSelectorInput.addEventListener('change', () => {
-        applyModeToggleState(timelineButton, daysOfWeekButton, modeSelectorInput.value);
+        applyModeToggleState(modeToggleButton, modeSelectorInput.value);
       });
-      if (timelineButton) {
-        timelineButton.addEventListener('click', () => {
-          updateMode(TIMELINE_MODE);
-        });
-      }
-      if (daysOfWeekButton) {
-        daysOfWeekButton.addEventListener('click', () => {
-          updateMode(DAYS_OF_WEEK_MODE);
+      if (modeToggleButton) {
+        modeToggleButton.addEventListener('click', () => {
+          updateMode(
+            modeSelectorInput.value === DAYS_OF_WEEK_MODE
+              ? TIMELINE_MODE
+              : DAYS_OF_WEEK_MODE,
+          );
         });
       }
     }
@@ -1887,8 +2066,47 @@
       }
 
       const campaignSelector = document.getElementById('campaignSelector');
-      if (!campaignSelector || !modeSelector) {
+      const campaignStatusFilters = document.getElementById('campaignStatusFilters');
+      if (!campaignSelector || !campaignStatusFilters || !modeSelector) {
         return;
+      }
+
+      let availableCampaignStatuses = [];
+      let selectedCampaignStatuses = [];
+
+      function getActiveCampaignStatusFilters() {
+        return [...selectedCampaignStatuses];
+      }
+
+      function renderCampaignStatusButtons() {
+        campaignStatusFilters.innerHTML = '';
+        availableCampaignStatuses.forEach((status) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'ads-stats-status-toggle';
+          button.setAttribute('data-campaign-status', status);
+          button.setAttribute(
+            'aria-pressed',
+            selectedCampaignStatuses.includes(status) ? 'true' : 'false',
+          );
+          button.textContent = status;
+          button.addEventListener('click', () => {
+            if (selectedCampaignStatuses.includes(status)) {
+              selectedCampaignStatuses = selectedCampaignStatuses.filter(
+                (value) => value !== status,
+              );
+            } else {
+              selectedCampaignStatuses = [...selectedCampaignStatuses, status].sort();
+            }
+            persistCampaignStatuses(selectedCampaignStatuses);
+            renderCampaignStatusButtons();
+            notifyCampaignStatusFilterChanged();
+            if (typeof renderSelectedView === 'function') {
+              renderSelectedView();
+            }
+          });
+          campaignStatusFilters.appendChild(button);
+        });
       }
 
       const charts = {};
@@ -2403,13 +2621,23 @@
         );
       }
 
-      function calculateAndRender(campaignName, mode) {
-        const stats = buildChartStats(adsStatsData, campaignName, mode);
+      function calculateAndRender(
+        campaignName, campaignStatuses, mode, availableStatuses,
+      ) {
+        const stats = buildChartStats(
+          adsStatsData,
+          campaignName,
+          campaignStatuses,
+          mode,
+          availableStatuses,
+        );
         const reconciledStats = buildReconciledChartStats(
           adsStatsData,
           campaignName,
+          campaignStatuses,
           mode,
           reconciledClickDateChartData,
+          availableStatuses,
         );
 
         renderReconciledProfitChart(reconciledStats, mode);
@@ -2552,10 +2780,12 @@
         }
 
         filterSelects.forEach((filterConfig) => {
-          appendUniqueOptions(
-            filterConfig.element,
-            normalizedRows.map((row) => filterConfig.rowValue(row)),
-          );
+          if (filterConfig.populateOptions !== false) {
+            appendUniqueOptions(
+              filterConfig.element,
+              normalizedRows.map((row) => filterConfig.rowValue(row)),
+            );
+          }
         });
 
         function currentFilters() {
@@ -2563,6 +2793,9 @@
           filterSelects.forEach((filterConfig) => {
             filters[filterConfig.filterKey] = filterConfig.element.value || 'All';
           });
+          if (typeof config.getExternalFilters === 'function') {
+            Object.assign(filters, config.getExternalFilters());
+          }
           return filters;
         }
 
@@ -2825,6 +3058,9 @@
           filterConfig.element.addEventListener('change', renderTable);
         });
         textFilterEl.addEventListener('input', renderTable);
+        if (typeof config.getExternalFilters === 'function') {
+          document.addEventListener('adsstats:campaign-status-change', renderTable);
+        }
 
         chipButtons.forEach((chipButton) => {
           chipButton.addEventListener('click', () => {
@@ -2919,6 +3155,10 @@
           extraColumnsBuilder: () => [],
           defaultSortField: 'sales14d_usd',
           defaultSortDirection: 'desc',
+          getExternalFilters: () => ({
+            campaignStatuses: getActiveCampaignStatusFilters(),
+            availableCampaignStatuses: availableCampaignStatuses,
+          }),
         });
       }
 
@@ -2974,9 +3214,14 @@
           ),
           defaultSortField: 'sales14d_usd',
           defaultSortDirection: 'desc',
+          getExternalFilters: () => ({
+            campaignStatuses: getActiveCampaignStatusFilters(),
+            availableCampaignStatuses: availableCampaignStatuses,
+          }),
         });
       }
       const campaignNames = new Set();
+      const campaignStatuses = new Set();
       Object.values(adsStatsData.daily_campaigns || {}).forEach((campaignList) => {
         if (!Array.isArray(campaignList)) {
           return;
@@ -2985,7 +3230,20 @@
           if (campaign && campaign.campaign_name) {
             campaignNames.add(campaign.campaign_name);
           }
+          if (campaign) {
+            campaignStatuses.add(normalizeCampaignStatus(campaign.campaign_status));
+          }
         });
+      });
+      (Array.isArray(searchTermData.rows) ? searchTermData.rows : []).forEach((row) => {
+        if (row) {
+          campaignStatuses.add(normalizeCampaignStatus(row.campaign_status));
+        }
+      });
+      (Array.isArray(placementData.rows) ? placementData.rows : []).forEach((row) => {
+        if (row) {
+          campaignStatuses.add(normalizeCampaignStatus(row.campaign_status));
+        }
       });
 
       Array.from(campaignNames).sort().forEach((name) => {
@@ -2994,9 +3252,22 @@
         option.textContent = name;
         campaignSelector.appendChild(option);
       });
+      availableCampaignStatuses = Array.from(campaignStatuses)
+        .filter((status) => status && status !== 'All')
+        .sort();
+      const storedCampaignStatuses = loadStoredCampaignStatuses();
+      selectedCampaignStatuses = storedCampaignStatuses === null
+        ? [...availableCampaignStatuses]
+        : availableCampaignStatuses.filter((status) => storedCampaignStatuses.includes(status));
+      renderCampaignStatusButtons();
 
       renderSelectedView = () => {
-        calculateAndRender(campaignSelector.value, modeSelector.value);
+        calculateAndRender(
+          campaignSelector.value,
+          getActiveCampaignStatusFilters(),
+          modeSelector.value,
+          availableCampaignStatuses,
+        );
       };
 
       campaignSelector.addEventListener('change', renderSelectedView);

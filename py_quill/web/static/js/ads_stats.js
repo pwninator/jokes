@@ -1053,48 +1053,71 @@
       campaignStatuses = 'All'; // eslint-disable-line no-param-reassign
     }
     if (campaignName !== 'All') {
+      const campaignStats = buildChartStats(
+        adsStatsData,
+        campaignName,
+        campaignStatuses,
+        mode,
+        availableCampaignStatuses,
+      );
+      const adsOnlyPoas = (campaignStats.poas || []).map((value) => toNumber(value));
       return {
-        labels: [],
-        cost: [],
-        ads_profit_before_ads_usd: [],
+        labels: Array.isArray(campaignStats.labels) ? campaignStats.labels : [],
+        cost: Array.isArray(campaignStats.cost) ? campaignStats.cost : [],
+        ads_profit_before_ads_usd: Array.isArray(campaignStats.gross_profit_before_ads_usd)
+          ? campaignStats.gross_profit_before_ads_usd
+          : [],
         matched_ads_profit_before_ads_usd: [],
-        gross_profit_before_ads_usd: [],
+        gross_profit_before_ads_usd: Array.isArray(campaignStats.gross_profit_before_ads_usd)
+          ? campaignStats.gross_profit_before_ads_usd
+          : [],
         reconciled_matched_profit_before_ads_usd: [],
-        reconciled_profit_before_ads_usd: [],
-        gross_profit_usd: [],
-        organic_profit_usd: [],
-        unmatched_pre_ad_profit_usd: [],
-        matched_ads_sales_count: [],
-        organic_sales_count: [],
-        reconciled_sales_count: [],
-        unmatched_ads_sales_count: [],
-        ads_kenp_pages_count: [],
-        matched_ads_kenp_pages_count: [],
-        unmatched_ads_kenp_pages_count: [],
-        reconciled_kenp_pages_count: [],
-        ads_sales_tooltip_lines: [],
-        matched_ads_sales_tooltip_lines: [],
-        reconciled_sales_tooltip_lines: [],
-        unmatched_ads_sales_tooltip_lines: [],
-        ads_kenp_pages_tooltip_lines: [],
-        matched_ads_kenp_pages_tooltip_lines: [],
-        unmatched_ads_kenp_pages_tooltip_lines: [],
-        reconciled_kenp_pages_tooltip_lines: [],
-        ads_profit_tooltip_lines: [],
-        matched_ads_profit_tooltip_lines: [],
-        reconciled_matched_profit_tooltip_lines: [],
-        profit_before_ads_reconciled_tooltip_lines: [],
-        poas: [],
-        tpoas: [],
+        reconciled_profit_before_ads_usd: Array.isArray(campaignStats.gross_profit_before_ads_usd)
+          ? campaignStats.gross_profit_before_ads_usd
+          : [],
+        gross_profit_usd: Array.isArray(campaignStats.gross_profit_usd)
+          ? campaignStats.gross_profit_usd
+          : [],
+        organic_profit_usd: adsOnlyPoas.map(() => 0),
+        unmatched_pre_ad_profit_usd: adsOnlyPoas.map(() => 0),
+        matched_ads_sales_count: adsOnlyPoas.map(() => 0),
+        organic_sales_count: adsOnlyPoas.map(() => 0),
+        reconciled_sales_count: adsOnlyPoas.map(() => 0),
+        unmatched_ads_sales_count: adsOnlyPoas.map(() => 0),
+        ads_kenp_pages_count: adsOnlyPoas.map(() => 0),
+        matched_ads_kenp_pages_count: adsOnlyPoas.map(() => 0),
+        unmatched_ads_kenp_pages_count: adsOnlyPoas.map(() => 0),
+        reconciled_kenp_pages_count: adsOnlyPoas.map(() => 0),
+        ads_sales_tooltip_lines: adsOnlyPoas.map(() => []),
+        matched_ads_sales_tooltip_lines: adsOnlyPoas.map(() => []),
+        reconciled_sales_tooltip_lines: adsOnlyPoas.map(() => []),
+        unmatched_ads_sales_tooltip_lines: adsOnlyPoas.map(() => []),
+        ads_kenp_pages_tooltip_lines: adsOnlyPoas.map(() => []),
+        matched_ads_kenp_pages_tooltip_lines: adsOnlyPoas.map(() => []),
+        unmatched_ads_kenp_pages_tooltip_lines: adsOnlyPoas.map(() => []),
+        reconciled_kenp_pages_tooltip_lines: adsOnlyPoas.map(() => []),
+        ads_profit_tooltip_lines: adsOnlyPoas.map(() => []),
+        matched_ads_profit_tooltip_lines: adsOnlyPoas.map(() => []),
+        reconciled_matched_profit_tooltip_lines: adsOnlyPoas.map(() => []),
+        profit_before_ads_reconciled_tooltip_lines: adsOnlyPoas.map(() => []),
+        poas: adsOnlyPoas,
+        tpoas: adsOnlyPoas.map(() => 0),
+        is_ads_only_campaign_series: true,
         totals: {
-          cost: 0,
-          ads_profit_before_ads_usd: 0,
+          cost: toNumber(campaignStats.totals && campaignStats.totals.cost),
+          ads_profit_before_ads_usd: toNumber(
+            campaignStats.totals && campaignStats.totals.gross_profit_before_ads_usd,
+          ),
           matched_ads_profit_before_ads_usd: 0,
-          gross_profit_before_ads_usd: 0,
-          reconciled_profit_before_ads_usd: 0,
+          gross_profit_before_ads_usd: toNumber(
+            campaignStats.totals && campaignStats.totals.gross_profit_before_ads_usd,
+          ),
+          reconciled_profit_before_ads_usd: toNumber(
+            campaignStats.totals && campaignStats.totals.gross_profit_before_ads_usd,
+          ),
           organic_profit_usd: 0,
           unmatched_pre_ad_profit_usd: 0,
-          gross_profit_usd: 0,
+          gross_profit_usd: toNumber(campaignStats.totals && campaignStats.totals.gross_profit_usd),
         },
       };
     }
@@ -1214,6 +1237,7 @@
       tpoas: reconciledDailyStats.map((day) => {
         return calculateTpoas(day.raw_gross_profit_before_ads_usd, day.organic_profit_usd, day.cost);
       }),
+      is_ads_only_campaign_series: false,
       totals: totals,
     };
   }
@@ -2333,13 +2357,6 @@
             tooltipLinesByIndex: series.ads_profit_tooltip_lines,
           }, mode),
           createLineDataset({
-            label: 'Profit Before Ads (reconciled)',
-            data: series.reconciled_profit_before_ads_usd,
-            borderColor: '#2e7d32',
-            formatType: 'currency',
-            tooltipLinesByIndex: series.profit_before_ads_reconciled_tooltip_lines,
-          }, mode),
-          createLineDataset({
             label: 'Gross Profit',
             data: series.gross_profit_usd,
             borderColor: '#6a1b9a',
@@ -2347,6 +2364,15 @@
             formatType: 'currency',
           }, mode),
         ];
+        if (!series.is_ads_only_campaign_series) {
+          datasets.splice(2, 0, createLineDataset({
+            label: 'Profit Before Ads (reconciled)',
+            data: series.reconciled_profit_before_ads_usd,
+            borderColor: '#2e7d32',
+            formatType: 'currency',
+            tooltipLinesByIndex: series.profit_before_ads_reconciled_tooltip_lines,
+          }, mode));
+        }
         createMultiLineChart(
           'reconciledProfitTimelineChart',
           series.labels,
@@ -2357,7 +2383,8 @@
       }
 
       function renderPoasChart(canvasId, series, poasLabel, poasColor, tpoasLabel, tpoasColor, mode) {
-        const ratioSeries = tpoasLabel ? [...series.poas, ...series.tpoas] : [...series.poas];
+        const includeSecondaryLine = Boolean(tpoasLabel) && !series.is_ads_only_campaign_series;
+        const ratioSeries = includeSecondaryLine ? [...series.poas, ...series.tpoas] : [...series.poas];
         const suggestedMax = Math.max(1.1, ...ratioSeries, 1.0);
         const datasets = [
           createLineDataset({
@@ -2367,7 +2394,7 @@
             formatType: 'ratio',
           }, mode),
         ];
-        if (tpoasLabel) {
+        if (includeSecondaryLine) {
           datasets.push(createLineDataset({
             label: tpoasLabel,
             data: series.tpoas,

@@ -1720,7 +1720,7 @@ test('buildReconciledChartStats prefers profit detail totals for dollar series w
   assert.deepEqual(timeline.unmatched_pre_ad_profit_usd, [2]);
 });
 
-test('buildReconciledChartStats returns empty series for specific campaigns', () => {
+test('buildReconciledChartStats falls back to ads-only series for specific campaigns', () => {
   const chartData = {
     labels: ['2026-02-22'],
     daily_campaigns: {
@@ -1746,13 +1746,18 @@ test('buildReconciledChartStats returns empty series for specific campaigns', ()
     { labels: ['2026-02-22'] },
   );
 
-  assert.deepEqual(reconciled.labels, []);
-  assert.deepEqual(reconciled.cost, []);
-  assert.deepEqual(reconciled.ads_profit_before_ads_usd, []);
-  assert.deepEqual(reconciled.reconciled_profit_before_ads_usd, []);
-  assert.deepEqual(reconciled.unmatched_pre_ad_profit_usd, []);
-  assert.deepEqual(reconciled.poas, []);
-  assert.deepEqual(reconciled.tpoas, []);
+  assert.deepEqual(reconciled.labels, ['2026-02-22']);
+  assert.deepEqual(reconciled.cost, [4]);
+  assert.deepEqual(reconciled.ads_profit_before_ads_usd, [6]);
+  assert.deepEqual(reconciled.reconciled_profit_before_ads_usd, [6]);
+  assert.deepEqual(reconciled.gross_profit_usd, [2]);
+  assert.deepEqual(reconciled.unmatched_pre_ad_profit_usd, [0]);
+  assert.deepEqual(reconciled.poas, [1.5]);
+  assert.deepEqual(reconciled.tpoas, [0]);
+  assert.equal(reconciled.is_ads_only_campaign_series, true);
+  assert.equal(reconciled.totals.cost, 4);
+  assert.equal(reconciled.totals.reconciled_profit_before_ads_usd, 6);
+  assert.equal(reconciled.totals.gross_profit_usd, 2);
 });
 
 test('normalizeAdsEvent validates required fields and date format', () => {

@@ -24,12 +24,14 @@ const {
   normalizePlacementRow,
   normalizeSearchTermRow,
   groupAdsEventsByDate,
+  buildAmazonDpUrl,
   buildPlacementAggregates,
   buildSearchTermAggregates,
   filterSearchTermAggregates,
   getAdsEventLinesForLabel,
   getDailyStatsForCampaign,
   initAdsStatsPage,
+  isAmazonAsinGuessTerm,
   readAdsStatsPageOptionsFromDocument,
   reserveScaleWidth,
   showCopyFeedback,
@@ -1142,6 +1144,91 @@ test('initAdsStatsPage search term timeline follows grouped row selection', asyn
     global.window = originalWindow;
     global.document = originalDocument;
     global.Element = originalElement;
+  }
+});
+
+test('ASIN guess helpers only match single-word alphanumeric values', () => {
+  assert.equal(isAmazonAsinGuessTerm('B0G9765J19'), true);
+  assert.equal(isAmazonAsinGuessTerm('abc123'), true);
+  assert.equal(isAmazonAsinGuessTerm('funny cats'), false);
+  assert.equal(isAmazonAsinGuessTerm('asin=\"B0G9765J19\"'), false);
+  assert.equal(buildAmazonDpUrl('B0G9765J19'), 'https://www.amazon.com/dp/B0G9765J19');
+});
+
+test('initAdsStatsPage renders guessed ASIN search terms as Amazon links', () => {
+  const originalWindow = global.window;
+  const originalDocument = global.document;
+  const { document, elements } = createFakeAdsStatsDom(TIMELINE_MODE);
+
+  function FakeChart(ctx, config) {
+    return {
+      destroy: () => {},
+      canvas: ctx.canvas,
+      data: config.data,
+      options: config.options,
+    };
+  }
+
+  global.document = document;
+  global.window = {
+    document,
+    Chart: FakeChart,
+  };
+
+  try {
+    initAdsStatsPage({
+      chartData: createFakeChartData(),
+      placementData: createFakePlacementData(),
+      searchTermData: {
+        labels: ['2026-02-22', '2026-02-23'],
+        rows: [
+          {
+            date: '2026-02-22',
+            campaign_name: 'Campaign A',
+            campaign_status: 'ENABLED',
+            search_term: 'B0G9765J19',
+            keyword_type: 'EXACT',
+            match_type: 'EXACT',
+            keyword: '',
+            targeting: '',
+            impressions: 20,
+            clicks: 2,
+            cost_usd: 2,
+            sales14d_usd: 20,
+            purchases14d: 2,
+          },
+          {
+            date: '2026-02-23',
+            campaign_name: 'Campaign B',
+            campaign_status: 'PAUSED',
+            search_term: 'funny cats',
+            keyword_type: 'EXACT',
+            match_type: 'EXACT',
+            keyword: '',
+            targeting: '',
+            impressions: 10,
+            clicks: 1,
+            cost_usd: 1,
+            sales14d_usd: 10,
+            purchases14d: 1,
+          },
+        ],
+      },
+      reconciledClickDateChartData: createFakeReconciledChartData(),
+      adsEvents: [],
+    });
+
+    const rowHtml = elements.searchTermInsightsTableBody.children.map((row) => row.innerHTML);
+    assert.equal(rowHtml.length, 2);
+    assert.match(
+      rowHtml[0],
+      /<a href="https:\/\/www\.amazon\.com\/dp\/B0G9765J19" target="_blank" rel="noopener noreferrer">B0G9765J19<\/a>/,
+    );
+    assert.ok(rowHtml[1].includes('<td>funny cats</td>'));
+    assert.ok(!rowHtml[1].includes('https://www.amazon.com/dp/funny%20cats'));
+  } finally {
+    global.window = originalWindow;
+    global.document = originalDocument;
   }
 });
 

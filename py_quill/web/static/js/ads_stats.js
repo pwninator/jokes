@@ -42,6 +42,8 @@
     { key: 'acos', label: 'ACOS', format: 'percent' },
     { key: 'roas', label: 'ROAS', format: 'ratio' },
   ]);
+  const AMAZON_DP_URL_PREFIX = 'https://www.amazon.com/dp/';
+  const ALPHANUMERIC_SINGLE_WORD_RE = /^[A-Za-z0-9]+$/;
   const PLACEMENT_DIMENSION_COLUMNS = Object.freeze([
     { key: 'placement_classification', label: 'Placement' },
     { key: 'campaign_name', label: 'Campaign' },
@@ -163,6 +165,15 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function isAmazonAsinGuessTerm(value) {
+    const normalized = String(value || '').trim();
+    return Boolean(normalized) && ALPHANUMERIC_SINGLE_WORD_RE.test(normalized);
+  }
+
+  function buildAmazonDpUrl(value) {
+    return `${AMAZON_DP_URL_PREFIX}${encodeURIComponent(String(value || '').trim())}`;
   }
 
   function toNumber(value) {
@@ -2893,6 +2904,23 @@
           return formatDimensionValue(value);
         }
 
+        function formatColumnHtml(column, row) {
+          const formattedValue = formatColumnValue(column, row);
+          const amazonLinkColumnKeys = Array.isArray(config.amazonLinkColumnKeys)
+            ? config.amazonLinkColumnKeys
+            : [];
+          const rawValue = row[column.key];
+          if (column.format || !amazonLinkColumnKeys.includes(column.key)
+            || !isAmazonAsinGuessTerm(rawValue)) {
+            return escapeHtml(formattedValue);
+          }
+          return (
+            `<a href="${escapeHtml(buildAmazonDpUrl(rawValue))}" `
+            + 'target="_blank" rel="noopener noreferrer">'
+            + `${escapeHtml(formattedValue)}</a>`
+          );
+        }
+
         function updateSummary(rows) {
           const totals = rows.reduce((acc, row) => {
             acc.rows += 1;
@@ -3040,7 +3068,7 @@
             tr.tabIndex = 0;
             tr.dataset.aggregateKey = row.aggregate_key;
             tr.innerHTML = visibleColumns.map((column) => {
-              return `<td>${escapeHtml(formatColumnValue(column, row))}</td>`;
+              return `<td>${formatColumnHtml(column, row)}</td>`;
             }).join('');
             tableBodyEl.appendChild(tr);
           });
@@ -3179,6 +3207,7 @@
             acos: 'searchTermSummaryAcos',
             roas: 'searchTermSummaryRoas',
           },
+          amazonLinkColumnKeys: ['search_term', 'keyword', 'targeting'],
           extraColumnsBuilder: () => [],
           defaultSortField: 'sales14d_usd',
           defaultSortDirection: 'desc',
@@ -3382,6 +3411,8 @@
       readAdsStatsPageOptionsFromDocument: readAdsStatsPageOptionsFromDocument,
       showCopyFeedback: showCopyFeedback,
       toNumber: toNumber,
+      isAmazonAsinGuessTerm: isAmazonAsinGuessTerm,
+      buildAmazonDpUrl: buildAmazonDpUrl,
       dayOfWeekIndexForDate: dayOfWeekIndexForDate,
       average: average,
       reserveScaleWidth: reserveScaleWidth,

@@ -43,13 +43,21 @@ _KDP_PRICE_CANDIDATE_LOOKBACK_DAYS = 180
 _REQUEST_TIMEOUT_SEC = 30
 _USD_CURRENCY_CODE = "USD"
 
-# Hard-coded FX rates to normalize all monetary values to USD.
+# Hard-coded FX rates to normalize all Amazon monetary values to USD.
 # Updated: 2026-02-26
 # Source: https://www.currency-converter.org.uk/currency-rates-today.html
-_CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
+CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
   "USD": 1.0,
+  "AUD": 0.7073,
+  "BRL": 0.1905,
   "CAD": 0.7320,
+  "EUR": 1.1600,
   "GBP": 1.3569,
+  "INR": 0.0108,
+  "JPY": 0.0063,
+  "MXN": 0.0561,
+  "PLN": 0.2695,
+  "SEK": 0.1080,
 }
 _COUNTRY_CODE_TO_CURRENCY_CODE: dict[str, str] = {
   "US": "USD",
@@ -2040,7 +2048,7 @@ def _resolve_currency_code(
 
 def _convert_amount_to_usd(amount: float, *, currency_code: str) -> float:
   """Convert a monetary amount from a supported currency into USD."""
-  rate = _CURRENCY_CODE_TO_USD_RATE.get(currency_code.upper())
+  rate = CURRENCY_CODE_TO_USD_RATE.get(currency_code.upper())
   if rate is None:
     raise AmazonAdsError(f"Unsupported currency code for USD conversion: "
                          f"{currency_code}")

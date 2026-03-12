@@ -11,14 +11,8 @@ from typing import Any
 
 import openpyxl
 from common import book_defs, models
+from services import amazon
 
-_CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
-  "USD": 1.0,
-  "CAD": 0.7320,
-  "EUR": 1.1600,
-  "GBP": 1.3569,
-  "INR": 0.0108,
-}
 _MARKETPLACE_TO_COUNTRY_CODE: dict[str, str] = {
   "amazon.com": "US",
   "amazon.ca": "CA",
@@ -333,7 +327,7 @@ def _convert_amount_to_usd(amount: float, *, currency_code: str) -> float:
   """Convert a currency amount into USD."""
   if amount == 0.0:
     return 0.0
-  rate = _CURRENCY_CODE_TO_USD_RATE.get(currency_code.upper())
+  rate = amazon.CURRENCY_CODE_TO_USD_RATE.get(currency_code.upper())
   if rate is None:
     raise AmazonKdpError(
       f"Unsupported currency for KDP report: {currency_code}")

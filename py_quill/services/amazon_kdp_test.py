@@ -264,6 +264,43 @@ def test_parse_kdp_xlsx_persists_asin_country_items_and_unit_prices():
                                                                rel=1e-6)
 
 
+def test_parse_kdp_xlsx_uses_shared_amazon_fx_rates_for_aud_marketplaces():
+  workbook_bytes = _build_kdp_workbook_bytes(
+    combined_sales_rows=[[
+      "2026-02-20",
+      "Cute & Silly Animal Jokes",
+      "Amelia Blanc",
+      "B0GNHFKQ8W",
+      "Amazon.com.au",
+      "60%",
+      "Standard - Paperback",
+      1,
+      0,
+      1,
+      11.99,
+      11.99,
+      2.91,
+      4.28,
+      "AUD",
+    ]],
+    kenp_rows=[],
+  )
+
+  stats = amazon_kdp.parse_kdp_xlsx(workbook_bytes)
+
+  assert len(stats) == 1
+  day = stats[0]
+  assert day.paperback_units_sold == 1
+  assert day.total_royalties_usd == pytest.approx(3.03, abs=0.01)
+  assert day.total_print_cost_usd == pytest.approx(2.06, abs=0.01)
+
+  au_paperback = day.sale_items_by_asin_country["B0GNHFKQ8W"]["AU"]
+  assert au_paperback.units_sold == 1
+  assert len(au_paperback.unit_prices) == 1
+  assert next(iter(au_paperback.unit_prices)) == pytest.approx(8.480527,
+                                                               rel=1e-6)
+
+
 def test_parse_kdp_xlsx_tracks_free_ebook_downloads_separately():
   workbook_bytes = _build_kdp_workbook_bytes(
     combined_sales_rows=[[

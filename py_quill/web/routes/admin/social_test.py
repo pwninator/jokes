@@ -300,6 +300,7 @@ def test_admin_social_renders_video_preview(monkeypatch):
   assert 'src="https://bucket/social/video.mp4"' in html
   assert ('cdn-cgi/image/width=250,format=auto,quality=50/social/reel-preview.png'
           ) in html
+  assert 'class="social-posts-reel-video js-social-reel-video"' in html
 
   collapsed_start = html.index(
     '<div class="social-post-card__collapsed-media js-social-collapsed-media">')
@@ -308,3 +309,6 @@ def test_admin_social_renders_video_preview(monkeypatch):
   collapsed_html = html[collapsed_start:collapsed_end]
   assert "<video" not in collapsed_html
   assert "Reel preview image" in collapsed_html
+
+  html_dom = html.split("<script>", 1)[0]
+  assert html_dom.count("<video") == 1

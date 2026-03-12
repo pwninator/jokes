@@ -185,6 +185,30 @@
     justify-content: flex-end;
   }
 
+  .social-posts-reel-video {
+    display: none;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .social-post-card[data-post-type="JOKE_REEL_VIDEO"] .social-posts-reel-video {
+    display: flex;
+  }
+
+  .social-posts-reel-video-slot {
+    width: min(100%, 250px);
+  }
+
+  .social-posts-reel-video-slot .social-posts-thumb {
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+  }
+
+  .social-posts-reel-video-slot .social-posts-video-thumb {
+    aspect-ratio: 2 / 3;
+  }
+
   .icon-button {
     border: none;
     background: transparent;
@@ -347,6 +371,10 @@
 
   /* For carousel posts, show the platform logo but hide the per-platform image thumbnails. */
   .social-post-card[data-post-type="JOKE_CAROUSEL"] .social-posts-image-slot {
+    display: none;
+  }
+
+  .social-post-card[data-post-type="JOKE_REEL_VIDEO"] .social-posts-image-slot {
     display: none;
   }
 
@@ -659,6 +687,18 @@
             {% endif %}
           </div>
         </div>
+        <div class="social-posts-reel-video js-social-reel-video">
+          <div class="social-posts-reel-video-slot js-social-reel-video-slot">
+            {% if is_reel_post and pinterest_preview_video_gcs_uri %}
+            <video class="social-posts-thumb social-posts-video-thumb"
+              controls preload="metadata"
+              src="https://{{ pinterest_preview_video_gcs_uri | replace('gs://', '') }}"
+              aria-label="Pinterest reel video"></video>
+            {% elif is_reel_post %}
+            <span class="muted js-social-no-image">No media</span>
+            {% endif %}
+          </div>
+        </div>
         <div class="social-post-card__columns">
           <div class="social-platform{% if pinterest_locked %} social-platform--locked{% endif %}"
             data-platform="pinterest">
@@ -668,7 +708,8 @@
                   alt="" loading="lazy" decoding="async">
               </div>
               <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="pinterest">
-                {% if post.pinterest_video_gcs_uri %}
+                {% if is_reel_post %}
+                {% elif post.pinterest_video_gcs_uri %}
                   <video class="social-posts-thumb social-posts-video-thumb"
                     controls preload="metadata"
                     src="https://{{ post.pinterest_video_gcs_uri | replace('gs://', '') }}"></video>
@@ -738,7 +779,8 @@
                   alt="" loading="lazy" decoding="async">
               </div>
               <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="instagram">
-                {% if post.instagram_video_gcs_uri %}
+                {% if is_reel_post %}
+                {% elif post.instagram_video_gcs_uri %}
                   <video class="social-posts-thumb social-posts-video-thumb"
                     controls preload="metadata"
                     src="https://{{ post.instagram_video_gcs_uri | replace('gs://', '') }}"></video>
@@ -802,7 +844,8 @@
                   alt="" loading="lazy" decoding="async">
               </div>
               <div class="social-posts-image-slot js-social-platform-image-slot" data-platform="facebook">
-                {% if post.facebook_video_gcs_uri %}
+                {% if is_reel_post %}
+                {% elif post.facebook_video_gcs_uri %}
                   <video class="social-posts-thumb social-posts-video-thumb"
                     controls preload="metadata"
                     src="https://{{ post.facebook_video_gcs_uri | replace('gs://', '') }}"></video>
@@ -1146,6 +1189,15 @@
       slot.appendChild(empty);
     }
 
+    function updateReelVideo(card, videoGcsUri) {
+      const container = card.querySelector('.js-social-reel-video');
+      if (!container) {
+        return;
+      }
+      const slot = container.querySelector('.js-social-reel-video-slot') || container;
+      renderVideo(slot, videoGcsUri, 'Pinterest reel video', 'social-posts-thumb');
+    }
+
     function updateCollapsedMedia(card, imageUrls, videoGcsUri, postType, previewImageGcsUri) {
       const container = card.querySelector('.js-social-collapsed-media');
       if (!container) {
@@ -1281,6 +1333,10 @@
         return;
       }
       const slot = container.querySelector('.js-social-platform-image-slot') || container;
+      if (row.dataset.postType === 'JOKE_REEL_VIDEO') {
+        slot.innerHTML = '';
+        return;
+      }
       if (videoGcsUri) {
         renderVideo(slot, videoGcsUri, altText || `${platform} video`, 'social-posts-thumb');
         return;
@@ -1564,6 +1620,10 @@
         postData.type || '',
         postData.preview_image_gcs_uri || '',
       );
+      updateReelVideo(
+        card,
+        postData.pinterest_video_gcs_uri || '',
+      );
 
       updatePlatformMedia(
         card,
@@ -1630,6 +1690,11 @@
         <div class="social-posts-carousel js-social-carousel">
           <div class="js-social-carousel-slot">
             <span class="muted js-social-no-image">No image</span>
+          </div>
+        </div>
+        <div class="social-posts-reel-video js-social-reel-video">
+          <div class="social-posts-reel-video-slot js-social-reel-video-slot">
+            <span class="muted js-social-no-image">No media</span>
           </div>
         </div>
         <div class="social-post-card__columns">

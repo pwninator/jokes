@@ -219,7 +219,8 @@ Transaction type format (`ebook/paperback/hardcover`) must match
 
 Persisted per date:
 
-- units totals by format
+- paid units totals by format
+- `free_units_downloaded` for free ebook downloads
 - KENP pages read total
 - royalties/print cost in USD
 - nested `sale_items_by_asin_country` keyed by ASIN then country
@@ -228,6 +229,10 @@ Persisted per date:
 
 `AmazonKdpDailyStats.sale_items_by_asin_country` stores buckets keyed by
 `{ASIN}->{COUNTRY_CODE}` with `AmazonProductStats` values.
+
+`AmazonProductStats.units_sold` stores paid units only, while
+`AmazonProductStats.free_units_downloaded` stores free ebook downloads.
+Non-ebook rows with zero `Avg. Offer Price without tax` fail ingestion.
 
 `AmazonProductStats.unit_prices` stores unique observed per-unit USD prices for
 that ASIN+country+day. These are the primary candidate prices used later by ads

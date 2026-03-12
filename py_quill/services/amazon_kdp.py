@@ -15,7 +15,9 @@ from common import book_defs, models
 _CURRENCY_CODE_TO_USD_RATE: dict[str, float] = {
   "USD": 1.0,
   "CAD": 0.7320,
+  "EUR": 1.1600,
   "GBP": 1.3569,
+  "INR": 0.0108,
 }
 _MARKETPLACE_TO_COUNTRY_CODE: dict[str, str] = {
   "amazon.com": "US",
@@ -129,7 +131,12 @@ def _apply_combined_sales_rows(
     print_cost_usd = print_cost_per_unit_usd * net_units_sold
 
     daily_stat = _get_or_create_daily_stat(stats_by_date, date_value)
-    if format_name == "ebook":
+    if avg_offer_price_usd <= 0:
+      if format_name != "ebook" and net_units_sold > 0:
+        raise AmazonKdpError(
+          "Free KDP units are only supported for ebook ASINs")
+      daily_stat.free_units_downloaded += net_units_sold
+    elif format_name == "ebook":
       daily_stat.ebook_units_sold += net_units_sold
       daily_stat.ebook_royalties_usd += royalty_usd
     elif format_name == "paperback":
@@ -147,7 +154,8 @@ def _apply_combined_sales_rows(
       daily_stat.sale_items_by_asin_country,
       canonical_asin=canonical_asin,
       country_code=country_code,
-      units_sold=net_units_sold,
+      units_sold=net_units_sold if avg_offer_price_usd > 0 else 0,
+      free_units_downloaded=net_units_sold if avg_offer_price_usd <= 0 else 0,
       sales_amount_usd=sales_amount_usd,
       royalty_usd=royalty_usd,
       print_cost_usd=print_cost_usd,
@@ -270,6 +278,7 @@ def _accumulate_sale_item(
   canonical_asin: str,
   country_code: str,
   units_sold: int = 0,
+  free_units_downloaded: int = 0,
   kenp_pages_read: int = 0,
   sales_amount_usd: float = 0.0,
   royalty_usd: float = 0.0,
@@ -282,6 +291,7 @@ def _accumulate_sale_item(
     country_code=country_code,
   )
   existing.units_sold += units_sold
+  existing.free_units_downloaded += free_units_downloaded
   existing.kenp_pages_read += kenp_pages_read
   existing.total_sales_usd += sales_amount_usd
   existing.total_profit_usd += royalty_usd

@@ -389,7 +389,8 @@ def test_joke_social_post_video_uri_fields_round_trip():
   assert payload["pinterest_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert payload["instagram_video_gcs_uri"] == "gs://bucket/social/video.mp4"
   assert payload["facebook_video_gcs_uri"] == "gs://bucket/social/video.mp4"
-  assert payload["preview_image_gcs_uri"] == "gs://bucket/social/video_preview.png"
+  assert payload[
+    "preview_image_gcs_uri"] == "gs://bucket/social/video_preview.png"
 
   restored = models.JokeSocialPost.from_firestore_dict(payload,
                                                        key="post-video-1")
@@ -401,19 +402,18 @@ def test_joke_social_post_video_uri_fields_round_trip():
 
 
 def test_joke_video_round_trip():
-  metadata = models.GenerationMetadata(
-    generations=[
-      models.SingleGenerationMetadata(
-        label="joke_video_script",
-        model_name="gemini-2.5-flash",
-        cost=0.01,
-      ),
-      models.SingleGenerationMetadata(
-        label="create_portrait_character_video",
-        model_name="moviepy",
-        cost=0.0,
-      ),
-    ])
+  metadata = models.GenerationMetadata(generations=[
+    models.SingleGenerationMetadata(
+      label="joke_video_script",
+      model_name="gemini-2.5-flash",
+      cost=0.01,
+    ),
+    models.SingleGenerationMetadata(
+      label="create_portrait_character_video",
+      model_name="moviepy",
+      cost=0.0,
+    ),
+  ])
   joke_video = models.JokeVideo(
     key="video-1",
     joke_id="j1",
@@ -628,6 +628,51 @@ def test_amazon_ads_daily_campaign_stats_to_and_from_dict():
   assert restored.sale_items[0].total_profit_usd == 9.0
 
 
+def test_amazon_kdp_daily_stats_defaults_free_units_downloaded_to_zero():
+  restored = models.AmazonKdpDailyStats.from_dict({
+    "date": "2026-02-18",
+    "total_units_sold": 2,
+    "ebook_units_sold": 2,
+    "sale_items_by_asin_country": {
+      "B09XYZ": {
+        "US": {
+          "asin": "B09XYZ",
+          "units_sold": 2,
+          "total_sales_usd": 5.98,
+        }
+      }
+    },
+  })
+
+  assert restored.free_units_downloaded == 0
+  assert restored.sale_items_by_asin["B09XYZ"].free_units_downloaded == 0
+
+
+def test_amazon_kdp_daily_stats_round_trips_free_units_downloaded():
+  source = models.AmazonKdpDailyStats(
+    date=datetime.date(2026, 2, 18),
+    total_units_sold=1,
+    free_units_downloaded=3,
+    ebook_units_sold=1,
+    sale_items_by_asin_country={
+      "B09XYZ": {
+        "US":
+        models.AmazonProductStats(
+          asin="B09XYZ",
+          units_sold=1,
+          free_units_downloaded=3,
+          total_sales_usd=2.99,
+        )
+      }
+    },
+  )
+
+  restored = models.AmazonKdpDailyStats.from_dict(source.to_dict())
+
+  assert restored.free_units_downloaded == 3
+  assert restored.sale_items_by_asin["B09XYZ"].free_units_downloaded == 3
+
+
 def test_amazon_ads_report_from_amazon_payload_supports_camel_case_fields():
   report = models.AmazonAdsReport.from_amazon_payload(
     {
@@ -688,14 +733,22 @@ def test_amazon_ads_report_from_dict_rejects_camel_case_fields():
 
 def test_amazon_ads_report_from_dict_infers_report_key_from_canonical_name():
   report = models.AmazonAdsReport.from_dict({
-    "report_id": "r-placement",
-    "report_name": "20260301_040100_spCampaignsPlacement_US",
-    "status": "COMPLETED",
-    "report_type_id": "spCampaigns",
-    "start_date": "2026-02-18",
-    "end_date": "2026-02-18",
-    "created_at": "2026-02-19T06:00:00Z",
-    "updated_at": "2026-02-19T06:05:00Z",
+    "report_id":
+    "r-placement",
+    "report_name":
+    "20260301_040100_spCampaignsPlacement_US",
+    "status":
+    "COMPLETED",
+    "report_type_id":
+    "spCampaigns",
+    "start_date":
+    "2026-02-18",
+    "end_date":
+    "2026-02-18",
+    "created_at":
+    "2026-02-19T06:00:00Z",
+    "updated_at":
+    "2026-02-19T06:05:00Z",
   })
 
   assert report.report_key == models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT

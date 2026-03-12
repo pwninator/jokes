@@ -264,6 +264,71 @@ def test_parse_kdp_xlsx_persists_asin_country_items_and_unit_prices():
                                                                rel=1e-6)
 
 
+def test_parse_kdp_xlsx_tracks_free_ebook_downloads_separately():
+  workbook_bytes = _build_kdp_workbook_bytes(
+    combined_sales_rows=[[
+      "2026-02-25",
+      "Cute & Silly Animal Jokes",
+      "Amelia Blanc",
+      "B0G9765J19",
+      "Amazon.com",
+      "35%",
+      "Standard",
+      3,
+      0,
+      3,
+      2.99,
+      0.0,
+      "N/A",
+      0.0,
+      "USD",
+    ]],
+    kenp_rows=[],
+  )
+
+  stats = amazon_kdp.parse_kdp_xlsx(workbook_bytes)
+
+  assert len(stats) == 1
+  day = stats[0]
+  assert day.total_units_sold == 0
+  assert day.ebook_units_sold == 0
+  assert day.free_units_downloaded == 3
+
+  ebook_item = day.sale_items_by_asin["B0G9765J19"]
+  assert ebook_item.units_sold == 0
+  assert ebook_item.free_units_downloaded == 3
+  assert ebook_item.total_sales_usd == 0.0
+  assert ebook_item.unit_prices == set()
+
+
+def test_parse_kdp_xlsx_raises_on_free_non_ebook_units():
+  workbook_bytes = _build_kdp_workbook_bytes(
+    combined_sales_rows=[[
+      "2026-02-25",
+      "Cute & Silly Animal Jokes",
+      "Amelia Blanc",
+      "B0GNHFKQ8W",
+      "Amazon.com",
+      "60%",
+      "Standard - Paperback",
+      1,
+      0,
+      1,
+      11.99,
+      0.0,
+      2.91,
+      0.0,
+      "USD",
+    ]],
+    kenp_rows=[],
+  )
+
+  with pytest.raises(
+      amazon_kdp.AmazonKdpError,
+      match="Free KDP units are only supported for ebook ASINs"):
+    amazon_kdp.parse_kdp_xlsx(workbook_bytes)
+
+
 def test_parse_kdp_xlsx_raises_on_format_mismatch():
   workbook_bytes = _build_kdp_workbook_bytes(
     combined_sales_rows=[[

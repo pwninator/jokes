@@ -1563,6 +1563,7 @@ class AmazonProductStats:
 
   asin: str
   units_sold: int = 0
+  free_units_downloaded: int = 0
   kenp_pages_read: int = 0
   total_sales_usd: float = 0.0
   unit_prices: set[float] = field(default_factory=set)
@@ -1597,6 +1598,7 @@ class AmazonProductStats:
 
     asin = str(data.get("asin", "")).strip()
     _parse_int_field(data, "units_sold", 0)
+    _parse_int_field(data, "free_units_downloaded", 0)
     _parse_int_field(data, "kenp_pages_read", 0)
     _parse_float_field(data, "total_sales_usd", 0.0)
     _parse_float_field(data, "total_profit_usd", 0.0)
@@ -1621,6 +1623,7 @@ class AmazonProductStats:
     return cls(
       asin=asin,
       units_sold=data.get("units_sold", 0),
+      free_units_downloaded=data.get("free_units_downloaded", 0),
       kenp_pages_read=data.get("kenp_pages_read", 0),
       total_sales_usd=data.get("total_sales_usd", 0.0),
       unit_prices=unit_prices,
@@ -1890,6 +1893,7 @@ class AmazonKdpDailyStats:
   key: str | None = None
   date: datetime.date
   total_units_sold: int = 0
+  free_units_downloaded: int = 0
   kenp_pages_read: int = 0
   ebook_units_sold: int = 0
   paperback_units_sold: int = 0
@@ -1914,6 +1918,8 @@ class AmazonKdpDailyStats:
       self.date.isoformat(),
       "total_units_sold":
       self.total_units_sold,
+      "free_units_downloaded":
+      self.free_units_downloaded,
       "kenp_pages_read":
       self.kenp_pages_read,
       "ebook_units_sold":
@@ -1958,6 +1964,7 @@ class AmazonKdpDailyStats:
     )
 
     _parse_int_field(data, "total_units_sold", 0)
+    _parse_int_field(data, "free_units_downloaded", 0)
     _parse_int_field(data, "kenp_pages_read", 0)
     _parse_int_field(data, "ebook_units_sold", 0)
     _parse_int_field(data, "paperback_units_sold", 0)
@@ -1975,6 +1982,7 @@ class AmazonKdpDailyStats:
       key=key,
       date=parsed_date,
       total_units_sold=data.get("total_units_sold", 0),
+      free_units_downloaded=data.get("free_units_downloaded", 0),
       kenp_pages_read=data.get("kenp_pages_read", 0),
       ebook_units_sold=data.get("ebook_units_sold", 0),
       paperback_units_sold=data.get("paperback_units_sold", 0),
@@ -2815,6 +2823,7 @@ def _aggregate_product_stats_by_asin(
     unit_prices: set[float] = set()
     for country_item in country_map.values():
       merged.units_sold += country_item.units_sold
+      merged.free_units_downloaded += country_item.free_units_downloaded
       merged.kenp_pages_read += country_item.kenp_pages_read
       merged.total_sales_usd += country_item.total_sales_usd
       merged.total_profit_usd += country_item.total_profit_usd

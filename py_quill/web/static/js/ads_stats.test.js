@@ -747,6 +747,69 @@ function createFakeReconciledChartData() {
         },
       ],
     ],
+    organic_profit_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          amount_usd: 5.0,
+        },
+      ],
+      [
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          amount_usd: 7.0,
+        },
+      ],
+    ],
+    organic_sales_details: [
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 1,
+        },
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 20,
+          is_kenp: true,
+        },
+      ],
+      [
+        {
+          country_code: 'US',
+          asin: 'B0G9765J19',
+          book_key: 'animal-jokes',
+          book_format: 'Ebook',
+          count: 1,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 1,
+        },
+        {
+          country_code: 'GB',
+          asin: 'B0GNMFVYC5',
+          book_key: 'valentine-jokes',
+          book_format: 'Ebook',
+          count: 50,
+          is_kenp: true,
+        },
+      ],
+    ],
     unmatched_ads_profit_details: [
       [
         {
@@ -2472,9 +2535,12 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.deepEqual(
       adsProfitChartCall.config.data.datasets[3].tooltipLinesByIndex[1],
       [
-        'US B0G9765J19 - animal-jokes (Ebook): $18.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $27.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (300)',
+        'Ads:',
+        'US B0G9765J19 - animal-jokes (Ebook): $12.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (250)',
+        'Organic:',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $7.00',
       ],
     );
     assert.equal(
@@ -2523,8 +2589,12 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.deepEqual(
       datasets[3].tooltipLinesByIndex[1],
       [
-        'US B0G9765J19 - animal-jokes (Ebook): 3',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): 2',
+        'Ads:',
+        'US B0G9765J19 - animal-jokes (Ebook): 2',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
+        'Organic:',
+        'US B0G9765J19 - animal-jokes (Ebook): 1',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
       ],
     );
 
@@ -2578,6 +2648,29 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.deepEqual(kenpDatasets[2].tooltipLinesByIndex[1], [
       'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP Pages): 120',
     ]);
+    assert.deepEqual(kenpDatasets[3].tooltipLinesByIndex[0], [
+      'Ads:',
+      'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 200',
+      'Organic:',
+      'US B0G9765J19 - animal-jokes (Ebook KENP Pages): 20',
+    ]);
+
+    const reconciledPoasChartCall = chartCalls.find(
+      (call) => call.canvasId === 'reconciledPoasTimelineChart',
+    );
+    assert.ok(reconciledPoasChartCall);
+    const poasDatasets = reconciledPoasChartCall.config.data.datasets;
+    assert.deepEqual(
+      poasDatasets[1].tooltipLinesByIndex[1],
+      [
+        'Ads:',
+        'US B0G9765J19 - animal-jokes (Ebook): $12.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (250)',
+        'Organic:',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $7.00',
+      ],
+    );
 
     const reconciledProfitChartCall = chartCalls.find(
       (call) => call.canvasId === 'reconciledProfitTimelineChart',
@@ -2594,9 +2687,12 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.deepEqual(
       reconciledDatasets[2].tooltipLinesByIndex[1],
       [
-        'US B0G9765J19 - animal-jokes (Ebook): $24.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $30.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $8.00 (450)',
+        'Ads:',
+        'US B0G9765J19 - animal-jokes (Ebook): $12.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (250)',
+        'Organic:',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $7.00',
       ],
     );
   } finally {

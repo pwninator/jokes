@@ -301,6 +301,8 @@ def test_admin_social_renders_video_preview(monkeypatch):
   assert ('cdn-cgi/image/width=250,format=auto,quality=50/social/reel-preview.png'
           ) in html
   assert 'class="social-posts-reel-video js-social-reel-video"' in html
+  assert ('.social-posts-reel-video-slot .social-posts-video-thumb {\n'
+          '    aspect-ratio: 9 / 16;') in html
 
   collapsed_start = html.index(
     '<div class="social-post-card__collapsed-media js-social-collapsed-media">')

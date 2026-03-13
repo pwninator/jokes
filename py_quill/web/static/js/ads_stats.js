@@ -278,6 +278,26 @@
     return details.flatMap((detail) => formatAmountDetailLines(detail, options));
   }
 
+  function buildSectionedProfitTooltipLines(adsDetails, organicDetails) {
+    const adsLines = buildProfitAmountTooltipLines(adsDetails, INLINE_KENP_PROFIT_TOOLTIP_OPTIONS);
+    const organicLines = buildProfitAmountTooltipLines(
+      organicDetails, INLINE_KENP_PROFIT_TOOLTIP_OPTIONS,
+    );
+    if (adsLines.length === 0 || organicLines.length === 0) {
+      return [...adsLines, ...organicLines];
+    }
+    return ['Ads:', ...adsLines, 'Organic:', ...organicLines];
+  }
+
+  function buildSectionedCountTooltipLines(adsDetails, organicDetails) {
+    const adsLines = buildCountTooltipLines(adsDetails);
+    const organicLines = buildCountTooltipLines(organicDetails);
+    if (adsLines.length === 0 || organicLines.length === 0) {
+      return [...adsLines, ...organicLines];
+    }
+    return ['Ads:', ...adsLines, 'Organic:', ...organicLines];
+  }
+
   function arrayOrEmpty(value) {
     return Array.isArray(value) ? value : [];
   }
@@ -736,6 +756,8 @@
       data,
       'profit_before_ads_reconciled_details',
     );
+    const organicProfitDetails = getArrayField(data, 'organic_profit_details');
+    const organicSalesDetails = getArrayField(data, 'organic_sales_details');
     const rowsByDate = {};
 
     labels.forEach((dateKey, index) => {
@@ -743,12 +765,15 @@
       const dayMatchedAdsSalesDetails = matchedAdsSalesDetails[index];
       const dayReconciledSalesDetails = reconciledSalesDetails[index];
       const dayUnmatchedAdsSalesDetails = unmatchedAdsSalesDetails[index];
+      const dayOrganicSalesDetails = organicSalesDetails[index];
       const dayAdsBookSalesDetails = filterBookSalesDetails(dayAdsSalesDetails);
       const dayMatchedBookSalesDetails = filterBookSalesDetails(dayMatchedAdsSalesDetails);
+      const dayOrganicBookSalesDetails = filterBookSalesDetails(dayOrganicSalesDetails);
       const dayReconciledBookSalesDetails = filterBookSalesDetails(dayReconciledSalesDetails);
       const dayUnmatchedBookSalesDetails = filterBookSalesDetails(dayUnmatchedAdsSalesDetails);
       const dayAdsKenpDetails = filterKenpDetails(dayAdsSalesDetails);
       const dayMatchedKenpDetails = filterKenpDetails(dayMatchedAdsSalesDetails);
+      const dayOrganicKenpDetails = filterKenpDetails(dayOrganicSalesDetails);
       const dayUnmatchedKenpDetails = filterKenpDetails(dayUnmatchedAdsSalesDetails);
       const dayReconciledKenpDetails = filterKenpDetails(dayReconciledSalesDetails);
       const dayAdsProfitDetails = adsProfitDetails[index];
@@ -767,12 +792,18 @@
         unmatched_ads_sales_count: toNumber(unmatchedAdsSalesCount[index]),
         ads_sales_tooltip_lines: buildCountTooltipLines(dayAdsBookSalesDetails),
         matched_ads_sales_tooltip_lines: buildCountTooltipLines(dayMatchedBookSalesDetails),
-        reconciled_sales_tooltip_lines: buildCountTooltipLines(dayReconciledBookSalesDetails),
+        reconciled_sales_tooltip_lines: buildSectionedCountTooltipLines(
+          dayMatchedBookSalesDetails,
+          dayOrganicBookSalesDetails,
+        ),
         unmatched_ads_sales_tooltip_lines: buildCountTooltipLines(dayUnmatchedBookSalesDetails),
         ads_kenp_pages_tooltip_lines: buildCountTooltipLines(dayAdsKenpDetails),
         matched_ads_kenp_pages_tooltip_lines: buildCountTooltipLines(dayMatchedKenpDetails),
         unmatched_ads_kenp_pages_tooltip_lines: buildCountTooltipLines(dayUnmatchedKenpDetails),
-        reconciled_kenp_pages_tooltip_lines: buildCountTooltipLines(dayReconciledKenpDetails),
+        reconciled_kenp_pages_tooltip_lines: buildSectionedCountTooltipLines(
+          dayMatchedKenpDetails,
+          dayOrganicKenpDetails,
+        ),
         ads_profit_tooltip_lines: buildProfitAmountTooltipLines(
           adsProfitDetails[index],
           INLINE_KENP_PROFIT_TOOLTIP_OPTIONS,
@@ -781,13 +812,13 @@
           matchedAdsProfitDetails[index],
           INLINE_KENP_PROFIT_TOOLTIP_OPTIONS,
         ),
-        reconciled_matched_profit_tooltip_lines: buildProfitAmountTooltipLines(
-          reconciledMatchedProfitDetails[index],
-          INLINE_KENP_PROFIT_TOOLTIP_OPTIONS,
+        reconciled_matched_profit_tooltip_lines: buildSectionedProfitTooltipLines(
+          matchedAdsProfitDetails[index],
+          organicProfitDetails[index],
         ),
-        profit_before_ads_reconciled_tooltip_lines: buildProfitAmountTooltipLines(
-          profitBeforeAdsReconciledDetails[index],
-          INLINE_KENP_PROFIT_TOOLTIP_OPTIONS,
+        profit_before_ads_reconciled_tooltip_lines: buildSectionedProfitTooltipLines(
+          matchedAdsProfitDetails[index],
+          organicProfitDetails[index],
         ),
         ads_kenp_pages_count: sumCountDetails(dayAdsKenpDetails),
         matched_ads_kenp_pages_count: sumCountDetails(dayMatchedKenpDetails),
@@ -2424,6 +2455,7 @@
             data: series.tpoas,
             borderColor: tpoasColor,
             formatType: 'ratio',
+            tooltipLinesByIndex: series.profit_before_ads_reconciled_tooltip_lines,
           }, mode));
         }
         datasets.push(createThresholdDataset(series.labels, mode));

@@ -1120,12 +1120,14 @@ def _build_reconciled_click_date_chart_data(
   unmatched_ads_sales_count: list[int] = []
   ads_sales_details: list[list[dict[str, object]]] = []
   matched_ads_sales_details: list[list[dict[str, object]]] = []
+  organic_sales_details: list[list[dict[str, object]]] = []
   reconciled_sales_details: list[list[dict[str, object]]] = []
   unmatched_ads_sales_details: list[list[dict[str, object]]] = []
   ads_profit_details: list[list[dict[str, object]]] = []
   matched_ads_profit_details: list[list[dict[str, object]]] = []
   reconciled_matched_profit_details: list[list[dict[str, object]]] = []
   profit_before_ads_reconciled_details: list[list[dict[str, object]]] = []
+  organic_profit_details: list[list[dict[str, object]]] = []
   unmatched_ads_profit_details: list[list[dict[str, object]]] = []
   poas: list[float] = []
   tpoas: list[float] = []
@@ -1216,6 +1218,12 @@ def _build_reconciled_click_date_chart_data(
         count_key="matched_ads_sales_count",
         kenp_pages_key="matched_ads_kenp_pages_count",
       ))
+    organic_sales_details.append(
+      _serialize_count_details(
+        rows=reconciled_asin_rows,
+        count_key="organic_sales_count",
+        kenp_pages_key="organic_kenp_pages_count",
+      ))
     reconciled_sales_details.append(
       _serialize_count_details(
         rows=reconciled_asin_rows,
@@ -1256,6 +1264,11 @@ def _build_reconciled_click_date_chart_data(
         kenp_amount_key="reconciled_kenp_profit_before_ads_usd",
         kenp_pages_key="reconciled_kenp_pages_count",
       ))
+    organic_profit_details.append(
+      _serialize_amount_details(
+        rows=reconciled_asin_rows,
+        amount_key="organic_profit_before_ads_usd",
+      ))
     unmatched_ads_profit_details.append(
       _serialize_amount_details(
         rows=reconciled_asin_rows,
@@ -1292,6 +1305,8 @@ def _build_reconciled_click_date_chart_data(
     ads_sales_details,
     "matched_ads_sales_details":
     matched_ads_sales_details,
+    "organic_sales_details":
+    organic_sales_details,
     "reconciled_sales_details":
     reconciled_sales_details,
     "unmatched_ads_sales_details":
@@ -1304,6 +1319,8 @@ def _build_reconciled_click_date_chart_data(
     reconciled_matched_profit_details,
     "profit_before_ads_reconciled_details":
     profit_before_ads_reconciled_details,
+    "organic_profit_details":
+    organic_profit_details,
     "unmatched_ads_profit_details":
     unmatched_ads_profit_details,
     "poas":

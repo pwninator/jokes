@@ -19,6 +19,7 @@
   const COLOR_MATCHED = '#1565c0';
   const COLOR_UNMATCHED = '#c62828';
   const COLOR_RECONCILED = '#2e7d32';
+  const COLOR_FREE_DOWNLOADS = '#00838f';
   const CAMPAIGN_STATUS_STORAGE_KEY = 'adsStatsCampaignStatuses';
   const INLINE_KENP_PROFIT_TOOLTIP_OPTIONS = Object.freeze({ inlineKenpPages: true });
   const SEARCH_TERM_DIMENSION_COLUMNS = Object.freeze([
@@ -489,6 +490,9 @@
         cost: dayCost,
         sales_usd: daySales,
         units_sold: dayUnitsSold,
+        free_units_downloaded: toNumber((Array.isArray(data.free_units_downloaded)
+          ? data.free_units_downloaded
+          : [])[index]),
         gross_profit_before_ads_usd: dayGpPreAd,
         gross_profit_usd: dayGp,
       };
@@ -554,6 +558,7 @@
     const cost = rows.map((day) => toNumber(day.cost));
     const sales = rows.map((day) => toNumber(day.sales_usd));
     const unitsSold = rows.map((day) => toNumber(day.units_sold));
+    const freeUnitsDownloaded = rows.map((day) => toNumber(day.free_units_downloaded));
     const grossProfitBeforeAds = rows.map((day) => toNumber(day.gross_profit_before_ads_usd));
     const grossProfit = rows.map((day) => toNumber(day.gross_profit_usd));
 
@@ -564,6 +569,7 @@
       cost: cost,
       sales_usd: sales,
       units_sold: unitsSold,
+      free_units_downloaded: freeUnitsDownloaded,
       gross_profit_before_ads_usd: grossProfitBeforeAds,
       gross_profit_usd: grossProfit,
       poas: rows.map((day) => {
@@ -592,6 +598,7 @@
       cost: 0,
       sales_usd: 0,
       units_sold: 0,
+      free_units_downloaded: 0,
       gross_profit_before_ads_usd: 0,
       gross_profit_usd: 0,
     }));
@@ -608,6 +615,7 @@
       bucket.cost += toNumber(day.cost);
       bucket.sales_usd += toNumber(day.sales_usd);
       bucket.units_sold += toNumber(day.units_sold);
+      bucket.free_units_downloaded += toNumber(day.free_units_downloaded);
       bucket.gross_profit_before_ads_usd += toNumber(day.gross_profit_before_ads_usd);
       bucket.gross_profit_usd += toNumber(day.gross_profit_usd);
     });
@@ -617,6 +625,9 @@
     const cost = weekdayBuckets.map((bucket) => average(bucket.cost, bucket.count));
     const sales = weekdayBuckets.map((bucket) => average(bucket.sales_usd, bucket.count));
     const unitsSold = weekdayBuckets.map((bucket) => average(bucket.units_sold, bucket.count));
+    const freeUnitsDownloaded = weekdayBuckets.map((bucket) => (
+      average(bucket.free_units_downloaded, bucket.count)
+    ));
     const grossProfitBeforeAds = weekdayBuckets.map((bucket) => average(bucket.gross_profit_before_ads_usd, bucket.count));
     const grossProfit = weekdayBuckets.map((bucket) => average(bucket.gross_profit_usd, bucket.count));
 
@@ -648,6 +659,7 @@
       cost: cost,
       sales_usd: sales,
       units_sold: unitsSold,
+      free_units_downloaded: freeUnitsDownloaded,
       gross_profit_before_ads_usd: grossProfitBeforeAds,
       gross_profit_usd: grossProfit,
       poas: poas,
@@ -670,6 +682,7 @@
       cost: series.cost,
       sales_usd: series.sales_usd,
       units_sold: series.units_sold,
+      free_units_downloaded: series.free_units_downloaded,
       gross_profit_before_ads_usd: series.gross_profit_before_ads_usd,
       gross_profit_usd: series.gross_profit_usd,
       poas: series.poas,
@@ -2540,12 +2553,13 @@
         return labels.map((_, index) => arrayOrEmpty(sourceLines[index]));
       }
 
-      function renderCountBreakdownChart(canvasId, labels, lineConfigs, mode) {
+      function renderCountBreakdownChart(canvasId, labels, lineConfigs, mode, scales) {
         const datasets = lineConfigs.map((lineConfig) => {
           const datasetConfig = {
             label: lineConfig.label,
             data: lineConfig.data,
             borderColor: lineConfig.borderColor,
+            yAxisID: lineConfig.yAxisID,
             formatType: 'number',
             tooltipLinesByIndex: lineConfig.tooltipLinesByIndex,
           };
@@ -2558,7 +2572,7 @@
           canvasId,
           labels,
           datasets,
-          buildSingleAxis('number'),
+          scales || buildSingleAxis('number'),
           mode,
         );
       }
@@ -2606,8 +2620,15 @@
                 reconciledStats.reconciled_sales_tooltip_lines,
               ),
             },
+            {
+              label: 'Free Downloads',
+              data: toSeriesValues(labels, stats.free_units_downloaded),
+              borderColor: COLOR_FREE_DOWNLOADS,
+              yAxisID: 'y1',
+            },
           ],
           mode,
+          buildDualAxis('number', 'number'),
         );
       }
 

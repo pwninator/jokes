@@ -241,6 +241,7 @@ function createFakeChartData() {
     cost: [20, 24],
     sales_usd: [50, 60],
     units_sold: [2, 3],
+    free_units_downloaded: [120, 260],
     gross_profit_before_ads_usd: [40, 48],
     gross_profit_usd: [20, 24],
     daily_campaigns: {
@@ -2490,16 +2491,20 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
       'Matched Ads Sales',
       'Unmatched Ads Sales',
       'Reconciled Sales',
+      'Free Downloads',
     ]);
     assert.equal(datasets[2].borderColor, '#c62828');
     assert.equal(datasets[2].order, -10);
     assert.equal(datasets[0].borderColor, '#ef6c00');
     assert.equal(datasets[1].borderColor, '#1565c0');
     assert.equal(datasets[3].borderColor, '#2e7d32');
+    assert.equal(datasets[4].borderColor, '#00838f');
+    assert.equal(datasets[4].yAxisID, 'y1');
     assert.deepEqual(datasets[0].data, [2, 3]);
     assert.deepEqual(datasets[1].data, [2, 3]);
     assert.deepEqual(datasets[2].data, [0, 3]);
     assert.deepEqual(datasets[3].data, [3, 5]);
+    assert.deepEqual(datasets[4].data, [120, 260]);
     assert.deepEqual(datasets[0].tooltipLinesByIndex[0], [
       'US B0G9765J19 - animal-jokes (Ebook): 2',
     ]);
@@ -2533,6 +2538,21 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
         'US B0G9765J19 - animal-jokes (Ebook): 2',
         'GB B0GNMFVYC5 - valentine-jokes (Ebook): 1',
       ],
+    );
+    assert.equal(
+      salesBreakdownChartCall.config.options.scales.y.position,
+      'left',
+    );
+    assert.equal(
+      salesBreakdownChartCall.config.options.scales.y1.position,
+      'right',
+    );
+    assert.deepEqual(
+      tooltipCallbacks.afterLabel({
+        dataset: datasets[4],
+        dataIndex: 1,
+      }),
+      [],
     );
 
     const kenpBreakdownChartCall = chartCalls.find((call) => call.canvasId === 'kenpBreakdownChart');

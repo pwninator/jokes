@@ -816,6 +816,16 @@ def test_admin_ads_stats_page_includes_nav_link(monkeypatch):
   )
   monkeypatch.setattr(
     firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 20),
+        free_units_downloaded=250,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore_service,
     "list_amazon_ads_events",
     lambda *, start_date, end_date: [],
   )
@@ -841,6 +851,16 @@ def test_admin_ads_stats_page_reloads_after_kdp_upload(monkeypatch):
     firestore_service,
     "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 20),
+        free_units_downloaded=250,
+      ),
+    ],
   )
   monkeypatch.setattr(
     firestore_service,
@@ -1165,6 +1185,16 @@ def test_admin_ads_stats_page_omits_refresh_button(monkeypatch):
   )
   monkeypatch.setattr(
     firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 20),
+        free_units_downloaded=250,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore_service,
     "list_amazon_ads_events",
     lambda *, start_date, end_date: [],
   )
@@ -1192,6 +1222,16 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
     firestore_service,
     "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 20),
+        free_units_downloaded=250,
+      ),
+    ],
   )
   monkeypatch.setattr(
     firestore_service,
@@ -1288,6 +1328,16 @@ def test_admin_ads_stats_page_includes_data_button_and_copy_feedback_per_chart(
     firestore_service,
     "list_amazon_sales_reconciled_daily_stats",
     lambda *, start_date, end_date: [],
+  )
+  monkeypatch.setattr(
+    firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 20),
+        free_units_downloaded=250,
+      ),
+    ],
   )
   monkeypatch.setattr(
     firestore_service,
@@ -1391,6 +1441,16 @@ def test_admin_ads_stats_filtering(monkeypatch):
   )
   monkeypatch.setattr(
     firestore_service,
+    "list_amazon_kdp_daily_stats",
+    lambda *, start_date, end_date: [
+      models.AmazonKdpDailyStats(
+        date=datetime.date(2026, 2, 20),
+        free_units_downloaded=250,
+      ),
+    ],
+  )
+  monkeypatch.setattr(
+    firestore_service,
     "list_amazon_ads_events",
     lambda *, start_date, end_date: [],
   )
@@ -1444,10 +1504,12 @@ def test_admin_ads_stats_filtering(monkeypatch):
 
   # Verify top-level aggregation includes units_sold
   assert chart_data["total_units_sold"] == 2
+  assert chart_data["total_free_units_downloaded"] == 250
 
   # Find index of the stats date
   date_idx = chart_data["labels"].index("2026-02-20")
   assert chart_data["units_sold"][date_idx] == 2
+  assert chart_data["free_units_downloaded"][date_idx] == 250
 
 
 def test_admin_ads_stats_page_includes_placement_data(monkeypatch):

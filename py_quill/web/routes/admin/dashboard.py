@@ -191,6 +191,7 @@ def admin_ads_stats():
   campaigns = amazon_ads_firestore.list_amazon_campaigns()
   chart_data = _build_ads_stats_chart_data(
     stats_list=stats_list,
+    kdp_stats_list=kdp_stats_list,
     start_date=start_date,
     end_date=end_date,
   )
@@ -980,24 +981,36 @@ def _build_ads_placement_data(
 def _build_ads_stats_chart_data(
   *,
   stats_list: list[models.AmazonAdsDailyStats],
+  kdp_stats_list: list[models.AmazonKdpDailyStats],
   start_date: datetime.date,
   end_date: datetime.date,
 ) -> dict[str, object]:
   """Aggregate campaign stats by day for charting."""
   daily_totals: dict[str, dict[str, float]] = {}
   daily_campaigns: dict[str, list[dict[str, object]]] = {}
+  kdp_by_date = {stat.date.isoformat(): stat for stat in kdp_stats_list}
 
   current_date = start_date
   while current_date <= end_date:
     date_key = current_date.isoformat()
+    kdp_stat = kdp_by_date.get(date_key)
     daily_totals[date_key] = {
-      "impressions": 0.0,
-      "clicks": 0.0,
-      "cost": 0.0,
-      "sales_usd": 0.0,
-      "units_sold": 0.0,
-      "gross_profit_before_ads_usd": 0.0,
-      "gross_profit_usd": 0.0,
+      "impressions":
+      0.0,
+      "clicks":
+      0.0,
+      "cost":
+      0.0,
+      "sales_usd":
+      0.0,
+      "units_sold":
+      0.0,
+      "free_units_downloaded":
+      float(kdp_stat.free_units_downloaded if kdp_stat is not None else 0),
+      "gross_profit_before_ads_usd":
+      0.0,
+      "gross_profit_usd":
+      0.0,
     }
     daily_campaigns[date_key] = []
     current_date += datetime.timedelta(days=1)
@@ -1029,6 +1042,9 @@ def _build_ads_stats_chart_data(
     round(float(daily_totals[label]["sales_usd"]), 2) for label in labels
   ]
   units_sold = [int(daily_totals[label]["units_sold"]) for label in labels]
+  free_units_downloaded = [
+    int(daily_totals[label]["free_units_downloaded"]) for label in labels
+  ]
   gross_profit_before_ads_usd = [
     round(float(daily_totals[label]["gross_profit_before_ads_usd"]), 2)
     for label in labels
@@ -1051,6 +1067,8 @@ def _build_ads_stats_chart_data(
     sales_usd,
     "units_sold":
     units_sold,
+    "free_units_downloaded":
+    free_units_downloaded,
     "gross_profit_before_ads_usd":
     gross_profit_before_ads_usd,
     "gross_profit_usd":
@@ -1067,6 +1085,8 @@ def _build_ads_stats_chart_data(
     round(sum(sales_usd), 2),
     "total_units_sold":
     sum(units_sold),
+    "total_free_units_downloaded":
+    sum(free_units_downloaded),
     "total_gross_profit_before_ads_usd":
     round(sum(gross_profit_before_ads_usd), 2),
     "total_gross_profit_usd":

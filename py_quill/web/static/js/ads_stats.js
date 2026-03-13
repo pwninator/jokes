@@ -19,7 +19,7 @@
   const COLOR_MATCHED = '#1565c0';
   const COLOR_UNMATCHED = '#c62828';
   const COLOR_RECONCILED = '#2e7d32';
-  const COLOR_FREE_DOWNLOADS = '#00838f';
+  const COLOR_FREE_DOWNLOADS = '#000000';
   const CAMPAIGN_STATUS_STORAGE_KEY = 'adsStatsCampaignStatuses';
   const INLINE_KENP_PROFIT_TOOLTIP_OPTIONS = Object.freeze({ inlineKenpPages: true });
   const SEARCH_TERM_DIMENSION_COLUMNS = Object.freeze([

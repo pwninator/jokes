@@ -2498,7 +2498,7 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.equal(datasets[0].borderColor, '#ef6c00');
     assert.equal(datasets[1].borderColor, '#1565c0');
     assert.equal(datasets[3].borderColor, '#2e7d32');
-    assert.equal(datasets[4].borderColor, '#00838f');
+    assert.equal(datasets[4].borderColor, '#000000');
     assert.equal(datasets[4].yAxisID, 'y1');
     assert.deepEqual(datasets[0].data, [2, 3]);
     assert.deepEqual(datasets[1].data, [2, 3]);

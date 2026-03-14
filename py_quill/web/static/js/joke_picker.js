@@ -24,6 +24,7 @@
     this.container = document.querySelector(config.container || '');
     this.states = Array.isArray(config.states) ? config.states : [];
     this.publicOnly = Boolean(config.publicOnly);
+    this.excludeWithSocialPost = Boolean(config.excludeWithSocialPost);
     this.maxSelection = Number.isFinite(config.maxSelection)
       ? config.maxSelection
       : 5;
@@ -233,6 +234,9 @@
     url.searchParams.set('states', this.states.join(','));
     if (this.publicOnly) {
       url.searchParams.set('public_only', 'true');
+    }
+    if (this.excludeWithSocialPost) {
+      url.searchParams.set('without_social_post', 'true');
     }
     if (this.currentCategory) {
       url.searchParams.set('category', this.currentCategory);

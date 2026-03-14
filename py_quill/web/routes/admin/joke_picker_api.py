@@ -42,6 +42,8 @@ def admin_joke_picker() -> flask.Response:
                                  default=_DEFAULT_JOKES_PER_PAGE,
                                  type=int)
   public_only = (flask.request.args.get("public_only") or "").lower() == "true"
+  without_social_post = (
+    flask.request.args.get("without_social_post") or "").lower() == "true"
   image_size = flask.request.args.get(
     "image_size",
     default=_DEFAULT_IMAGE_SIZE,
@@ -54,6 +56,8 @@ def admin_joke_picker() -> flask.Response:
     cursor=cursor,
     limit=limit,
     category_id=category_id,
+    sort_field='public_timestamp',
+    without_social_post=without_social_post,
   )
 
   if public_only:

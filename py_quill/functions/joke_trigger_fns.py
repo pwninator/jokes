@@ -121,7 +121,7 @@ def on_joke_category_write(
 
 @firestore_fn.on_document_written(
   document="jokes/{joke_id}",
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=300,
 )
 def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:

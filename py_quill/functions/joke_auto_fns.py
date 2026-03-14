@@ -29,7 +29,7 @@ _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
   # Runs at every hour PST every day
   schedule="0 * * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_joke_hourly_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
@@ -41,7 +41,7 @@ def auto_joke_hourly_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_joke_hourly_http(req: flask.Request) -> flask.Response:
@@ -62,7 +62,7 @@ def auto_joke_hourly_http(req: flask.Request) -> flask.Response:
   # Runs daily at 2:30 AM PST
   schedule="30 2 * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_user_daily_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
@@ -74,7 +74,7 @@ def auto_user_daily_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_user_daily_http(req: flask.Request) -> flask.Response:
@@ -94,7 +94,7 @@ def auto_user_daily_http(req: flask.Request) -> flask.Response:
 @scheduler_fn.on_schedule(
   schedule="0 6,13,20 * * *",
   timezone=ZoneInfo("America/Los_Angeles"),
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_ads_stats_request_scheduler(
@@ -107,7 +107,7 @@ def auto_ads_stats_request_scheduler(
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=1800,
 )
 def auto_ads_stats_request_http(req: flask.Request) -> flask.Response:
@@ -486,6 +486,9 @@ def _compute_joke_payload_and_stats(
   elif normalized_book_id != expected_book_id:
     payload["book_id"] = expected_book_id
     stats_delta["book_id_updated"] = 1
+
+  if "joke_social_post_id" not in joke_data:
+    payload["joke_social_post_id"] = None
 
   if not _should_skip_recent_update(joke_data, run_time_utc):
     payload.update(_build_recent_decay_payload(joke_data))

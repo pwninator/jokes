@@ -121,6 +121,7 @@ def _create_mock_joke_doc(joke_id: str,
     "all_punchline_image_urls": [],
     "admin_rating": models.JokeAdminRating.UNREVIEWED.value,
     "book_id": None,
+    "joke_social_post_id": None,
     "owner_user_id": None,
     "generation_metadata": {
       "generations": []
@@ -867,6 +868,74 @@ class TestDecayRecentJokeStats:
     assert payload == {
       "last_recent_stats_update_time": firestore.SERVER_TIMESTAMP
     }
+
+  def test_backfills_joke_social_post_id_when_absent(self, monkeypatch):
+    """Jokes missing joke_social_post_id get it set to None in the payload."""
+    now_utc = _create_test_datetime()
+    doc = _create_mock_joke_doc(
+      "joke-1",
+      overrides={
+        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
+        "state": models.JokeState.PUBLISHED.value,
+        "is_public": True,
+        "category_id": "_uncategorized",
+      },
+    )
+    # Remove joke_social_post_id to simulate an older document.
+    data = doc.to_dict()
+    data.pop("joke_social_post_id", None)
+    doc.to_dict.return_value = data
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
+    _setup_decay_test_mocks(monkeypatch)
+
+    joke_auto_fns._joke_maintenance_internal(now_utc)
+
+    mock_batch.update.assert_called_once()
+    payload = mock_batch.update.call_args.args[1]
+    assert payload == {"joke_social_post_id": None}
+
+  def test_does_not_overwrite_existing_joke_social_post_id(self, monkeypatch):
+    """Jokes with an existing joke_social_post_id are not modified."""
+    now_utc = _create_test_datetime()
+    doc = _create_mock_joke_doc(
+      "joke-1",
+      overrides={
+        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
+        "state": models.JokeState.PUBLISHED.value,
+        "is_public": True,
+        "category_id": "_uncategorized",
+        "joke_social_post_id": "post-abc",
+      },
+    )
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
+    _setup_decay_test_mocks(monkeypatch)
+
+    joke_auto_fns._joke_maintenance_internal(now_utc)
+
+    mock_batch.update.assert_not_called()
+
+  def test_does_not_overwrite_null_joke_social_post_id(self, monkeypatch):
+    """Jokes with joke_social_post_id already null are not written again."""
+    now_utc = _create_test_datetime()
+    doc = _create_mock_joke_doc(
+      "joke-1",
+      overrides={
+        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
+        "state": models.JokeState.PUBLISHED.value,
+        "is_public": True,
+        "category_id": "_uncategorized",
+        "joke_social_post_id": None,
+      },
+    )
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
+    _setup_decay_test_mocks(monkeypatch)
+
+    joke_auto_fns._joke_maintenance_internal(now_utc)
+
+    mock_batch.update.assert_not_called()
 
   def test_recent_update_still_updates_is_public_when_mismatch(
       self, monkeypatch):

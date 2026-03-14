@@ -387,15 +387,23 @@ def get_joke_by_state(
   limit: int = 10,
   *,
   category_id: str | None = None,
+  sort_field: str = 'creation_time',
+  without_social_post: bool = False,
 ) -> tuple[list[tuple[models.PunnyJoke, str]], str | None]:
   """Fetch a page of jokes for the admin UI.
 
-  Jokes are filtered by `states` and sorted by `creation_time` descending.
+  Jokes are filtered by `states` and sorted by `sort_field` descending.
 
   Args:
     states: Joke lifecycle states to include (required; caller chooses defaults).
     cursor: Optional joke document id to start *after* (cursor pagination).
     limit: Maximum number of jokes to return.
+    sort_field: Firestore field name to sort by (descending). Defaults to
+      'creation_time'. Use 'public_timestamp' to sort by publication date;
+      note that documents missing this field are excluded by Firestore.
+    without_social_post: If True, only return jokes where `joke_social_post_id`
+      is null. Requires a composite Firestore index on
+      (state, joke_social_post_id, public_timestamp).
 
   Returns:
     (entries, next_cursor):
@@ -408,8 +416,11 @@ def get_joke_by_state(
     states,
     category_id=category_id,
     async_mode=False,
-  ).order_by(
-    'creation_time',
+  )
+  if without_social_post:
+    query = query.where(filter=FieldFilter('joke_social_post_id', '==', None))
+  query = query.order_by(
+    sort_field,
     direction=Query.DESCENDING,
   )
 

@@ -1,17 +1,18 @@
 """Analytics and usage tracking functions."""
 
+import flask
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (AuthError, error_response, get_bool_param,
-                                      get_int_param, get_param, get_user_id,
-                                      success_response)
+from functions.function_utils import (AuthError, error_response,
+                                      get_bool_param, get_int_param, get_param,
+                                      get_user_id, success_response)
 from services import firestore as firestore_service
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   timeout_sec=10,
 )
-def usage(req: https_fn.Request) -> https_fn.Response:
+def usage(req: flask.Request) -> flask.Response:
   """Track user usage and update per-day distinct usage counter.
 
   Expects Authorization header with a Firebase ID token. Optionally accepts a
@@ -20,7 +21,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
   try:
     # Skip processing for health check requests
     if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+      return flask.Response("OK", status=200)
 
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')

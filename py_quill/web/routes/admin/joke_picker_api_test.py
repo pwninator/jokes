@@ -81,9 +81,26 @@ def test_admin_joke_picker_filters_public(monkeypatch):
     models.JokeState.PUBLISHED,
   ]
   assert kwargs["category_id"] == "cats"
+  assert kwargs["sort_field"] == "public_timestamp"
+  assert kwargs["without_social_post"] is False
 
 
-def test_admin_joke_picker_categories(monkeypatch):
+def test_admin_joke_picker_without_social_post_param(monkeypatch):
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
+
+  mock_get = Mock(return_value=([], None))
+  monkeypatch.setattr(picker_routes.firestore, "get_joke_by_state", mock_get)
+
+  with app.test_client() as client:
+    client.get(
+      "/admin/api/jokes/picker?states=DAILY&without_social_post=true")
+
+  _, kwargs = mock_get.call_args
+  assert kwargs["without_social_post"] is True
+
+
+
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(auth_helpers.utils, "is_emulator", lambda: False)
 

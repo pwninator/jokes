@@ -669,7 +669,48 @@ def test_get_joke_by_state_orders_and_paginates(monkeypatch):
   assert next_cursor == "joke2"
 
 
-def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
+def test_get_joke_by_state_without_social_post_adds_filter(monkeypatch):
+  """without_social_post=True adds a joke_social_post_id == None filter."""
+  captured: dict = {}
+
+  class _Query:
+
+    def __init__(self):
+      self._filters: list = []
+
+    def where(self, filter=None):  # pylint: disable=redefined-builtin
+      captured.setdefault("filters", []).append(filter)
+      return self
+
+    def order_by(self, field: str, direction=None):
+      captured["order_by"] = (field, direction)
+      return self
+
+    def start_after(self, snapshot):
+      return self
+
+    def limit(self, n: int):
+      return self
+
+    def stream(self):
+      return []
+
+  def _prepare(states, *, category_id=None, async_mode):
+    return _Query()
+
+  monkeypatch.setattr(firestore, "_prepare_jokes_query", _prepare)
+  monkeypatch.setattr(firestore, "db", lambda: None)
+
+  firestore.get_joke_by_state(
+    states=[models.JokeState.DAILY],
+    without_social_post=True,
+  )
+
+  filter_fields = [f.field_path for f in captured.get("filters", [])]
+  assert "joke_social_post_id" in filter_fields
+
+
+
   captured = {}
 
   class DummyDoc:

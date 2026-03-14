@@ -16,6 +16,7 @@ const {
   buildDaysOfWeekSeries,
   buildReconciledChartStats,
   buildChartStats,
+  calculateScorecardMetrics,
   chartDataToCsv,
   copyTextToClipboard,
   formatUnmatchedAdsTooltipLine,
@@ -1743,39 +1744,39 @@ test('buildReconciledChartStats exposes ads and reconciled profit series for cam
   assert.deepEqual(timeline.matched_ads_profit_before_ads_usd, [5, 11]);
   assert.deepEqual(timeline.gross_profit_before_ads_usd, [5, 11]);
   assert.deepEqual(timeline.reconciled_matched_profit_before_ads_usd, [6, 14]);
-  assert.deepEqual(timeline.reconciled_profit_before_ads_usd, [7, 18]);
+  assert.deepEqual(timeline.reconciled_profit_before_ads_usd, [6, 14]);
   assertClose(timeline.poas[0], 6 / 4);
   assertClose(timeline.poas[1], 15 / 10);
-  assertClose(timeline.tpoas[0], (6 + 1) / 4);
-  assertClose(timeline.tpoas[1], (15 + 3) / 10);
+  assertClose(timeline.tpoas[0], 6 / 4);
+  assertClose(timeline.tpoas[1], 14 / 10);
   assert.deepEqual(timeline.organic_profit_usd, [1, 3]);
   assert.deepEqual(timeline.unmatched_pre_ad_profit_usd, [1, 4]);
   assert.deepEqual(timeline.matched_ads_sales_count, [1, 2]);
   assert.deepEqual(timeline.organic_sales_count, [1, 1]);
   assert.deepEqual(timeline.reconciled_sales_count, [2, 3]);
   assert.deepEqual(timeline.unmatched_ads_sales_count, [1, 3]);
-  assert.deepEqual(timeline.gross_profit_usd, [3, 8]);
+  assert.deepEqual(timeline.gross_profit_usd, [2, 4]);
   assertClose(timeline.totals.ads_profit_before_ads_usd, 21);
   assertClose(timeline.totals.matched_ads_profit_before_ads_usd, 16);
-  assertClose(timeline.totals.reconciled_profit_before_ads_usd, 25);
+  assertClose(timeline.totals.reconciled_profit_before_ads_usd, 20);
   assertClose(timeline.totals.unmatched_pre_ad_profit_usd, 5);
-  assertClose(timeline.totals.gross_profit_usd, 11);
+  assertClose(timeline.totals.gross_profit_usd, 6);
 
   assert.deepEqual(daysOfWeek.labels, DAYS_OF_WEEK_LABELS);
   assertClose(daysOfWeek.cost[0], 4); // Sunday
   assertClose(daysOfWeek.cost[1], 10); // Monday
   assertClose(daysOfWeek.ads_profit_before_ads_usd[0], 6);
   assertClose(daysOfWeek.ads_profit_before_ads_usd[1], 15);
-  assertClose(daysOfWeek.reconciled_profit_before_ads_usd[0], 7);
-  assertClose(daysOfWeek.reconciled_profit_before_ads_usd[1], 18);
+  assertClose(daysOfWeek.reconciled_profit_before_ads_usd[0], 6);
+  assertClose(daysOfWeek.reconciled_profit_before_ads_usd[1], 14);
   assertClose(daysOfWeek.poas[0], 6 / 4);
   assertClose(daysOfWeek.poas[1], 15 / 10);
-  assertClose(daysOfWeek.tpoas[0], (6 + 1) / 4);
-  assertClose(daysOfWeek.tpoas[1], (15 + 3) / 10);
+  assertClose(daysOfWeek.tpoas[0], 6 / 4);
+  assertClose(daysOfWeek.tpoas[1], 14 / 10);
   assertClose(daysOfWeek.unmatched_pre_ad_profit_usd[0], 1);
   assertClose(daysOfWeek.unmatched_pre_ad_profit_usd[1], 4);
-  assertClose(daysOfWeek.gross_profit_usd[0], 3);
-  assertClose(daysOfWeek.gross_profit_usd[1], 8);
+  assertClose(daysOfWeek.gross_profit_usd[0], 2);
+  assertClose(daysOfWeek.gross_profit_usd[1], 4);
 });
 
 test('buildReconciledChartStats prefers profit detail totals for dollar series when present', () => {
@@ -1871,6 +1872,70 @@ test('buildReconciledChartStats prefers profit detail totals for dollar series w
   assert.deepEqual(timeline.unmatched_pre_ad_profit_usd, [2]);
 });
 
+test('reconciled book-profit metrics follow the spec and exclude KENP detail amounts', () => {
+  const chartData = {
+    labels: ['2026-02-22'],
+    impressions: [10],
+    clicks: [2],
+    cost: [4],
+    sales_usd: [8],
+    units_sold: [1],
+    gross_profit_before_ads_usd: [6],
+    gross_profit_usd: [2],
+    daily_campaigns: {
+      '2026-02-22': [],
+    },
+  };
+  const reconciledChartData = {
+    labels: ['2026-02-22'],
+    gross_profit_before_ads_usd: [111],
+    reconciled_matched_profit_before_ads_usd: [222],
+    organic_profit_usd: [7],
+    matched_ads_sales_count: [1],
+    organic_sales_count: [1],
+    reconciled_sales_count: [2],
+    unmatched_ads_sales_count: [0],
+    profit_before_ads_reconciled_details: [[
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 9.5,
+      },
+      {
+        country_code: 'US',
+        asin: 'B0A',
+        book_key: 'a',
+        book_format: 'Ebook',
+        amount_usd: 2.5,
+        is_kenp: true,
+        kenp_pages_count: 100,
+      },
+    ]],
+  };
+
+  const timeline = buildReconciledChartStats(
+    chartData,
+    'All',
+    TIMELINE_MODE,
+    reconciledChartData,
+  );
+  const scorecards = calculateScorecardMetrics(
+    buildChartStats(chartData, 'All', TIMELINE_MODE),
+    timeline,
+  );
+
+  assert.deepEqual(timeline.reconciled_profit_before_ads_usd, [9.5]);
+  assert.deepEqual(timeline.profit_before_ads_reconciled_tooltip_lines, [[
+    'US B0A - a (Ebook): $9.50',
+  ]]);
+  assert.deepEqual(timeline.tpoas, [9.5 / 4]);
+  assert.deepEqual(timeline.gross_profit_usd, [5.5]);
+  assert.equal(scorecards.reconciledProfitBeforeAds, 9.5);
+  assert.equal(scorecards.grossProfit, 5.5);
+});
+
 test('buildReconciledChartStats falls back to ads-only series for specific campaigns', () => {
   const chartData = {
     labels: ['2026-02-22'],
@@ -1909,6 +1974,41 @@ test('buildReconciledChartStats falls back to ads-only series for specific campa
   assert.equal(reconciled.totals.cost, 4);
   assert.equal(reconciled.totals.reconciled_profit_before_ads_usd, 6);
   assert.equal(reconciled.totals.gross_profit_usd, 2);
+});
+
+test('calculateScorecardMetrics follows spec formulas and hides unavailable reconciled metrics', () => {
+  const stats = buildChartStats(createFakeChartData(), 'All', TIMELINE_MODE);
+  const reconciledStats = buildReconciledChartStats(
+    createFakeChartData(),
+    'All',
+    TIMELINE_MODE,
+    createFakeReconciledChartData(),
+  );
+  const scorecards = calculateScorecardMetrics(stats, reconciledStats);
+
+  assert.deepEqual(scorecards, {
+    impressions: 220,
+    clicks: 22,
+    cost: 44,
+    ctr: 10,
+    cpc: 2,
+    conversionRate: (5 / 22) * 100,
+    adsProfitBeforeAds: 88,
+    reconciledProfitBeforeAds: 94,
+    grossProfit: 50,
+  });
+
+  const adsOnlyScorecards = calculateScorecardMetrics(
+    buildChartStats(createFakeChartData(), 'Campaign A', TIMELINE_MODE),
+    buildReconciledChartStats(
+      createFakeChartData(),
+      'Campaign A',
+      TIMELINE_MODE,
+      createFakeReconciledChartData(),
+    ),
+  );
+  assert.equal(adsOnlyScorecards.reconciledProfitBeforeAds, null);
+  assert.equal(adsOnlyScorecards.grossProfit, null);
 });
 
 test('normalizeAdsEvent validates required fields and date format', () => {
@@ -2024,6 +2124,15 @@ test('initAdsStatsPage reads embedded page data and mode buttons update charts',
     assert.equal(elements.modeSelector.value, TIMELINE_MODE);
     assert.equal(elements.adsStatsModeToggleButton.getAttribute('aria-pressed'), 'false');
     assert.equal(elements.adsStatsModeToggleButton.textContent, TIMELINE_MODE);
+    assert.equal(elements['stat-impressions'].textContent, '220');
+    assert.equal(elements['stat-clicks'].textContent, '22');
+    assert.equal(elements['stat-cost'].textContent, '$44.00');
+    assert.equal(elements['stat-ctr'].textContent, '10.0%');
+    assert.equal(elements['stat-cpc'].textContent, '$2.00');
+    assert.equal(elements['stat-conversion-rate'].textContent, '22.7%');
+    assert.equal(elements['stat-profit-before-ads-ads'].textContent, '$88.00');
+    assert.equal(elements['stat-profit-before-ads-reconciled'].textContent, '$94.00');
+    assert.equal(elements['stat-gross-profit'].textContent, '$50.00');
 
     await elements.adsStatsModeToggleButton.dispatch('click');
 
@@ -2102,6 +2211,8 @@ test('initAdsStatsPage populates campaign status toggles and filters charts and 
     assert.ok(impressionsChart);
     assert.deepEqual(impressionsChart.config.data.datasets[0].data, [60, 70]);
     assert.deepEqual(impressionsChart.config.data.datasets[1].data, [6, 7]);
+    assert.equal(elements['stat-profit-before-ads-reconciled'].textContent, '--');
+    assert.equal(elements['stat-gross-profit'].textContent, '--');
   } finally {
     global.window = originalWindow;
     global.document = originalDocument;
@@ -2663,12 +2774,8 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.deepEqual(
       poasDatasets[1].tooltipLinesByIndex[1],
       [
-        'Ads:',
-        'US B0G9765J19 - animal-jokes (Ebook): $12.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (250)',
-        'Organic:',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $7.00',
+        'US B0G9765J19 - animal-jokes (Ebook): $24.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $30.00',
       ],
     );
 
@@ -2687,12 +2794,8 @@ test('initAdsStatsPage renders Sales and Profit breakdown datasets with detailed
     assert.deepEqual(
       reconciledDatasets[2].tooltipLinesByIndex[1],
       [
-        'Ads:',
-        'US B0G9765J19 - animal-jokes (Ebook): $12.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $20.00',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook KENP): $6.00 (250)',
-        'Organic:',
-        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $7.00',
+        'US B0G9765J19 - animal-jokes (Ebook): $24.00',
+        'GB B0GNMFVYC5 - valentine-jokes (Ebook): $30.00',
       ],
     );
   } finally {

@@ -1247,8 +1247,8 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert 'id="stat-sales"' not in html
   assert "<h3>Sales</h3>" not in html
 
-  assert "<h3>Profit (Reconciled)</h3>" in html
-  assert "<h3>POAS (Reconciled)</h3>" in html
+  assert "<h3>Profit</h3>" in html
+  assert "<h3>POAS</h3>" in html
   assert "<h3>Gross Profit</h3>" not in html
   assert "<h3>Cost / Gross Profit Before Ads</h3>" not in html
   assert '/static/js/ads_stats.js' in html
@@ -1283,8 +1283,8 @@ def test_admin_ads_stats_page_chart_layout_and_order(monkeypatch):
   assert "gap: 0;" in html
   assert "flex-wrap: wrap;" in html
 
-  reconciled_profit_pos = html.find("<h3>Profit (Reconciled)</h3>")
-  reconciled_poas_pos = html.find("<h3>POAS (Reconciled)</h3>")
+  reconciled_profit_pos = html.find("<h3>Profit</h3>")
+  reconciled_poas_pos = html.find("<h3>POAS</h3>")
   cpc_and_cr_pos = html.find("<h3>CPC / Conversion Rate</h3>")
   ctr_pos = html.find("<h3>CTR</h3>")
   impressions_and_clicks_pos = html.find("<h3>Impressions / Clicks</h3>")

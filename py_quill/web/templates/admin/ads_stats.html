@@ -570,44 +570,39 @@
 <div class="stats-grid">
   <div class="stat-card">
     <div class="stat-card__label">Impressions</div>
-    <div class="stat-card__value" id="stat-impressions">{{ "{:,.0f}".format(chart_data.total_impressions) }}</div>
+    <div class="stat-card__value" id="stat-impressions">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Clicks</div>
-    <div class="stat-card__value" id="stat-clicks">{{ "{:,.0f}".format(chart_data.total_clicks) }}</div>
+    <div class="stat-card__value" id="stat-clicks">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Cost</div>
-    <div class="stat-card__value" id="stat-cost">{{ "${:,.2f}".format(chart_data.total_cost) }}</div>
+    <div class="stat-card__value" id="stat-cost">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">CTR</div>
-    <div class="stat-card__value" id="stat-ctr">0.0%</div>
+    <div class="stat-card__value" id="stat-ctr">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">CPC</div>
-    <div class="stat-card__value" id="stat-cpc">$0.00</div>
+    <div class="stat-card__value" id="stat-cpc">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Conv. Rate</div>
-    <div class="stat-card__value" id="stat-conversion-rate">0.0%</div>
+    <div class="stat-card__value" id="stat-conversion-rate">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Profit Before Ads (ads)</div>
-    <div class="stat-card__value" id="stat-profit-before-ads-ads">{{
-      "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd) }}</div>
+    <div class="stat-card__value" id="stat-profit-before-ads-ads">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Profit Before Ads (reconciled)</div>
-    <div class="stat-card__value" id="stat-profit-before-ads-reconciled">{{
-      "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd +
-      reconciled_click_date_chart_data.total_organic_profit_usd) }}</div>
+    <div class="stat-card__value" id="stat-profit-before-ads-reconciled">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-card__label">Gross Profit</div>
-    <div class="stat-card__value" id="stat-gross-profit">{{
-      "${:,.2f}".format(chart_data.total_gross_profit_before_ads_usd +
-      reconciled_click_date_chart_data.total_organic_profit_usd - chart_data.total_cost) }}</div>
+    <div class="stat-card__value" id="stat-gross-profit">--</div>
   </div>
 </div>
 

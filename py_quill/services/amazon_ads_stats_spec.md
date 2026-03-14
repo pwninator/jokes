@@ -14,11 +14,12 @@ Changes to this file must be reflected immediately in the corresponding code.
 
 ### 1.1 Ads source reports (Amazon Ads API v3)
 
-Three Sponsored Products daily reports are requested per profile:
+Four Sponsored Products daily reports are requested per profile:
 
 1. `spCampaigns` (campaign-level spend/click/sales rollups)
 2. `spAdvertisedProduct` (advertised-product attributed units/sales + KENP)
 3. `spSearchTerm` (search-term metrics split by query/keyword/targeting)
+4. `spCampaignsPlacement` (campaign-placement rollups)
 
 Reports are requested as `GZIP_JSON`, time unit `DAILY`, date range 30 days.
 
@@ -39,6 +40,220 @@ Daily reconciled docs split KDP ship-date outcomes into:
 - `ads_click_date_*` (same matched quantity projected to original click date)
 - `organic_*` (unmatched KDP portion)
 - `unmatched_ads_click_date_*` (ads click-date quantity still unmatched)
+
+### 1.4 Canonical Metric Definitions
+
+This section defines the precise meaning of every metric persisted or derived
+by the ads/KDP stats pipeline. Unless otherwise stated, all money is in USD
+after ingest-time FX normalization.
+
+#### 1.4.1 Raw Amazon Ads report metrics
+
+Campaign report (`spCampaigns`) row fields:
+
+- `impressions`: raw Amazon Ads impressions for that campaign/date row.
+- `clicks`: raw Amazon Ads clicks for that campaign/date row.
+- `cost`: raw Amazon Ads spend for that campaign/date row.
+- `sales14d`: Amazon Ads 14-day attributed sales for that campaign/date row.
+- `unitsSoldClicks14d`: Amazon Ads 14-day attributed units for that
+  campaign/date row.
+- `kindleEditionNormalizedPagesRead14d`: Amazon Ads 14-day attributed KENP
+  pages for that campaign/date row.
+- `kindleEditionNormalizedPagesRoyalties14d`: Amazon Ads 14-day attributed KENP
+  royalties for that campaign/date row.
+
+Advertised-product report (`spAdvertisedProduct`) row fields:
+
+- `attributedSalesSameSku14d`: Amazon Ads 14-day attributed sales for the
+  advertised-product row.
+- `unitsSoldSameSku14d`: Amazon Ads 14-day attributed units for the
+  advertised-product row.
+- `kindleEditionNormalizedPagesRead14d`: Amazon Ads 14-day attributed KENP
+  pages for the advertised-product row.
+- `kindleEditionNormalizedPagesRoyalties14d`: Amazon Ads 14-day attributed KENP
+  royalties for the advertised-product row.
+
+Search-term report (`spSearchTerm`) row fields:
+
+- `impressions`, `clicks`, `cost`, `purchases14d`, `unitsSoldClicks14d`,
+  `sales14d`, `kindleEditionNormalizedPagesRead14d`,
+  `kindleEditionNormalizedPagesRoyalties14d`: direct row-level Amazon Ads
+  metrics for that `(date, profile, campaign, ad group, query/keyword/target)`
+  tuple.
+
+Placement report (`spCampaignsPlacement`) row fields:
+
+- `impressions`, `clicks`, `cost`, `purchases14d`, `unitsSoldClicks14d`,
+  `sales14d`, `kindleEditionNormalizedPagesRead14d`,
+  `kindleEditionNormalizedPagesRoyalties14d`,
+  `topOfSearchImpressionShare`: direct row-level Amazon Ads metrics for that
+  `(date, profile, campaign, placement)` tuple.
+
+#### 1.4.2 Persisted ads campaign/day metrics
+
+`AmazonAdsDailyCampaignStats` stores one campaign/day aggregate with these
+definitions:
+
+- `spend`: campaign-row `cost`.
+- `impressions`: campaign-row `impressions`.
+- `clicks`: campaign-row `clicks`.
+- `total_attributed_sales_usd`: campaign-row `sales14d`.
+- `total_units_sold`: campaign-row `unitsSoldClicks14d`.
+- `kenp_pages_read`: campaign-row
+  `kindleEditionNormalizedPagesRead14d`, with fallback to
+  `attributedKindleEditionNormalizedPagesRead14d` when present.
+- `kenp_royalties_usd`: campaign-row
+  `kindleEditionNormalizedPagesRoyalties14d`, with fallback to
+  `attributedKindleEditionNormalizedPagesRoyalties14d` when present.
+- `sale_items_by_asin_country`: per-ASIN+country totals built from
+  advertised-product rows after ASIN decomposition.
+
+For each ads-side `sale_items_by_asin_country[asin][country_code]` bucket:
+
+- `units_sold`: decomposed units allocated from
+  `spAdvertisedProduct.unitsSoldSameSku14d`.
+- `total_sales_usd`: decomposed sales allocated from
+  `spAdvertisedProduct.attributedSalesSameSku14d`.
+- `kenp_pages_read`: advertised-product KENP pages accumulated onto the
+  canonical ebook ASIN for the title.
+- `kenp_royalties_usd`: advertised-product KENP royalties accumulated onto the
+  canonical ebook ASIN for the title.
+- `total_profit_usd`: estimated pre-ad product profit for book sales only:
+  `total_sales_usd * royalty_rate - units_sold * print_cost`.
+  This excludes KENP royalties.
+
+Ads-side campaign/day profit metrics:
+
+- `gross_profit_before_ads_usd`:
+  `sum(sale_items_by_asin_country[*].total_profit_usd) + kenp_royalties_usd`.
+- `gross_profit_usd`:
+  `gross_profit_before_ads_usd - spend`.
+
+`AmazonAdsDailyStats` stores one date-level aggregate across all campaign/day
+rows for that date. Every numeric field on the daily aggregate is the sum of
+the corresponding numeric field from its child `campaigns_by_id` rows.
+
+#### 1.4.3 Persisted KDP day metrics
+
+`AmazonKdpDailyStats` stores one ship/read-date aggregate with these
+definitions:
+
+- `ebook_units_sold`, `paperback_units_sold`, `hardcover_units_sold`: sums of
+  paid `Combined Sales` `Net Units Sold` rows by format where
+  `Avg. Offer Price without tax > 0`.
+- `total_units_sold`:
+  `ebook_units_sold + paperback_units_sold + hardcover_units_sold`.
+- `free_units_downloaded`: sum of `Combined Sales` `Net Units Sold` rows where
+  `Avg. Offer Price without tax <= 0`. Only ebook rows may contribute here.
+- `kenp_pages_read`: sum of `KENP Read`
+  `Kindle Edition Normalized Page (KENP) Read`.
+- `total_royalties_usd`: sum of `Combined Sales` `Royalty`.
+- `ebook_royalties_usd`, `paperback_royalties_usd`, `hardcover_royalties_usd`:
+  format-specific partitions of `Royalty`.
+- `total_print_cost_usd`: sum of
+  `Net Units Sold * Avg. Delivery/Manufacturing cost`.
+
+For each KDP-side `sale_items_by_asin_country[asin][country_code]` bucket:
+
+- `units_sold`: paid units only from `Combined Sales`.
+- `free_units_downloaded`: free ebook downloads only.
+- `kenp_pages_read`: KENP pages from `KENP Read`.
+- `total_sales_usd`: `Net Units Sold * Avg. Offer Price without tax`.
+- `total_royalty_usd`: KDP `Royalty`.
+- `total_print_cost_usd`: KDP
+  `Net Units Sold * Avg. Delivery/Manufacturing cost`.
+- `total_profit_usd`: compatibility alias for KDP royalty amount on this
+  bucket. The canonical KDP book-profit field is `total_royalty_usd`.
+- `unit_prices`: unique observed paid per-unit USD prices for that
+  ASIN+country+day.
+
+#### 1.4.4 Reconciled day metrics
+
+`AmazonSalesReconciledDailyStats` stores ship/read-date KDP outcomes split into
+matched-ads and organic portions by FIFO matching on `(ASIN, country_code)`.
+
+Direct KDP totals for a reconciled day:
+
+- `kdp_units_total`: sum of KDP paid units for that date.
+- `kdp_kenp_pages_read_total`: sum of KDP KENP pages for that date.
+- `kdp_sales_usd_total`: sum of KDP paid sales for that date.
+- `kdp_royalty_usd_total`: sum of KDP royalties for that date.
+- `kdp_print_cost_usd_total`: sum of KDP print cost for that date.
+
+Matched ship-date metrics for a reconciled day:
+
+- `ads_ship_date_units_total`: KDP paid units on that date matched to earlier
+  ads lots.
+- `ads_ship_date_kenp_pages_read_total`: KDP KENP pages on that date matched to
+  earlier ads lots.
+- `ads_ship_date_sales_usd_est`: portion of KDP paid sales allocated to matched
+  units on that ship date.
+- `ads_ship_date_royalty_usd_est`: portion of KDP royalties allocated to
+  matched units on that ship date.
+- `ads_ship_date_print_cost_usd_est`: portion of KDP print cost allocated to
+  matched units on that ship date.
+
+Organic ship-date metrics for a reconciled day:
+
+- `organic_units_total`: KDP paid units on that date not matched to ads lots.
+- `organic_kenp_pages_read_total`: KDP KENP pages on that date not matched to
+  ads lots.
+- `organic_sales_usd_est`: portion of KDP paid sales allocated to unmatched
+  units on that ship date.
+- `organic_royalty_usd_est`: portion of KDP royalties allocated to unmatched
+  units on that ship date.
+- `organic_print_cost_usd_est`: portion of KDP print cost allocated to
+  unmatched units on that ship date.
+
+Projected click-date metrics for a reconciled day:
+
+- `ads_click_date_units_total`: matched KDP units projected back onto their
+  original ads click dates.
+- `ads_click_date_kenp_pages_read_total`: matched KDP KENP pages projected back
+  onto their original ads click dates.
+- `ads_click_date_sales_usd_est`: matched KDP sales projected back onto their
+  original ads click dates.
+- `ads_click_date_royalty_usd_est`: matched KDP royalties projected back onto
+  their original ads click dates.
+- `ads_click_date_print_cost_usd_est`: matched KDP print cost projected back
+  onto their original ads click dates.
+
+Residual unmatched ads metrics:
+
+- `unmatched_ads_click_date_units_total`: ads-attributed units that aged out of
+  the 14-day window without matching any KDP paid unit.
+- `unmatched_ads_click_date_kenp_pages_read_total`: ads-attributed KENP pages
+  that aged out of the 14-day window without matching any KDP KENP page.
+
+Reconciled ASIN+country rows in `by_asin_country` use the same definitions as
+the day-level fields above, scoped to one `(asin, country_code)` key.
+
+#### 1.4.5 Derived reporting metrics
+
+These formulas define the canonical reporting metrics that downstream views
+should use when rendering scorecards or charts:
+
+- `CTR = clicks / impressions`
+- `CPC = spend / clicks`
+- `Conversion Rate = total_units_sold / clicks`
+- `Ads Sales = total_attributed_sales_usd`
+- `Ads Profit Before Ads = gross_profit_before_ads_usd`
+- `Ads Gross Profit = gross_profit_usd`
+- `POAS = gross_profit_before_ads_usd / spend`
+
+For reconciled reporting on a click-date basis:
+
+- `Matched Ads Book Profit Before Ads = ads_click_date_royalty_usd_est`
+- `Organic Book Profit Before Ads = organic_royalty_usd_est`
+- `Reconciled Book Profit Before Ads`:
+  `ads_click_date_royalty_usd_est + organic_royalty_usd_est`
+- `Reconciled Gross Profit`:
+  `(ads_click_date_royalty_usd_est + organic_royalty_usd_est) - spend`
+
+When reporting layers include ads-attributed KENP royalties alongside
+reconciled book profit, the KENP contribution must be added explicitly from the
+ads-side metrics. Reconciled docs do not currently persist KDP-native KENP
+royalty dollars.
 
 ## 2. Firestore Collections and Ownership
 
@@ -91,8 +306,10 @@ Model classes for search-term rows live in `py_quill/models/amazon_ads_models.py
      1. Download + parse rows from each report.
      2. Merge into `AmazonAdsDailyCampaignStats`.
      3. Normalize `spSearchTerm` rows into `AmazonAdsSearchTermDailyStat`.
-     4. Upsert daily totals + search-term rows.
-     5. Mark all three reports `processed=true` and upsert.
+     4. Normalize `spCampaignsPlacement` rows into
+        `AmazonAdsPlacementDailyStat`.
+     5. Upsert daily totals + search-term rows + placement rows.
+     6. Mark all four reports `processed=true` and upsert.
 4. If any daily stats were upserted, run reconciliation with:
    - `earliest_changed_date = min(processed_ads_stat.date)`.
 

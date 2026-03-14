@@ -147,6 +147,88 @@ def _create_mock_book_doc(book_id: str, joke_ids: list[str]) -> MagicMock:
   return doc
 
 
+_ADS_STATS_TEST_REPORT_DEFS = (
+  (
+    models.AmazonAdsReportKey.SP_CAMPAIGNS,
+    "campaigns",
+    "spCampaigns",
+  ),
+  (
+    models.AmazonAdsReportKey.SP_ADVERTISED_PRODUCT,
+    "advertised",
+    "spAdvertisedProduct",
+  ),
+  (
+    models.AmazonAdsReportKey.SP_SEARCH_TERM,
+    "search-term",
+    "spSearchTerm",
+  ),
+  (
+    models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT,
+    "placement",
+    "spCampaigns",
+  ),
+)
+
+
+def _build_ads_stats_test_report(
+    *,
+    profile: amazon.AmazonAdsProfile,
+    report_key: models.AmazonAdsReportKey,
+    report_start_date: datetime.date,
+    report_end_date: datetime.date,
+    created_at: datetime.datetime,
+    status: str = "PENDING",
+    processed: bool = False,
+    url: str = "",
+) -> models.AmazonAdsReport:
+  """Build one ads-stats orchestration report with the current report keys."""
+  report_specs = {
+    key: (report_id_prefix, report_type_id)
+    for key, report_id_prefix, report_type_id in _ADS_STATS_TEST_REPORT_DEFS
+  }
+  report_id_prefix, report_type_id = report_specs[report_key]
+  return models.AmazonAdsReport(
+    report_id=f"{report_id_prefix}-{profile.profile_id}",
+    report_name=f"{report_id_prefix}-{profile.profile_id}",
+    status=status,
+    report_type_id=report_type_id,
+    report_key=report_key,
+    start_date=report_start_date,
+    end_date=report_end_date,
+    created_at=created_at,
+    updated_at=created_at,
+    generated_at=created_at if status == "COMPLETED" else None,
+    profile_id=profile.profile_id,
+    profile_country=profile.country_code,
+    region=profile.region,
+    api_base=profile.api_base,
+    processed=processed,
+    url=url,
+  )
+
+
+def _build_requested_ads_stats_reports(
+    *,
+    profile: amazon.AmazonAdsProfile,
+    report_start_date: datetime.date,
+    report_end_date: datetime.date,
+    created_at: datetime.datetime,
+) -> amazon.RequestedAdsStatsReports:
+  """Build the four-report request result used by the current ads pipeline."""
+  reports_by_key = {
+    report_key: _build_ads_stats_test_report(
+      profile=profile,
+      report_key=report_key,
+      report_start_date=report_start_date,
+      report_end_date=report_end_date,
+      created_at=created_at,
+    )
+    for report_key, _, _ in _ADS_STATS_TEST_REPORT_DEFS
+  }
+  return amazon.RequestedAdsStatsReports(reports_by_key=reports_by_key)
+
+
 class TestAdsStatsFetcher:
   """Tests for Amazon Ads stats fetcher jobs."""
 
@@ -195,28 +277,17 @@ class TestAdsStatsFetcher:
         p for p in profiles
         if p.country_code in amazon.ADS_STATS_TARGET_COUNTRY_CODES
       ]
-      reports = []
-      for profile in expected_profiles:
-        for report_type_id, report_id_prefix in [
-          ("spCampaigns", "campaigns"),
-          ("spAdvertisedProduct", "advertised"),
-        ]:
-          reports.append(
-            models.AmazonAdsReport(
-              report_id=f"{report_id_prefix}-{profile.profile_id}",
-              report_name=f"{report_id_prefix}-{profile.profile_id}",
-              status="PENDING",
-              report_type_id=report_type_id,
-              start_date=report_start_date,
-              end_date=report_end_date,
-              created_at=now_utc,
-              updated_at=now_utc,
-              profile_id=profile.profile_id,
-              profile_country=profile.country_code,
-              region=profile.region,
-              api_base=profile.api_base,
-            ))
-      return reports
+      return [
+        _build_ads_stats_test_report(
+          profile=profile,
+          report_key=report_key,
+          report_start_date=report_start_date,
+          report_end_date=report_end_date,
+          created_at=now_utc,
+        )
+        for profile in expected_profiles
+        for report_key, _, _ in _ADS_STATS_TEST_REPORT_DEFS
+      ]
 
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
@@ -236,54 +307,17 @@ class TestAdsStatsFetcher:
         "end_date": end_date,
         "region": profile.region,
       })
-      return amazon.ReportPair(
-        campaigns_report=models.AmazonAdsReport(
-          report_id=f"campaigns-{profile.profile_id}",
-          status="PENDING",
-          report_name="Campaign report request",
-          report_type_id="spCampaigns",
-          start_date=report_start_date,
-          end_date=report_end_date,
-          created_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            tzinfo=datetime.timezone.utc,
-          ),
-          updated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            tzinfo=datetime.timezone.utc,
-          ),
-        ),
-        advertised_products_report=models.AmazonAdsReport(
-          report_id=f"advertised-{profile.profile_id}",
-          status="PENDING",
-          report_name="Advertised report request",
-          report_type_id="spAdvertisedProduct",
-          start_date=report_start_date,
-          end_date=report_end_date,
-          created_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            tzinfo=datetime.timezone.utc,
-          ),
-          updated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            tzinfo=datetime.timezone.utc,
-          ),
+      return _build_requested_ads_stats_reports(
+        profile=profile,
+        report_start_date=report_start_date,
+        report_end_date=report_end_date,
+        created_at=datetime.datetime(
+          2026,
+          2,
+          18,
+          5,
+          0,
+          tzinfo=datetime.timezone.utc,
         ),
       )
 
@@ -293,7 +327,7 @@ class TestAdsStatsFetcher:
 
     status_calls: list[dict[str, object]] = []
 
-    def _mock_get_reports(*, profile_id, region, report_ids):
+    def _mock_get_reports(*, profile_id, region, report_ids, report_keys_by_id):
       status_calls.append({
         "profile_id": profile_id,
         "region": region,
@@ -301,10 +335,16 @@ class TestAdsStatsFetcher:
       })
       return [
         models.AmazonAdsReport(
-          report_id=f"campaigns-{profile_id}",
-          status="IN_PROGRESS",
-          report_name="Campaign report",
-          report_type_id="spCampaigns",
+          report_id=report_id,
+          report_name=f"{report_id}-name",
+          status="IN_PROGRESS" if report_id.startswith("campaigns-") else "COMPLETED",
+          report_type_id=(
+            "spCampaigns"
+            if report_keys_by_id[report_id]
+            == models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
+            else report_keys_by_id[report_id].value
+          ),
+          report_key=report_keys_by_id[report_id],
           start_date=report_start_date,
           end_date=report_end_date,
           created_at=datetime.datetime(
@@ -321,46 +361,26 @@ class TestAdsStatsFetcher:
             18,
             5,
             0,
-            tzinfo=datetime.timezone.utc,
-          ),
-          url="",
-        ),
-        models.AmazonAdsReport(
-          report_id=f"advertised-{profile_id}",
-          status="COMPLETED",
-          report_name="Advertised report",
-          report_type_id="spAdvertisedProduct",
-          start_date=report_start_date,
-          end_date=report_end_date,
-          created_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            1,
-            tzinfo=datetime.timezone.utc,
-          ),
-          updated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
             2,
             tzinfo=datetime.timezone.utc,
           ),
-          generated_at=datetime.datetime(
-            2026,
-            2,
-            18,
-            5,
-            0,
-            2,
-            tzinfo=datetime.timezone.utc,
+          generated_at=(
+            datetime.datetime(
+              2026,
+              2,
+              18,
+              5,
+              0,
+              2,
+              tzinfo=datetime.timezone.utc,
+            )
+            if not report_id.startswith("campaigns-") else None
           ),
-          url="https://example.com/advertised.gz",
-        ),
+          profile_id=profile_id,
+          region=region,
+          url="" if report_id.startswith("campaigns-") else f"https://example.com/{report_id}.gz",
+        )
+        for report_id in report_ids
       ]
 
     monkeypatch.setattr('functions.joke_auto_fns.amazon.get_reports',
@@ -376,7 +396,7 @@ class TestAdsStatsFetcher:
       if profile.country_code in amazon.ADS_STATS_TARGET_COUNTRY_CODES
     ]
     expected_report_count_per_profile = len(
-      amazon.ADS_STATS_REQUIRED_REPORT_TYPES)
+      amazon.ADS_STATS_REQUIRED_REPORT_KEYS)
 
     assert stats["report_date"] == report_end_date.isoformat()
     assert stats["report_start_date"] == report_start_date.isoformat()
@@ -400,6 +420,8 @@ class TestAdsStatsFetcher:
                       call["report_ids"])) == expected_report_count_per_profile
       assert cast(list[str], call["report_ids"])[0].startswith("campaigns-")
       assert cast(list[str], call["report_ids"])[1].startswith("advertised-")
+      assert cast(list[str], call["report_ids"])[2].startswith("search-term-")
+      assert cast(list[str], call["report_ids"])[3].startswith("placement-")
     assert (stats["reports_fetched"] == len(expected_selected_profiles) *
             expected_report_count_per_profile)
     assert stats["daily_campaign_stats_count"] == 0
@@ -432,62 +454,15 @@ class TestAdsStatsFetcher:
                         lambda region: profiles)
 
     existing_reports = [
-      models.AmazonAdsReport(
-        report_id="campaigns-us-profile",
-        report_name="campaigns-us",
-        status="PENDING",
-        report_type_id="spCampaigns",
-        start_date=report_start_date,
-        end_date=report_end_date,
+      _build_ads_stats_test_report(
+        profile=profile,
+        report_key=report_key,
+        report_start_date=report_start_date,
+        report_end_date=report_end_date,
         created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="us-profile",
-        profile_country="US",
-        region="na",
-        api_base="https://advertising-api.amazon.com",
-      ),
-      models.AmazonAdsReport(
-        report_id="advertised-us-profile",
-        report_name="advertised-us",
-        status="PENDING",
-        report_type_id="spAdvertisedProduct",
-        start_date=report_start_date,
-        end_date=report_end_date,
-        created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="us-profile",
-        profile_country="US",
-        region="na",
-        api_base="https://advertising-api.amazon.com",
-      ),
-      models.AmazonAdsReport(
-        report_id="campaigns-uk-profile",
-        report_name="campaigns-uk",
-        status="PENDING",
-        report_type_id="spCampaigns",
-        start_date=report_start_date,
-        end_date=report_end_date,
-        created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="uk-profile",
-        profile_country="UK",
-        region="eu",
-        api_base="https://advertising-api-eu.amazon.com",
-      ),
-      models.AmazonAdsReport(
-        report_id="advertised-uk-profile",
-        report_name="advertised-uk",
-        status="PENDING",
-        report_type_id="spAdvertisedProduct",
-        start_date=report_start_date,
-        end_date=report_end_date,
-        created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="uk-profile",
-        profile_country="UK",
-        region="eu",
-        api_base="https://advertising-api-eu.amazon.com",
-      ),
+      )
+      for profile in profiles
+      for report_key, _, _ in _ADS_STATS_TEST_REPORT_DEFS
     ]
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
@@ -505,7 +480,7 @@ class TestAdsStatsFetcher:
 
     status_calls: list[dict[str, object]] = []
 
-    def _mock_get_reports(*, profile_id, region, report_ids):
+    def _mock_get_reports(*, profile_id, region, report_ids, report_keys_by_id):
       status_calls.append({
         "profile_id": profile_id,
         "region": region,
@@ -516,8 +491,13 @@ class TestAdsStatsFetcher:
           report_id=report_id,
           report_name=f"{report_id}-name",
           status="COMPLETED",
-          report_type_id=("spCampaigns" if "campaigns" in report_id else
-                          "spAdvertisedProduct"),
+          report_type_id=(
+            "spCampaigns"
+            if report_keys_by_id[report_id]
+            == models.AmazonAdsReportKey.SP_CAMPAIGNS_PLACEMENT
+            else report_keys_by_id[report_id].value
+          ),
+          report_key=report_keys_by_id[report_id],
           start_date=report_start_date,
           end_date=report_end_date,
           created_at=now_utc,
@@ -553,8 +533,32 @@ class TestAdsStatsFetcher:
       lambda stats: stats,
     )
     monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.get_campaigns_from_report',
+      lambda profile, campaigns_report: [],
+    )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.get_search_term_daily_stats_from_report',
+      lambda profile, search_term_report: [],
+    )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.get_placement_daily_stats_from_report',
+      lambda profile, placement_report: [],
+    )
+    monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.upsert_amazon_ads_report',
       lambda report: report,
+    )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.amazon_ads_firestore.upsert_amazon_campaigns',
+      lambda campaigns: campaigns,
+    )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.amazon_ads_firestore.upsert_amazon_ads_search_term_daily_stats',
+      lambda stats: stats,
+    )
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.amazon.amazon_ads_firestore.upsert_amazon_ads_placement_daily_stats',
+      lambda stats: stats,
     )
     monkeypatch.setattr(
       'functions.joke_auto_fns.amazon.amazon_sales_reconciliation.reconcile_daily_sales',
@@ -569,7 +573,7 @@ class TestAdsStatsFetcher:
       if profile.country_code in amazon.ADS_STATS_TARGET_COUNTRY_CODES
     ]
     expected_report_count_per_profile = len(
-      amazon.ADS_STATS_REQUIRED_REPORT_TYPES)
+      amazon.ADS_STATS_REQUIRED_REPORT_KEYS)
 
     assert stats["reports_requested"] == 0
     assert (stats["reports_fetched"] == len(expected_selected_profiles) *
@@ -724,21 +728,16 @@ class TestAdsStatsFetcher:
 
     # Existing reports are COMPLETE and PROCESSED=True
     existing_reports = [
-      models.AmazonAdsReport(
-        report_id=f"{type_id}-us-profile",
-        report_name=f"{type_id}-us",
-        status="COMPLETED",
-        report_type_id=type_id,
-        start_date=report_start_date,
-        end_date=report_end_date,
+      _build_ads_stats_test_report(
+        profile=profiles[0],
+        report_key=report_key,
+        report_start_date=report_start_date,
+        report_end_date=report_end_date,
         created_at=now_utc,
-        updated_at=now_utc,
-        profile_id="us-profile",
-        profile_country="US",
-        region="na",
-        api_base="https://advertising-api.amazon.com",
-        processed=True,  # Crucial: Marked as processed
-      ) for type_id in ["spCampaigns", "spAdvertisedProduct"]
+        status="COMPLETED",
+        processed=True,
+      )
+      for report_key, _, _ in _ADS_STATS_TEST_REPORT_DEFS
     ]
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.list_amazon_ads_reports',
@@ -749,30 +748,11 @@ class TestAdsStatsFetcher:
 
     def _mock_request_reports(*, profile, start_date, end_date):
       request_calls.append(profile.profile_id)
-      # Return new reports (unprocessed)
-      return amazon.ReportPair(
-        campaigns_report=models.AmazonAdsReport(
-          report_id=f"new-campaigns-{profile.profile_id}",
-          status="PENDING",
-          report_name="New Campaign report",
-          report_type_id="spCampaigns",
-          start_date=start_date,
-          end_date=end_date,
-          created_at=now_utc,
-          updated_at=now_utc,
-          processed=False,
-        ),
-        advertised_products_report=models.AmazonAdsReport(
-          report_id=f"new-advertised-{profile.profile_id}",
-          status="PENDING",
-          report_name="New Advertised report",
-          report_type_id="spAdvertisedProduct",
-          start_date=start_date,
-          end_date=end_date,
-          created_at=now_utc,
-          updated_at=now_utc,
-          processed=False,
-        ),
+      return _build_requested_ads_stats_reports(
+        profile=profile,
+        report_start_date=start_date,
+        report_end_date=end_date,
+        created_at=now_utc,
       )
 
     monkeypatch.setattr(

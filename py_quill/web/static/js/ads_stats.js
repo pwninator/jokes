@@ -22,6 +22,7 @@
   const COLOR_FREE_DOWNLOADS = '#000000';
   const CAMPAIGN_STATUS_STORAGE_KEY = 'adsStatsCampaignStatuses';
   const INLINE_KENP_PROFIT_TOOLTIP_OPTIONS = Object.freeze({ inlineKenpPages: true });
+  const UNAVAILABLE_METRIC_TEXT = '--';
   const SEARCH_TERM_DIMENSION_COLUMNS = Object.freeze([
     { key: 'campaign_name', label: 'Campaign' },
     { key: 'search_term', label: 'Search Term' },
@@ -342,6 +343,10 @@
     }, 0);
   }
 
+  function sumBookAmountDetails(details) {
+    return sumAmountDetails(filterBookSalesDetails(details));
+  }
+
   function dayOfWeekIndexForDate(dateKey) {
     const dateParts = String(dateKey || '').split('-').map((part) => Number(part));
     const year = dateParts[0];
@@ -367,11 +372,9 @@
     return dayCost > 0 ? toNumber(grossProfitBeforeAds) / dayCost : 0;
   }
 
-  function calculateTpoas(grossProfitBeforeAds, organicProfit, cost) {
+  function calculateTpoas(reconciledProfitBeforeAds, cost) {
     const dayCost = toNumber(cost);
-    return dayCost > 0
-      ? (toNumber(grossProfitBeforeAds) + toNumber(organicProfit)) / dayCost
-      : 0;
+    return dayCost > 0 ? toNumber(reconciledProfitBeforeAds) / dayCost : 0;
   }
 
   function normalizeCampaignStatus(value) {
@@ -816,9 +819,10 @@
           matchedAdsProfitDetails[index],
           organicProfitDetails[index],
         ),
-        profit_before_ads_reconciled_tooltip_lines: buildSectionedProfitTooltipLines(
-          matchedAdsProfitDetails[index],
-          organicProfitDetails[index],
+        // This tooltip must match the spec-defined reconciled book-profit series:
+        // ads click-date book royalty plus organic book royalty, excluding KENP.
+        profit_before_ads_reconciled_tooltip_lines: buildProfitAmountTooltipLines(
+          filterBookSalesDetails(dayProfitBeforeAdsReconciledDetails),
         ),
         ads_kenp_pages_count: sumCountDetails(dayAdsKenpDetails),
         matched_ads_kenp_pages_count: sumCountDetails(dayMatchedKenpDetails),
@@ -832,6 +836,9 @@
         dayRows.matched_ads_profit_before_ads_from_details_usd = (
           sumAmountDetails(dayMatchedAdsProfitDetails)
         );
+        dayRows.matched_ads_book_profit_before_ads_from_details_usd = (
+          sumBookAmountDetails(dayMatchedAdsProfitDetails)
+        );
       }
       if (Array.isArray(dayReconciledMatchedProfitDetails)
         && dayReconciledMatchedProfitDetails.length > 0) {
@@ -843,6 +850,9 @@
         && dayProfitBeforeAdsReconciledDetails.length > 0) {
         dayRows.reconciled_profit_before_ads_from_details_usd = (
           sumAmountDetails(dayProfitBeforeAdsReconciledDetails)
+        );
+        dayRows.reconciled_book_profit_before_ads_from_details_usd = (
+          sumBookAmountDetails(dayProfitBeforeAdsReconciledDetails)
         );
       }
       rowsByDate[dateKey] = dayRows;
@@ -878,7 +888,19 @@
       const dayUnmatchedAdsProfitBeforeAds = (
         dayAdsProfitBeforeAds - dayMatchedAdsProfitBeforeAds
       );
+      const dayMatchedAdsBookProfitBeforeAds = Object.prototype.hasOwnProperty.call(
+        reconciledDay,
+        'matched_ads_book_profit_before_ads_from_details_usd',
+      )
+        ? toNumber(reconciledDay.matched_ads_book_profit_before_ads_from_details_usd)
+        : dayMatchedAdsProfitBeforeAds;
       const dayReconciledProfitBeforeAds = Object.prototype.hasOwnProperty.call(
+        reconciledDay,
+        'reconciled_book_profit_before_ads_from_details_usd',
+      )
+        ? toNumber(reconciledDay.reconciled_book_profit_before_ads_from_details_usd)
+        : (dayMatchedAdsBookProfitBeforeAds + dayOrganicProfit);
+      const dayReconciledProfitBeforeAdsWithKenp = Object.prototype.hasOwnProperty.call(
         reconciledDay,
         'reconciled_profit_before_ads_from_details_usd',
       )
@@ -958,6 +980,7 @@
         gross_profit_usd: dayReconciledProfitBeforeAds - dayCost,
         poas: dayCost > 0 ? dayAdsProfitBeforeAds / dayCost : 0,
         tpoas: dayCost > 0 ? dayReconciledProfitBeforeAds / dayCost : 0,
+        reconciled_profit_before_ads_with_kenp_usd: dayReconciledProfitBeforeAdsWithKenp,
       };
     });
   }
@@ -1089,12 +1112,11 @@
       }),
       tpoas: weekdayBuckets.map((bucket) => {
         const avgCost = average(bucket.cost, bucket.count);
-        const avgRawGrossProfitBeforeAds = average(
-          bucket.raw_gross_profit_before_ads_usd,
+        const avgReconciledProfitBeforeAds = average(
+          bucket.reconciled_profit_before_ads_usd,
           bucket.count,
         );
-        const avgOrganicProfit = average(bucket.organic_profit_usd, bucket.count);
-        return calculateTpoas(avgRawGrossProfitBeforeAds, avgOrganicProfit, avgCost);
+        return calculateTpoas(avgReconciledProfitBeforeAds, avgCost);
       }),
     };
   }
@@ -1107,7 +1129,11 @@
       mode = campaignStatuses; // eslint-disable-line no-param-reassign
       campaignStatuses = 'All'; // eslint-disable-line no-param-reassign
     }
-    if (campaignName !== 'All') {
+    const hasFilteredCampaignStatuses = getEffectiveCampaignStatusFilter(
+      campaignStatuses,
+      availableCampaignStatuses,
+    ) !== null;
+    if (campaignName !== 'All' || hasFilteredCampaignStatuses) {
       const campaignStats = buildChartStats(
         adsStatsData,
         campaignName,
@@ -1290,10 +1316,45 @@
         return calculatePoas(day.raw_gross_profit_before_ads_usd, day.cost);
       }),
       tpoas: reconciledDailyStats.map((day) => {
-        return calculateTpoas(day.raw_gross_profit_before_ads_usd, day.organic_profit_usd, day.cost);
+        // The spec defines TPOAS from reconciled book profit before ads, not
+        // the older ads-profit-plus-organic shortcut.
+        return calculateTpoas(day.reconciled_profit_before_ads_usd, day.cost);
       }),
       is_ads_only_campaign_series: false,
       totals: totals,
+    };
+  }
+
+  // Scorecards must conform to the canonical formulas in
+  // py_quill/services/amazon_ads_stats_spec.md. Keep this helper synchronized
+  // with the spec whenever metric definitions change.
+  function calculateScorecardMetrics(stats, reconciledStats) {
+    const statsTotals = stats && stats.totals ? stats.totals : {};
+    const reconciledTotals = reconciledStats && reconciledStats.totals ? reconciledStats.totals : {};
+    const impressions = toNumber(statsTotals.impressions);
+    const clicks = toNumber(statsTotals.clicks);
+    const cost = toNumber(statsTotals.cost);
+    const adsProfitBeforeAds = toNumber(statsTotals.gross_profit_before_ads_usd);
+    const reconciledMetricsAvailable = !Boolean(
+      reconciledStats && reconciledStats.is_ads_only_campaign_series,
+    );
+
+    return {
+      impressions: impressions,
+      clicks: clicks,
+      cost: cost,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      cpc: clicks > 0 ? cost / clicks : 0,
+      conversionRate: clicks > 0
+        ? (toNumber(statsTotals.units_sold) / clicks) * 100
+        : 0,
+      adsProfitBeforeAds: adsProfitBeforeAds,
+      reconciledProfitBeforeAds: reconciledMetricsAvailable
+        ? toNumber(reconciledTotals.reconciled_profit_before_ads_usd)
+        : null,
+      grossProfit: reconciledMetricsAvailable
+        ? toNumber(reconciledTotals.gross_profit_usd)
+        : null,
     };
   }
 
@@ -2759,48 +2820,38 @@
         const statCtr = document.getElementById('stat-ctr');
         const statCpc = document.getElementById('stat-cpc');
         const statConversionRate = document.getElementById('stat-conversion-rate');
+        const scorecardMetrics = calculateScorecardMetrics(stats, reconciledStats);
 
         if (statImpressions) {
-          statImpressions.textContent = formatNumber(stats.totals.impressions);
+          statImpressions.textContent = formatNumber(scorecardMetrics.impressions);
         }
         if (statClicks) {
-          statClicks.textContent = formatNumber(stats.totals.clicks);
+          statClicks.textContent = formatNumber(scorecardMetrics.clicks);
         }
         if (statCost) {
-          statCost.textContent = formatCurrency(stats.totals.cost);
+          statCost.textContent = formatCurrency(scorecardMetrics.cost);
         }
         if (statProfitBeforeAdsAds) {
-          statProfitBeforeAdsAds.textContent = formatCurrency(
-            toNumber(reconciledStats.totals && reconciledStats.totals.ads_profit_before_ads_usd),
-          );
+          statProfitBeforeAdsAds.textContent = formatCurrency(scorecardMetrics.adsProfitBeforeAds);
         }
         if (statProfitBeforeAdsReconciled) {
-          statProfitBeforeAdsReconciled.textContent = formatCurrency(
-            toNumber(reconciledStats.totals
-              && reconciledStats.totals.reconciled_profit_before_ads_usd),
-          );
+          statProfitBeforeAdsReconciled.textContent = scorecardMetrics.reconciledProfitBeforeAds == null
+            ? UNAVAILABLE_METRIC_TEXT
+            : formatCurrency(scorecardMetrics.reconciledProfitBeforeAds);
         }
         if (statGrossProfit) {
-          statGrossProfit.textContent = formatCurrency(
-            toNumber(reconciledStats.totals && reconciledStats.totals.gross_profit_usd),
-          );
+          statGrossProfit.textContent = scorecardMetrics.grossProfit == null
+            ? UNAVAILABLE_METRIC_TEXT
+            : formatCurrency(scorecardMetrics.grossProfit);
         }
-
-        const totalCtr = stats.totals.impressions > 0
-          ? (stats.totals.clicks / stats.totals.impressions) * 100
-          : 0;
-        const totalCpc = stats.totals.clicks > 0 ? stats.totals.cost / stats.totals.clicks : 0;
-        const totalCr = stats.totals.clicks > 0
-          ? (stats.totals.units_sold / stats.totals.clicks) * 100
-          : 0;
         if (statCtr) {
-          statCtr.textContent = formatPercentage(totalCtr);
+          statCtr.textContent = formatPercentage(scorecardMetrics.ctr);
         }
         if (statCpc) {
-          statCpc.textContent = formatCurrency(totalCpc);
+          statCpc.textContent = formatCurrency(scorecardMetrics.cpc);
         }
         if (statConversionRate) {
-          statConversionRate.textContent = formatPercentage(totalCr);
+          statConversionRate.textContent = formatPercentage(scorecardMetrics.conversionRate);
         }
       }
 
@@ -3475,6 +3526,7 @@
       buildDaysOfWeekSeries: buildDaysOfWeekSeries,
       buildReconciledChartStats: buildReconciledChartStats,
       buildChartStats: buildChartStats,
+      calculateScorecardMetrics: calculateScorecardMetrics,
       formatUnmatchedAdsTooltipLine: formatUnmatchedAdsTooltipLine,
       initAdsStatsPage: initAdsStatsPage,
     };

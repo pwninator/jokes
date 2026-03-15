@@ -106,6 +106,9 @@ def test_admin_jokes_default_filters(monkeypatch):
   assert 'data-joke-state-button' in html
   assert 'joke-edit-button' in html
   assert 'joke-modify-button' in html
+  assert 'target="_blank"' in html
+  assert "width=700,format=auto,quality=75/path/setup.png" in html
+  assert "width=700,format=auto,quality=75/path/punch.png" in html
   assert 'data-joke-data=' in html
   assert 'state' in html
   assert 'APPROVED' in html
@@ -298,10 +301,12 @@ def test_admin_jokes_load_more(monkeypatch):
       generation_time_sec=1.23,
       cost=0.25,
     ))
-  joke.setup_image_url = "setup-url"
-  joke.punchline_image_url = "punch-url"
-  joke.all_setup_image_urls = ["setup-url"]
-  joke.all_punchline_image_urls = ["punch-url"]
+  joke.setup_image_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                          "width=1024,format=auto,quality=75/path/setup.png")
+  joke.punchline_image_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                              "width=1024,format=auto,quality=75/path/punch.png")
+  joke.all_setup_image_urls = [joke.setup_image_url]
+  joke.all_punchline_image_urls = [joke.punchline_image_url]
 
   mock_get = Mock(return_value=([(joke, "joke-1")], "next-1"))
   monkeypatch.setattr(admin_jokes_routes.firestore, "get_joke_by_state",
@@ -322,6 +327,9 @@ def test_admin_jokes_load_more(monkeypatch):
   assert "data-joke-state-button" in body["html"]
   assert "joke-edit-button" in body["html"]
   assert "joke-modify-button" in body["html"]
+  assert 'target="_blank"' in body["html"]
+  assert "width=700,format=auto,quality=75/path/setup.png" in body["html"]
+  assert "width=700,format=auto,quality=75/path/punch.png" in body["html"]
   assert 'title="SUMMARY&#10;Total Cost: $0.2500' in body["html"]
   assert '&#10;setup_image&#10;  gemini-2.5-flash-image: $0.2500 (1)' in body[
     "html"]

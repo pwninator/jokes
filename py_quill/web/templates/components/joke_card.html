@@ -1,4 +1,4 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, admin_state_selector_enabled=false, is_future_daily=None, edit_payload=None, selectable=false) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id=None, feed_cursor=None, admin_state_badge_enabled=false, admin_stats_enabled=false, admin_edit_enabled=false, admin_image_viewer_enabled=false, is_future_daily=None, edit_payload=None, selectable=false) -%}
 {% macro multiline_title_attr(text) -%}
 {%- set newline = '&#10;' | safe -%}
 {{- text | e | replace('\n', newline) -}}
@@ -32,8 +32,6 @@
   <div class="joke-viewer" data-joke-viewer>
     {% if admin_state_badge_enabled and state_value %}
       {% set state_badge_label = joke.public_timestamp.strftime('%Y-%m-%d') if is_daily and has_public_ts else state_value|lower|capitalize %}
-      {% set state_selector_clickable = admin_state_selector_enabled and state_value not in ('UNKNOWN', 'DRAFT') and (not is_daily or is_future_daily_value) %}
-      {% if state_selector_clickable %}
       <button type="button"
         class="joke-state-badge joke-state-badge--button joke-state-{{ badge_state_class }}"
         data-joke-state-button="true"
@@ -42,11 +40,6 @@
         title="Change state">
         {{ state_badge_label }}
       </button>
-      {% else %}
-      <div class="joke-state-badge joke-state-{{ badge_state_class }}" data-joke-state-badge-static>
-        {{ state_badge_label }}
-      </div>
-      {% endif %}
     {% endif %}
     <div class="joke-carousel">
       <div class="joke-carousel-viewport">
@@ -54,8 +47,17 @@
           <div class="joke-slide" aria-hidden="false">
             <div class="joke-slide-media">
               {% if joke.setup_image_url %}
-              <img src="{{ joke.setup_image_url | format_image_url(width=width) }}" alt="{{ joke.setup_text }}"
+              {% set setup_image_src = joke.setup_image_url | format_image_url(width=width) %}
+              {% set setup_image_viewer_url = joke.setup_image_url | format_image_url(width=700) %}
+              {% if admin_image_viewer_enabled %}
+              <a href="{{ setup_image_viewer_url }}" target="_blank" rel="noopener noreferrer" aria-label="Open setup image in new tab">
+                <img src="{{ setup_image_src }}" alt="{{ joke.setup_text }}"
+                  width="{{ width }}" height="{{ width }}" loading="lazy">
+              </a>
+              {% else %}
+              <img src="{{ setup_image_src }}" alt="{{ joke.setup_text }}"
                 width="{{ width }}" height="{{ width }}" loading="lazy">
+              {% endif %}
               {% else %}
               <div class="joke-slide-placeholder text-button">Illustration baking…</div>
               {% endif %}
@@ -67,8 +69,17 @@
           <div class="joke-slide" id="joke-{{ unique_id }}-punchline" aria-hidden="true">
             <div class="joke-slide-media">
               {% if joke.punchline_image_url %}
-              <img src="{{ joke.punchline_image_url | format_image_url(width=width) }}"
+              {% set punchline_image_src = joke.punchline_image_url | format_image_url(width=width) %}
+              {% set punchline_image_viewer_url = joke.punchline_image_url | format_image_url(width=700) %}
+              {% if admin_image_viewer_enabled %}
+              <a href="{{ punchline_image_viewer_url }}" target="_blank" rel="noopener noreferrer" aria-label="Open punchline image in new tab">
+                <img src="{{ punchline_image_src }}"
+                  alt="{{ joke.punchline_text }}" width="{{ width }}" height="{{ width }}" loading="lazy">
+              </a>
+              {% else %}
+              <img src="{{ punchline_image_src }}"
                 alt="{{ joke.punchline_text }}" width="{{ width }}" height="{{ width }}" loading="lazy">
+              {% endif %}
               {% else %}
               <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
               {% endif %}

@@ -20,6 +20,7 @@ const {
   initJokeAdminActions,
   isFutureDailyPayload,
   parseEditPayload,
+  updateCardFromPayload,
 } = require('./joke_admin_actions.js');
 
 function buildModalRoot(id, backdropAttr) {
@@ -398,6 +399,69 @@ test('state button opens modal with only reachable states', { concurrency: false
       env.elements.stateOptions.children.map((child) => child.textContent),
       ['Unreviewed', 'Rejected', 'Published', 'Daily'],
     );
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('state button for draft still opens modal with empty options', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+    env.elements.stateButton.setAttribute('data-joke-data', JSON.stringify({
+      joke_id: 'joke-1',
+      state: 'DRAFT',
+      public_timestamp: null,
+    }));
+    env.elements.stateButton.textContent = 'Draft';
+
+    await env.document.dispatch('click', { target: env.elements.stateButton });
+
+    assert.equal(env.elements.stateModal.classList.contains('admin-modal--open'), true);
+    assert.equal(env.elements.stateJokeId.value, 'joke-1');
+    assert.equal(env.elements.stateOptions.children.length, 0);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('state button for past daily still opens modal with empty options', { concurrency: false }, async () => {
+  const env = buildEnvironment();
+  try {
+    initJokeAdminActions({ jokeCreationUrl: 'https://example.com/joke_creation_process' });
+    env.elements.stateButton.setAttribute('data-joke-data', JSON.stringify({
+      joke_id: 'joke-1',
+      state: 'DAILY',
+      public_timestamp: '2000-01-01T00:00:00Z',
+    }));
+    env.elements.stateButton.textContent = '2000-01-01';
+
+    await env.document.dispatch('click', { target: env.elements.stateButton });
+
+    assert.equal(env.elements.stateModal.classList.contains('admin-modal--open'), true);
+    assert.equal(env.elements.stateJokeId.value, 'joke-1');
+    assert.equal(env.elements.stateOptions.children.length, 0);
+  } finally {
+    env.cleanup();
+  }
+});
+
+test('updateCardFromPayload keeps state badge interactive for non-mutable states', () => {
+  const env = buildEnvironment();
+  try {
+    updateCardFromPayload(env.elements.card, {
+      joke_id: 'joke-1',
+      state: 'UNKNOWN',
+      public_timestamp: null,
+      setup_text: 'Setup text',
+      punchline_text: 'Punchline text',
+      setup_image_url: 'https://example.com/setup-unknown.png',
+      punchline_image_url: 'https://example.com/punchline-unknown.png',
+    });
+
+    assert.equal(env.elements.stateButton.disabled, false);
+    assert.equal(env.elements.stateButton.title, 'Change state');
+    assert.equal(env.elements.stateButton.getAttribute('aria-label'), 'Change joke state');
   } finally {
     env.cleanup();
   }

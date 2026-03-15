@@ -467,22 +467,15 @@
       return;
     }
     const stateButton = card.querySelector('[data-joke-state-button]');
-    const staticBadge = card.querySelector('[data-joke-state-badge-static]');
-    const badge = stateButton || staticBadge;
-    if (!badge) {
+    if (!stateButton) {
       return;
     }
     const badgeClass = getStateBadgeClass(payload);
-    badge.className = stateButton
-      ? `joke-state-badge joke-state-badge--button joke-state-${badgeClass}`
-      : `joke-state-badge joke-state-${badgeClass}`;
-    badge.textContent = getStateBadgeText(payload);
-    if (stateButton) {
-      const options = getReachableStateOptions(payload);
-      stateButton.disabled = options.length === 0;
-      stateButton.title = options.length ? 'Change state' : '';
-      stateButton.setAttribute('aria-label', options.length ? 'Change joke state' : 'Joke state');
-    }
+    stateButton.className = `joke-state-badge joke-state-badge--button joke-state-${badgeClass}`;
+    stateButton.textContent = getStateBadgeText(payload);
+    stateButton.disabled = false;
+    stateButton.title = 'Change state';
+    stateButton.setAttribute('aria-label', 'Change joke state');
   }
 
   function setSlideMedia(slide, imageUrl, altText, placeholderText, size) {
@@ -1344,9 +1337,6 @@
       const stateButton = closestFromEvent(event, '[data-joke-state-button]');
       if (stateButton && !stateButton.disabled) {
         const payload = parseEditPayload(stateButton.getAttribute('data-joke-data'));
-        if (!getReachableStateOptions(payload).length) {
-          return;
-        }
         populateStateModal(payload, stateButton.closest('.joke-card'));
         openModal(elements.stateModal, elements.stateOptions);
         return;

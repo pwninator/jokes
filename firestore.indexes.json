@@ -20,29 +20,6 @@
       "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "books",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "owner_user_id",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creation_time",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "title",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
       "collectionGroup": "joke_search",
       "queryScope": "COLLECTION",
       "fields": [
@@ -207,84 +184,11 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "creation_time",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "setup_image_url",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
           "fieldPath": "is_public",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "popularity_score_recent",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "is_public",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "seasonal",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "num_saved_users_fraction",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "is_public",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "seasonal",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "public_timestamp",
           "order": "DESCENDING"
         },
         {
@@ -326,77 +230,8 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "num_saved_users_fraction",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "is_public",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "popularity_score",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "is_public",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "state",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "popularity_score",
           "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "is_public",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "public_timestamp",
-          "order": "ASCENDING"
         },
         {
           "fieldPath": "__name__",
@@ -433,7 +268,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "seasonal",
+          "fieldPath": "joke_social_post_id",
           "order": "ASCENDING"
         },
         {
@@ -518,7 +353,7 @@
         },
         {
           "fieldPath": "public_timestamp",
-          "order": "ASCENDING"
+          "order": "DESCENDING"
         },
         {
           "fieldPath": "__name__",
